@@ -195,6 +195,37 @@ class Search(Cog):
                     rip = fmt.inline("No movie found with this search query")
         return rip, emb
 
+    @command()
+    @bot_has_permissions(send_messages=True)
+    async def games(self, ctx, *, query):
+        """killerspiele"""
+        url = f"https://api-v3.igdb.com/games"
+        main_query = f"search {query}; fields name,release_date.human,age_ratings,summary,url,cover;"
+
+        async with aiohttp.ClientSession(headers={"user-key": config.igdb, "accept": "application/json"}) as session:
+            async with session.post(url, data=main_query) as response:
+                if response.status is not 200:
+                    err = f'The api-webserver responded with a code: {response.status} - {response.reason}'
+                    raise NerpyException(err)
+                data = await response.json()
+
+                emb = discord.Embed(title=data['name'])
+                emb.description = data['summary']
+                emb.add_field(name=fmt.bold("Release Date"), value=data['release_date'])
+                emb.add_field(name=fmt.bold("Age Rating"), value=data['age_ratings'])
+                emb.set_footer(text=data['url'])
+
+                cover_query = f"fields url; where id = {data['cover']}"
+                async with session.post(url, data=cover_query) as response1:
+                    if response1.status is 200:
+                        img_data = await response1.json()
+                        emb.set_thumbnail(url=img_data['url'])
+
+                await ctx.send(embed=emb)
+
+
+    async def game_search(self, query: str):
+
 
 def setup(bot):
     """adds this module to the bot"""
