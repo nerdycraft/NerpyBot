@@ -224,9 +224,6 @@ class Search(Cog):
                 await ctx.send(embed=emb)
 
 
-    async def game_search(self, query: str):
-
-
 def setup(bot):
     """adds this module to the bot"""
     bot.add_cog(Search(bot))
