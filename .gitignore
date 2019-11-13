@@ -1,0 +1,14 @@
+/.vs
+__pycache__/
+*.pyc
+*.idb
+*.exe
+*.dll
+.idea/
+.ptvs
+/NerdyPy/audio
+/NerdyPy/*.db
+.vscode
+venv/
+tmp/
+/NerdyPy/config.py

@@ -1,0 +1,2 @@
+class NerpyException(Exception):
+    pass

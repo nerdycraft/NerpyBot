@@ -1,0 +1,127 @@
+2336661 (HEAD -> develop, origin/develop) * there are still some Issue with coding style, but this is intended (mostly) * updated google-api-python-client to 1.6.2
+0cc908b Revert: Merge branch 'module_insult' of git.ethernerd.net:shyrik/NerpyBot into develop
+bacc393 Merge branch 'module_insult' of git.ethernerd.net:shyrik/NerpyBot into develop
+8ae7af3 * Refactored Files * added setup.py * fixed Database Bug (orderby)
+1d789e4 (origin/master, origin/HEAD, master) fixed order_by bug once again
+987cfa6 Update LICENSE
+f7a5531 Add LICENSE
+39c1a87 we do need aiohttp in version 3.1.x
+455eca9 reverted discord dependency
+a02033f fixed requirements.txt
+4d30f52 (origin/module_insult) Merge branch 'master' into module_insult
+da3db47 added venv to gitignore
+f03dd28 added league of legends summoner command
+befa0f5 fixed user info
+bb8de64 error handling needs to be better...
+05539bc added userinfo account
+24c7818 formatting \o/
+8286a7e added membercount command
+48cbecc moved 3 commands from admin to utility
+85b948e quick formatted every file
+b46f9c6 added !catfact command enhanced random trump quote command some code cleaning
+e64d4db clean up in audio.py possible fix to queues
+71e5b06 for some reason deleted messages in a DM channel throws an exception although he does delete the message .....
+91aa8be fixed roti random function
+c8ccde1 moved exception handling to main class
+4349e7d help text for admin command
+e497400 cleaned up hug command
+895d2d0 added omdb search command
+162a66d better error handling
+d0d6761 modules random and search are all own commands now
+779bd48 moved roti to fun module
+2fcbad8 hopefully fixed all merge bugs
+6fde1c6 fire and forget
+e973f7a added needed permissions to each command somehow "speak" and "connect" permissions dont work
+5fce05a fixed calling audio tags while not being in a channel crash
+ba2a4ff fixed sqlite filter for tags guildid
+9e9935f fixed is_botmod check
+96669ef fixed crash on roll command
+4f7bb55 +added !weather command to utility module +added bold to formater
+1879882 +added !say command
+4740664 made dennis op :3
+05637ef added !uptime command for botmods
+196e0e7 *missing await command in is_botmod check
+943a15b *!shutdown commands can now only be used by bot operators defined in the config *!stop and !leave now need the role "BotModerator" to be used (or OP)
+ea21282 server is shutting down way smoother now (no loop kills)
+a3c7c39 *!remindme doesnt need quotes for the text anymore
+bb4e99a *comments for !help command *a start of error handling? *search queries do not need to be quoted anymore
+803fe64 *renamed general module to fun
+68b6882 * fixed tag_from_guild oderby statement * get tag will now look for the guild again * fixed !tag list not returning any tags * fixed tag command not playing sounds
+5397d4a *fuck deepcopy
+770e214 +added FFMPEG transform after audio download
+7405817 *fixed stop command getting the guild id rather then the guild itself
+8de28e7 *another format change?
+8f1850b *changed help formating*
+7270ccd *ascii command now inline format for better visibility
+b04e1cc *I MUSST WRITE AWAIT
+b91805a *fixed missing import
+609f944 *= = =
+e5bbf1d *not not not
+6ccfe00 *await await await
+8dfd5ff Merge branch 'master' of git.ethernerd.net:shyrik/NerpyBot
+526962b ????
+5810060 +added rules of the internet command
+aeae116 +added pyfiglet lib to apply 'fonts' to text +implemented text transforming command 'ascii'
+8e4fef5 *apparently the base bot has a default help command which has a wierd behavior (imho) removed it to add my own
+8068418 *started using embeds for search results responses
+5ab7e56 +added penis length calculator
+cbfa091 +bot has a "playing" text
+7864af5 *forgot the help help
+83daac8 +implemented help command and help for every module
+2da8d43 +implemented a timeout for the bots voice client
+6ea2d3f *updated vs project file
+ce70d47 +added alias for tag +implemented error msg for not finding tags on play +added non sound tag sending
+03e4726 *ficked admin command not loading
+02d5501 *fixed import order after auto sort *fixed queue handling (hopefully?) *more pyling happyness
+02c3a3d *made pylint more happy
+4662fa3 *fixed working dir
+d62ea7b +extended error handling
+b2332ae +added checks for admin commands
+d435fa9 yes
+93eb8fc oops
+e44b165 *made pyling happy
+77a0962 +some random docstrings *some random formatting
+59ef46b ...
+8a4cae3 +implemented stop audio (TODO make admin only)
+9d21069 +implemented audio transmission for tags (still WIP but it works basically) *updated libs and requirements
+df3e2ad *and when i say they shouldnt be in the repo, i should prolly commit the ignore file too
+f13526b -db shouldn't be in the repo either
+91b3301 -venv shouldn't be on checked in
+9a58d45 Merge branches 'master' and 'module_insult' of git.ethernerd.net:shyrik/NerpyBot
+356e460 + added insult module
+6348d9d +added logging possibity *fixed TagModel internal method calls
+bdd2cd8 *fixed imports for database *fixed tag entry not initializing
+e8a112d *updated and migrated discord api to v1.0
+d435b24 +added init py for modules *fixed imports in init models
+9db5ea2 *fixed load modules method
+64f285e *updated requirements.txt
+764c9b9 *more progress on the tag module *changed how tables are creates (NEEDS TESTING!)
+cc3458c +started implementing tag module +somewhat of db implemtation?
+6dc521e - removed some more unused import statements
+5b6c87d * updated deprecated code * made xkcd random again - removed unused import statements
+e32f84b fixed xml parsing
+7d74c54 tried to make it work. didn't worked out
+63c0ed1 *updated gitignore
+73b5d3a -remove ptvs files (python tools visual studio
+fc1dd95 +added anime search (inkl libs) [WIP]
+c3f176d fixed double responses
+57030e4 updated gitignore
+e8ea17b removed *.pyc fixed import
+d453009 +added varius format methods *fixed lyrics shearch *fixed random xkcd *fixed imgur search -removed random penguin due to depricated api
+bdba662 *fixed missing string format for hug command
+026ee45 *edit general commands for better output
+973fa15 +youtube api +youtube search
+a82a3a7 +hug command
+150607b +varius search commands (YT MISSING) +uncategorized commands
+406cda2 added varius random commands added MLStripper to utils
+628773f +failsafe method (autorestart) +admin cog (TODO: make it mandetory)
+e7eee7e compiled python no longer commits
+768bae1 deleted backup?
+605820a user message deletes on command completion
+27f22e3 fixed lenny command
+0598f6f updated requirements
+a2ea79d no compiled python files locally
+ea866d6 added requirments.txt
+150961e test push
+506a178 introducing somekind of not working classes and stuff
+13d9564 initial commit
