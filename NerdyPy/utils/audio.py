@@ -60,6 +60,7 @@ class Audio:
         self._queue[channel.guild.id][QueueKey.CHANNEL] = channel
 
     def _setup_queue(self, guild_id):
+        self._lastplayed[guild_id] = datetime.now()
         self._queue[guild_id] = {QueueKey.CHANNEL: None,
                                  QueueKey.QUEUE: collections.deque(),
                                  QueueKey.VOICE_CLIENT: None}
