@@ -3,6 +3,7 @@
 import aiohttp
 import config
 import discord
+from datetime import datetime
 import utils.format as fmt
 from lxml import etree
 from utils.errors import NerpyException
@@ -200,28 +201,56 @@ class Search(Cog):
     async def games(self, ctx, *, query):
         """killerspiele"""
         url = f"https://api-v3.igdb.com/games"
-        main_query = f"search {query}; fields name,release_date.human,age_ratings,summary,url,cover;"
+        main_query = f"search \"{query}\";" \
+                     "fields name,first_release_date,aggregated_rating,summary,genres.name,url,cover.url;" \
+                     "limit 6;"
 
         async with aiohttp.ClientSession(headers={"user-key": config.igdb, "accept": "application/json"}) as session:
             async with session.post(url, data=main_query) as response:
                 if response.status is not 200:
                     err = f'The api-webserver responded with a code: {response.status} - {response.reason}'
                     raise NerpyException(err)
-                data = await response.json()
+                result = await response.json()
 
-                emb = discord.Embed(title=data['name'])
-                emb.description = data['summary']
-                emb.add_field(name=fmt.bold("Release Date"), value=data['release_date'])
-                emb.add_field(name=fmt.bold("Age Rating"), value=data['age_ratings'])
-                emb.set_footer(text=data['url'])
+                if len(result) > 0:
+                    data = result[0]
+                    emb = discord.Embed(title=data['name'])
+                    if 'summary' in data:
+                        emb.description = data['summary']
+                    else:
+                        emb.description = "Lorem ipsum dolor sit amet, consectetur adipisici elit."
 
-                cover_query = f"fields url; where id = {data['cover']}"
-                async with session.post(url, data=cover_query) as response1:
-                    if response1.status is 200:
-                        img_data = await response1.json()
-                        emb.set_thumbnail(url=img_data['url'])
+                    if 'cover' in data:
+                        emb.set_thumbnail(url="https:" + data['cover']['url'])
 
-                await ctx.send(embed=emb)
+                    if 'first_release_date' in data:
+                        dt = datetime.utcfromtimestamp(int(data['first_release_date'])).strftime('%Y-%m-%d')
+                        emb.add_field(name=fmt.bold("Release Date"),
+                                      value=dt)
+                    else:
+                        emb.add_field(name=fmt.bold("Release Date"), value="no info")
+
+                    if 'aggregated_rating' in data:
+                        emb.add_field(name=fmt.bold("Genres"), value=', '.join(g['name'] for g in data['genres']))
+                    else:
+                        emb.add_field(name=fmt.bold("Genres"), value="no info")
+
+                    if 'aggregated_rating' in data:
+                        emb.add_field(name=fmt.bold("Rating"), value=f"{int(data['aggregated_rating'])}/100")
+                    else:
+                        emb.add_field(name=fmt.bold("Rating"), value="no rating")
+
+                    if len(result) > 1:
+                        i = iter(result)
+                        next(i)
+                        emb.add_field(name=fmt.bold("wrong answer? try:"),
+                                      value='\n'.join(" - " + r['name'] for r in i))
+
+                    emb.set_footer(text=data['url'])
+
+                    await ctx.send(embed=emb)
+                else:
+                    await ctx.send(f"Nothing found for {query}.")
 
 
 def setup(bot):
