@@ -55,14 +55,14 @@ class Tagging(Cog):
             Tag.add(_tag, session)
             session.flush()
 
-            self._add_tag_entries(session, _tag, content[0])
+            self._add_tag_entries(session, _tag, content)
 
             self.bot.log.info(f'creating tag {ctx.guild.name}/{name} finished')
             await ctx.send(f'tag {name} created!')
 
     @tag.command()
     @bot_has_permissions(send_messages=True)
-    async def add(self, ctx, name: clean_content, *content):
+    async def add(self, ctx, name: clean_content, *content: clean_content):
         """add an entry to an existing tag"""
         if not Tag.exists(name, ctx.guild.id):
             raise NerpyException('tag doesn\'t exists!')
@@ -138,7 +138,7 @@ class Tagging(Cog):
             await ctx.send(fmt.box(msg))
 
     # noinspection PyMethodMayBeStatic
-    def _add_tag_entries(self, session, _tag, *content):
+    def _add_tag_entries(self, session, _tag, content):
         for entry in content:
             if _tag.Type == TagType.text.value or _tag.Type == TagType.url.value:
                 _tag.add_entry(entry, session)
