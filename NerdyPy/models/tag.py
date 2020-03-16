@@ -52,7 +52,7 @@ class Tag(db.BASE):
 
     @classmethod
     def add(cls, tag, session):
-        """deletes a tag with given name for given guild"""
+        """add a tag with given name for given guild"""
         session.add(tag)
 
     def add_entry(self, text: str, session, byt: bytes = None):
