@@ -45,11 +45,18 @@ def download(url: str):
     dlfile = ""
     ytdl = youtube_dl.YoutubeDL(YTDL_ARGS)
 
+    req = urllib.request.Request(
+        url,
+        headers={
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'
+        }
+    )
+
     split = os.path.splitext(url)
 
     if split[1] is not None and split[1] is not '':
         dlfile = os.path.join(DL_DIR, f'{str(uuid.uuid4())}{split[1]}')
-        with urllib.request.urlopen(url) as response, open(dlfile, 'wb') as out_file:
+        with urllib.request.urlopen(req) as response, open(dlfile, 'wb') as out_file:
             shutil.copyfileobj(response, out_file)
     else:
         video = ytdl.extract_info(url)
