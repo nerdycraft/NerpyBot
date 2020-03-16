@@ -49,7 +49,7 @@ class Tagging(Cog):
                        Type=tag_type,
                        CreateDate=datetime.datetime.utcnow(),
                        Count=0,
-                       Volume=30,
+                       Volume=100,
                        GuildId=ctx.guild.id)
 
             Tag.add(_tag, session)
