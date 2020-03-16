@@ -81,7 +81,7 @@ class Tagging(Cog):
 
         with session_scope() as session:
             _tag = Tag.get(name, ctx.guild.id, session)
-            _tag.volume = vol
+            _tag.Volume = vol
             session.flush()
 
     @tag.command()
