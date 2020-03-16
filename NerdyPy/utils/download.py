@@ -6,9 +6,9 @@ Needs testing!
 
 import os
 import shutil
-import subprocess
 import urllib.request
 import uuid
+import ffmpeg
 from utils.errors import NerpyException
 
 import youtube_dl
@@ -25,6 +25,19 @@ YTDL_ARGS = {
     'audioformat': "mp3",
     'default_search': 'auto',
 }
+
+
+def convert(file):
+    """Convert downloaded file to playable ByteStream"""
+    # TODO: Add better Exception handling
+    stream, _ = (ffmpeg
+                 .input(file)
+                 .filter('loudnorm')
+                 .output('pipe:', format="mp3", ac=2, ar='48000')
+                 .overwrite_output()
+                 .run(capture_stdout=True)
+                 )
+    return stream
 
 
 def download(url: str):
@@ -49,19 +62,8 @@ def download(url: str):
 
     if dlfile is None:
         raise NerpyException(f'could not find a download in: {url}')
-
-    # TODO: Add better Exception handling
-    outfile = f'{str(uuid.uuid4())}.mp3'
-    command = ['ffmpeg',
-               "-i", dlfile,
-               "-f", "mp3",
-               "-ar", "48000",
-               "-ac", "2",
-               "-loglevel", "warning",
-               outfile]
-    subprocess.call(command)
-    # TODO use stdout to get bytes?
-    return outfile
+    else:
+        return convert(dlfile)
 
 
 class Song:
