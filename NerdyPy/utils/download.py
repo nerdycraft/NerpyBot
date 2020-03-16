@@ -6,9 +6,9 @@ Needs testing!
 
 import os
 import shutil
-import subprocess
 import urllib.request
 import uuid
+import ffmpeg
 from utils.errors import NerpyException
 
 import youtube_dl
@@ -27,16 +27,36 @@ YTDL_ARGS = {
 }
 
 
+def convert(file):
+    """Convert downloaded file to playable ByteStream"""
+    # TODO: Add better Exception handling
+    stream, _ = (ffmpeg
+                 .input(file)
+                 .filter('loudnorm')
+                 .output('pipe:', format="mp3", ac=2, ar='48000')
+                 .overwrite_output()
+                 .run(capture_stdout=True)
+                 )
+    return stream
+
+
 def download(url: str):
     """download audio content (maybe transform?)"""
     dlfile = ""
     ytdl = youtube_dl.YoutubeDL(YTDL_ARGS)
 
+    req = urllib.request.Request(
+        url,
+        headers={
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'
+        }
+    )
+
     split = os.path.splitext(url)
 
     if split[1] is not None and split[1] is not '':
         dlfile = os.path.join(DL_DIR, f'{str(uuid.uuid4())}{split[1]}')
-        with urllib.request.urlopen(url) as response, open(dlfile, 'wb') as out_file:
+        with urllib.request.urlopen(req) as response, open(dlfile, 'wb') as out_file:
             shutil.copyfileobj(response, out_file)
     else:
         video = ytdl.extract_info(url)
@@ -49,19 +69,8 @@ def download(url: str):
 
     if dlfile is None:
         raise NerpyException(f'could not find a download in: {url}')
-
-    # TODO: Add better Exception handling
-    outfile = f'{str(uuid.uuid4())}.mp3'
-    command = ['ffmpeg',
-               "-i", dlfile,
-               "-f", "mp3",
-               "-ar", "48000",
-               "-ac", "2",
-               "-loglevel", "warning",
-               outfile]
-    subprocess.call(command)
-    # TODO use stdout to get bytes?
-    return outfile
+    else:
+        return convert(dlfile)
 
 
 class Song:

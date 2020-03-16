@@ -69,7 +69,6 @@ class Tagging(Cog):
 
         with session_scope() as session:
             _tag = Tag.get(name, ctx.guild.id, session)
-
             self._add_tag_entries(session, _tag, content)
 
     @tag.command()
@@ -143,10 +142,7 @@ class Tagging(Cog):
             if _tag.Type == TagType.text.value or _tag.Type == TagType.url.value:
                 _tag.add_entry(entry, session)
             elif _tag.Type is TagType.sound.value:
-                file = download(entry)
-                with open(file, 'rb') as dl_file:
-                    _tag.add_entry(entry, session, byt=dl_file.read())
-                os.remove(file)
+                _tag.add_entry(entry, session, byt=download(entry))
 
     async def _send(self, ctx, tag_name):
         self.bot.log.info(f'{ctx.guild.name} requesting {tag_name} tag')

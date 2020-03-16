@@ -56,7 +56,7 @@ class Tag(db.BASE):
         session.add(tag)
 
     def add_entry(self, text: str, session, byt: bytes = None):
-        """deletes a tag entry with given name for given guild"""
+        """add a tag entry with given name for given guild"""
         session.add(TagEntry(TagId=self.Id, TextContent=text, ByteContent=byt))
 
     def __str__(self):
