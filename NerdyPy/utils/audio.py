@@ -7,8 +7,8 @@ import discord
 import collections
 from datetime import datetime
 
-if not discord.opus.is_loaded():
-    discord.opus.load_opus('libopus-0.dll')
+#if not discord.opus.is_loaded():
+    #discord.opus.load_opus('libopus-0.dll')
 
 
 class QueueKey(enum.Enum):
