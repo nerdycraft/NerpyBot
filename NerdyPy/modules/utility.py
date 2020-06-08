@@ -1,5 +1,4 @@
 import config
-import asyncio
 import aiohttp
 import discord
 import datetime
@@ -47,8 +46,6 @@ class Utility(Cog):
     @check(is_botmod)
     async def userinfo(self, ctx, user: discord.Member):
         """displays information about given user [bot-moderator]"""
-        # profile = await user.get_user_profile(user.id)
-
         created = user.created_at.strftime('%d. %B %Y - %H:%M')
         joined = user.joined_at.strftime('%d. %B %Y - %H:%M')
 
@@ -57,9 +54,6 @@ class Utility(Cog):
         emb.set_thumbnail(url=user.avatar_url)
         emb.add_field(name='created', value=created)
         emb.add_field(name='joined', value=joined)
-        # emb.add_field(name='premium', value=profile.nitro)
-        # for acc in profile['connected_accounts']:
-        #    emb.add_field(name=acc.get('type'), value=acc.get('name'))
         emb.add_field(name='top role', value=user.top_role.name.replace('@', ""))
         rn = []
         for r in user.roles:

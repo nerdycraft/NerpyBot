@@ -60,9 +60,6 @@ class League(Cog):
     async def summoner(self, ctx, region: RegionConverter, *, summoner_name: str):
         """get information about the summoner"""
         rank = tier = lp = wins = losses = ""
-        # p = re.compile('^[0-9{L} _\\.]+$')
-        # if not p.match(summoner_name):
-        #   raise NerpyException(f'Summoner name {summoner_name} contains illegal characters')
 
         summoner_url = self._get_url(region, LeagueCommand.SUMMONER_BY_NAME, summoner_name)
 

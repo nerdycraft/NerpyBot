@@ -1,5 +1,4 @@
 import config
-import asyncio
 
 
 async def is_operator(ctx):

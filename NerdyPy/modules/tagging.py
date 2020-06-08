@@ -1,5 +1,4 @@
 import io
-import os
 import datetime
 import utils.format as fmt
 from random import randint
@@ -30,7 +29,6 @@ class Tagging(Cog):
             await self._send(ctx, args[1])
 
     @tag.command()
-    # @commands.bot_has_permissions(connect=True, speak=True)
     async def send(self, ctx, name: clean_content):
         """send your favorite tag"""
         await self._send(ctx, name)
