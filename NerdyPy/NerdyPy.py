@@ -81,8 +81,8 @@ class NerpyBot(commands.Bot):
         """
         self.log.info("shutting down server!")
         self.restart = False
-        await self.audio.riploop()
-        await self.reminder.riploop()
+        await self.audio.rip_loop()
+        await self.reminder.rip_loop()
         await self.logout()
 
     def _import_modules(self):

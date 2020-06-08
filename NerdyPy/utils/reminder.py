@@ -8,8 +8,8 @@ class Reminder:
     def __init__(self, bot):
         self.bot = bot
         self.reminders = []
-        self.doloop = True
-        self.bot.loop.create_task(self._loopingloui())
+        self.doLoop = True
+        self.bot.loop.create_task(self._loop())
 
     def add(self, author, channel, time, message):
         self.reminders.append({'author': author,
@@ -18,9 +18,9 @@ class Reminder:
                                'message': message
                                })
 
-    async def _loopingloui(self):
-        self.looprunning = True
-        while self.doloop:
+    async def _loop(self):
+        self.loopRunning = True
+        while self.doLoop:
             await asyncio.sleep(1)
 
             removals = []
@@ -33,9 +33,9 @@ class Reminder:
 
             for r in removals:
                 self.reminders.remove(r)
-        self.looprunning = False
+        self.loopRunning = False
 
-    async def riploop(self):
-        self.doloop = False
-        while self.looprunning:
+    async def rip_loop(self):
+        self.doLoop = False
+        while self.loopRunning:
             await asyncio.sleep(1)
