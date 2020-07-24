@@ -46,18 +46,30 @@ class NerpyBot(commands.Bot):
 
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandError):
-            if isinstance(error, commands.CommandInvokeError) and not isinstance(error.original, NerpyException):
-                print(f'In {ctx.command.qualified_name}:', file=sys.stderr)
+            if isinstance(error, commands.CommandInvokeError) and not isinstance(
+                error.original, NerpyException
+            ):
+                print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
                 traceback.print_tb(error.original.__traceback__)
-                print(f'{error.original.__class__.__name__}: {error.original}', file=sys.stderr)
-                await ctx.author.send('Unhandled error occured. Please report to bot author!')
+                print(
+                    f"{error.original.__class__.__name__}: {error.original}",
+                    file=sys.stderr,
+                )
+                await ctx.author.send(
+                    "Unhandled error occured. Please report to bot author!"
+                )
             else:
                 await ctx.author.send(error)
         else:
-            print(f'In {ctx.command.qualified_name}:', file=sys.stderr)
+            print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
             traceback.print_tb(error.original.__traceback__)
-            print(f'{error.original.__class__.__name__}: {error.original}', file=sys.stderr)
-            await ctx.author.send('Unhandled error occured. Please report to bot author!')
+            print(
+                f"{error.original.__class__.__name__}: {error.original}",
+                file=sys.stderr,
+            )
+            await ctx.author.send(
+                "Unhandled error occured. Please report to bot author!"
+            )
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
 
@@ -90,10 +102,10 @@ class NerpyBot(commands.Bot):
             split = os.path.splitext(file)
             if split[1] == ".py" and split[0] != "__init__":
                 try:
-                    self.load_extension(f'modules.{split[0]}')
+                    self.load_extension(f"modules.{split[0]}")
                 except (ImportError, discord.ClientException):
                     # TODO: Add better Exception handling
-                    self.log.error(f'failed to load extension {split[0]}.')
+                    self.log.error(f"failed to load extension {split[0]}.")
                     traceback.print_exc()
 
     # noinspection PyMethodMayBeStatic
@@ -101,8 +113,10 @@ class NerpyBot(commands.Bot):
         logger = logging.getLogger("Nerpy")
         logger.setLevel(logging.INFO)
 
-        fmt = logging.Formatter('%(asctime)s %(levelname)s %(module)s %(funcName)s %(lineno)d: %(message)s',
-                                datefmt="[%d/%m/%Y %H:%M]")
+        fmt = logging.Formatter(
+            "%(asctime)s %(levelname)s %(module)s %(funcName)s %(lineno)d: %(message)s",
+            datefmt="[%d/%m/%Y %H:%M]",
+        )
 
         stdout_handler = logging.StreamHandler(sys.stdout)
         stdout_handler.setFormatter(fmt)

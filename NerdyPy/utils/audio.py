@@ -7,12 +7,10 @@ import discord
 import collections
 from datetime import datetime
 
-#if not discord.opus.is_loaded():
-    #discord.opus.load_opus('libopus-0.dll')
-
 
 class QueueKey(enum.Enum):
     """Keys for the guild queue"""
+
     CHANNEL = 1
     QUEUE = 2
     VOICE_CLIENT = 3
@@ -43,8 +41,10 @@ class Audio:
         await self._join_channel(song.channel)
         source = discord.PCMVolumeTransformer(discord.PCMAudio(song.stream))
         source.volume = song.volume / 100
-        song.channel.guild.voice_client.play(source,
-                                             after=lambda e: self.bot.log.error('Player error: %s' % e) if e else None)
+        song.channel.guild.voice_client.play(
+            source,
+            after=lambda e: self.bot.log.error("Player error: %s" % e) if e else None,
+        )
 
         self.lastPlayed[song.channel.guild.id] = datetime.now()
 
@@ -61,9 +61,11 @@ class Audio:
 
     def _setup_queue(self, guild_id):
         self.lastPlayed[guild_id] = datetime.now()
-        self.queue[guild_id] = {QueueKey.CHANNEL: None,
-                                QueueKey.QUEUE: collections.deque(),
-                                QueueKey.VOICE_CLIENT: None}
+        self.queue[guild_id] = {
+            QueueKey.CHANNEL: None,
+            QueueKey.QUEUE: collections.deque(),
+            QueueKey.VOICE_CLIENT: None,
+        }
 
     def _add_to_queue(self, guild_id, song):
         self.queue[guild_id][QueueKey.QUEUE].append(song)
@@ -99,7 +101,11 @@ class Audio:
             await asyncio.sleep(2)
             last = dict(self.lastPlayed)
             for guild_id in last:
-                if self._has_queue(guild_id) and self._has_item_in_queue(guild_id) and not self._is_playing(guild_id):
+                if (
+                    self._has_queue(guild_id)
+                    and self._has_item_in_queue(guild_id)
+                    and not self._is_playing(guild_id)
+                ):
                     queued_song = self.queue[guild_id][QueueKey.QUEUE].popleft()
                     await self._play(queued_song)
         self.queue_loop_running = False

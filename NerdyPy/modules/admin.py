@@ -8,7 +8,7 @@ class Admin(Cog):
     """cog for administrative usage"""
 
     def __init__(self, bot):
-        bot.log.info(f'loaded {__name__}')
+        bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
 

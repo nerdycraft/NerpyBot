@@ -12,11 +12,9 @@ class Reminder:
         self.bot.loop.create_task(self._loop())
 
     def add(self, author, channel, time, message):
-        self.reminders.append({'author': author,
-                               'channel': channel,
-                               'time': time,
-                               'message': message
-                               })
+        self.reminders.append(
+            {"author": author, "channel": channel, "time": time, "message": message}
+        )
 
     async def _loop(self):
         self.loopRunning = True
@@ -25,10 +23,10 @@ class Reminder:
 
             removals = []
             for rem in self.reminders:
-                if rem['time'] <= datetime.now():
-                    mention = rem['author'].mention
-                    message = rem['message']
-                    await rem['channel'].send(f'{mention}, reminding you of: {message}')
+                if rem["time"] <= datetime.now():
+                    mention = rem["author"].mention
+                    message = rem["message"]
+                    await rem["channel"].send(f"{mention}, reminding you of: {message}")
                     removals.append(rem)
 
             for r in removals:

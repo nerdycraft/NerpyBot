@@ -7,10 +7,11 @@ from sqlalchemy import BigInteger, Column, ForeignKey, LargeBinary, String
 
 class TagEntry(BASE):
     """Database Entity Model for tag entries"""
+
     __tablename__ = "TagEntry"
 
     Id = Column(BigInteger, primary_key=True)
-    TagId = Column(BigInteger, ForeignKey('Tag.Id'))
+    TagId = Column(BigInteger, ForeignKey("Tag.Id"))
     TextContent = Column(String)
     ByteContent = Column(LargeBinary)
 

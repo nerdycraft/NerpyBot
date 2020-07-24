@@ -19,7 +19,7 @@ class MLStripper(HTMLParser):
 
     def get_data(self):
         """return data"""
-        return ''.join(self.fed)
+        return "".join(self.fed)
 
     def error(self, message):
         """had to do this cuz abstract"""
@@ -35,7 +35,7 @@ def strip_tags(html):
 
 def box(text, lang=""):
     """discord format for box with optional language highlighting"""
-    return f'```{lang}\n{text}\n```'
+    return f"```{lang}\n{text}\n```"
 
 
 def inline(text):
