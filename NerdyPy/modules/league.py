@@ -16,8 +16,8 @@ class Region(Enum):
 class LeagueCommand(Enum):
     """league regions"""
 
-    SUMMONER_BY_NAME = "summoner/v3/summoners/by-name/"
-    RANK_POSITIONS = "league/v3/positions/by-summoner/"
+    SUMMONER_BY_NAME = "summoner/v4/summoners/by-name/"
+    RANK_POSITIONS = "league/v4/entries/by-summoner/"
 
 
 class RegionConverter(Converter):
@@ -42,9 +42,7 @@ class League(Cog):
 
         if self.version is None:
             async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"https://euw1.api.riotgames.com/lol/static-data/v3/versions?api_key={config.riot}"
-                ) as response:
+                async with session.get("https://ddragon.leagueoflegends.com/api/versions.json") as response:
                     data = await response.json()
                     self.version = data[0]
         return self.version
@@ -52,20 +50,20 @@ class League(Cog):
     # noinspection PyMethodMayBeStatic
     def _get_url(self, region, cmd: LeagueCommand, arg: str):
         base_url = f"https://{region}.api.riotgames.com/lol/"
-        api_url = f"?api_key={config.riot}"
-        return f"{base_url}{cmd.value}{arg}{api_url}"
+        return f"{base_url}{cmd.value}{arg}"
 
     @command()
     async def summoner(self, ctx, region: RegionConverter, *, summoner_name: str):
         """get information about the summoner"""
         rank = tier = lp = wins = losses = ""
 
+        auth_header = {"X-Riot-Token": config.riot}
         summoner_url = self._get_url(region, LeagueCommand.SUMMONER_BY_NAME, summoner_name)
 
-        async with aiohttp.ClientSession() as summoner_session:
+        async with aiohttp.ClientSession(headers=auth_header) as summoner_session:
             async with summoner_session.get(summoner_url) as summoner_response:
                 data = await summoner_response.json()
-                if data["status"]["status_code"] != "200":
+                if "status" in data:
                     raise NerpyException("Could not get data from API. Please report to Bot author.")
                 else:
                     summoner_id = data.get("id")
@@ -75,7 +73,7 @@ class League(Cog):
 
                     rank_url = self._get_url(region, LeagueCommand.RANK_POSITIONS, summoner_id)
 
-                    async with aiohttp.ClientSession() as rank_session:
+                    async with aiohttp.ClientSession(headers=auth_header) as rank_session:
                         async with rank_session.get(rank_url) as rank_response:
                             data = await rank_response.json()
                             played_ranked = len(data) > 0
