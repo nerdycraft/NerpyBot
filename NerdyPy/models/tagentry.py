@@ -1,11 +1,12 @@
 """ tag entry database model """
 # -*- coding: utf-8 -*-
-from utils.database import BASE
+
+from utils import database as db
 from sqlalchemy.orm import relationship
 from sqlalchemy import Integer, Column, ForeignKey, LargeBinary, String, Index
 
 
-class TagEntry(BASE):
+class TagEntry(db.BASE):
     """Database Entity Model for tag entries"""
 
     __tablename__ = "TagEntry"
