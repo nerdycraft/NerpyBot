@@ -63,7 +63,7 @@ class League(Cog):
         async with aiohttp.ClientSession(headers=auth_header) as summoner_session:
             async with summoner_session.get(summoner_url) as summoner_response:
                 data = await summoner_response.json()
-                if "status" in data:
+                if "status" in data:  # if query is successfull there is no status key
                     raise NerpyException("Could not get data from API. Please report to Bot author.")
                 else:
                     summoner_id = data.get("id")
