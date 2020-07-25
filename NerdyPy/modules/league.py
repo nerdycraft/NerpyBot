@@ -1,6 +1,5 @@
 import config
 import discord
-import asyncio
 import aiohttp
 from enum import Enum
 from utils.errors import NerpyException
@@ -22,9 +21,7 @@ class LeagueCommand(Enum):
 
 
 class RegionConverter(Converter):
-
-    @asyncio.coroutine
-    def convert(self, ctx, argument):
+    async def convert(self, ctx, argument):
         up = argument.upper()
         try:
             return Region[up].value

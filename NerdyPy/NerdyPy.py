@@ -73,19 +73,18 @@ class NerpyBot(commands.Bot):
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
 
-    @asyncio.coroutine
-    def run(self):
+    async def run(self):
         """
         generator connects the discord bot to the server
         """
         self.log.info("Logging into Discord...")
         if config.token:
             self.activity = discord.Game(name="!help for help")
-            yield from self.login(config.token)
+            await self.login(config.token)
         else:
             self.log.error("No credentials available to login.")
             raise RuntimeError()
-        yield from self.connect()
+        await self.connect()
 
     async def shutdown(self):
         """

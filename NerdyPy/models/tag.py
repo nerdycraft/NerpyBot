@@ -1,7 +1,6 @@
 """ uhm """
 # -*- coding: utf-8 -*-
 
-import asyncio
 from enum import Enum
 from models.tagentry import TagEntry
 from utils.errors import NerpyException
@@ -90,9 +89,7 @@ class Tag(db.BASE):
 
 
 class TagConverter(Converter):
-
-    @asyncio.coroutine
-    def convert(self, ctx, argument):
+    async def convert(self, ctx, argument):
         with db.session_scope() as session:
             _tag = Tag.get(argument, ctx.guild.id, session)
         return _tag
@@ -107,9 +104,7 @@ class TagType(Enum):
 
 
 class TagTypeConverter(Converter):
-
-    @asyncio.coroutine
-    def convert(self, ctx, argument):
+    async def convert(self, ctx, argument):
         low = argument.lower()
         try:
             return TagType[low].value

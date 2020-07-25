@@ -1,4 +1,3 @@
-import asyncio
 import discord
 import utils.checks as checks
 from discord.ext.commands import Cog, command, check

@@ -1,4 +1,3 @@
-import asyncio
 import discord
 from random import randint, choice
 from utils.errors import NerpyException
