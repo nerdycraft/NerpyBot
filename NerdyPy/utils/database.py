@@ -9,9 +9,6 @@ from sqlalchemy.ext.declarative import declarative_base
 
 BASE = declarative_base()
 
-# noinspection PyPep8
-import models  # import needed so create_all() knows tables
-
 ENGINE = create_engine("sqlite:///db.db", echo=True)
 SESSION = sessionmaker(bind=ENGINE)
 
