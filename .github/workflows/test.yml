@@ -18,4 +18,4 @@ jobs:
         python3 -m flake8 NerdyPy
     - name: Lint with black
       run: |
-        python3 -m black --check --diff NerdyPy
+        python3 -m black -t py38 -l 120 --check --diff NerdyPy
