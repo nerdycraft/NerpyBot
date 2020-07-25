@@ -2,16 +2,17 @@
 # -*- coding: utf-8 -*-
 from utils.database import BASE
 from sqlalchemy.orm import relationship
-from sqlalchemy import BigInteger, Column, ForeignKey, LargeBinary, String
+from sqlalchemy import Integer, Column, ForeignKey, LargeBinary, String, Index
 
 
 class TagEntry(BASE):
     """Database Entity Model for tag entries"""
 
     __tablename__ = "TagEntry"
+    __table_args__ = (Index("TagEntry_TagId", "TagId"),)
 
-    Id = Column(BigInteger, primary_key=True)
-    TagId = Column(BigInteger, ForeignKey("Tag.Id"))
+    Id = Column(Integer, primary_key=True)
+    TagId = Column(Integer, ForeignKey("Tag.Id"))
     TextContent = Column(String)
     ByteContent = Column(LargeBinary)
 

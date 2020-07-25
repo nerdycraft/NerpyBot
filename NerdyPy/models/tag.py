@@ -7,15 +7,16 @@ from utils.errors import NerpyException
 from sqlalchemy.orm import relationship
 from discord.ext.commands import Converter
 from utils import database as db
-from sqlalchemy import BigInteger, Column, DateTime, Integer, String, asc
+from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc
 
 
 class Tag(db.BASE):
     """database entity model for tags"""
 
     __tablename__ = "Tag"
+    __table_args__ = (Index("Tag_GuildId", "GuildId"), Index("Tag_Name_GuildId", "Name", "GuildId", unique=True))
 
-    Id = Column(BigInteger, primary_key=True)
+    Id = Column(Integer, primary_key=True)
     GuildId = Column(BigInteger)
     Name = Column(String)
     Type = Column(Integer)
