@@ -74,9 +74,7 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(
-                    fmt.strip_tags(data[0]["content"]) + "  - " + data[0]["title"]
-                )
+                await ctx.send(fmt.strip_tags(data[0]["content"]) + "  - " + data[0]["title"])
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -110,9 +108,7 @@ class Random(Cog):
                     raise NerpyException(err)
                 result = await xkcd_id.json()
 
-            async with session.get(
-                f"{url}{randint(0, result['num'])}/{urlend}"
-            ) as response:
+            async with session.get(f"{url}{randint(0, result['num'])}/{urlend}") as response:
                 if response.status != 200:
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)

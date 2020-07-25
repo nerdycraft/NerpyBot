@@ -42,8 +42,7 @@ class Audio:
         source = discord.PCMVolumeTransformer(discord.PCMAudio(song.stream))
         source.volume = song.volume / 100
         song.channel.guild.voice_client.play(
-            source,
-            after=lambda e: self.bot.log.error("Player error: %s" % e) if e else None,
+            source, after=lambda e: self.bot.log.error("Player error: %s" % e) if e else None,
         )
 
         self.lastPlayed[song.channel.guild.id] = datetime.now()
@@ -101,11 +100,7 @@ class Audio:
             await asyncio.sleep(2)
             last = dict(self.lastPlayed)
             for guild_id in last:
-                if (
-                    self._has_queue(guild_id)
-                    and self._has_item_in_queue(guild_id)
-                    and not self._is_playing(guild_id)
-                ):
+                if self._has_queue(guild_id) and self._has_item_in_queue(guild_id) and not self._is_playing(guild_id):
                     queued_song = self.queue[guild_id][QueueKey.QUEUE].popleft()
                     await self._play(queued_song)
         self.queue_loop_running = False

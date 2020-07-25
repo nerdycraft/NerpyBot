@@ -60,9 +60,7 @@ class League(Cog):
         """get information about the summoner"""
         rank = tier = lp = wins = losses = ""
 
-        summoner_url = self._get_url(
-            region, LeagueCommand.SUMMONER_BY_NAME, summoner_name
-        )
+        summoner_url = self._get_url(region, LeagueCommand.SUMMONER_BY_NAME, summoner_name)
 
         async with aiohttp.ClientSession() as summoner_session:
             async with summoner_session.get(summoner_url) as summoner_response:
@@ -75,9 +73,7 @@ class League(Cog):
                     level = data.get("summonerLevel")
                     icon_id = data.get("profileIconId")
 
-                    rank_url = self._get_url(
-                        region, LeagueCommand.RANK_POSITIONS, summoner_id
-                    )
+                    rank_url = self._get_url(region, LeagueCommand.RANK_POSITIONS, summoner_id)
 
                     async with aiohttp.ClientSession() as rank_session:
                         async with rank_session.get(rank_url) as rank_response:
@@ -93,9 +89,7 @@ class League(Cog):
                     ver = await self._get_latest_version()
 
                     emb = discord.Embed(title=name)
-                    emb.set_thumbnail(
-                        url=f"http://ddragon.leagueoflegends.com/cdn/{ver}/img/profileicon/{icon_id}.png"
-                    )
+                    emb.set_thumbnail(url=f"http://ddragon.leagueoflegends.com/cdn/{ver}/img/profileicon/{icon_id}.png")
                     emb.description = f"Summoner Level: {level}"
 
                     if played_ranked:

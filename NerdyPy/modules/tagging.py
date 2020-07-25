@@ -42,11 +42,7 @@ class Tagging(Cog):
     @tag.command()
     @bot_has_permissions(send_messages=True)
     async def create(
-        self,
-        ctx,
-        name: clean_content,
-        tag_type: TagTypeConverter,
-        *content: clean_content,
+        self, ctx, name: clean_content, tag_type: TagTypeConverter, *content: clean_content,
     ):
         """create tag content"""
         if Tag.exists(name, ctx.guild.id):
@@ -176,9 +172,7 @@ class Tagging(Cog):
                 if sound.frame_rate < 40000:
                     sound = sound.set_frame_rate(44100)
 
-                song = QueuedSong(
-                    io.BytesIO(sound.raw_data), ctx.author.voice.channel, _tag.Volume
-                )
+                song = QueuedSong(io.BytesIO(sound.raw_data), ctx.author.voice.channel, _tag.Volume)
                 await self.bot.audio.play(ctx.guild.id, song)
             else:
                 await ctx.send(entry.TextContent)

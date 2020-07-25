@@ -6,11 +6,13 @@ import argparse
 import subprocess
 import sys
 
+# fmt: off
 INTRO = (
     "==========================\n"
     "       - Nerpy Bot -      \n"
     "==========================\n"
 )
+# fmt: on
 
 
 def parse_arguments():
@@ -21,9 +23,7 @@ def parse_arguments():
     """
     parser = argparse.ArgumentParser(description="-> NerpyBot <-")
     parser.add_argument(
-        "--auto-restart",
-        help="Autorestarts Nerpy in case of issues",
-        action="store_true",
+        "--auto-restart", help="Autorestarts Nerpy in case of issues", action="store_true",
     )
     return parser.parse_args()
 

@@ -88,14 +88,12 @@ class Fun(Cog):
             13: "Anything you say can be turned into something else - fixed",
             14: "Do not argue with trolls - it means that they win",
             15: "The harder you try the harder you will fail",
-            16: "If you fail in epic proportions, it may just become a winning"
-            " failure",
+            16: "If you fail in epic proportions, it may just become a winning failure",
             17: "Every win fails eventually",
             18: "Everything that can be labeled can be hated",
             19: "The more you hate it the stronger it gets",
             20: "Nothing is to be taken seriously",
-            21: "Original content is original only for a few seconds before getting"
-            " old",
+            21: "Original content is original only for a few seconds before getting old",
             22: "Copypasta is made to ruin every last bit of originality",
             23: "Copypasta is made to ruin every last bit of originality",
             24: "Every repost it always a repost of a repost",
@@ -103,8 +101,7 @@ class Fun(Cog):
             26: "Any topic can easily be turned into something totally unrelated",
             27: "Always question a person's sexual prefrences without any real reason",
             28: "Always question a person's gender - just incase it's really a man",
-            29: "In the internet all girls are men and all kids are undercover FBI"
-            " agents",
+            29: "In the internet all girls are men and all kids are undercover FBI agents",
             30: "There are no girls on the internet",
             31: "TITS or GTFO - the choice is yours",
             32: "You must have pictures to prove your statements",
@@ -116,18 +113,14 @@ class Fun(Cog):
             38: "No real limits of any kind apply here - not even the sky",
             39: "CAPSLOCK IS CRUISE CONTROL FOR COOL",
             40: "EVEN WITH CRUISE CONTROL YOU STILL HAVE TO STEER",
-            41: "Desu isn't funny. Seriously guys. It's worse than Chuck Norris"
-            " jokes.",
+            41: "Desu isn't funny. Seriously guys. It's worse than Chuck Norris jokes.",
             42: "Nothing is Sacred.",
-            43: "The more beautiful and pure a thing is - the more satisfying it is"
-            " to corrupt it",
-            44: "Even one positive comment about Japanese things can make you a"
-            " weaboo",
+            43: "The more beautiful and pure a thing is - the more satisfying it is to corrupt it",
+            44: "Even one positive comment about Japanese things can make you a weaboo",
             45: "When one sees a lion, one must get into the car.",
             46: "There is always furry porn of it.",
             47: "The pool is always closed.",
-            63: "For every given male character, there is a female version of that character; "
-            "conversely",
+            63: "For every given male character, there is a female version of that character; conversely",
         }
 
     @command()
@@ -143,9 +136,7 @@ class Fun(Cog):
             n = randint(1, dice)
             await ctx.send(f"{mention} rolled a d{dice}\n\n:game_die: {n} :game_die:")
         else:
-            await ctx.send(
-                f"{mention} rolled a 'AmIRetarded'-dice\n\n:game_die: yes :game_die:"
-            )
+            await ctx.send(f"{mention} rolled a 'AmIRetarded'-dice\n\n:game_die: yes :game_die:")
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -165,9 +156,7 @@ class Fun(Cog):
             raise NerpyException("Not enough choices to pick from.")
 
         mention = ctx.message.author.mention
-        await ctx.send(
-            f"{mention} asked me to choose between: {choices_str}\n\nI choose {choice(choices)}"
-        )
+        await ctx.send(f"{mention} asked me to choose between: {choices_str}\n\nI choose {choice(choices)}")
 
     @command(name="8ball", aliases=["8b"])
     @bot_has_permissions(send_messages=True)
@@ -237,9 +226,7 @@ class Fun(Cog):
         """
         if num:
             if num not in self.rotis:
-                raise NerpyException(
-                    "Sorry 4chan pleb, no rules found with this number"
-                )
+                raise NerpyException("Sorry 4chan pleb, no rules found with this number")
             rule = num
         else:
             rule = choice(list(self.rotis.keys()))

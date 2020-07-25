@@ -21,9 +21,7 @@ class Utility(Cog):
         """shows bot uptime [bot-moderator]"""
         td = datetime.datetime.utcnow() - self.bot.uptime
         await ctx.send(
-            fmt.inline(
-                f"Botuptime: {td.days} Days, {td.seconds//3600} Hours and {(td.seconds//60)%60} Minutes"
-            )
+            fmt.inline(f"Botuptime: {td.days} Days, {td.seconds//3600} Hours and {(td.seconds//60)%60} Minutes")
         )
 
     @command()
@@ -42,11 +40,7 @@ class Utility(Cog):
     @check(is_botmod)
     async def membercount(self, ctx):
         """displays the current membercount of the server [bot-moderator]"""
-        await ctx.send(
-            fmt.inline(
-                f"There are currently {ctx.guild.member_count} members on this discord"
-            )
-        )
+        await ctx.send(fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
 
     @command()
     @check(is_botmod)
@@ -78,10 +72,7 @@ class Utility(Cog):
         bot will answer in the channel you asked for it
         """
         self.bot.reminder.add(
-            ctx.author,
-            ctx.message.channel,
-            datetime.datetime.now() + datetime.timedelta(minutes=mins),
-            text,
+            ctx.author, ctx.message.channel, datetime.datetime.now() + datetime.timedelta(minutes=mins), text,
         )
 
         await ctx.send(f"{ctx.author.mention}, i will remind you in {mins} minutes")
@@ -103,12 +94,8 @@ class Utility(Cog):
                 for w in data["weather"]:
                     conditions.append(w["main"])
 
-                sunrise = datetime.datetime.fromtimestamp(
-                    int(data["sys"]["sunrise"])
-                ).strftime("%H:%M")
-                sunset = datetime.datetime.fromtimestamp(
-                    int(data["sys"]["sunset"])
-                ).strftime("%H:%M")
+                sunrise = datetime.datetime.fromtimestamp(int(data["sys"]["sunrise"])).strftime("%H:%M")
+                sunset = datetime.datetime.fromtimestamp(int(data["sys"]["sunset"])).strftime("%H:%M")
 
                 emb = discord.Embed()
                 emb.add_field(
@@ -117,31 +104,23 @@ class Utility(Cog):
                                     {data['sys']['country']}](https://openweathermap.org/city/{data['id']})""",
                 )
                 emb.add_field(
-                    name=":thermometer: " + fmt.bold("temperature"),
-                    value=f"{data['main']['temp']}°C",
+                    name=":thermometer: " + fmt.bold("temperature"), value=f"{data['main']['temp']}°C",
                 )
                 emb.add_field(
-                    name=":cloud: " + fmt.bold("condition"),
-                    value=str.join(", ", conditions),
+                    name=":cloud: " + fmt.bold("condition"), value=str.join(", ", conditions),
                 )
                 emb.add_field(
-                    name=":sweat_drops: " + fmt.bold("humidity"),
-                    value=f"{data['main']['humidity']}%",
+                    name=":sweat_drops: " + fmt.bold("humidity"), value=f"{data['main']['humidity']}%",
                 )
                 emb.add_field(
-                    name=":wind_chime: " + fmt.bold("wind"),
-                    value=f"{data['wind']['speed']} m/s",
+                    name=":wind_chime: " + fmt.bold("wind"), value=f"{data['wind']['speed']} m/s",
                 )
                 emb.add_field(
                     name="🔆 " + fmt.bold("min-max"),
                     value=f"{data['main']['temp_min']}°C - {data['main']['temp_max']}°C",
                 )
-                emb.add_field(
-                    name=":city_sunrise: " + fmt.bold("sunrise"), value=f"{sunrise} UTC"
-                )
-                emb.add_field(
-                    name=":city_sunset:  " + fmt.bold("sunset"), value=f"{sunset} UTC"
-                )
+                emb.add_field(name=":city_sunrise: " + fmt.bold("sunrise"), value=f"{sunrise} UTC")
+                emb.add_field(name=":city_sunset:  " + fmt.bold("sunset"), value=f"{sunset} UTC")
                 emb.set_footer(
                     text="Powered by openweathermap.org",
                     icon_url=f"http://openweathermap.org/img/w/{data['weather'][0]['icon']}.png",
