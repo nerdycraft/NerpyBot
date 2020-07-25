@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from enum import Enum
-from utils import database as db
-from models.tagentry import TagEntry
-from utils.errors import NerpyException
-from sqlalchemy.orm import relationship
 from discord.ext.commands import Converter
+from sqlalchemy.orm import relationship
 from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc
+from models.tagentry import TagEntry
+from utils import database as db
+from utils.errors import NerpyException
 
 
 class Tag(db.BASE):
@@ -67,13 +67,6 @@ class Tag(db.BASE):
         msg += f"Hits: {self.Count}\n"
         msg += f"Entries: {self.entries.count()}"
         return msg
-
-
-class TagConverter(Converter):
-    async def convert(self, ctx, argument):
-        with db.session_scope() as session:
-            _tag = Tag.get(argument, ctx.guild.id, session)
-        return _tag
 
 
 class TagType(Enum):
