@@ -67,39 +67,42 @@ class League(Cog):
         async with aiohttp.ClientSession() as summoner_session:
             async with summoner_session.get(summoner_url) as summoner_response:
                 data = await summoner_response.json()
-                summoner_id = data.get("id")
-                name = data.get("name")
-                level = data.get("summonerLevel")
-                icon_id = data.get("profileIconId")
+                if data["status"]["status_code"] != "200":
+                    raise NerpyException("Could not get data from API. Please report to Bot author.")
+                else:
+                    summoner_id = data.get("id")
+                    name = data.get("name")
+                    level = data.get("summonerLevel")
+                    icon_id = data.get("profileIconId")
 
-                rank_url = self._get_url(
-                    region, LeagueCommand.RANK_POSITIONS, summoner_id
-                )
+                    rank_url = self._get_url(
+                        region, LeagueCommand.RANK_POSITIONS, summoner_id
+                    )
 
-                async with aiohttp.ClientSession() as rank_session:
-                    async with rank_session.get(rank_url) as rank_response:
-                        data = await rank_response.json()
-                        played_ranked = len(data) > 0
-                        if played_ranked:
-                            rank = data[0].get("rank")
-                            tier = data[0].get("tier")
-                            lp = data[0].get("leaguePoints")
-                            wins = data[0].get("wins")
-                            losses = data[0].get("losses")
+                    async with aiohttp.ClientSession() as rank_session:
+                        async with rank_session.get(rank_url) as rank_response:
+                            data = await rank_response.json()
+                            played_ranked = len(data) > 0
+                            if played_ranked:
+                                rank = data[0].get("rank")
+                                tier = data[0].get("tier")
+                                lp = data[0].get("leaguePoints")
+                                wins = data[0].get("wins")
+                                losses = data[0].get("losses")
 
-                ver = await self._get_latest_version()
+                    ver = await self._get_latest_version()
 
-                emb = discord.Embed(title=name)
-                emb.set_thumbnail(
-                    url=f"http://ddragon.leagueoflegends.com/cdn/{ver}/img/profileicon/{icon_id}.png"
-                )
-                emb.description = f"Summoner Level: {level}"
+                    emb = discord.Embed(title=name)
+                    emb.set_thumbnail(
+                        url=f"http://ddragon.leagueoflegends.com/cdn/{ver}/img/profileicon/{icon_id}.png"
+                    )
+                    emb.description = f"Summoner Level: {level}"
 
-                if played_ranked:
-                    emb.add_field(name="rank", value=f"{tier} {rank}")
-                    emb.add_field(name="league points", value=lp)
-                    emb.add_field(name="wins", value=wins)
-                    emb.add_field(name="losses", value=losses)
+                    if played_ranked:
+                        emb.add_field(name="rank", value=f"{tier} {rank}")
+                        emb.add_field(name="league points", value=lp)
+                        emb.add_field(name="wins", value=wins)
+                        emb.add_field(name="losses", value=losses)
 
         await ctx.send(embed=emb)
 
