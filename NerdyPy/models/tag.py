@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 from enum import Enum
+from utils import database as db
 from models.tagentry import TagEntry
 from utils.errors import NerpyException
 from sqlalchemy.orm import relationship
 from discord.ext.commands import Converter
-from utils import database as db
 from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc
 
 
