@@ -1,4 +1,3 @@
-import asyncio
 import discord
 import utils.checks as checks
 from discord.ext.commands import Cog, command, check
@@ -8,7 +7,7 @@ class Admin(Cog):
     """cog for administrative usage"""
 
     def __init__(self, bot):
-        bot.log.info(f'loaded {__name__}')
+        bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
 

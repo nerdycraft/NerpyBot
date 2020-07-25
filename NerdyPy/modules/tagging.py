@@ -1,5 +1,4 @@
 import io
-import os
 import datetime
 import utils.format as fmt
 from random import randint
@@ -9,18 +8,24 @@ from utils.download import download
 from utils.errors import NerpyException
 from utils.database import session_scope
 from models.tag import Tag, TagType, TagTypeConverter
-from discord.ext.commands import Cog, group, clean_content, bot_has_permissions, CommandNotFound
+from discord.ext.commands import (
+    Cog,
+    group,
+    clean_content,
+    bot_has_permissions,
+    CommandNotFound,
+)
 
 
 class Tagging(Cog):
     """Command group for sound and text tags"""
 
     def __init__(self, bot):
-        bot.log.info(f'loaded {__name__}')
+        bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
 
-    @group(invoke_without_command=True, aliases=['t'])
+    @group(invoke_without_command=True, aliases=["t"])
     async def tag(self, ctx):
         """sound and text tags"""
         if ctx.invoked_subcommand is None:
@@ -30,42 +35,45 @@ class Tagging(Cog):
             await self._send(ctx, args[1])
 
     @tag.command()
-    # @commands.bot_has_permissions(connect=True, speak=True)
     async def send(self, ctx, name: clean_content):
         """send your favorite tag"""
         await self._send(ctx, name)
 
     @tag.command()
     @bot_has_permissions(send_messages=True)
-    async def create(self, ctx, name: clean_content, tag_type: TagTypeConverter, *content: clean_content):
+    async def create(
+        self, ctx, name: clean_content, tag_type: TagTypeConverter, *content: clean_content,
+    ):
         """create tag content"""
         if Tag.exists(name, ctx.guild.id):
-            raise NerpyException('tag already exists!')
+            raise NerpyException("tag already exists!")
 
         with session_scope() as session:
-            self.bot.log.info(f'creating tag {ctx.guild.name}/{name} started')
-            _tag = Tag(Name=name,
-                       Author=str(ctx.author),
-                       Type=tag_type,
-                       CreateDate=datetime.datetime.utcnow(),
-                       Count=0,
-                       Volume=100,
-                       GuildId=ctx.guild.id)
+            self.bot.log.info(f"creating tag {ctx.guild.name}/{name} started")
+            _tag = Tag(
+                Name=name,
+                Author=str(ctx.author),
+                Type=tag_type,
+                CreateDate=datetime.datetime.utcnow(),
+                Count=0,
+                Volume=100,
+                GuildId=ctx.guild.id,
+            )
 
             Tag.add(_tag, session)
             session.flush()
 
             self._add_tag_entries(session, _tag, content)
 
-            self.bot.log.info(f'creating tag {ctx.guild.name}/{name} finished')
-            await ctx.send(f'tag {name} created!')
+            self.bot.log.info(f"creating tag {ctx.guild.name}/{name} finished")
+            await ctx.send(f"tag {name} created!")
 
     @tag.command()
     @bot_has_permissions(send_messages=True)
     async def add(self, ctx, name: clean_content, *content: clean_content):
         """add an entry to an existing tag"""
         if not Tag.exists(name, ctx.guild.id):
-            raise NerpyException('tag doesn\'t exists!')
+            raise NerpyException("tag doesn't exists!")
 
         with session_scope() as session:
             _tag = Tag.get(name, ctx.guild.id, session)
@@ -76,7 +84,7 @@ class Tagging(Cog):
     async def volume(self, ctx, name: clean_content, vol):
         """adjust the volume of a sound tag (WIP)"""
         if not Tag.exists(name, ctx.guild.id):
-            raise NerpyException('tag doesn\'t exist!')
+            raise NerpyException("tag doesn't exist!")
 
         with session_scope() as session:
             _tag = Tag.get(name, ctx.guild.id, session)
@@ -87,33 +95,33 @@ class Tagging(Cog):
     @bot_has_permissions(send_messages=True)
     async def delete(self, ctx, name: clean_content):
         """delete a tag?"""
-        self.bot.log.info(f'trying to delete {name} from {ctx.guild.id}')
+        self.bot.log.info(f"trying to delete {name} from {ctx.guild.id}")
         if not Tag.exists(name, ctx.guild.id):
-            raise NerpyException('tag doesn\'t exist!')
+            raise NerpyException("tag doesn't exist!")
 
         Tag.delete(name, ctx.guild.id)
-        await ctx.send('tag deleted!')
+        await ctx.send("tag deleted!")
 
     @tag.command()
     @bot_has_permissions(send_messages=True)
     async def list(self, ctx):
         """a list of all available tags"""
-        self.bot.log.info(f'list')
+        self.bot.log.info("list")
         with session_scope() as session:
             tags = Tag.get_all_from_guild(ctx.guild.id, session)
 
             msg = ""
-            last_header = '^'
+            last_header = "^"
             for t in tags:
                 if t.Name[0] is not last_header:
                     last_header = t.Name[0]
-                    msg += f'\n# {last_header} #\n- '
-                msg += f'[{t.Name}]'
+                    msg += f"\n# {last_header} #\n- "
+                msg += f"[{t.Name}]"
                 typ = TagType(t.Type).name.upper()[0]
-                msg += f'({typ}|{t.entries.count()}) - '
+                msg += f"({typ}|{t.entries.count()}) - "
 
             for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
-                await ctx.send(fmt.box(page, 'md'))
+                await ctx.send(fmt.box(page, "md"))
 
     @tag.command()
     @bot_has_permissions(send_messages=True)
@@ -145,11 +153,11 @@ class Tagging(Cog):
                 _tag.add_entry(entry, session, byt=download(entry))
 
     async def _send(self, ctx, tag_name):
-        self.bot.log.info(f'{ctx.guild.name} requesting {tag_name} tag')
+        self.bot.log.info(f"{ctx.guild.name} requesting {tag_name} tag")
         with session_scope() as session:
             _tag = Tag.get(tag_name, ctx.guild.id, session)
             if _tag is None:
-                raise NerpyException('No such tag found')
+                raise NerpyException("No such tag found")
 
             entries = _tag.entries.all()
 

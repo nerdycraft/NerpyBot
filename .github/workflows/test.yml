@@ -1,0 +1,21 @@
+name: Lint
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  lint:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install linters
+      run: |
+        pip3 install setuptools flake8 black
+    - name: Lint with flake8
+      run: |
+        python3 -m flake8 NerdyPy
+    - name: Lint with black
+      run: |
+        python3 -m black -t py38 -l 120 --check --diff NerdyPy

@@ -6,9 +6,13 @@ import argparse
 import subprocess
 import sys
 
-INTRO = ("==========================\n"
-         "       - Nerpy Bot -      \n"
-         "==========================\n")
+# fmt: off
+INTRO = (
+    "==========================\n"
+    "       - Nerpy Bot -      \n"
+    "==========================\n"
+)
+# fmt: on
 
 
 def parse_arguments():
@@ -18,9 +22,9 @@ def parse_arguments():
     currently only supports auto restart
     """
     parser = argparse.ArgumentParser(description="-> NerpyBot <-")
-    parser.add_argument("--auto-restart",
-                        help="Autorestarts Nerpy in case of issues",
-                        action="store_true")
+    parser.add_argument(
+        "--auto-restart", help="Autorestarts Nerpy in case of issues", action="store_true",
+    )
     return parser.parse_args()
 
 

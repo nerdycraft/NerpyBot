@@ -12,12 +12,21 @@ class Random(Cog):
     """who is that random"""
 
     def __init__(self, bot):
-        bot.log.info(f'loaded {__name__}')
+        bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
 
-        self.lennys = ["( ͡° ͜ʖ ͡°)", "( ͠° ͟ʖ ͡°)", "ᕦ( ͡° ͜ʖ ͡°)ᕤ", "( ͡~ ͜ʖ ͡°)", "( ͡o ͜ʖ ͡o)", "͡(° ͜ʖ ͡ -)",
-                       "( ͡͡ ° ͜ ʖ ͡ °)﻿", "(ง ͠° ͟ل͜ ͡°)ง", "ヽ༼ຈل͜ຈ༽ﾉ"]
+        self.lennys = [
+            "( ͡° ͜ʖ ͡°)",
+            "( ͠° ͟ʖ ͡°)",
+            "ᕦ( ͡° ͜ʖ ͡°)ᕤ",
+            "( ͡~ ͜ʖ ͡°)",
+            "( ͡o ͜ʖ ͡o)",
+            "͡(° ͜ʖ ͡ -)",
+            "( ͡͡ ° ͜ ʖ ͡ °)﻿",
+            "(ง ͠° ͟ل͜ ͡°)ง",
+            "ヽ༼ຈل͜ຈ༽ﾉ",
+        ]
 
     @command(pass_context=True)
     @bot_has_permissions(send_messages=True)
@@ -33,11 +42,11 @@ class Random(Cog):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
-                if response.status is not 200:
-                    err = f'The api-webserver responded with a code: {response.status} - {response.reason}'
+                if response.status != 200:
+                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(data['value']['joke'])
+                await ctx.send(data["value"]["joke"])
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -47,11 +56,11 @@ class Random(Cog):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
-                if response.status is not 200:
-                    err = f'The api-webserver responded with a code: {response.status} - {response.reason}'
+                if response.status != 200:
+                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(data['joke'])
+                await ctx.send(data["joke"])
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -61,29 +70,28 @@ class Random(Cog):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
-                if response.status is not 200:
-                    err = f'The api-webserver responded with a code: {response.status} - {response.reason}'
+                if response.status != 200:
+                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(fmt.strip_tags(data[0]['content']) + "  - " + data[0]['title'])
+                await ctx.send(fmt.strip_tags(data[0]["content"]) + "  - " + data[0]["title"])
 
     @command()
     @bot_has_permissions(send_messages=True)
     async def trump(self, ctx):
         """random trump tweet"""
         url = "https://api.whatdoestrumpthink.com/api/v1/quotes/random"
-        trump_pic = 'https://www.tolonews.com/sites/default/files/styles/principal_article_image/public/Trumpppp.jpg'
+        trump_pic = "https://www.tolonews.com/sites/default/files/styles/principal_article_image/public/Trumpppp.jpg"
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
-                if response.status is not 200:
-                    err = f'The api-webserver responded with a code: {response.status} - {response.reason}'
+                if response.status != 200:
+                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                emb = discord.Embed(title=f'Donald Trump')
-                emb.description = data['message']
-                emb.set_thumbnail(
-                    url=trump_pic)
+                emb = discord.Embed(title="Donald Trump")
+                emb.description = data["message"]
+                emb.set_thumbnail(url=trump_pic)
                 await ctx.send(embed=emb)
 
     @command()
@@ -95,17 +103,17 @@ class Random(Cog):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url + urlend) as xkcd_id:
-                if xkcd_id.status is not 200:
-                    err = f'The api-webserver responded with a code: {xkcd_id.status} - {xkcd_id.reason}'
+                if xkcd_id.status != 200:
+                    err = f"The api-webserver responded with a code: {xkcd_id.status} - {xkcd_id.reason}"
                     raise NerpyException(err)
                 result = await xkcd_id.json()
 
             async with session.get(f"{url}{randint(0, result['num'])}/{urlend}") as response:
-                if response.status is not 200:
-                    err = f'The api-webserver responded with a code: {response.status} - {response.reason}'
+                if response.status != 200:
+                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(data['img'])
+                await ctx.send(data["img"])
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -115,11 +123,11 @@ class Random(Cog):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
-                if response.status is not 200:
-                    err = f'The api-webserver responded with a code: {response.status} - {response.reason}'
+                if response.status != 200:
+                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(data['media']['gif'])
+                await ctx.send(data["media"]["gif"])
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -129,11 +137,11 @@ class Random(Cog):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
-                if response.status is not 200:
-                    err = f'The api-webserver responded with a code: {response.status} - {response.reason}'
+                if response.status != 200:
+                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(data['file'])
+                await ctx.send(data["file"])
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -143,11 +151,11 @@ class Random(Cog):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
-                if response.status is not 200:
-                    err = f'The api-webserver responded with a code: {response.status} - {response.reason}'
+                if response.status != 200:
+                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(data['fact'])
+                await ctx.send(data["fact"])
 
 
 def setup(bot):
