@@ -13,7 +13,6 @@ from discord.ext.commands import (
     group,
     clean_content,
     bot_has_permissions,
-    CommandNotFound,
 )
 
 
@@ -31,13 +30,11 @@ class Tagging(Cog):
         if ctx.invoked_subcommand is None:
             args = str(ctx.message.clean_content).split(" ")
             if len(args) > 2:
-                raise CommandNotFound(ctx.message)
-            await self._send(ctx, args[1])
-
-    @tag.command()
-    async def send(self, ctx, name: clean_content):
-        """send your favorite tag"""
-        await self._send(ctx, name)
+                raise NerpyException("Command not found!")
+            elif len(args) <= 1:
+                await ctx.send_help(ctx.command)
+            else:
+                await self._send(ctx, args[1])
 
     @tag.command()
     @bot_has_permissions(send_messages=True)
