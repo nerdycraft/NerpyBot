@@ -21,7 +21,7 @@ class NerpyBot(commands.Bot):
     """Discord Bot"""
 
     def __init__(self):
-        super().__init__(command_prefix="!", description="hi")
+        super().__init__(command_prefix="!", description="NerdyBot - Always one step ahead!")
 
         self.client_id = config.client_id
         self.prefixes = ["!"]
