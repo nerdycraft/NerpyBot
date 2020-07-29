@@ -45,25 +45,26 @@ class Tagging(Cog):
         if Tag.exists(name, ctx.guild.id):
             raise NerpyException("tag already exists!")
 
-        with session_scope() as session:
-            self.bot.log.info(f"creating tag {ctx.guild.name}/{name} started")
-            _tag = Tag(
-                Name=name,
-                Author=str(ctx.author),
-                Type=tag_type,
-                CreateDate=datetime.datetime.utcnow(),
-                Count=0,
-                Volume=100,
-                GuildId=ctx.guild.id,
-            )
+        async with ctx.typing():
+            with session_scope() as session:
+                self.bot.log.info(f"creating tag {ctx.guild.name}/{name} started")
+                _tag = Tag(
+                    Name=name,
+                    Author=str(ctx.author),
+                    Type=tag_type,
+                    CreateDate=datetime.datetime.utcnow(),
+                    Count=0,
+                    Volume=100,
+                    GuildId=ctx.guild.id,
+                )
 
-            Tag.add(_tag, session)
-            session.flush()
+                Tag.add(_tag, session)
+                session.flush()
 
-            self._add_tag_entries(session, _tag, content)
+                self._add_tag_entries(session, _tag, content)
 
             self.bot.log.info(f"creating tag {ctx.guild.name}/{name} finished")
-            await ctx.send(f"tag {name} created!")
+        await ctx.send(f"tag {name} created!")
 
     @tag.command()
     @bot_has_permissions(send_messages=True)
@@ -72,9 +73,13 @@ class Tagging(Cog):
         if not Tag.exists(name, ctx.guild.id):
             raise NerpyException("tag doesn't exists!")
 
-        with session_scope() as session:
-            _tag = Tag.get(name, ctx.guild.id, session)
-            self._add_tag_entries(session, _tag, content)
+        async with ctx.typing():
+            with session_scope() as session:
+                _tag = Tag.get(name, ctx.guild.id, session)
+                self._add_tag_entries(session, _tag, content)
+
+            self.bot.log.info(f"added entry to tag {ctx.guild.name}/{name}.")
+        await ctx.send(f"Entry added to tag {name}!")
 
     @tag.command()
     @bot_has_permissions(send_messages=True)
