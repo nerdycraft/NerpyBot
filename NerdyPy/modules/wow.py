@@ -36,14 +36,10 @@ class WorldofWarcraft(Cog):
         namespace = f"dynamic-{region}"
         return self.api.get_mythic_keystone_season_index(region, namespace)["current_season"]["id"]
 
-    def _get_character(self, realm, region, name):
+    async def _get_character(self, ctx, realm, region, name):
         namespace = f"profile-{region}"
 
-        try:
-            self.api.get_character_profile_status(region, namespace, realm, name)
-        except WowApiException:
-            raise NerpyException("No Character with this name found.")
-
+        self.api.get_character_profile_status(region, namespace, realm, name)
         character = self.api.get_character_profile_summary(region, f"profile-{region}", realm, name)
         profile_picture = self.api.get_character_media_summary(region, f"profile-{region}", realm, name)
 
@@ -100,53 +96,56 @@ class WorldofWarcraft(Cog):
         name and realm are required parameters.
         region is optional, but if you want to search on another realm than your discord server runs on, you need to set it.
         """
-        async with ctx.typing():
-            if region is None:
-                region = ctx.guild.region[0][:2]
+        try:
+            async with ctx.typing():
+                if region is None:
+                    region = ctx.guild.region[0][:2]
 
-            realm = realm.lower()
-            name = name.lower()
-            profile = f"{region}/{realm}/{name}"
-            current_season = self._get_current_season(region)
-            best_keys = self._get_best_mythic_keys(region, realm, name)
-            rio_score = self._get_raiderio_score(region, realm, name, current_season)
+                realm = realm.lower()
+                name = name.lower()
+                profile = f"{region}/{realm}/{name}"
+                current_season = self._get_current_season(region)
+                best_keys = self._get_best_mythic_keys(region, realm, name)
+                rio_score = self._get_raiderio_score(region, realm, name, current_season)
 
-            character, profile_picture = self._get_character(realm, region, name)
+                character, profile_picture = await self._get_character(ctx, realm, region, name)
 
-            armory = self._get_link("armory", profile)
-            raiderio = self._get_link("raiderio", profile)
-            warcraftlogs = self._get_link("warcraftlogs", profile)
-            wowprogress = self._get_link("wowprogress", profile)
+                armory = self._get_link("armory", profile)
+                raiderio = self._get_link("raiderio", profile)
+                warcraftlogs = self._get_link("warcraftlogs", profile)
+                wowprogress = self._get_link("wowprogress", profile)
 
-            emb = discord.Embed(
-                title=f'{character["name"]} | {realm.capitalize()} | {region.upper()} | {character["active_spec"]["name"]["en_US"]} {character["character_class"]["name"]["en_US"]} | {character["equipped_item_level"]} ilvl',
-                url=armory,
-                color=discord.Color(value=int("0099ff", 16)),
-                description=f'{character["gender"]["name"]["en_US"]} {character["race"]["name"]["en_US"]}',
-            )
-            emb.set_thumbnail(url=profile_picture["avatar_url"])
-            emb.add_field(name="Level", value=character["level"], inline=True)
-            emb.add_field(name="Faction", value=character["faction"]["name"]["en_US"], inline=True)
-            if "guild" in character:
-                emb.add_field(name="Guild", value=character["guild"]["name"], inline=True)
-            emb.add_field(name="\u200b", value="\u200b", inline=False)
+                emb = discord.Embed(
+                    title=f'{character["name"]} | {realm.capitalize()} | {region.upper()} | {character["active_spec"]["name"]["en_US"]} {character["character_class"]["name"]["en_US"]} | {character["equipped_item_level"]} ilvl',
+                    url=armory,
+                    color=discord.Color(value=int("0099ff", 16)),
+                    description=f'{character["gender"]["name"]["en_US"]} {character["race"]["name"]["en_US"]}',
+                )
+                emb.set_thumbnail(url=profile_picture["avatar_url"])
+                emb.add_field(name="Level", value=character["level"], inline=True)
+                emb.add_field(name="Faction", value=character["faction"]["name"]["en_US"], inline=True)
+                if "guild" in character:
+                    emb.add_field(name="Guild", value=character["guild"]["name"], inline=True)
+                emb.add_field(name="\u200b", value="\u200b", inline=False)
 
-            if len(best_keys) > 0:
-                keys = ""
-                for key in best_keys:
-                    keys += f'+{key["level"]} - {key["dungeon"]} - {key["clear_time"]}\n'
+                if len(best_keys) > 0:
+                    keys = ""
+                    for key in best_keys:
+                        keys += f'+{key["level"]} - {key["dungeon"]} - {key["clear_time"]}\n'
 
-                emb.add_field(name="Best M+ Keys", value=keys, inline=True)
-            emb.add_field(name="M+ Score", value=rio_score, inline=True)
+                    emb.add_field(name="Best M+ Keys", value=keys, inline=True)
+                emb.add_field(name="M+ Score", value=rio_score, inline=True)
 
-            emb.add_field(name="\u200b", value="\u200b", inline=False)
-            emb.add_field(
-                name="External Sites",
-                value=f"[Raider.io]({raiderio}) | [Armory]({armory}) | [WarcraftLogs]({warcraftlogs}) | [WoWProgress]({wowprogress})",
-                inline=True,
-            )
+                emb.add_field(name="\u200b", value="\u200b", inline=False)
+                emb.add_field(
+                    name="External Sites",
+                    value=f"[Raider.io]({raiderio}) | [Armory]({armory}) | [WarcraftLogs]({warcraftlogs}) | [WoWProgress]({wowprogress})",
+                    inline=True,
+                )
 
-        await ctx.send(embed=emb)
+            await ctx.send(embed=emb)
+        except WowApiException:
+            await ctx.send("No Character with this name found.")
 
 
 def setup(bot):
