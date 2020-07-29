@@ -8,7 +8,8 @@ requirements = [
     "discord.py[voice]==1.3.4",
     "pydub",
     "aiohttp<3.7.0",
-    "ffmpeg-python"
+    "ffmpeg-python",
+    "python-wowapi==4.0.0"
 ]
 
 packages = setuptools.find_packages(where=".", include=["NerdyPy"])
@@ -17,7 +18,7 @@ if not packages:
 
 setuptools.setup(
     name="NerpyBot",
-    version="2.1",
+    version="2.1.2",
     packages=packages,
     install_requires=requirements,
     url="https://github.com/nerdycraft/NerpyBot",
