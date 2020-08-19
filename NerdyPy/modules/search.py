@@ -5,7 +5,6 @@ import config
 import discord
 from datetime import datetime
 import utils.format as fmt
-from lxml import etree
 from utils.errors import NerpyException
 from googleapiclient.discovery import build
 from discord.ext.commands import Cog, command, group, bot_has_permissions
@@ -97,39 +96,6 @@ class Search(Cog):
         else:
             msg = "And i thought everything is on youtube :open_mouth:"
         await ctx.send(msg)
-
-    @command()
-    @bot_has_permissions(send_messages=True)
-    async def anime(self, ctx, *, query):
-        """weeb search"""
-        url = f"https://myanimelist.net/api/anime/search.xml?q={query}"
-        auth = aiohttp.BasicAuth(login=config.malusr, password=config.malpwd, encoding="utf-8")
-
-        async with aiohttp.ClientSession(auth=auth) as session:
-            async with session.get(url) as response:
-                if response.status != 200:
-                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
-                    raise NerpyException(err)
-                parser = etree.XMLParser(ns_clean=True, recover=True, remove_blank_text=True, encoding="utf-8",)
-                raw_xml = await response.text()
-                xml = etree.fromstring(raw_xml.encode("utf-8"), parser=parser)
-
-                find_text = etree.XPath("/anime/entry[1]")
-                entry = find_text(xml)
-
-                msg = f"*Searchresult for {query}*\n\n"
-
-                msg += f"__**{entry.xpath('//title')}**__\n"
-                msg += f"*{entry.xpath('//english')}*\n"
-                msg += f"Episodes: {entry.xpath('//episodes')}\n"
-                msg += f"Start: {entry.xpath('//start_date')}\n"
-                msg += f"End: {entry.xpath('//end_date')}\n"
-                msg += f"Rating: {entry.xpath('//score')}\n"
-                msg += f"URL: `https://myanimelist.net/anime/{entry.xpath('//id')}`\n\n"
-
-                msg += entry.xpath("//image")
-
-                await ctx.send(msg)
 
     @group(invoke_without_command=False)
     @bot_has_permissions(send_messages=True)

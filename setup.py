@@ -2,12 +2,10 @@ import setuptools
 
 requirements = [
     "google-api-python-client",
-    "lxml",
     "SQLAlchemy",
     "youtube_dl",
     "discord.py[voice]==1.3.4",
     "pydub",
-    "aiohttp<3.7.0",
     "ffmpeg-python",
     "python-wowapi==4.0.0"
 ]
