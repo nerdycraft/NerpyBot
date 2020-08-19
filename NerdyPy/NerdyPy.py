@@ -142,7 +142,7 @@ def parse_config(config_file=None):
     _config = configparser.ConfigParser(interpolation=None)
 
     if config_file is None:
-        config_file = Path('./config.ini')
+        config_file = Path("./config.ini")
 
     if config_file.exists():
         _config.read(config_file)

@@ -136,7 +136,10 @@ class Search(Cog):
                 search_result = await search_response.json()
 
                 if search_result["Response"] == "True":
-                    id_url = f"http://www.omdbapi.com/?apikey={self.config['omdb']}&i=" + search_result["Search"][0]["imdbID"]
+                    id_url = (
+                        f"http://www.omdbapi.com/?apikey={self.config['omdb']}&i="
+                        + search_result["Search"][0]["imdbID"]
+                    )
 
                     async with session.get(id_url) as id_response:
                         if id_response.status != 200:
@@ -170,7 +173,9 @@ class Search(Cog):
             "limit 6;"
         )
 
-        async with aiohttp.ClientSession(headers={"user-key": self.config["igdb"], "accept": "application/json"}) as session:
+        async with aiohttp.ClientSession(
+            headers={"user-key": self.config["igdb"], "accept": "application/json"}
+        ) as session:
             async with session.post(url, data=main_query) as response:
                 if response.status != 200:
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
