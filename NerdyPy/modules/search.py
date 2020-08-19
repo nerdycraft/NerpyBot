@@ -1,10 +1,9 @@
 """ Search Modul """
 # -- coding: utf-8 --
 import aiohttp
-import config
 import discord
-from datetime import datetime
 import utils.format as fmt
+from datetime import datetime
 from utils.errors import NerpyException
 from googleapiclient.discovery import build
 from discord.ext.commands import Cog, command, group, bot_has_permissions
@@ -17,6 +16,7 @@ class Search(Cog):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
+        self.config = self.bot.config["search"]
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -24,7 +24,7 @@ class Search(Cog):
         """may the meme be with you"""
         url = f"https://api.imgur.com/3/gallery/search/viral?q={query}"
 
-        async with aiohttp.ClientSession(headers={"Authorization": f"Client-ID {config.imgur}"}) as session:
+        async with aiohttp.ClientSession(headers={"Authorization": f"Client-ID {self.config['imgur']}"}) as session:
             async with session.get(url) as response:
                 if response.status != 200:
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
@@ -62,7 +62,7 @@ class Search(Cog):
     @bot_has_permissions(send_messages=True)
     async def lyrics(self, ctx, *, query):
         """genius lyrics"""
-        url = f"http://api.genius.com/search?q={query}&access_token={config.genius}"
+        url = f"http://api.genius.com/search?q={query}&access_token={self.config['genius']}"
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
@@ -85,7 +85,7 @@ class Search(Cog):
     async def youtube(self, ctx, *, query):
         """don't stick too long, you might get lost"""
 
-        youtube = build("youtube", "v3", developerKey=config.ytkey)
+        youtube = build("youtube", "v3", developerKey=self.config["ytkey"])
 
         search_response = youtube.search().list(q=query, part="id,snippet", type="video", maxResults=1).execute()
 
@@ -126,7 +126,7 @@ class Search(Cog):
     async def imdb_search(self, query_type, query: str):
         emb = None
         rip = ""
-        search_url = f"http://www.omdbapi.com/?apikey={config.omdb}&type={query_type}&s={query}"
+        search_url = f"http://www.omdbapi.com/?apikey={self.config['omdb']}&type={query_type}&s={query}"
 
         async with aiohttp.ClientSession() as session:
             async with session.get(search_url) as search_response:
@@ -136,7 +136,7 @@ class Search(Cog):
                 search_result = await search_response.json()
 
                 if search_result["Response"] == "True":
-                    id_url = f"http://www.omdbapi.com/?apikey={config.omdb}&i=" + search_result["Search"][0]["imdbID"]
+                    id_url = f"http://www.omdbapi.com/?apikey={self.config['omdb']}&i=" + search_result["Search"][0]["imdbID"]
 
                     async with session.get(id_url) as id_response:
                         if id_response.status != 200:
@@ -170,7 +170,7 @@ class Search(Cog):
             "limit 6;"
         )
 
-        async with aiohttp.ClientSession(headers={"user-key": config.igdb, "accept": "application/json"}) as session:
+        async with aiohttp.ClientSession(headers={"user-key": self.config["igdb"], "accept": "application/json"}) as session:
             async with session.post(url, data=main_query) as response:
                 if response.status != 200:
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"

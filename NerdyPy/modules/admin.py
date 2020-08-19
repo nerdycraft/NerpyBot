@@ -1,5 +1,5 @@
 import discord
-import utils.checks as checks
+from utils.checks import is_operator
 from discord.ext.commands import Cog, command, check
 
 
@@ -12,7 +12,7 @@ class Admin(Cog):
         self.bot = bot
 
     @command(hidden=True)
-    @check(checks.is_operator)
+    @check(is_operator)
     async def shutdown(self, ctx):
         """shutdown the bot nicely (bot owner only)"""
         if not isinstance(ctx.channel, discord.DMChannel):

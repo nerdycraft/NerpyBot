@@ -1,9 +1,7 @@
-import config
 import discord
 import requests
 from datetime import datetime as dt, timedelta as td
 from wowapi import WowApi, WowApiException
-from utils.errors import NerpyException
 from discord.ext.commands import Cog, group
 
 
@@ -14,7 +12,8 @@ class WorldofWarcraft(Cog):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
-        self.api = WowApi(config.wow_id, config.wow_secret)
+        self.config = self.bot.config["wow"]
+        self.api = WowApi(self.config["wow_id"], self.config["wow_secret"])
         self.regions = ["eu", "us"]
 
     # noinspection PyMethodMayBeStatic

@@ -1,11 +1,10 @@
 """ Random Memes """
+import aiohttp
 import discord
 import utils.format as fmt
 from random import randint, choice
 from utils.errors import NerpyException
 from discord.ext.commands import Cog, command, bot_has_permissions
-
-import aiohttp
 
 
 class Random(Cog):
