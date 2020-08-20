@@ -139,15 +139,15 @@ def parse_arguments():
 
 
 def parse_config(config_file=None):
-    _config = configparser.ConfigParser(interpolation=None)
+    config = configparser.ConfigParser(interpolation=None)
 
     if config_file is None:
         config_file = Path("./config.ini")
 
     if config_file.exists():
-        _config.read(config_file)
+        config.read(config_file)
 
-    return _config
+    return config
 
 
 if __name__ == "__main__":
