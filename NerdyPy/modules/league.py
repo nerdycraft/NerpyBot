@@ -104,4 +104,4 @@ def setup(bot):
     if "league" in bot.config:
         bot.add_cog(League(bot))
     else:
-        raise NerpyException('Config not found.')
+        raise NerpyException("Config not found.")

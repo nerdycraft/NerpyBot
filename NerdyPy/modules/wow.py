@@ -153,4 +153,4 @@ def setup(bot):
     if "wow" in bot.config:
         bot.add_cog(WorldofWarcraft(bot))
     else:
-        raise NerpyException('Config not found.')
+        raise NerpyException("Config not found.")

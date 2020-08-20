@@ -2,7 +2,6 @@
 Main Class of the NerpyBot
 """
 
-import os
 import sys
 import json
 import asyncio

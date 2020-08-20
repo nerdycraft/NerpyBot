@@ -135,4 +135,4 @@ def setup(bot):
     if "utility" in bot.config:
         bot.add_cog(Utility(bot))
     else:
-        raise NerpyException('Config not found.')
+        raise NerpyException("Config not found.")

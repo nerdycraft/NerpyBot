@@ -232,4 +232,4 @@ def setup(bot):
     if "search" in bot.config:
         bot.add_cog(Search(bot))
     else:
-        raise NerpyException('Config not found.')
+        raise NerpyException("Config not found.")
