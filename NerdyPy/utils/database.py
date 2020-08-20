@@ -8,8 +8,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
 
 BASE = declarative_base()
+DBPATH = "sqlite:///db.db"
 
-ENGINE = create_engine("sqlite:///db.db", echo=True)
+ENGINE = create_engine(DBPATH, echo=True)
 SESSION = sessionmaker(bind=ENGINE)
 
 

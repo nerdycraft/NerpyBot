@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from enum import Enum
-from discord.ext.commands import Converter
-from sqlalchemy.orm import relationship
-from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc
-from models.tagentry import TagEntry
 from utils import database as db
+from models.tagentry import TagEntry
+from sqlalchemy.orm import relationship
 from utils.errors import NerpyException
+from discord.ext.commands import Converter
+from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc
 
 
 class Tag(db.BASE):

@@ -11,6 +11,6 @@ __pycache__/
 .vscode
 venv/
 tmp/
-/NerdyPy/config.py
+/NerdyPy/config.ini
 NerpyBot.code-workspace
 .env

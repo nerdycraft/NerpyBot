@@ -1,8 +1,8 @@
-import config
+import json
 
 
 async def is_operator(ctx):
-    return config.ops.count(ctx.author.id) > 0
+    return json.loads(ctx.bot.ops).count(ctx.author.id) > 0
 
 
 async def is_botmod(ctx):
@@ -10,6 +10,6 @@ async def is_botmod(ctx):
         return True
     if ctx.author.roles is not None:
         for role in ctx.author.roles:
-            if role.name == config.moderator_role_name:
+            if role.name == ctx.bot.moderator_role:
                 return True
     return False

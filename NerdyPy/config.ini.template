@@ -1,0 +1,28 @@
+###################################
+# API Keys and LogIn Informations #
+###################################
+
+[bot]
+client_id =
+token =
+ops = []
+moderator_role_name =
+
+[search]
+imgur =
+genius =
+omdb =
+igdb =
+ytkey =
+malusr =
+malpwd =
+
+[utility]
+openweather =
+
+[league]
+riot =
+
+[wow]
+wow_id =
+wow_secret =

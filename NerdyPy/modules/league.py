@@ -1,4 +1,3 @@
-import config
 import discord
 import aiohttp
 from enum import Enum
@@ -37,6 +36,7 @@ class League(Cog):
 
         self.bot = bot
         self.version = None
+        self.config = self.bot.config["league"]
 
     async def _get_latest_version(self):
 
@@ -57,7 +57,7 @@ class League(Cog):
         """get information about the summoner"""
         rank = tier = lp = wins = losses = ""
 
-        auth_header = {"X-Riot-Token": config.riot}
+        auth_header = {"X-Riot-Token": self.config["riot"]}
         summoner_url = self._get_url(region, LeagueCommand.SUMMONER_BY_NAME, summoner_name)
 
         async with aiohttp.ClientSession(headers=auth_header) as summoner_session:
@@ -101,4 +101,7 @@ class League(Cog):
 
 def setup(bot):
     """adds this module to the bot"""
-    bot.add_cog(League(bot))
+    if "league" in bot.config:
+        bot.add_cog(League(bot))
+    else:
+        raise NerpyException("Config not found.")

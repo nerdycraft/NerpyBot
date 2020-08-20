@@ -1,11 +1,9 @@
 """ Search Modul """
 # -- coding: utf-8 --
 import aiohttp
-import config
 import discord
-from datetime import datetime
 import utils.format as fmt
-from lxml import etree
+from datetime import datetime
 from utils.errors import NerpyException
 from googleapiclient.discovery import build
 from discord.ext.commands import Cog, command, group, bot_has_permissions
@@ -18,6 +16,7 @@ class Search(Cog):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
+        self.config = self.bot.config["search"]
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -25,7 +24,7 @@ class Search(Cog):
         """may the meme be with you"""
         url = f"https://api.imgur.com/3/gallery/search/viral?q={query}"
 
-        async with aiohttp.ClientSession(headers={"Authorization": f"Client-ID {config.imgur}"}) as session:
+        async with aiohttp.ClientSession(headers={"Authorization": f"Client-ID {self.config['imgur']}"}) as session:
             async with session.get(url) as response:
                 if response.status != 200:
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
@@ -63,7 +62,7 @@ class Search(Cog):
     @bot_has_permissions(send_messages=True)
     async def lyrics(self, ctx, *, query):
         """genius lyrics"""
-        url = f"http://api.genius.com/search?q={query}&access_token={config.genius}"
+        url = f"http://api.genius.com/search?q={query}&access_token={self.config['genius']}"
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
@@ -86,7 +85,7 @@ class Search(Cog):
     async def youtube(self, ctx, *, query):
         """don't stick too long, you might get lost"""
 
-        youtube = build("youtube", "v3", developerKey=config.ytkey)
+        youtube = build("youtube", "v3", developerKey=self.config["ytkey"])
 
         search_response = youtube.search().list(q=query, part="id,snippet", type="video", maxResults=1).execute()
 
@@ -97,39 +96,6 @@ class Search(Cog):
         else:
             msg = "And i thought everything is on youtube :open_mouth:"
         await ctx.send(msg)
-
-    @command()
-    @bot_has_permissions(send_messages=True)
-    async def anime(self, ctx, *, query):
-        """weeb search"""
-        url = f"https://myanimelist.net/api/anime/search.xml?q={query}"
-        auth = aiohttp.BasicAuth(login=config.malusr, password=config.malpwd, encoding="utf-8")
-
-        async with aiohttp.ClientSession(auth=auth) as session:
-            async with session.get(url) as response:
-                if response.status != 200:
-                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
-                    raise NerpyException(err)
-                parser = etree.XMLParser(ns_clean=True, recover=True, remove_blank_text=True, encoding="utf-8",)
-                raw_xml = await response.text()
-                xml = etree.fromstring(raw_xml.encode("utf-8"), parser=parser)
-
-                find_text = etree.XPath("/anime/entry[1]")
-                entry = find_text(xml)
-
-                msg = f"*Searchresult for {query}*\n\n"
-
-                msg += f"__**{entry.xpath('//title')}**__\n"
-                msg += f"*{entry.xpath('//english')}*\n"
-                msg += f"Episodes: {entry.xpath('//episodes')}\n"
-                msg += f"Start: {entry.xpath('//start_date')}\n"
-                msg += f"End: {entry.xpath('//end_date')}\n"
-                msg += f"Rating: {entry.xpath('//score')}\n"
-                msg += f"URL: `https://myanimelist.net/anime/{entry.xpath('//id')}`\n\n"
-
-                msg += entry.xpath("//image")
-
-                await ctx.send(msg)
 
     @group(invoke_without_command=False)
     @bot_has_permissions(send_messages=True)
@@ -160,7 +126,7 @@ class Search(Cog):
     async def imdb_search(self, query_type, query: str):
         emb = None
         rip = ""
-        search_url = f"http://www.omdbapi.com/?apikey={config.omdb}&type={query_type}&s={query}"
+        search_url = f"http://www.omdbapi.com/?apikey={self.config['omdb']}&type={query_type}&s={query}"
 
         async with aiohttp.ClientSession() as session:
             async with session.get(search_url) as search_response:
@@ -170,7 +136,10 @@ class Search(Cog):
                 search_result = await search_response.json()
 
                 if search_result["Response"] == "True":
-                    id_url = f"http://www.omdbapi.com/?apikey={config.omdb}&i=" + search_result["Search"][0]["imdbID"]
+                    id_url = (
+                        f"http://www.omdbapi.com/?apikey={self.config['omdb']}&i="
+                        + search_result["Search"][0]["imdbID"]
+                    )
 
                     async with session.get(id_url) as id_response:
                         if id_response.status != 200:
@@ -204,7 +173,9 @@ class Search(Cog):
             "limit 6;"
         )
 
-        async with aiohttp.ClientSession(headers={"user-key": config.igdb, "accept": "application/json"}) as session:
+        async with aiohttp.ClientSession(
+            headers={"user-key": self.config["igdb"], "accept": "application/json"}
+        ) as session:
             async with session.post(url, data=main_query) as response:
                 if response.status != 200:
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
@@ -258,4 +229,7 @@ class Search(Cog):
 
 def setup(bot):
     """adds this module to the bot"""
-    bot.add_cog(Search(bot))
+    if "search" in bot.config:
+        bot.add_cog(Search(bot))
+    else:
+        raise NerpyException("Config not found.")

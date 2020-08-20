@@ -1,4 +1,3 @@
-import config
 import aiohttp
 import discord
 import datetime
@@ -13,6 +12,7 @@ class Utility(Cog):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
+        self.config = self.bot.config["utility"]
 
     @command()
     @check(is_botmod)
@@ -81,7 +81,9 @@ class Utility(Cog):
     @bot_has_permissions(embed_links=True, send_messages=True)
     async def weather(self, ctx, *, query: str):
         """outputs weather information"""
-        url = f"http://api.openweathermap.org/data/2.5/weather?q={query}&appid={config.openweather}&units=metric"
+        url = (
+            f"http://api.openweathermap.org/data/2.5/weather?q={query}&appid={self.config['openweather']}&units=metric"
+        )
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
@@ -130,4 +132,7 @@ class Utility(Cog):
 
 
 def setup(bot):
-    bot.add_cog(Utility(bot))
+    if "utility" in bot.config:
+        bot.add_cog(Utility(bot))
+    else:
+        raise NerpyException("Config not found.")
