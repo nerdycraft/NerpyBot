@@ -101,4 +101,7 @@ class League(Cog):
 
 def setup(bot):
     """adds this module to the bot"""
-    bot.add_cog(League(bot))
+    if "league" in bot.config:
+        bot.add_cog(League(bot))
+    else:
+        raise NerpyException('Config not found.')

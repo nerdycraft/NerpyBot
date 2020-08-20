@@ -1,8 +1,9 @@
 import discord
 import requests
-from datetime import datetime as dt, timedelta as td
+from utils.errors import NerpyException
 from wowapi import WowApi, WowApiException
 from discord.ext.commands import Cog, group
+from datetime import datetime as dt, timedelta as td
 
 
 class WorldofWarcraft(Cog):
@@ -149,4 +150,7 @@ class WorldofWarcraft(Cog):
 
 def setup(bot):
     """adds this module to the bot"""
-    bot.add_cog(WorldofWarcraft(bot))
+    if "wow" in bot.config:
+        bot.add_cog(WorldofWarcraft(bot))
+    else:
+        raise NerpyException('Config not found.')

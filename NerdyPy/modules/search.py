@@ -229,4 +229,7 @@ class Search(Cog):
 
 def setup(bot):
     """adds this module to the bot"""
-    bot.add_cog(Search(bot))
+    if "search" in bot.config:
+        bot.add_cog(Search(bot))
+    else:
+        raise NerpyException('Config not found.')

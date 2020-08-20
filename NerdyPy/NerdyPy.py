@@ -4,6 +4,7 @@ Main Class of the NerpyBot
 
 import os
 import sys
+import json
 import asyncio
 import logging
 import discord
@@ -22,14 +23,16 @@ from utils.errors import NerpyException
 class NerpyBot(commands.Bot):
     """Discord Bot"""
 
-    def __init__(self, config):
+    def __init__(self, config: configparser, debug: bool):
         super().__init__(command_prefix="!", description="NerdyBot - Always one step ahead!")
 
         self.config = config
+        self.debug = debug
         self.client_id = config["bot"]["client_id"]
         self.token = config["bot"]["token"]
         self.ops = config["bot"]["ops"]
         self.moderator_role = self.config["bot"]["moderator_role_name"]
+        self.modules = json.loads(self.config["bot"]["modules"])
         self.prefixes = ["!"]
         self.restart = True
         self.log = self._get_logger()
@@ -95,14 +98,13 @@ class NerpyBot(commands.Bot):
         await self.logout()
 
     def _import_modules(self):
-        for file in os.listdir(path="./modules"):
-            split = os.path.splitext(file)
-            if split[1] == ".py" and split[0] != "__init__":
-                try:
-                    self.load_extension(f"modules.{split[0]}")
-                except (ImportError, discord.ClientException):
-                    # TODO: Add better Exception handling
-                    self.log.error(f"failed to load extension {split[0]}.")
+        for module in self.modules:
+            try:
+                self.load_extension(f"modules.{module}")
+            except (ImportError, commands.ExtensionFailed, discord.ClientException) as e:
+                # TODO: Add better Exception handling
+                self.log.error(f"failed to load extension {module}. {e}")
+                if self.debug:
                     traceback.print_exc()
 
     # noinspection PyMethodMayBeStatic
@@ -135,6 +137,9 @@ def parse_arguments():
     parser.add_argument(
         "--config", "-c", help="Specify config file for NerdyPy", nargs=1,
     )
+    parser.add_argument(
+        "--debug", help="Debug", action="store_true",
+    )
     return parser.parse_args()
 
 
@@ -164,20 +169,25 @@ if __name__ == "__main__":
     LOOP = asyncio.get_event_loop()
     ARGS = parse_arguments()
     CONFIG = parse_config(ARGS.config)
-    BOT = NerpyBot(CONFIG)
+    DEBUG = ARGS.debug
 
-    while RUNNING:
-        try:
-            LOOP.run_until_complete(BOT.run())
-        except discord.LoginFailure:
-            BOT.log.error(traceback.format_exc())
-            BOT.log.error("Failed to login")
-        except KeyboardInterrupt:
-            LOOP.run_until_complete(BOT.logout())
-        except Exception as ex:
-            BOT.log.exception("Fatal exception, attempting graceful logout", exc_info=ex)
-            LOOP.run_until_complete(BOT.logout())
-        finally:
-            LOOP.close()
-            if BOT.restart is False:
-                RUNNING = False
+    if "bot" in CONFIG:
+        BOT = NerpyBot(CONFIG, DEBUG)
+
+        while RUNNING:
+            try:
+                LOOP.run_until_complete(BOT.run())
+            except discord.LoginFailure:
+                BOT.log.error(traceback.format_exc())
+                BOT.log.error("Failed to login")
+            except KeyboardInterrupt:
+                LOOP.run_until_complete(BOT.logout())
+            except Exception as ex:
+                BOT.log.exception("Fatal exception, attempting graceful logout", exc_info=ex)
+                LOOP.run_until_complete(BOT.logout())
+            finally:
+                LOOP.close()
+                if BOT.restart is False:
+                    RUNNING = False
+    else:
+        raise NerpyException("Bot config not found.")
