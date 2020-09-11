@@ -42,7 +42,8 @@ class Audio:
         source = discord.PCMVolumeTransformer(discord.PCMAudio(song.stream))
         source.volume = song.volume / 100
         song.channel.guild.voice_client.play(
-            source, after=lambda e: self.bot.log.error("Player error: %s" % e) if e else None,
+            source,
+            after=lambda e: self.bot.log.error("Player error: %s" % e) if e else None,
         )
 
         self.lastPlayed[song.channel.guild.id] = datetime.now()

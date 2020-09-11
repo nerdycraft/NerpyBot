@@ -25,7 +25,12 @@ class Tag(db.BASE):
     Count = Column(Integer)
     Volume = Column(Integer)
 
-    entries = relationship("TagEntry", back_populates="tag", cascade="all, delete, delete-orphan", lazy="dynamic",)
+    entries = relationship(
+        "TagEntry",
+        back_populates="tag",
+        cascade="all, delete, delete-orphan",
+        lazy="dynamic",
+    )
 
     @classmethod
     def exists(cls, name, guild_id: int):
