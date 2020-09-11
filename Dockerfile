@@ -10,6 +10,6 @@ RUN apk add --no-cache build-base libffi-dev \
     && apk del build-base libffi-dev \
     && rm -rf /var/cache/apk/*
 
-RUN apk add --no-cache gcc ffmpeg opus
+RUN apk add --no-cache gcc ffmpeg opus opus-dev
 
 CMD ["python", "/app/NerdyPy/NerdyPy.py"]
