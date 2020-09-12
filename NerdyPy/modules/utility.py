@@ -42,26 +42,6 @@ class Utility(Cog):
         """displays the current membercount of the server [bot-moderator]"""
         await ctx.send(fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
 
-    @command()
-    @check(is_botmod)
-    async def userinfo(self, ctx, user: discord.Member):
-        """displays information about given user [bot-moderator]"""
-        created = user.created_at.strftime("%d. %B %Y - %H:%M")
-        joined = user.joined_at.strftime("%d. %B %Y - %H:%M")
-
-        emb = discord.Embed(title=user.display_name)
-        emb.description = f"original name: {user.name}"
-        emb.set_thumbnail(url=user.avatar_url)
-        emb.add_field(name="created", value=created)
-        emb.add_field(name="joined", value=joined)
-        emb.add_field(name="top role", value=user.top_role.name.replace("@", ""))
-        rn = []
-        for r in user.roles:
-            rn.append(r.name.replace("@", ""))
-
-        emb.add_field(name="roles", value=", ".join(rn), inline=False)
-
-        await ctx.send(embed=emb)
 
     @command()
     @bot_has_permissions(send_messages=True)
