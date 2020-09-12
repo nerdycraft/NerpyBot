@@ -69,7 +69,7 @@ class NerpyBot(commands.Bot):
                     f"{error.original.__class__.__name__}: {error.original}",
                     file=sys.stderr,
                 )
-                await ctx.author.send("Unhandled error occurred. Please report to bot author!")
+                await ctx.author.send("Unhandled error occured. Please report to bot author!")
             else:
                 await ctx.author.send(error)
         else:
@@ -79,7 +79,7 @@ class NerpyBot(commands.Bot):
                 f"{error.original.__class__.__name__}: {error.original}",
                 file=sys.stderr,
             )
-            await ctx.author.send("Unhandled error occurred. Please report to bot author!")
+            await ctx.author.send("Unhandled error occured. Please report to bot author!")
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
 
