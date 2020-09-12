@@ -42,6 +42,7 @@ class Utility(Cog):
         """displays the current membercount of the server [bot-moderator]"""
         await ctx.send(fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
 
+
     @command()
     @bot_has_permissions(send_messages=True)
     async def remindme(self, ctx, mins: int, *, text: str):
