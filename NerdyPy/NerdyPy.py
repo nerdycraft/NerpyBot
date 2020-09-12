@@ -39,6 +39,7 @@ class NerpyBot(commands.Bot):
 
         self.audio = Audio(self)
         self.reminder = Reminder(self)
+        self.last_cmd_cache = {}
 
         create_all()
         self._import_modules()
@@ -50,6 +51,13 @@ class NerpyBot(commands.Bot):
     async def on_command_completion(self, ctx):
         """ deleting msg on cmd completion """
         if self.restart is True and not isinstance(ctx.channel, discord.DMChannel):
+            if ctx.guild.id not in self.last_cmd_cache:
+                self.last_cmd_cache[ctx.guild.id] = {}
+            elif self.last_cmd_cache[ctx.guild.id].count() >= 10:
+                self.last_cmd_cache[ctx.guild.id].popleft()
+
+            self.last_cmd_cache[ctx.guild.id].append(ctx.message)
+
             await ctx.message.delete()
 
     async def on_command_error(self, ctx, error):

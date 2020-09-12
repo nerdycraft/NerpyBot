@@ -44,3 +44,14 @@ class Management(Cog):
 
         for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
             await ctx.send(fmt.box(page, "md"))
+
+    @command(pass_context=True)
+    @check(is_botmod)
+    async def history(self, ctx):
+        """displays the last 10 received commands since last restart"""
+        if ctx.guild.id in ctx.bot.last_cmd_cache:
+            msg = ""
+            for m in ctx.bot.last_cmd_cache[ctx.guild.id]:
+                msg += f"{m.author} - {m.content}\n"
+
+            ctx.send(fmt.box(msg, "md"))
