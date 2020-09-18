@@ -201,14 +201,16 @@ class Search(Cog):
 
                     if "aggregated_rating" in data:
                         emb.add_field(
-                            name=fmt.bold("Genres"), value=", ".join(g["name"] for g in data["genres"]),
+                            name=fmt.bold("Genres"),
+                            value=", ".join(g["name"] for g in data["genres"]),
                         )
                     else:
                         emb.add_field(name=fmt.bold("Genres"), value="no info")
 
                     if "aggregated_rating" in data:
                         emb.add_field(
-                            name=fmt.bold("Rating"), value=f"{int(data['aggregated_rating'])}/100",
+                            name=fmt.bold("Rating"),
+                            value=f"{int(data['aggregated_rating'])}/100",
                         )
                     else:
                         emb.add_field(name=fmt.bold("Rating"), value="no rating")
@@ -217,7 +219,8 @@ class Search(Cog):
                         i = iter(result)
                         next(i)
                         emb.add_field(
-                            name=fmt.bold("wrong answer? try:"), value="\n".join(" - " + r["name"] for r in i),
+                            name=fmt.bold("wrong answer? try:"),
+                            value="\n".join(" - " + r["name"] for r in i),
                         )
 
                     emb.set_footer(text=data["url"])

@@ -58,7 +58,8 @@ class NerpyBot(commands.Bot):
                 print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
                 traceback.print_tb(error.original.__traceback__)
                 print(
-                    f"{error.original.__class__.__name__}: {error.original}", file=sys.stderr,
+                    f"{error.original.__class__.__name__}: {error.original}",
+                    file=sys.stderr,
                 )
                 await ctx.author.send("Unhandled error occured. Please report to bot author!")
             else:
@@ -67,7 +68,8 @@ class NerpyBot(commands.Bot):
             print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
             traceback.print_tb(error.original.__traceback__)
             print(
-                f"{error.original.__class__.__name__}: {error.original}", file=sys.stderr,
+                f"{error.original.__class__.__name__}: {error.original}",
+                file=sys.stderr,
             )
             await ctx.author.send("Unhandled error occured. Please report to bot author!")
         if not isinstance(ctx.channel, discord.DMChannel):
@@ -112,7 +114,8 @@ class NerpyBot(commands.Bot):
         logger.setLevel(logging.INFO)
 
         fmt = logging.Formatter(
-            "%(asctime)s %(levelname)s %(module)s %(funcName)s %(lineno)d: %(message)s", datefmt="[%d/%m/%Y %H:%M]",
+            "%(asctime)s %(levelname)s %(module)s %(funcName)s %(lineno)d: %(message)s",
+            datefmt="[%d/%m/%Y %H:%M]",
         )
 
         stdout_handler = logging.StreamHandler(sys.stdout)
@@ -131,13 +134,21 @@ def parse_arguments():
     """
     parser = argparse.ArgumentParser(description="-> NerpyBot <-")
     parser.add_argument(
-        "--auto-restart", "-r", help="Autorestarts NerdyPy in case of issues", action="store_true",
+        "--auto-restart",
+        "-r",
+        help="Autorestarts NerdyPy in case of issues",
+        action="store_true",
     )
     parser.add_argument(
-        "--config", "-c", help="Specify config file for NerdyPy", nargs=1,
+        "--config",
+        "-c",
+        help="Specify config file for NerdyPy",
+        nargs=1,
     )
     parser.add_argument(
-        "--debug", help="Debug", action="store_true",
+        "--debug",
+        help="Debug",
+        action="store_true",
     )
     return parser.parse_args()
 
