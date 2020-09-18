@@ -1,21 +1,24 @@
 name: Lint
 
 on:
-  - push
   - pull_request
 
 jobs:
   lint:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
     - name: Install linters
       run: |
-        pip3 install setuptools flake8 black
+        python -m pip install --upgrade pip
+        pip install flake8 black
     - name: Lint with flake8
       run: |
-        python3 -m flake8 NerdyPy
+        flake8 NerdyPy --count --max-line-length=127 --statistics
     - name: Lint with black
       run: |
-        python3 -m black -t py38 -l 120 --check --diff NerdyPy
+        black -t py38 -l 120 --check --diff NerdyPy
