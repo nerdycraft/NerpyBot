@@ -4,7 +4,7 @@ requirements = [
     "google-api-python-client",
     "SQLAlchemy",
     "youtube_dl",
-    "discord.py[voice]==1.3.4",
+    "discord.py[voice]==1.4.0",
     "pydub",
     "ffmpeg-python",
     "python-wowapi==4.0.0"
