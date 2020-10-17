@@ -13,7 +13,7 @@ class Management(Cog):
 
     @group(invoke_without_command=False, aliases=["u"])
     async def user(self, ctx):
-        """sound and text tags"""
+        """user management"""
 
     @user.command()
     @check(is_botmod)
