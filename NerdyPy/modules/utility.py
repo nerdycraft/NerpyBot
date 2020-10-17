@@ -51,7 +51,10 @@ class Utility(Cog):
         bot will answer in the channel you asked for it
         """
         self.bot.reminder.add(
-            ctx.author, ctx.message.channel, datetime.datetime.now() + datetime.timedelta(minutes=mins), text,
+            ctx.author,
+            ctx.message.channel,
+            datetime.datetime.now() + datetime.timedelta(minutes=mins),
+            text,
         )
 
         await ctx.send(f"{ctx.author.mention}, i will remind you in {mins} minutes")
@@ -85,16 +88,20 @@ class Utility(Cog):
                                     {data['sys']['country']}](https://openweathermap.org/city/{data['id']})""",
                 )
                 emb.add_field(
-                    name=":thermometer: " + fmt.bold("temperature"), value=f"{data['main']['temp']}°C",
+                    name=":thermometer: " + fmt.bold("temperature"),
+                    value=f"{data['main']['temp']}°C",
                 )
                 emb.add_field(
-                    name=":cloud: " + fmt.bold("condition"), value=str.join(", ", conditions),
+                    name=":cloud: " + fmt.bold("condition"),
+                    value=str.join(", ", conditions),
                 )
                 emb.add_field(
-                    name=":sweat_drops: " + fmt.bold("humidity"), value=f"{data['main']['humidity']}%",
+                    name=":sweat_drops: " + fmt.bold("humidity"),
+                    value=f"{data['main']['humidity']}%",
                 )
                 emb.add_field(
-                    name=":wind_chime: " + fmt.bold("wind"), value=f"{data['wind']['speed']} m/s",
+                    name=":wind_chime: " + fmt.bold("wind"),
+                    value=f"{data['wind']['speed']} m/s",
                 )
                 emb.add_field(
                     name="🔆 " + fmt.bold("min-max"),
