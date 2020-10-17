@@ -39,6 +39,7 @@ class NerpyBot(commands.Bot):
 
         self.audio = Audio(self)
         self.reminder = Reminder(self)
+        self.last_cmd_cache = {}
 
         create_all()
         self._import_modules()
@@ -50,6 +51,13 @@ class NerpyBot(commands.Bot):
     async def on_command_completion(self, ctx):
         """ deleting msg on cmd completion """
         if self.restart is True and not isinstance(ctx.channel, discord.DMChannel):
+            if ctx.guild.id not in self.last_cmd_cache:
+                self.last_cmd_cache[ctx.guild.id] = {}
+            elif self.last_cmd_cache[ctx.guild.id].count() >= 10:
+                self.last_cmd_cache[ctx.guild.id].popleft()
+
+            self.last_cmd_cache[ctx.guild.id].append(ctx.message)
+
             await ctx.message.delete()
 
     async def on_command_error(self, ctx, error):
@@ -61,7 +69,7 @@ class NerpyBot(commands.Bot):
                     f"{error.original.__class__.__name__}: {error.original}",
                     file=sys.stderr,
                 )
-                await ctx.author.send("Unhandled error occured. Please report to bot author!")
+                await ctx.author.send("Unhandled error occurred. Please report to bot author!")
             else:
                 await ctx.author.send(error)
         else:
@@ -71,7 +79,7 @@ class NerpyBot(commands.Bot):
                 f"{error.original.__class__.__name__}: {error.original}",
                 file=sys.stderr,
             )
-            await ctx.author.send("Unhandled error occured. Please report to bot author!")
+            await ctx.author.send("Unhandled error occurred. Please report to bot author!")
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
 
