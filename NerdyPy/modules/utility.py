@@ -4,7 +4,9 @@ import datetime
 import utils.format as fmt
 from utils.checks import is_botmod
 from utils.errors import NerpyException
-from discord.ext.commands import Cog, command, check, bot_has_permissions
+from discord.ext.commands import Cog, command, check, bot_has_permissions, group
+
+from utils.timed import Timed
 
 
 class Utility(Cog):
@@ -58,6 +60,32 @@ class Utility(Cog):
         )
 
         await ctx.send(f"{ctx.author.mention}, i will remind you in {mins} minutes")
+
+    @group(invoke_without_command=False)
+    @check(is_botmod)
+    async def timed(self, ctx):
+        """
+        """
+
+    @timed.command()
+    async def create(self, ctx, mins: int, repeat: bool, *, text: str):
+        """
+        """
+        Timed.add(ctx.author, ctx.guild, ctx.channel, mins, repeat, text)
+
+    @timed.command()
+    async def list(self, ctx):
+        """
+        """
+        to_send = Timed.show(ctx.guild.id)
+        for page in fmt.pagify(to_send, delims=["\n#"], page_length=1990):
+            await ctx.send(fmt.box(page, "md"))
+
+    @timed.command()
+    async def delete(self, ctx, id: int):
+        """
+        """
+        Timed.delete(id, ctx.guild.id)
 
     @command()
     @bot_has_permissions(embed_links=True, send_messages=True)

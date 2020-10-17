@@ -17,6 +17,7 @@ from discord.ext import commands
 from utils.reminder import Reminder
 from utils.database import create_all
 from utils.errors import NerpyException
+from utils.timed import Timed
 
 
 class NerpyBot(commands.Bot):
@@ -39,6 +40,7 @@ class NerpyBot(commands.Bot):
 
         self.audio = Audio(self)
         self.reminder = Reminder(self)
+        self.timed = Timed(self)
         self.last_cmd_cache = {}
 
         create_all()
@@ -104,6 +106,7 @@ class NerpyBot(commands.Bot):
         self.restart = False
         await self.audio.rip_loop()
         await self.reminder.rip_loop()
+        await self.timed.rip_loop()
         await self.logout()
 
     def _import_modules(self):
