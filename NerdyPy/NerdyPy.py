@@ -52,8 +52,8 @@ class NerpyBot(commands.Bot):
         """ deleting msg on cmd completion """
         if self.restart is True and not isinstance(ctx.channel, discord.DMChannel):
             if ctx.guild.id not in self.last_cmd_cache:
-                self.last_cmd_cache[ctx.guild.id] = {}
-            elif self.last_cmd_cache[ctx.guild.id].count() >= 10:
+                self.last_cmd_cache[ctx.guild.id] = []
+            elif len(self.last_cmd_cache[ctx.guild.id]) >= 10:
                 self.last_cmd_cache[ctx.guild.id].popleft()
 
             self.last_cmd_cache[ctx.guild.id].append(ctx.message)

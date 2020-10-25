@@ -6,6 +6,8 @@ from discord.ext.commands import Cog, command, group, check
 
 
 class Management(Cog):
+    """cog for bot management"""
+
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
 
@@ -54,4 +56,9 @@ class Management(Cog):
             for m in ctx.bot.last_cmd_cache[ctx.guild.id]:
                 msg += f"{m.author} - {m.content}\n"
 
-            ctx.send(fmt.box(msg, "md"))
+            await ctx.send(fmt.box(msg, "md"))
+
+
+def setup(bot):
+    """adds this module to the bot"""
+    bot.add_cog(Management(bot))
