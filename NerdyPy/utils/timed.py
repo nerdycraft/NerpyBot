@@ -48,7 +48,7 @@ class Timed:
     async def _loop(self):
         self.loopRunning = True
         while self.doLoop:
-            await asyncio.sleep(1)
+            await asyncio.sleep(30)
 
             with session_scope() as session:
                 for guild in self.bot.guilds:
