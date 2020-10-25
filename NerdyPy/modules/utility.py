@@ -65,17 +65,20 @@ class Utility(Cog):
     @check(is_botmod)
     async def timed(self, ctx):
         """
+        timed messages
         """
 
     @timed.command()
     async def create(self, ctx, mins: int, repeat: bool, *, text: str):
         """
+        creates a message which gets send after a certain time
         """
         Timed.add(ctx.author, ctx.guild, ctx.channel, mins, repeat, text)
 
     @timed.command()
     async def list(self, ctx):
         """
+        list all current timed messages
         """
         to_send = Timed.show(ctx.guild.id)
         for page in fmt.pagify(to_send, delims=["\n#"], page_length=1990):
@@ -84,6 +87,7 @@ class Utility(Cog):
     @timed.command()
     async def delete(self, ctx, id: int):
         """
+        deletes a timed message
         """
         Timed.delete(id, ctx.guild.id)
 
