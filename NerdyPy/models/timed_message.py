@@ -27,10 +27,13 @@ class TimedMessage(db.BASE):
     Count = Column(Integer)
 
     @classmethod
-    def get(cls, id, guild_id, session):
+    def get(cls, timed_id, guild_id, session):
         """returns a tag with given name for given guild | session needed!"""
         return (
-            session.query(TimedMessage).filter(TimedMessage.Id == id).filter(TimedMessage.GuildId == guild_id).first()
+            session.query(TimedMessage)
+            .filter(TimedMessage.Id == timed_id)
+            .filter(TimedMessage.GuildId == guild_id)
+            .first()
         )
 
     @classmethod
