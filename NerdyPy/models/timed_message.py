@@ -10,8 +10,10 @@ class TimedMessage(db.BASE):
     """database entity model for tags"""
 
     __tablename__ = "TimedMessage"
-    __table_args__ = (Index("TimedMessage_GuildId", "GuildId"),
-                      Index("TimedMessage_Id_GuildId", "Id", "GuildId", unique=True))
+    __table_args__ = (
+        Index("TimedMessage_GuildId", "GuildId"),
+        Index("TimedMessage_Id_GuildId", "Id", "GuildId", unique=True),
+    )
 
     Id = Column(Integer, primary_key=True)
     GuildId = Column(BigInteger)
@@ -27,10 +29,9 @@ class TimedMessage(db.BASE):
     @classmethod
     def get(cls, id, guild_id, session):
         """returns a tag with given name for given guild | session needed!"""
-        return session.query(TimedMessage)\
-            .filter(TimedMessage.Id == id)\
-            .filter(TimedMessage.GuildId == guild_id)\
-            .first()
+        return (
+            session.query(TimedMessage).filter(TimedMessage.Id == id).filter(TimedMessage.GuildId == guild_id).first()
+        )
 
     @classmethod
     def get_all_from_guild(cls, guild_id: int, session):
@@ -48,6 +49,6 @@ class TimedMessage(db.BASE):
         msg += f"Author: {self.Author}\n"
         msg += f'Created: {self.CreateDate.strftime("%Y-%m-%d %H:%M")}\n'
         msg += f'Next Message: {(self.LastSend + timedelta(minutes=self.Minutes)).strftime("%Y-%m-%d %H:%M")}\n'
-        msg += f'Message: {self.Message}\n'
+        msg += f"Message: {self.Message}\n"
         msg += f"Hits: {self.Count}\n"
         return msg

@@ -41,7 +41,7 @@ class Timed:
         with session_scope() as session:
             msgs = TimedMessage.get_all_from_guild(guildid, session)
             for msg in msgs:
-                to_send += f'{str(msg)}\n\n'
+                to_send += f"{str(msg)}\n\n"
 
         return to_send
 
