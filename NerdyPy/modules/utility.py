@@ -85,11 +85,11 @@ class Utility(Cog):
             await ctx.send(fmt.box(page, "md"))
 
     @timed.command()
-    async def delete(self, ctx, id: int):
+    async def delete(self, ctx, timed_id: int):
         """
         deletes a timed message
         """
-        Timed.delete(id, ctx.guild.id)
+        Timed.delete(timed_id, ctx.guild.id)
 
     @command()
     @bot_has_permissions(embed_links=True, send_messages=True)

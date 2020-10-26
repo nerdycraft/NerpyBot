@@ -32,8 +32,8 @@ class Timed:
             session.flush()
 
     @classmethod
-    def delete(cls, id, guildid):
-        TimedMessage.delete(id, guildid)
+    def delete(cls, timed_id, guildid):
+        TimedMessage.delete(timed_id, guildid)
 
     @classmethod
     def show(cls, guildid):
