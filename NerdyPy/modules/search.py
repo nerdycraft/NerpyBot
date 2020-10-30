@@ -8,6 +8,8 @@ from utils.errors import NerpyException
 from googleapiclient.discovery import build
 from discord.ext.commands import Cog, command, group, bot_has_permissions
 
+from utils.send import send_embed, send
+
 
 class Search(Cog):
     """search module"""
@@ -34,7 +36,7 @@ class Search(Cog):
                     meme = data["data"][0]["link"]
                 else:
                     meme = "R.I.P. memes"
-                await ctx.send(meme)
+                await send(ctx, meme)
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -56,7 +58,7 @@ class Search(Cog):
                     emb.url = item["permalink"]
                 else:
                     emb.description = "no results - R.I.P. memes"
-                await ctx.send(embed=emb)
+                await send_embed(ctx, emb)
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -78,7 +80,7 @@ class Search(Cog):
                     emb.url = item.get("url")
                 else:
                     emb.description = "R.I.P. memes"
-                await ctx.send(embed=emb)
+                await send_embed(ctx, emb)
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -95,7 +97,7 @@ class Search(Cog):
             msg = f'https://www.youtube.com/watch?v={items[0]["id"]["videoId"]}'
         else:
             msg = "And i thought everything is on youtube :open_mouth:"
-        await ctx.send(msg)
+        await send(ctx, msg)
 
     @group(invoke_without_command=False)
     @bot_has_permissions(send_messages=True)
@@ -225,9 +227,9 @@ class Search(Cog):
 
                     emb.set_footer(text=data["url"])
 
-                    await ctx.send(embed=emb)
+                    await send_embed(ctx, emb)
                 else:
-                    await ctx.send(f"Nothing found for {query}.")
+                    await send(ctx, f"Nothing found for {query}.")
 
 
 def setup(bot):

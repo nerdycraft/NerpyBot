@@ -3,6 +3,8 @@ from random import randint, choice
 from utils.errors import NerpyException
 from discord.ext.commands import Cog, command, bot_has_permissions
 
+from utils.send import send
+
 
 class Fun(Cog):
     """HAHA commands so fun, much wow"""
@@ -134,15 +136,15 @@ class Fun(Cog):
         mention = ctx.message.author.mention
         if dice > 1:
             n = randint(1, dice)
-            await ctx.send(f"{mention} rolled a d{dice}\n\n:game_die: {n} :game_die:")
+            await send(ctx, f"{mention} rolled a d{dice}\n\n:game_die: {n} :game_die:")
         else:
-            await ctx.send(f"{mention} rolled a 'AmIRetarded'-dice\n\n:game_die: yes :game_die:")
+            await send(ctx, f"{mention} rolled a 'AmIRetarded'-dice\n\n:game_die: yes :game_die:")
 
     @command()
     @bot_has_permissions(send_messages=True)
     async def ping(self, ctx):
         """Pong."""
-        await ctx.send("Pong.")
+        await send(ctx, "Pong.")
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -156,7 +158,7 @@ class Fun(Cog):
             raise NerpyException("Not enough choices to pick from.")
 
         mention = ctx.message.author.mention
-        await ctx.send(f"{mention} asked me to choose between: {choices_str}\n\nI choose {choice(choices)}")
+        await send(ctx, f"{mention} asked me to choose between: {choices_str}\n\nI choose {choice(choices)}")
 
     @command(name="8ball", aliases=["8b"])
     @bot_has_permissions(send_messages=True)
@@ -169,7 +171,7 @@ class Fun(Cog):
             raise NerpyException("That doesn't look like a question.")
 
         mention = ctx.message.author.mention
-        await ctx.send(f"{mention} asked me: {question}\n\n{choice(self.ball)}`")
+        await send(ctx, f"{mention} asked me: {question}\n\n{choice(self.ball)}`")
 
     @command(no_pm=True)
     @bot_has_permissions(send_messages=True)
@@ -187,7 +189,7 @@ class Fun(Cog):
         if intensity >= 4:
             intensity = 4
 
-        await ctx.send(f"{author} {self.hugs[intensity]} {name}")
+        await send(ctx, f"{author} {self.hugs[intensity]} {name}")
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -215,7 +217,7 @@ class Fun(Cog):
 
             text = leettext
 
-        await ctx.send(text)
+        await send(ctx, text)
 
     @command()
     async def roti(self, ctx, num: int = None):
@@ -230,7 +232,7 @@ class Fun(Cog):
             rule = num
         else:
             rule = choice(list(self.rotis.keys()))
-        await ctx.send(f"Rule {rule}: {self.rotis[rule]}")
+        await send(ctx, f"Rule {rule}: {self.rotis[rule]}")
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -238,7 +240,7 @@ class Fun(Cog):
         """
         makes the bot say what you want :O
         """
-        await ctx.send(text)
+        await send(ctx, text)
 
 
 def setup(bot):

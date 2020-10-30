@@ -5,6 +5,8 @@ from wowapi import WowApi, WowApiException
 from discord.ext.commands import Cog, group
 from datetime import datetime as dt, timedelta as td
 
+from utils.send import send_embed, send
+
 
 class WorldofWarcraft(Cog):
     """WOW API"""
@@ -143,9 +145,9 @@ class WorldofWarcraft(Cog):
                     inline=True,
                 )
 
-            await ctx.send(embed=emb)
+            await send_embed(ctx, emb)
         except WowApiException:
-            await ctx.send("No Character with this name found.")
+            await send(ctx, "No Character with this name found.")
 
 
 def setup(bot):

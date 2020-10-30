@@ -8,6 +8,7 @@ from utils.checks import is_botmod
 from discord.ext.commands import Cog, command, group, check
 
 from utils.database import session_scope
+from utils.send import send, send_embed
 
 
 class Management(Cog):
@@ -41,7 +42,7 @@ class Management(Cog):
 
         emb.add_field(name="roles", value=", ".join(rn), inline=False)
 
-        await ctx.send(embed=emb)
+        await send_embed(ctx, emb)
 
     @user.command()
     async def list(self, ctx):
@@ -51,7 +52,7 @@ class Management(Cog):
             msg += f"{member.display_name} - created at {member.created_at} - joined at {member.joined_at}\n"
 
         for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
-            await ctx.send(fmt.box(page, "md"))
+            await send(fmt.box(page, "md"))
 
     @command(pass_context=True)
     @check(is_botmod)
@@ -62,7 +63,7 @@ class Management(Cog):
             for m in ctx.bot.last_cmd_cache[ctx.guild.id]:
                 msg += f"{m.author} - {m.content}\n"
 
-            await ctx.send(fmt.box(msg, "md"))
+            await send(fmt.box(msg, "md"))
 
     @command(pass_context=True, aliases=["defch"])
     @check(is_botmod)
