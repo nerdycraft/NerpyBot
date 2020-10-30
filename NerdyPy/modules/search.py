@@ -8,7 +8,7 @@ from utils.errors import NerpyException
 from googleapiclient.discovery import build
 from discord.ext.commands import Cog, command, group, bot_has_permissions
 
-from utils.send import send_embed, send
+from utils.send import send
 
 
 class Search(Cog):
@@ -58,7 +58,7 @@ class Search(Cog):
                     emb.url = item["permalink"]
                 else:
                     emb.description = "no results - R.I.P. memes"
-                await send_embed(ctx, emb)
+                await send(ctx, "", emb)
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -80,7 +80,7 @@ class Search(Cog):
                     emb.url = item.get("url")
                 else:
                     emb.description = "R.I.P. memes"
-                await send_embed(ctx, emb)
+                await send(ctx, "", emb)
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -227,7 +227,7 @@ class Search(Cog):
 
                     emb.set_footer(text=data["url"])
 
-                    await send_embed(ctx, emb)
+                    await send(ctx, "", emb)
                 else:
                     await send(ctx, f"Nothing found for {query}.")
 

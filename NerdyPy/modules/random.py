@@ -6,7 +6,7 @@ from random import randint, choice
 from utils.errors import NerpyException
 from discord.ext.commands import Cog, command, bot_has_permissions
 
-from utils.send import send, send_embed
+from utils.send import send
 
 
 class Random(Cog):
@@ -93,7 +93,7 @@ class Random(Cog):
                 emb = discord.Embed(title="Donald Trump")
                 emb.description = data["message"]
                 emb.set_thumbnail(url=trump_pic)
-                await send_embed(ctx, emb)
+                await send(ctx, "", emb)
 
     @command()
     @bot_has_permissions(send_messages=True)

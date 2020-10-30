@@ -8,7 +8,7 @@ from utils.checks import is_botmod
 from discord.ext.commands import Cog, command, group, check
 
 from utils.database import session_scope
-from utils.send import send, send_embed
+from utils.send import send
 
 
 class Management(Cog):
@@ -42,7 +42,7 @@ class Management(Cog):
 
         emb.add_field(name="roles", value=", ".join(rn), inline=False)
 
-        await send_embed(ctx, emb)
+        await send(ctx, "", emb)
 
     @user.command()
     async def list(self, ctx):

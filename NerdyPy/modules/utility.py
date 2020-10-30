@@ -6,7 +6,7 @@ from utils.checks import is_botmod
 from utils.errors import NerpyException
 from discord.ext.commands import Cog, command, check, bot_has_permissions, group
 
-from utils.send import send, send_embed
+from utils.send import send
 from utils.timed import Timed
 
 
@@ -148,7 +148,7 @@ class Utility(Cog):
                     icon_url=f"http://openweathermap.org/img/w/{data['weather'][0]['icon']}.png",
                 )
 
-                await send_embed(ctx, emb)
+                await send(ctx, "", emb)
 
 
 def setup(bot):
