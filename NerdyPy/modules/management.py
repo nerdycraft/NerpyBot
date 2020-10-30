@@ -1,8 +1,13 @@
+from datetime import datetime
+
 import discord
 import utils.format as fmt
+from models.default_channel import DefaultChannel
 
 from utils.checks import is_botmod
 from discord.ext.commands import Cog, command, group, check
+
+from utils.database import session_scope
 
 
 class Management(Cog):
@@ -14,11 +19,11 @@ class Management(Cog):
         self.bot = bot
 
     @group(invoke_without_command=False, aliases=["u"])
+    @check(is_botmod)
     async def user(self, ctx):
         """user management"""
 
     @user.command()
-    @check(is_botmod)
     async def info(self, ctx, user: discord.Member):
         """displays information about given user [bot-moderator]"""
         created = user.created_at.strftime("%d. %B %Y - %H:%M")
@@ -38,6 +43,7 @@ class Management(Cog):
 
         await ctx.send(embed=emb)
 
+    @user.command()
     async def list(self, ctx):
         """displays a list of all users on your server"""
         msg = ""
@@ -57,6 +63,23 @@ class Management(Cog):
                 msg += f"{m.author} - {m.content}\n"
 
             await ctx.send(fmt.box(msg, "md"))
+
+    @command(pass_context=True, aliases=["defch"])
+    @check(is_botmod)
+    async def defaultchannel(self, ctx, chan: discord.TextChannel):
+        """Sets the default response channel for the bot"""
+        with session_scope() as session:
+            def_ch = DefaultChannel.get(ctx.guild.id, session)
+            if def_ch is None:
+                def_ch = DefaultChannel(
+                    GuildId=ctx.guild.id,
+                    CreateDate=datetime.utcnow(),
+                    Author=ctx.author)
+                session.add(def_ch)
+
+            def_ch.ModifiedDate = datetime.utcnow()
+            def_ch.ChannelId = chan.id
+            session.flush()
 
 
 def setup(bot):
