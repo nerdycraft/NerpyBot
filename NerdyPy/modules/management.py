@@ -75,7 +75,7 @@ class Management(Cog):
                 def_ch = DefaultChannel(
                     GuildId=ctx.guild.id,
                     CreateDate=datetime.utcnow(),
-                    Author=ctx.author)
+                    Author=ctx.author.name)
                 session.add(def_ch)
 
             def_ch.ModifiedDate = datetime.utcnow()

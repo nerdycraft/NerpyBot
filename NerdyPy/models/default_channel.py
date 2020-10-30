@@ -10,7 +10,7 @@ class DefaultChannel(db.BASE):
 
     __tablename__ = "DefaultChannel"
     __table_args__ = (
-        Index("DefaultChannel_GuildId", "GuildId")
+        Index("DefaultChannel_GuildId", "GuildId"),
     )
 
     GuildId = Column(BigInteger, primary_key=True)
