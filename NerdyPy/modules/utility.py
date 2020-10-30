@@ -24,8 +24,9 @@ class Utility(Cog):
         """shows bot uptime [bot-moderator]"""
         td = datetime.datetime.utcnow() - self.bot.uptime
         await send(ctx,
-            fmt.inline(f"Botuptime: {td.days} Days, {td.seconds//3600} Hours and {(td.seconds//60)%60} Minutes")
-        )
+                   fmt.inline(
+                       f"Botuptime: {td.days} Days, {td.seconds // 3600} Hours and {(td.seconds // 60) % 60} Minutes")
+                   )
 
     @command()
     @check(is_botmod)
