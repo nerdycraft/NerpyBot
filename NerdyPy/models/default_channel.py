@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from utils import database as db
-from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc
+from sqlalchemy import BigInteger, Column, DateTime, String, Index
 
 
 class DefaultChannel(db.BASE):
