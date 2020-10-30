@@ -72,10 +72,7 @@ class Management(Cog):
         with session_scope() as session:
             def_ch = DefaultChannel.get(ctx.guild.id, session)
             if def_ch is None:
-                def_ch = DefaultChannel(
-                    GuildId=ctx.guild.id,
-                    CreateDate=datetime.utcnow(),
-                    Author=ctx.author.name)
+                def_ch = DefaultChannel(GuildId=ctx.guild.id, CreateDate=datetime.utcnow(), Author=ctx.author.name)
                 session.add(def_ch)
 
             def_ch.ModifiedDate = datetime.utcnow()

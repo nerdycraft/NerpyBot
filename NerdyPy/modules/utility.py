@@ -23,10 +23,10 @@ class Utility(Cog):
     async def uptime(self, ctx):
         """shows bot uptime [bot-moderator]"""
         td = datetime.datetime.utcnow() - self.bot.uptime
-        await send(ctx,
-                   fmt.inline(
-                       f"Botuptime: {td.days} Days, {td.seconds // 3600} Hours and {(td.seconds // 60) % 60} Minutes")
-                   )
+        await send(
+            ctx,
+            fmt.inline(f"Botuptime: {td.days} Days, {td.seconds // 3600} Hours and {(td.seconds // 60) % 60} Minutes")
+        )
 
     @command()
     @check(is_botmod)
@@ -55,10 +55,7 @@ class Utility(Cog):
         bot will answer in the channel you asked for it
         """
         self.bot.reminder.add(
-            ctx.author,
-            ctx.message.channel,
-            datetime.datetime.now() + datetime.timedelta(minutes=mins),
-            text
+            ctx.author, ctx.message.channel, datetime.datetime.now() + datetime.timedelta(minutes=mins), text
         )
 
         await send(ctx, f"{ctx.author.mention}, i will remind you in {mins} minutes")

@@ -9,9 +9,7 @@ class DefaultChannel(db.BASE):
     """database entity model for tags"""
 
     __tablename__ = "DefaultChannel"
-    __table_args__ = (
-        Index("DefaultChannel_GuildId", "GuildId"),
-    )
+    __table_args__ = (Index("DefaultChannel_GuildId", "GuildId"),)
 
     GuildId = Column(BigInteger, primary_key=True)
     ChannelId = Column(BigInteger)
@@ -22,11 +20,7 @@ class DefaultChannel(db.BASE):
     @classmethod
     def get(cls, guild_id, session):
         """returns a channel with given guild | session needed!"""
-        return (
-            session.query(DefaultChannel)
-            .filter(DefaultChannel.GuildId == guild_id)
-            .first()
-        )
+        return session.query(DefaultChannel).filter(DefaultChannel.GuildId == guild_id).first()
 
     @classmethod
     def delete(cls, guild_id: int):
