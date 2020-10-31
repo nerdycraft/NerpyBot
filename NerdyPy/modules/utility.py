@@ -6,7 +6,6 @@ from utils.checks import is_botmod
 from utils.errors import NerpyException
 from discord.ext.commands import Cog, command, check, bot_has_permissions, group
 
-from utils.send import send
 from utils.timed import Timed
 
 
@@ -23,7 +22,7 @@ class Utility(Cog):
     async def uptime(self, ctx):
         """shows bot uptime [bot-moderator]"""
         td = datetime.datetime.utcnow() - self.bot.uptime
-        await send(
+        await self.bot.sendc(
             ctx,
             fmt.inline(f"Botuptime: {td.days} Days, {td.seconds // 3600} Hours and {(td.seconds // 60) % 60} Minutes"),
         )
@@ -44,7 +43,7 @@ class Utility(Cog):
     @check(is_botmod)
     async def membercount(self, ctx):
         """displays the current membercount of the server [bot-moderator]"""
-        await send(ctx, fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
+        await self.bot.sendc(ctx, fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -58,7 +57,7 @@ class Utility(Cog):
             ctx.author, ctx.message.channel, datetime.datetime.now() + datetime.timedelta(minutes=mins), text
         )
 
-        await send(ctx, f"{ctx.author.mention}, i will remind you in {mins} minutes")
+        await self.bot.sendc(ctx, f"{ctx.author.mention}, i will remind you in {mins} minutes")
 
     @group(invoke_without_command=False)
     @check(is_botmod)
@@ -81,7 +80,7 @@ class Utility(Cog):
         """
         to_send = Timed.show(ctx.guild.id)
         for page in fmt.pagify(to_send, delims=["\n#"], page_length=1990):
-            await send(ctx, fmt.box(page, "md"))
+            await self.bot.sendc(ctx, fmt.box(page, "md"))
 
     @timed.command()
     async def delete(self, ctx, timed_id: int):
@@ -145,7 +144,7 @@ class Utility(Cog):
                     icon_url=f"http://openweathermap.org/img/w/{data['weather'][0]['icon']}.png",
                 )
 
-                await send(ctx, "", emb)
+                await self.bot.sendc(ctx, "", emb)
 
 
 def setup(bot):

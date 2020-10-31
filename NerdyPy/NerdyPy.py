@@ -12,10 +12,12 @@ import traceback
 import configparser
 from pathlib import Path
 from datetime import datetime
+
+from models.default_channel import DefaultChannel
 from utils.audio import Audio
 from discord.ext import commands
 from utils.reminder import Reminder
-from utils.database import create_all
+from utils.database import create_all, session_scope
 from utils.errors import NerpyException
 from utils.timed import Timed
 
@@ -84,6 +86,20 @@ class NerpyBot(commands.Bot):
             await ctx.author.send("Unhandled error occurred. Please report to bot author!")
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
+
+    async def send(self, guild_id, cur_chan, msg, emb=None, file=None, files=None, delete_after=None):
+        with session_scope() as session:
+            def_chan = DefaultChannel.get(guild_id, session)
+            if def_chan is not None:
+                chan = self.get_channel(def_chan.ChannelId)
+                if chan is not None:
+                    await chan.send(msg, embed=emb, file=file, files=files, delete_after=delete_after)
+                    return
+
+        await cur_chan.send(msg, embed=emb, file=file, files=files, delete_after=delete_after)
+
+    async def sendc(self, ctx, msg, emb=None, file=None, files=None, delete_after=None):
+        await self.send(ctx.guild.id, ctx.channel, msg, emb, file, files, delete_after)
 
     async def run(self):
         """

@@ -4,8 +4,6 @@ from enum import Enum
 from utils.errors import NerpyException
 from discord.ext.commands import Cog, command, Converter
 
-from utils.send import send
-
 
 class Region(Enum):
     """league regions"""
@@ -98,7 +96,7 @@ class League(Cog):
                         emb.add_field(name="wins", value=wins)
                         emb.add_field(name="losses", value=losses)
 
-        await send(ctx, "", emb)
+        await self.bot.sendc(ctx, "", emb=emb)
 
 
 def setup(bot):
