@@ -16,7 +16,7 @@ if not packages:
 
 setuptools.setup(
     name="NerpyBot",
-    version="2.1.2",
+    version="0.2.6",
     packages=packages,
     install_requires=requirements,
     url="https://github.com/nerdycraft/NerpyBot",
