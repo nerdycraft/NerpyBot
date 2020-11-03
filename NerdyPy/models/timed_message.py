@@ -1,7 +1,6 @@
-""" uhm """
+""" timed message database model """
 # -*- coding: utf-8 -*-
 from datetime import timedelta
-
 from utils import database as db
 from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc
 
