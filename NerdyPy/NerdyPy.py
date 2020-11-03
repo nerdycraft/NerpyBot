@@ -12,7 +12,6 @@ import traceback
 import configparser
 from pathlib import Path
 from datetime import datetime
-
 from models.default_channel import DefaultChannel
 from utils.audio import Audio
 from discord.ext import commands
