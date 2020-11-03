@@ -171,7 +171,7 @@ class Tagging(Cog):
             if TagType(_tag.Type) is TagType.sound:
                 if ctx.author.voice is None:
                     raise NerpyException("Not connected to a voice channel.")
-                if ctx.author.voice.channel.permissions_for(self.bot.user).connect:
+                if not ctx.author.voice.channel.permissions_for(ctx.guild.me).connect:
                     raise NerpyException("Missing permission to connect to channel.")
 
                 sound = AudioSegment.from_file(io.BytesIO(entry.ByteContent))

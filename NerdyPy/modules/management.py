@@ -67,7 +67,7 @@ class Management(Cog):
     async def defaultchannel(self, ctx, chan: discord.TextChannel):
         """Sets the default response channel for the bot"""
 
-        if chan.permissions_for(self.user).send_messages:
+        if not chan.permissions_for(chan.guild.me).send_messages:
             raise NerpyException("Missing permission to send message to channel.")
 
         with session_scope() as session:
