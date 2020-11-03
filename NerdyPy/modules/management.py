@@ -5,6 +5,7 @@ import utils.format as fmt
 from models.default_channel import DefaultChannel
 from utils.checks import is_botmod
 from utils.database import session_scope
+from utils.errors import NerpyException
 
 
 class Management(Cog):
@@ -65,6 +66,10 @@ class Management(Cog):
     @check(is_botmod)
     async def defaultchannel(self, ctx, chan: discord.TextChannel):
         """Sets the default response channel for the bot"""
+
+        if chan.permissions_for(self.user).send_messages:
+            raise NerpyException("Missing permission to send message to channel.")
+
         with session_scope() as session:
             def_ch = DefaultChannel.get(ctx.guild.id, session)
             if def_ch is None:
