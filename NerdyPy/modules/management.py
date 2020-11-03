@@ -1,8 +1,10 @@
+from datetime import datetime
 import discord
-import utils.format as fmt
-
-from utils.checks import is_botmod
 from discord.ext.commands import Cog, command, group, check
+import utils.format as fmt
+from models.default_channel import DefaultChannel
+from utils.checks import is_botmod
+from utils.database import session_scope
 
 
 class Management(Cog):
@@ -14,11 +16,11 @@ class Management(Cog):
         self.bot = bot
 
     @group(invoke_without_command=False, aliases=["u"])
+    @check(is_botmod)
     async def user(self, ctx):
         """user management"""
 
     @user.command()
-    @check(is_botmod)
     async def info(self, ctx, user: discord.Member):
         """displays information about given user [bot-moderator]"""
         created = user.created_at.strftime("%d. %B %Y - %H:%M")
@@ -36,8 +38,9 @@ class Management(Cog):
 
         emb.add_field(name="roles", value=", ".join(rn), inline=False)
 
-        await ctx.send(embed=emb)
+        await self.bot.sendc(ctx, "", emb=emb)
 
+    @user.command()
     async def list(self, ctx):
         """displays a list of all users on your server"""
         msg = ""
@@ -45,7 +48,7 @@ class Management(Cog):
             msg += f"{member.display_name} - created at {member.created_at} - joined at {member.joined_at}\n"
 
         for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
-            await ctx.send(fmt.box(page, "md"))
+            await self.bot.sendc(ctx, fmt.box(page, "md"))
 
     @command(pass_context=True)
     @check(is_botmod)
@@ -56,7 +59,21 @@ class Management(Cog):
             for m in ctx.bot.last_cmd_cache[ctx.guild.id]:
                 msg += f"{m.author} - {m.content}\n"
 
-            await ctx.send(fmt.box(msg, "md"))
+            await self.bot.sendc(ctx, fmt.box(msg, "md"))
+
+    @command(pass_context=True, aliases=["defch"])
+    @check(is_botmod)
+    async def defaultchannel(self, ctx, chan: discord.TextChannel):
+        """Sets the default response channel for the bot"""
+        with session_scope() as session:
+            def_ch = DefaultChannel.get(ctx.guild.id, session)
+            if def_ch is None:
+                def_ch = DefaultChannel(GuildId=ctx.guild.id, CreateDate=datetime.utcnow(), Author=ctx.author.name)
+                session.add(def_ch)
+
+            def_ch.ModifiedDate = datetime.utcnow()
+            def_ch.ChannelId = chan.id
+            session.flush()
 
 
 def setup(bot):

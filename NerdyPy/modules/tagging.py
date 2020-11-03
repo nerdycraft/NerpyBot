@@ -68,7 +68,7 @@ class Tagging(Cog):
                 self._add_tag_entries(session, _tag, content)
 
             self.bot.log.info(f"creating tag {ctx.guild.name}/{name} finished")
-        await ctx.send(f"tag {name} created!")
+        await self.bot.sendc(ctx, f"tag {name} created!")
 
     @tag.command()
     @bot_has_permissions(send_messages=True)
@@ -83,7 +83,7 @@ class Tagging(Cog):
                 self._add_tag_entries(session, _tag, content)
 
             self.bot.log.info(f"added entry to tag {ctx.guild.name}/{name}.")
-        await ctx.send(f"Entry added to tag {name}!")
+        await self.bot.sendc(ctx, f"Entry added to tag {name}!")
 
     @tag.command()
     @bot_has_permissions(send_messages=True)
@@ -106,7 +106,7 @@ class Tagging(Cog):
             raise NerpyException("tag doesn't exist!")
 
         Tag.delete(name, ctx.guild.id)
-        await ctx.send("tag deleted!")
+        await self.bot.sendc(ctx, "tag deleted!")
 
     @tag.command()
     @bot_has_permissions(send_messages=True)
@@ -127,7 +127,7 @@ class Tagging(Cog):
                 msg += f"({typ}|{t.entries.count()}) - "
 
             for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
-                await ctx.send(fmt.box(page, "md"))
+                await self.bot.sendc(ctx, fmt.box(page, "md"))
 
     @tag.command()
     @bot_has_permissions(send_messages=True)
@@ -135,7 +135,7 @@ class Tagging(Cog):
         """information about the tag"""
         with session_scope() as session:
             t = Tag.get(name, ctx.guild.id, session)
-            await ctx.send(fmt.box(str(t)))
+            await self.bot.sendc(ctx, fmt.box(str(t)))
 
     @tag.command()
     @bot_has_permissions(send_messages=True)
@@ -148,7 +148,7 @@ class Tagging(Cog):
             for entry in t.entries.all():
                 msg += entry.TextContent
 
-            await ctx.send(fmt.box(msg))
+            await self.bot.sendc(ctx, fmt.box(msg))
 
     # noinspection PyMethodMayBeStatic
     def _add_tag_entries(self, session, _tag, content):
@@ -181,7 +181,7 @@ class Tagging(Cog):
                 song = QueuedSong(io.BytesIO(sound.raw_data), ctx.author.voice.channel, _tag.Volume)
                 await self.bot.audio.play(ctx.guild.id, song)
             else:
-                await ctx.send(entry.TextContent)
+                await self.bot.sendc(ctx, entry.TextContent)
 
             _tag.Count += 1
             session.flush()

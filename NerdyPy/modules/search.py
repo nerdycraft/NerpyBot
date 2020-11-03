@@ -34,7 +34,7 @@ class Search(Cog):
                     meme = data["data"][0]["link"]
                 else:
                     meme = "R.I.P. memes"
-                await ctx.send(meme)
+                await self.bot.sendc(ctx, meme)
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -56,7 +56,7 @@ class Search(Cog):
                     emb.url = item["permalink"]
                 else:
                     emb.description = "no results - R.I.P. memes"
-                await ctx.send(embed=emb)
+                await self.bot.sendc(ctx, "", emb)
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -78,7 +78,7 @@ class Search(Cog):
                     emb.url = item.get("url")
                 else:
                     emb.description = "R.I.P. memes"
-                await ctx.send(embed=emb)
+                await self.bot.sendc(ctx, "", emb=emb)
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -95,7 +95,7 @@ class Search(Cog):
             msg = f'https://www.youtube.com/watch?v={items[0]["id"]["videoId"]}'
         else:
             msg = "And i thought everything is on youtube :open_mouth:"
-        await ctx.send(msg)
+        await self.bot.sendc(ctx, msg)
 
     @group(invoke_without_command=False)
     @bot_has_permissions(send_messages=True)
@@ -108,19 +108,19 @@ class Search(Cog):
     async def movie(self, ctx, *, query):
         """omdb movie informations"""
         rip, emb = await self.imdb_search("movie", query)
-        await ctx.send(content=rip, embed=emb)
+        await self.bot.sendc(ctx, rip, emb=emb)
 
     @imdb.command()
     async def series(self, ctx, *, query):
         """omdb series informations"""
         rip, emb = await self.imdb_search("series", query)
-        await ctx.send(content=rip, embed=emb)
+        await self.bot.sendc(ctx, rip, emb=emb)
 
     @imdb.command()
     async def episode(self, ctx, *, query):
         """omdb episode informations"""
         rip, emb = await self.imdb_search("episode", query)
-        await ctx.send(content=rip, embed=emb)
+        await self.bot.sendc(ctx, rip, emb=emb)
 
     # noinspection PyMethodMayBeStatic
     async def imdb_search(self, query_type, query: str):
@@ -225,9 +225,9 @@ class Search(Cog):
 
                     emb.set_footer(text=data["url"])
 
-                    await ctx.send(embed=emb)
+                    await self.bot.sendc(ctx, "", emb=emb)
                 else:
-                    await ctx.send(f"Nothing found for {query}.")
+                    await self.bot.sendc(ctx, f"Nothing found for {query}.")
 
 
 def setup(bot):

@@ -31,7 +31,7 @@ class Random(Cog):
     @bot_has_permissions(send_messages=True)
     async def lenny(self, ctx):
         """Displays a random lenny face."""
-        await ctx.send(choice(self.lennys))
+        await self.bot.sendc(ctx, choice(self.lennys))
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -45,7 +45,7 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(data["value"]["joke"])
+                await self.bot.sendc(ctx, data["value"]["joke"])
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -59,7 +59,7 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(data["joke"])
+                await self.bot.sendc(ctx, data["joke"])
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -73,7 +73,7 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(fmt.strip_tags(data[0]["content"]) + "  - " + data[0]["title"])
+                await self.bot.sendc(ctx, fmt.strip_tags(data[0]["content"]) + "  - " + data[0]["title"])
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -91,7 +91,7 @@ class Random(Cog):
                 emb = discord.Embed(title="Donald Trump")
                 emb.description = data["message"]
                 emb.set_thumbnail(url=trump_pic)
-                await ctx.send(embed=emb)
+                await self.bot.sendc(ctx, "", emb=emb)
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -112,7 +112,7 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(data["img"])
+                await self.bot.sendc(ctx, data["img"])
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -126,7 +126,7 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(data["media"]["gif"])
+                await self.bot.sendc(ctx, data["media"]["gif"])
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -140,7 +140,7 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(data["file"])
+                await self.bot.sendc(ctx, data["file"])
 
     @command()
     @bot_has_permissions(send_messages=True)
@@ -154,7 +154,7 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(data["fact"])
+                await self.bot.sendc(ctx, data["fact"])
 
 
 def setup(bot):

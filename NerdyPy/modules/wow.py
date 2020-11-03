@@ -143,9 +143,9 @@ class WorldofWarcraft(Cog):
                     inline=True,
                 )
 
-            await ctx.send(embed=emb)
+            await self.bot.sendc(ctx, "", emb)
         except WowApiException:
-            await ctx.send("No Character with this name found.")
+            await self.bot.sendc(ctx, "No Character with this name found.")
 
 
 def setup(bot):

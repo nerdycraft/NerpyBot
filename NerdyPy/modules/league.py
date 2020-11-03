@@ -96,7 +96,7 @@ class League(Cog):
                         emb.add_field(name="wins", value=wins)
                         emb.add_field(name="losses", value=losses)
 
-        await ctx.send(embed=emb)
+        await self.bot.sendc(ctx, "", emb=emb)
 
 
 def setup(bot):
