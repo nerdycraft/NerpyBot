@@ -57,7 +57,7 @@ class NerpyBot(commands.Bot):
             if ctx.guild.id not in self.last_cmd_cache:
                 self.last_cmd_cache[ctx.guild.id] = []
             elif len(self.last_cmd_cache[ctx.guild.id]) >= 10:
-                self.last_cmd_cache[ctx.guild.id].popleft()
+                self.last_cmd_cache[ctx.guild.id].pop(0)
 
             self.last_cmd_cache[ctx.guild.id].append(ctx.message)
 
