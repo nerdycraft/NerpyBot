@@ -27,7 +27,7 @@ class Random(Cog):
             "ヽ༼ຈل͜ຈ༽ﾉ",
         ]
 
-    @command(pass_context=True)
+    @command()
     @bot_has_permissions(send_messages=True)
     async def lenny(self, ctx):
         """Displays a random lenny face."""
