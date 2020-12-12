@@ -35,4 +35,4 @@ def session_scope():
         session.close()
 
     if error is not None:
-        raise NerpyException() from error
+        raise NerpyException(error)
