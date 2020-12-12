@@ -51,7 +51,7 @@ class Management(Cog):
         for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
             await self.bot.sendc(ctx, fmt.box(page, "md"))
 
-    @command(pass_context=True)
+    @command()
     @check(is_botmod)
     async def history(self, ctx):
         """displays the last 10 received commands since last restart"""
