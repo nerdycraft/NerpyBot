@@ -32,30 +32,30 @@ class WorldofWarcraft(Cog):
 
         return f"{url}/{profile}"
 
-    def _get_current_season(self, region):
-        namespace = f"dynamic-{region}"
-        return self.api.get_mythic_keystone_season_index(region, namespace)["current_season"]["id"]
-
     async def _get_character(self, ctx, realm, region, name):
         namespace = f"profile-{region}"
 
         self.api.get_character_profile_status(region, namespace, realm, name)
         character = self.api.get_character_profile_summary(region, f"profile-{region}", realm, name)
-        profile_picture = self.api.get_character_media_summary(region, f"profile-{region}", realm, name)
+        assets = self.api.get_character_media_summary(region, f"profile-{region}", realm, name)["assets"]
+        profile_picture = [asset for asset in assets if asset["key"] == "avatar"][0]["value"]
 
         return character, profile_picture
 
     # noinspection PyMethodMayBeStatic
-    def _get_raiderio_score(self, region, realm, name, season):
+    def _get_raiderio_score(self, region, realm, name):
         base_url = "https://raider.io/api/v1/characters/profile"
-        args = f"?region={region}&realm={realm}&name={name}&fields=mythic_plus_scores_by_season:season-bfa-{season}"
+        args = f"?region={region}&realm={realm}&name={name}&fields=mythic_plus_scores_by_season:current"
 
         req = requests.get(f"{base_url}{args}")
 
         if req.status_code == 200:
             resp = req.json()
 
-            return resp["mythic_plus_scores_by_season"][0]["scores"]["all"]
+            if len(resp["mythic_plus_scores_by_season"]) > 0:
+                return resp["mythic_plus_scores_by_season"][0]["scores"]["all"]
+            else:
+                return None
 
     # noinspection PyMethodMayBeStatic
     def _get_best_mythic_keys(self, region, realm, name):
@@ -104,11 +104,11 @@ class WorldofWarcraft(Cog):
                 realm = realm.lower()
                 name = name.lower()
                 profile = f"{region}/{realm}/{name}"
-                current_season = self._get_current_season(region)
-                best_keys = self._get_best_mythic_keys(region, realm, name)
-                rio_score = self._get_raiderio_score(region, realm, name, current_season)
 
                 character, profile_picture = await self._get_character(ctx, realm, region, name)
+
+                best_keys = self._get_best_mythic_keys(region, realm, name)
+                rio_score = self._get_raiderio_score(region, realm, name)
 
                 armory = self._get_link("armory", profile)
                 raiderio = self._get_link("raiderio", profile)
@@ -121,7 +121,7 @@ class WorldofWarcraft(Cog):
                     color=discord.Color(value=int("0099ff", 16)),
                     description=f'{character["gender"]["name"]["en_US"]} {character["race"]["name"]["en_US"]}',
                 )
-                emb.set_thumbnail(url=profile_picture["avatar_url"])
+                emb.set_thumbnail(url=profile_picture)
                 emb.add_field(name="Level", value=character["level"], inline=True)
                 emb.add_field(name="Faction", value=character["faction"]["name"]["en_US"], inline=True)
                 if "guild" in character:
@@ -134,7 +134,8 @@ class WorldofWarcraft(Cog):
                         keys += f'+{key["level"]} - {key["dungeon"]} - {key["clear_time"]}\n'
 
                     emb.add_field(name="Best M+ Keys", value=keys, inline=True)
-                emb.add_field(name="M+ Score", value=rio_score, inline=True)
+                if rio_score is not None:
+                    emb.add_field(name="M+ Score", value=rio_score, inline=True)
 
                 emb.add_field(name="\u200b", value="\u200b", inline=False)
                 emb.add_field(
