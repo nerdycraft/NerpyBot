@@ -1,11 +1,11 @@
-from datetime import datetime
 import discord
-from discord.ext.commands import Cog, command, group, check
 import utils.format as fmt
-from models.default_channel import DefaultChannel
+from datetime import datetime
 from utils.checks import is_botmod
-from utils.database import session_scope
 from utils.errors import NerpyException
+from utils.database import session_scope
+from models.default_channel import DefaultChannel
+from discord.ext.commands import Cog, command, group, check
 
 
 class Management(Cog):
@@ -62,11 +62,25 @@ class Management(Cog):
 
             await self.bot.sendc(ctx, fmt.box(msg, "md"))
 
-    @command(pass_context=True, aliases=["defch"])
+    @group(aliases=["defaultchannel"], invoke_without_command=True)
     @check(is_botmod)
-    async def defaultchannel(self, ctx, chan: discord.TextChannel):
+    async def defch(self, ctx):
         """Sets the default response channel for the bot"""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
 
+    @defch.command(name="get")
+    async def _defch_get(self, ctx):
+        with session_scope() as session:
+            def_ch = DefaultChannel.get(ctx.guild.id, session)
+            if def_ch is not None:
+                channel = self.bot.get_channel(def_ch.ChannelId).mention
+                await ctx.send(f"Current default response channel set to: {channel}")
+            else:
+                await ctx.send("There is currently no default response channel set.")
+
+    @defch.command(name="set")
+    async def _defch_set(self, ctx, chan: discord.TextChannel):
         if not chan.permissions_for(chan.guild.me).send_messages:
             raise NerpyException("Missing permission to send message to channel.")
 
@@ -79,6 +93,18 @@ class Management(Cog):
             def_ch.ModifiedDate = datetime.utcnow()
             def_ch.ChannelId = chan.id
             session.flush()
+
+        await ctx.send(f"Default response channel set to {chan.mention}.")
+
+    @defch.command(name="remove")
+    async def _defch_remove(self, ctx):
+        with session_scope() as session:
+            def_ch = DefaultChannel.get(ctx.guild.id, session)
+            if def_ch is not None:
+                session.delete(def_ch)
+
+            session.flush()
+        await ctx.send("Default response channel removed.")
 
 
 def setup(bot):
