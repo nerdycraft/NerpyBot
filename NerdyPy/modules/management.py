@@ -64,7 +64,7 @@ class Management(Cog):
 
     @group(aliases=["defaultchannel"], invoke_without_command=True)
     @check(is_botmod)
-    async def defch(self, ctx, ):
+    async def defch(self, ctx):
         """Sets the default response channel for the bot"""
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
