@@ -8,6 +8,8 @@ async def is_operator(ctx):
 async def is_botmod(ctx):
     if await is_operator(ctx):
         return True
+    if ctx.author.guild_permissions.administrator:
+        return True
     if ctx.author.roles is not None:
         for role in ctx.author.roles:
             if role.name == ctx.bot.moderator_role:
