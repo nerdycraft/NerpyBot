@@ -43,20 +43,6 @@ class Utility(Cog):
         await self.bot.sendc(ctx, fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
 
     @command()
-    @bot_has_permissions(send_messages=True)
-    async def remindme(self, ctx, mins: int, *, text: str):
-        """
-        sets a reminder
-
-        bot will answer in the channel you asked for it
-        """
-        self.bot.reminder.add(
-            ctx.author, ctx.message.channel, datetime.datetime.now() + datetime.timedelta(minutes=mins), text
-        )
-
-        await self.bot.sendc(ctx, f"{ctx.author.mention}, i will remind you in {mins} minutes")
-
-    @command()
     @bot_has_permissions(embed_links=True, send_messages=True)
     async def weather(self, ctx, *, query: str):
         """outputs weather information"""

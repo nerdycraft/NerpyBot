@@ -15,7 +15,6 @@ from datetime import datetime
 from models.default_channel import DefaultChannel
 from utils.audio import Audio
 from discord.ext import commands
-from utils.reminder import Reminder
 from utils.database import create_all, session_scope
 from utils.errors import NerpyException
 
@@ -39,7 +38,6 @@ class NerpyBot(commands.Bot):
         self.uptime = datetime.utcnow()
 
         self.audio = Audio(self)
-        self.reminder = Reminder(self)
         self.last_cmd_cache = {}
 
         create_all()
@@ -121,7 +119,6 @@ class NerpyBot(commands.Bot):
         self.log.info("shutting down server!")
         self.restart = False
         await self.audio.rip_loop()
-        await self.reminder.rip_loop()
         await self.logout()
 
     def _import_modules(self):
