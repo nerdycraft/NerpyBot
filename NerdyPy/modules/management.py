@@ -106,6 +106,12 @@ class Management(Cog):
             session.flush()
         await ctx.send("Default response channel removed.")
 
+    @command()
+    @check(is_botmod)
+    async def membercount(self, ctx):
+        """displays the current membercount of the server [bot-moderator]"""
+        await self.bot.sendc(ctx, fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
+
 
 def setup(bot):
     """adds this module to the bot"""

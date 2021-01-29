@@ -3,7 +3,7 @@ import discord
 import datetime
 import utils.format as fmt
 from utils.errors import NerpyException
-from discord.ext.commands import Cog, command, check, bot_has_permissions, group
+from discord.ext.commands import Cog, command, bot_has_permissions
 
 
 class Utility(Cog):
@@ -23,12 +23,6 @@ class Utility(Cog):
             ctx,
             fmt.inline(f"Botuptime: {td.days} Days, {td.seconds // 3600} Hours and {(td.seconds // 60) % 60} Minutes"),
         )
-
-    @command()
-    @check(is_botmod)
-    async def membercount(self, ctx):
-        """displays the current membercount of the server [bot-moderator]"""
-        await self.bot.sendc(ctx, fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
 
     @command()
     @bot_has_permissions(embed_links=True, send_messages=True)
