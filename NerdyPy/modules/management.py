@@ -1,6 +1,8 @@
 import discord
 import utils.format as fmt
 from datetime import datetime
+
+from models.guild_prefix import GuildPrefix
 from utils.checks import is_botmod
 from utils.errors import NerpyException
 from utils.database import session_scope
@@ -105,6 +107,24 @@ class Management(Cog):
 
             session.flush()
         await ctx.send("Default response channel removed.")
+
+    @command("setprefix")
+    @check(is_botmod)
+    async def set_prefix(self, ctx, *, new_pref):
+        if " " in new_pref:
+            raise NerpyException("Spaces not allowed in prefixes")
+
+        with session_scope() as session:
+            pref = GuildPrefix.get(ctx.guild.id, session)
+            if pref is None:
+                pref = GuildPrefix(GuildId=ctx.guild.id, CreateDate=datetime.utcnow(), Author=ctx.author.name)
+                session.add(pref)
+
+            pref.ModifiedDate = datetime.utcnow()
+            pref.Prefix = new_pref
+            session.flush()
+
+        await ctx.send(f"new prefix is now set to '{new_pref}'.")
 
 
 def setup(bot):
