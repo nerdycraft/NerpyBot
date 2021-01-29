@@ -14,10 +14,9 @@ class Utility(Cog):
         self.config = self.bot.config["utility"]
 
     @command()
-    @check(is_botmod)
     @bot_has_permissions(send_messages=True)
     async def uptime(self, ctx):
-        """shows bot uptime [bot-moderator]"""
+        """shows bot uptime"""
         td = datetime.datetime.utcnow() - self.bot.uptime
         await self.bot.sendc(
             ctx,
