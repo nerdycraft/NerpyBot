@@ -112,7 +112,7 @@ class Management(Cog):
     async def membercount(self, ctx):
         """displays the current membercount of the server [bot-moderator]"""
         await self.bot.sendc(ctx, fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
-        
+
     @group(invoke_without_command=True)
     @check(is_botmod)
     async def prefix(self, ctx):

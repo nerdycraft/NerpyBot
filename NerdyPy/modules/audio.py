@@ -108,7 +108,7 @@ class Audio(Cog):
                     client = self.bot.get_guild(guild_id).voice_client
                     if client is not None:
                         if not client.is_playing():
-                            await self.leave(guild_id)
+                            await self._leave(guild_id)
                         else:
                             self.lastPlayed[guild_id] = datetime.now()
             await asyncio.sleep(1)
@@ -131,11 +131,11 @@ class Audio(Cog):
             self._setup_queue(guild_id)
             await self._play(song)
 
-    def stop(self, guild_id):
+    def _stop(self, guild_id):
         if self._has_queue(guild_id):
             self.queue[guild_id][QueueKey.VOICE_CLIENT].stop()
 
-    async def leave(self, guild_id):
+    async def _leave(self, guild_id):
         await self.queue[guild_id][QueueKey.VOICE_CLIENT].disconnect()
         self.queue.pop(guild_id)
         self.lastPlayed.pop(guild_id)
@@ -308,13 +308,13 @@ class Audio(Cog):
     @check(is_botmod)
     async def stop(self, ctx):
         """stop sound playing [bot-moderator]"""
-        self.bot.audio.stop(ctx.guild.id)
+        self._stop(ctx.guild.id)
 
     @command()
     @check(is_botmod)
     async def leave(self, ctx):
         """bot leaves the channel [bot-moderator]"""
-        await self.bot.audio.leave(ctx.guild.id)
+        await self._leave(ctx.guild.id)
 
 
 def setup(bot):
