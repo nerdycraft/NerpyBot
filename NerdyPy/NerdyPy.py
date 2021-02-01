@@ -13,6 +13,7 @@ import configparser
 from pathlib import Path
 from datetime import datetime
 from models.default_channel import DefaultChannel
+from models.guild_prefix import GuildPrefix
 from utils.audio import Audio
 from discord.ext import commands
 from utils.reminder import Reminder
@@ -25,7 +26,7 @@ class NerpyBot(commands.Bot):
     """Discord Bot"""
 
     def __init__(self, config: configparser, debug: bool):
-        super().__init__(command_prefix="!", description="NerdyBot - Always one step ahead!")
+        super().__init__(command_prefix=determine_prefix, description="NerdyBot - Always one step ahead!")
 
         self.config = config
         self.debug = debug
@@ -34,7 +35,6 @@ class NerpyBot(commands.Bot):
         self.ops = config["bot"]["ops"]
         self.moderator_role = self.config["bot"]["moderator_role_name"]
         self.modules = json.loads(self.config["bot"]["modules"])
-        self.prefixes = ["!"]
         self.restart = True
         self.log = self._get_logger()
         self.uptime = datetime.utcnow()
@@ -153,6 +153,17 @@ class NerpyBot(commands.Bot):
         logger.addHandler(stdout_handler)
 
         return logger
+
+
+def determine_prefix(bot, message):
+    guild = message.guild
+    # Only allow custom prefixes in guild
+    if guild:
+        with session_scope() as session:
+            pref = GuildPrefix.get(guild.id, session)
+            if pref is not None:
+                return pref.Prefix
+    return ["!"]  # default prefix
 
 
 def parse_arguments():
