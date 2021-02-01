@@ -157,7 +157,7 @@ class Management(Cog):
     async def leave(self, ctx):
         """bot leaves the channel [bot-moderator]"""
         await self.bot.audio.leave(ctx.guild.id)
-        
+
 
 def setup(bot):
     """adds this module to the bot"""
