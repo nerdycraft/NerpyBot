@@ -1,7 +1,6 @@
 import discord
 import utils.format as fmt
 from datetime import datetime
-
 from models.guild_prefix import GuildPrefix
 from utils.checks import is_botmod
 from utils.errors import NerpyException
