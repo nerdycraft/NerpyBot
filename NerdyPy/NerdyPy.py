@@ -14,6 +14,7 @@ from pathlib import Path
 from datetime import datetime
 from models.default_channel import DefaultChannel
 from models.guild_prefix import GuildPrefix
+from utils.audio import Audio
 from discord.ext import commands
 from utils.database import create_all, session_scope
 from utils.errors import NerpyException
@@ -35,6 +36,8 @@ class NerpyBot(commands.Bot):
         self.restart = True
         self.log = self._get_logger()
         self.uptime = datetime.utcnow()
+
+        self.audio = Audio(self)
         self.last_cmd_cache = {}
 
         create_all()
@@ -115,6 +118,7 @@ class NerpyBot(commands.Bot):
         """
         self.log.info("shutting down server!")
         self.restart = False
+        await self.audio.rip_loop()
         await self.logout()
 
     def _import_modules(self):

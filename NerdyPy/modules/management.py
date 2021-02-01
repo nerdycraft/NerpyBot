@@ -147,6 +147,16 @@ class Management(Cog):
             session.flush()
         await ctx.send("Prefix removed.")
 
+    @check(is_botmod)
+    async def stop(self, ctx):
+        """stop sound playing [bot-moderator]"""
+        self.bot.audio.stop(ctx.guild.id)
+
+    @command()
+    @check(is_botmod)
+    async def leave(self, ctx):
+        """bot leaves the channel [bot-moderator]"""
+        await self.bot.audio.leave(ctx.guild.id)
 
 def setup(bot):
     """adds this module to the bot"""
