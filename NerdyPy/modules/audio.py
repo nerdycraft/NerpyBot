@@ -2,13 +2,11 @@ import enum
 import io
 import discord
 import asyncio
-import datetime
 import collections
 import utils.format as fmt
 from random import randint
 from datetime import datetime
 from pydub import AudioSegment
-
 from utils.checks import is_botmod
 from utils.download import download
 from utils.errors import NerpyException
@@ -180,7 +178,7 @@ class Audio(Cog):
                     Name=name,
                     Author=str(ctx.author),
                     Type=tag_type,
-                    CreateDate=datetime.datetime.utcnow(),
+                    CreateDate=datetime.utcnow(),
                     Count=0,
                     Volume=100,
                     GuildId=ctx.guild.id,
