@@ -3,6 +3,7 @@ import utils.format as fmt
 from random import randint
 from datetime import datetime
 from pydub import AudioSegment
+from utils.audio import QueuedSong
 from utils.download import download
 from utils.errors import NerpyException
 from utils.database import session_scope
