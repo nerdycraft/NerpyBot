@@ -108,9 +108,15 @@ class Management(Cog):
             session.flush()
         await ctx.send("Default response channel removed.")
 
-    @command("setprefix")
+    @group(invoke_without_command=True)
     @check(is_botmod)
-    async def set_prefix(self, ctx, *, new_pref):
+    async def prefix(self, ctx):
+        """Sets the prefix for the bot"""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
+
+    @prefix.command(name="set")
+    async def _prefix_set(self, ctx, *, new_pref):
         if " " in new_pref:
             raise NerpyException("Spaces not allowed in prefixes")
 
@@ -125,6 +131,16 @@ class Management(Cog):
             session.flush()
 
         await ctx.send(f"new prefix is now set to '{new_pref}'.")
+
+    @prefix.command(name="delete", aliases=["remove", "rm", "del"])
+    async def _prefix_del(self, ctx):
+        with session_scope() as session:
+            pref = GuildPrefix.get(ctx.guild.id, session)
+            if pref is not None:
+                session.delete(pref)
+
+            session.flush()
+        await ctx.send("Prefix removed.")
 
 
 def setup(bot):
