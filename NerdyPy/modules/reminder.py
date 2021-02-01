@@ -45,9 +45,7 @@ class Reminder(Cog):
 
         bot will answer in the channel you asked for it
         """
-        self.bot.reminder.add(
-            ctx.author, ctx.message.channel, datetime.now() + timedelta(minutes=mins), text
-        )
+        self.bot.reminder.add(ctx.author, ctx.message.channel, datetime.now() + timedelta(minutes=mins), text)
 
         await self.bot.sendc(ctx, f"{ctx.author.mention}, i will remind you in {mins} minutes")
 
