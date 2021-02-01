@@ -64,8 +64,19 @@ class NerpyBot(commands.Bot):
             await ctx.message.delete()
 
     async def on_command_error(self, ctx, error):
-        if isinstance(error, commands.CommandError):
-            if isinstance(error, commands.CommandInvokeError) and not isinstance(error.original, NerpyException):
+        if not isinstance(error, commands.CommandNotFound):
+            if isinstance(error, commands.CommandError):
+                if isinstance(error, commands.CommandInvokeError) and not isinstance(error.original, NerpyException):
+                    print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
+                    traceback.print_tb(error.original.__traceback__)
+                    print(
+                        f"{error.original.__class__.__name__}: {error.original}",
+                        file=sys.stderr,
+                    )
+                    await ctx.author.send("Unhandled error occurred. Please report to bot author!")
+                else:
+                    await ctx.author.send(error)
+            else:
                 print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
                 traceback.print_tb(error.original.__traceback__)
                 print(
@@ -73,18 +84,8 @@ class NerpyBot(commands.Bot):
                     file=sys.stderr,
                 )
                 await ctx.author.send("Unhandled error occurred. Please report to bot author!")
-            else:
-                await ctx.author.send(error)
-        else:
-            print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
-            traceback.print_tb(error.original.__traceback__)
-            print(
-                f"{error.original.__class__.__name__}: {error.original}",
-                file=sys.stderr,
-            )
-            await ctx.author.send("Unhandled error occurred. Please report to bot author!")
-        if not isinstance(ctx.channel, discord.DMChannel):
-            await ctx.message.delete()
+            if not isinstance(ctx.channel, discord.DMChannel):
+                await ctx.message.delete()
 
     async def send(self, guild_id, cur_chan, msg, emb=None, file=None, files=None, delete_after=None):
         with session_scope() as session:
