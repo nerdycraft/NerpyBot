@@ -93,8 +93,9 @@ class NerpyBot(commands.Bot):
                     file=sys.stderr,
                 )
                 await ctx.author.send("Unhandled error occurred. Please report to bot author!")
-            if not isinstance(ctx.channel, discord.DMChannel):
-                await ctx.message.delete()
+
+        if not isinstance(ctx.channel, discord.DMChannel):
+            await ctx.message.delete()
 
     async def send(self, guild_id, cur_chan, msg, emb=None, file=None, files=None, delete_after=None):
         with session_scope() as session:
