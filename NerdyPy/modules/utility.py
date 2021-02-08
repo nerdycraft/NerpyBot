@@ -2,11 +2,8 @@ import aiohttp
 import discord
 import datetime
 import utils.format as fmt
-from utils.checks import is_botmod
 from utils.errors import NerpyException
-from discord.ext.commands import Cog, command, check, bot_has_permissions, group
-
-from utils.timed import Timed
+from discord.ext.commands import Cog, command, bot_has_permissions
 
 
 class Utility(Cog):
@@ -17,77 +14,14 @@ class Utility(Cog):
         self.config = self.bot.config["utility"]
 
     @command()
-    @check(is_botmod)
     @bot_has_permissions(send_messages=True)
     async def uptime(self, ctx):
-        """shows bot uptime [bot-moderator]"""
+        """shows bot uptime"""
         td = datetime.datetime.utcnow() - self.bot.uptime
         await self.bot.sendc(
             ctx,
             fmt.inline(f"Botuptime: {td.days} Days, {td.seconds // 3600} Hours and {(td.seconds // 60) % 60} Minutes"),
         )
-
-    @command()
-    @check(is_botmod)
-    async def stop(self, ctx):
-        """stop sound playing [bot-moderator]"""
-        self.bot.audio.stop(ctx.guild.id)
-
-    @command()
-    @check(is_botmod)
-    async def leave(self, ctx):
-        """bot leaves the channel [bot-moderator]"""
-        await self.bot.audio.leave(ctx.guild.id)
-
-    @command()
-    @check(is_botmod)
-    async def membercount(self, ctx):
-        """displays the current membercount of the server [bot-moderator]"""
-        await self.bot.sendc(ctx, fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
-
-    @command()
-    @bot_has_permissions(send_messages=True)
-    async def remindme(self, ctx, mins: int, *, text: str):
-        """
-        sets a reminder
-
-        bot will answer in the channel you asked for it
-        """
-        self.bot.reminder.add(
-            ctx.author, ctx.message.channel, datetime.datetime.now() + datetime.timedelta(minutes=mins), text
-        )
-
-        await self.bot.sendc(ctx, f"{ctx.author.mention}, i will remind you in {mins} minutes")
-
-    @group(invoke_without_command=False)
-    @check(is_botmod)
-    async def timed(self, ctx):
-        """
-        timed messages
-        """
-
-    @timed.command()
-    async def create(self, ctx, mins: int, repeat: bool, *, text: str):
-        """
-        creates a message which gets send after a certain time
-        """
-        Timed.add(ctx.author, ctx.guild, ctx.channel, mins, repeat, text)
-
-    @timed.command()
-    async def list(self, ctx):
-        """
-        list all current timed messages
-        """
-        to_send = Timed.show(ctx.guild.id)
-        for page in fmt.pagify(to_send, delims=["\n#"], page_length=1990):
-            await self.bot.sendc(ctx, fmt.box(page, "md"))
-
-    @timed.command()
-    async def delete(self, ctx, timed_id: int):
-        """
-        deletes a timed message
-        """
-        Timed.delete(timed_id, ctx.guild.id)
 
     @command()
     @bot_has_permissions(embed_links=True, send_messages=True)

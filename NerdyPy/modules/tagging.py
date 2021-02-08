@@ -1,7 +1,7 @@
 import io
-import datetime
 import utils.format as fmt
 from random import randint
+from datetime import datetime
 from pydub import AudioSegment
 from utils.audio import QueuedSong
 from utils.download import download
@@ -56,7 +56,7 @@ class Tagging(Cog):
                     Name=name,
                     Author=str(ctx.author),
                     Type=tag_type,
-                    CreateDate=datetime.datetime.utcnow(),
+                    CreateDate=datetime.utcnow(),
                     Count=0,
                     Volume=100,
                     GuildId=ctx.guild.id,
