@@ -107,6 +107,12 @@ class Management(Cog):
             session.flush()
         await ctx.send("Default response channel removed.")
 
+    @command()
+    @check(is_botmod)
+    async def membercount(self, ctx):
+        """displays the current membercount of the server [bot-moderator]"""
+        await self.bot.sendc(ctx, fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
+
     @group(invoke_without_command=True)
     @check(is_botmod)
     async def prefix(self, ctx):
@@ -140,6 +146,17 @@ class Management(Cog):
 
             session.flush()
         await ctx.send("Prefix removed.")
+
+    @check(is_botmod)
+    async def stop(self, ctx):
+        """stop sound playing [bot-moderator]"""
+        self.bot.audio.stop(ctx.guild.id)
+
+    @command()
+    @check(is_botmod)
+    async def leave(self, ctx):
+        """bot leaves the channel [bot-moderator]"""
+        await self.bot.audio.leave(ctx.guild.id)
 
 
 def setup(bot):

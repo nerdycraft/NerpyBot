@@ -1,4 +1,4 @@
-""" uhm """
+""" Tag DB Model """
 # -*- coding: utf-8 -*-
 
 from enum import Enum
