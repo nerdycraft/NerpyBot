@@ -39,6 +39,8 @@ class NerpyBot(commands.Bot):
 
         self.audio = Audio(self)
         self.last_cmd_cache = {}
+        self.usr_cmd_err_spam = {}
+        self.usr_cmd__err_spam_threshold = int(self.config["bot"]["error_spam_threshold"])
 
         create_all()
         self._import_modules()
@@ -60,8 +62,30 @@ class NerpyBot(commands.Bot):
             await ctx.message.delete()
 
     async def on_command_error(self, ctx, error):
-        if isinstance(error, commands.CommandError):
-            if isinstance(error, commands.CommandInvokeError) and not isinstance(error.original, NerpyException):
+        send_err = True
+        if isinstance(error, commands.CommandNotFound):
+            if ctx.author not in self.usr_cmd_err_spam:
+                self.usr_cmd_err_spam[ctx.author] = 0
+
+            if self.usr_cmd_err_spam[ctx.author] < self.usr_cmd__err_spam_threshold:
+                send_err = False
+                self.usr_cmd_err_spam[ctx.author] += 1
+            else:
+                self.usr_cmd_err_spam[ctx.author] = 0
+
+        if send_err:
+            if isinstance(error, commands.CommandError):
+                if isinstance(error, commands.CommandInvokeError) and not isinstance(error.original, NerpyException):
+                    print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
+                    traceback.print_tb(error.original.__traceback__)
+                    print(
+                        f"{error.original.__class__.__name__}: {error.original}",
+                        file=sys.stderr,
+                    )
+                    await ctx.author.send("Unhandled error occurred. Please report to bot author!")
+                else:
+                    await ctx.author.send(error)
+            else:
                 print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
                 traceback.print_tb(error.original.__traceback__)
                 print(
@@ -69,16 +93,7 @@ class NerpyBot(commands.Bot):
                     file=sys.stderr,
                 )
                 await ctx.author.send("Unhandled error occurred. Please report to bot author!")
-            else:
-                await ctx.author.send(error)
-        else:
-            print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
-            traceback.print_tb(error.original.__traceback__)
-            print(
-                f"{error.original.__class__.__name__}: {error.original}",
-                file=sys.stderr,
-            )
-            await ctx.author.send("Unhandled error occurred. Please report to bot author!")
+
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
 
