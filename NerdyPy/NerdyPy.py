@@ -40,7 +40,7 @@ class NerpyBot(commands.Bot):
         self.audio = Audio(self)
         self.last_cmd_cache = {}
         self.usr_cmd_err_spam = {}
-        self.usr_cmd__err_spam_threshold = self.config["bot"]["error_spam_threshold"]
+        self.usr_cmd__err_spam_threshold = int(self.config["bot"]["error_spam_threshold"])
 
         create_all()
         self._import_modules()
