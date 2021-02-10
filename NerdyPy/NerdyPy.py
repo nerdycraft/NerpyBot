@@ -6,17 +6,25 @@ import sys
 import json
 import asyncio
 import logging
+from contextlib import contextmanager
+
 import discord
 import argparse
 import traceback
 import configparser
 from pathlib import Path
 from datetime import datetime
+
+from sqlalchemy import create_engine
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import sessionmaker
+
 from models.default_channel import DefaultChannel
 from models.guild_prefix import GuildPrefix
 from utils.audio import Audio
 from discord.ext import commands
-from utils.database import create_all, session_scope
+
+from utils.database import BASE
 from utils.errors import NerpyException
 
 
@@ -42,8 +50,33 @@ class NerpyBot(commands.Bot):
         self.usr_cmd_err_spam = {}
         self.usr_cmd__err_spam_threshold = int(self.config["bot"]["error_spam_threshold"])
 
-        create_all()
+        self.ENGINE = create_engine(self.config["bot"]["db"], echo=False)
+        self.SESSION = sessionmaker(bind=self.ENGINE)
+
+        self.create_all()
         self._import_modules()
+
+    def create_all(self):
+        """ creates all tables previously defined"""
+        BASE.metadata.bind = self.ENGINE
+        BASE.metadata.create_all()
+
+    @contextmanager
+    def session_scope(self):
+        """Provide a transactional scope around a series of operations."""
+        session = self.SESSION()
+        error = None
+        try:
+            yield session
+            session.commit()
+        except SQLAlchemyError as ex:
+            session.rollback()
+            error = ex
+        finally:
+            session.close()
+
+        if error is not None:
+            raise NerpyException() from error
 
     async def on_ready(self):
         """calls when successfully logged in"""
@@ -98,7 +131,7 @@ class NerpyBot(commands.Bot):
             await ctx.message.delete()
 
     async def send(self, guild_id, cur_chan, msg, emb=None, file=None, files=None, delete_after=None):
-        with session_scope() as session:
+        with self.session_scope() as session:
             def_chan = DefaultChannel.get(guild_id, session)
             if def_chan is not None:
                 chan = self.get_channel(def_chan.ChannelId)
@@ -168,7 +201,7 @@ def determine_prefix(bot, message):
     guild = message.guild
     # Only allow custom prefixes in guild
     if guild:
-        with session_scope() as session:
+        with bot.session_scope() as session:
             pref = GuildPrefix.get(guild.id, session)
             if pref is not None:
                 return pref.Prefix

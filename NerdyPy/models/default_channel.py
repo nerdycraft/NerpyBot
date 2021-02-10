@@ -23,7 +23,6 @@ class DefaultChannel(db.BASE):
         return session.query(DefaultChannel).filter(DefaultChannel.GuildId == guild_id).first()
 
     @classmethod
-    def delete(cls, guild_id: int):
+    def delete(cls, guild_id: int, session):
         """deletes a channel with given guild"""
-        with db.session_scope() as session:
-            session.delete(DefaultChannel.get(guild_id, session))
+        session.delete(DefaultChannel.get(guild_id, session))

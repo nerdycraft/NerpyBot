@@ -33,10 +33,9 @@ class Tag(db.BASE):
     )
 
     @classmethod
-    def exists(cls, name, guild_id: int):
+    def exists(cls, name, guild_id: int, session):
         """ checks the database if a tag with that name exists for that guild"""
-        with db.session_scope() as session:
-            count = session.query(Tag).filter(Tag.Name == name).filter(Tag.GuildId == guild_id).count()
+        count = session.query(Tag).filter(Tag.Name == name).filter(Tag.GuildId == guild_id).count()
         return True if count > 0 else False
 
     @classmethod
@@ -50,10 +49,9 @@ class Tag(db.BASE):
         return session.query(Tag).filter(Tag.GuildId == guild_id).order_by(asc("Name")).all()
 
     @classmethod
-    def delete(cls, name, guild_id: int):
+    def delete(cls, name, guild_id: int, session):
         """deletes a tag with given name for given guild"""
-        with db.session_scope() as session:
-            session.delete(Tag.get(name, guild_id, session))
+        session.delete(Tag.get(name, guild_id, session))
 
     @classmethod
     def add(cls, tag, session):

@@ -2,7 +2,6 @@ import asyncio
 from datetime import datetime, timedelta
 
 from models.timed_message import TimedMessage
-from utils.database import session_scope
 from utils.errors import NerpyException
 from utils.format import pagify, box
 from discord.ext.commands import Cog, group
@@ -23,7 +22,7 @@ class Timed(Cog):
         while self.doLoop:
             await asyncio.sleep(30)
 
-            with session_scope() as session:
+            with self.bot.session_scope() as session:
                 for guild in self.bot.guilds:
                     msgs = TimedMessage.get_all_from_guild(guild.id, session)
                     for msg in msgs:
@@ -57,7 +56,7 @@ class Timed(Cog):
         """
         creates a message which gets send after a certain time
         """
-        with session_scope() as session:
+        with self.bot.session_scope() as session:
             msg = TimedMessage(
                 GuildId=ctx.guild.id,
                 ChannelId=ctx.channel.id,
@@ -79,7 +78,7 @@ class Timed(Cog):
         list all current timed messages
         """
         to_send = ""
-        with session_scope() as session:
+        with self.bot.session_scope() as session:
             msgs = TimedMessage.get_all_from_guild(ctx.guild.id, session)
             for msg in msgs:
                 to_send += f"{str(msg)}\n\n"
@@ -91,7 +90,8 @@ class Timed(Cog):
         """
         deletes a timed message
         """
-        TimedMessage.delete(timed_id, ctx.guild.id)
+        with self.bot.session_scope() as session:
+            TimedMessage.delete(timed_id, ctx.guild.id, session)
 
 
 def setup(bot):

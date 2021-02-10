@@ -23,7 +23,6 @@ class GuildPrefix(db.BASE):
         return session.query(GuildPrefix).filter(GuildPrefix.GuildId == guild_id).first()
 
     @classmethod
-    def delete(cls, guild_id: int):
+    def delete(cls, guild_id: int, session):
         """deletes a channel with given guild"""
-        with db.session_scope() as session:
-            session.delete(GuildPrefix.get(guild_id, session))
+        session.delete(GuildPrefix.get(guild_id, session))
