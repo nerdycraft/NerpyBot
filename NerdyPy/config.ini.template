@@ -8,6 +8,7 @@ token =
 ops = []
 error_spam_threshold = 5
 moderator_role_name =
+db = sqlite:///db.db
 
 [search]
 imgur =
