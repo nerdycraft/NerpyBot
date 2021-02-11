@@ -6,7 +6,6 @@ from pydub import AudioSegment
 from utils.audio import QueuedSong
 from utils.download import download
 from utils.errors import NerpyException
-from utils.database import session_scope
 from models.tag import Tag, TagType, TagTypeConverter
 from discord.ext.commands import (
     Cog,
@@ -50,7 +49,7 @@ class Tagging(Cog):
             raise NerpyException("tag already exists!")
 
         async with ctx.typing():
-            with session_scope() as session:
+            with self.bot.session_scope() as session:
                 self.bot.log.info(f"creating tag {ctx.guild.name}/{name} started")
                 _tag = Tag(
                     Name=name,
@@ -78,7 +77,7 @@ class Tagging(Cog):
             raise NerpyException("tag doesn't exists!")
 
         async with ctx.typing():
-            with session_scope() as session:
+            with self.bot.session_scope() as session:
                 _tag = Tag.get(name, ctx.guild.id, session)
                 self._add_tag_entries(session, _tag, content)
 
@@ -92,7 +91,7 @@ class Tagging(Cog):
         if not Tag.exists(name, ctx.guild.id):
             raise NerpyException("tag doesn't exist!")
 
-        with session_scope() as session:
+        with self.bot.session_scope() as session:
             _tag = Tag.get(name, ctx.guild.id, session)
             _tag.Volume = vol
             session.flush()
@@ -102,10 +101,11 @@ class Tagging(Cog):
     async def delete(self, ctx, name: clean_content):
         """delete a tag?"""
         self.bot.log.info(f"trying to delete {name} from {ctx.guild.id}")
-        if not Tag.exists(name, ctx.guild.id):
-            raise NerpyException("tag doesn't exist!")
+        with self.bot.session_scope() as session:
+            if not Tag.exists(name, ctx.guild.id, session):
+                raise NerpyException("tag doesn't exist!")
 
-        Tag.delete(name, ctx.guild.id)
+            Tag.delete(name, ctx.guild.id, session)
         await self.bot.sendc(ctx, "tag deleted!")
 
     @tag.command()
@@ -113,7 +113,7 @@ class Tagging(Cog):
     async def list(self, ctx):
         """a list of all available tags"""
         self.bot.log.info("list")
-        with session_scope() as session:
+        with self.bot.session_scope() as session:
             tags = Tag.get_all_from_guild(ctx.guild.id, session)
 
             msg = ""
@@ -133,7 +133,7 @@ class Tagging(Cog):
     @bot_has_permissions(send_messages=True)
     async def info(self, ctx, name: clean_content):
         """information about the tag"""
-        with session_scope() as session:
+        with self.bot.session_scope() as session:
             t = Tag.get(name, ctx.guild.id, session)
             await self.bot.sendc(ctx, fmt.box(str(t)))
 
@@ -141,7 +141,7 @@ class Tagging(Cog):
     @bot_has_permissions(send_messages=True)
     async def raw(self, ctx, name: clean_content):
         """raw tag data"""
-        with session_scope() as session:
+        with self.bot.session_scope() as session:
             t = Tag.get(name, ctx.guild.id, session)
             msg = f"==== {t.Name} ====\n\n"
 
@@ -160,7 +160,7 @@ class Tagging(Cog):
 
     async def _send(self, ctx, tag_name):
         self.bot.log.info(f"{ctx.guild.name} requesting {tag_name} tag")
-        with session_scope() as session:
+        with self.bot.session_scope() as session:
             _tag = Tag.get(tag_name, ctx.guild.id, session)
             if _tag is None:
                 raise NerpyException("No such tag found")

@@ -4,7 +4,6 @@ from datetime import datetime
 from models.guild_prefix import GuildPrefix
 from utils.checks import is_botmod
 from utils.errors import NerpyException
-from utils.database import session_scope
 from models.default_channel import DefaultChannel
 from discord.ext.commands import Cog, command, group, check
 
@@ -72,7 +71,7 @@ class Management(Cog):
 
     @defch.command(name="get")
     async def _defch_get(self, ctx):
-        with session_scope() as session:
+        with self.bot.session_scope() as session:
             def_ch = DefaultChannel.get(ctx.guild.id, session)
             if def_ch is not None:
                 channel = self.bot.get_channel(def_ch.ChannelId).mention
@@ -85,7 +84,7 @@ class Management(Cog):
         if not chan.permissions_for(chan.guild.me).send_messages:
             raise NerpyException("Missing permission to send message to channel.")
 
-        with session_scope() as session:
+        with self.bot.session_scope() as session:
             def_ch = DefaultChannel.get(ctx.guild.id, session)
             if def_ch is None:
                 def_ch = DefaultChannel(GuildId=ctx.guild.id, CreateDate=datetime.utcnow(), Author=ctx.author.name)
@@ -93,18 +92,13 @@ class Management(Cog):
 
             def_ch.ModifiedDate = datetime.utcnow()
             def_ch.ChannelId = chan.id
-            session.flush()
 
         await ctx.send(f"Default response channel set to {chan.mention}.")
 
     @defch.command(name="remove")
     async def _defch_remove(self, ctx):
-        with session_scope() as session:
-            def_ch = DefaultChannel.get(ctx.guild.id, session)
-            if def_ch is not None:
-                session.delete(def_ch)
-
-            session.flush()
+        with self.bot.session_scope() as session:
+            DefaultChannel.delete(ctx.guild.id, session)
         await ctx.send("Default response channel removed.")
 
     @command()
@@ -125,7 +119,7 @@ class Management(Cog):
         if " " in new_pref:
             raise NerpyException("Spaces not allowed in prefixes")
 
-        with session_scope() as session:
+        with self.bot.session_scope() as session:
             pref = GuildPrefix.get(ctx.guild.id, session)
             if pref is None:
                 pref = GuildPrefix(GuildId=ctx.guild.id, CreateDate=datetime.utcnow(), Author=ctx.author.name)
@@ -133,18 +127,13 @@ class Management(Cog):
 
             pref.ModifiedDate = datetime.utcnow()
             pref.Prefix = new_pref
-            session.flush()
 
         await ctx.send(f"new prefix is now set to '{new_pref}'.")
 
     @prefix.command(name="delete", aliases=["remove", "rm", "del"])
     async def _prefix_del(self, ctx):
-        with session_scope() as session:
-            pref = GuildPrefix.get(ctx.guild.id, session)
-            if pref is not None:
-                session.delete(pref)
-
-            session.flush()
+        with self.bot.session_scope() as session:
+            GuildPrefix.delete(ctx.guild.id, session)
         await ctx.send("Prefix removed.")
 
     @check(is_botmod)
