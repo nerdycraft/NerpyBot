@@ -17,6 +17,8 @@ class Conversation:
         self.user = user
         self.guild = guild
 
+        self.isActive = True
+
         self.stateHandler = self.create_state_handler()
         self.currentState = list(self.stateHandler.keys())[0]
 
@@ -135,18 +137,10 @@ class ConversationManager:
 
     def __init__(self, bot):
         self.bot = bot
-        self.conversations = []
-
-    def has_conversation(self, usr):
-        if self.get_user_conversation(usr) is None:
-            return False
-        return True
+        self.conversations = {}
 
     def get_user_conversation(self, usr):
-        conv = [c for c in self.conversations if c.user.id == usr.id]
-        if len(conv) > 0:
-            return conv[0]
-        return None
+        return self.conversations.get(usr.id)
 
     async def init_conversation(self, conv: Conversation):
         conv.bot = self.bot
@@ -159,7 +153,4 @@ class ConversationManager:
         await conv.repost_state()
 
     def set_conversation(self, conv: Conversation):
-        orig_conv = self.get_user_conversation(conv.user)
-        if orig_conv is not None:
-            self.conversations.remove(orig_conv)
-        self.conversations.append(conv)
+        self.conversations[conv.user.id] = conv
