@@ -22,34 +22,95 @@ class Raid(Cog):
 
 class RaidPlanerState(Enum):
     MAIN = 0
-    CREATE_TEMPLATE = 1
-    USE_TEMPLATE = 2
+    CT_NAME = 1
+    CT_DESCRIPTION = 2
+    CT_ENCOUNTER_ADD = 4
+    CT_PREVIEW = 50
+    USE_TEMPLATE = 3
+    CLOSE = 999
 
 
 class RaidConversation(Conversation):
 
+    def __init__(self, user, guild):
+        super().__init__(user, guild)
+        self.templateName = ""
+        self.templateDesc = ""
+
     def create_state_handler(self):
         return {
             RaidPlanerState.MAIN: self.initial_message,
-            RaidPlanerState.CREATE_TEMPLATE: self.create_template,
-            RaidPlanerState.USE_TEMPLATE: self.use_template
+            RaidPlanerState.CT_NAME: self.create_template_name,
+            RaidPlanerState.CT_DESCRIPTION: self.create_template_desc,
+            RaidPlanerState.CT_PREVIEW: self.create_template_preview,
+            RaidPlanerState.USE_TEMPLATE: self.use_template,
+            RaidPlanerState.CLOSE: self.close
         }
 
-    async def initial_message(self, answer):
-        emb = Embed(title='RaidPlaner', description='Test message please ignore.')
+    async def initial_message(self):
+        emb = Embed(title='RaidPlaner',
+                    description=''
+                                '<:check:809765339230896128> Use existing  template\n'
+                                '<:add:809765525629698088> create a new template'
+                    )
+
         reactions = {
-            '<:oof:809539203813605387>': RaidPlanerState.USE_TEMPLATE,
-            '🍉': RaidPlanerState.CREATE_TEMPLATE
+            '<:check:809765339230896128>': RaidPlanerState.USE_TEMPLATE,
+            '<:add:809765525629698088>': RaidPlanerState.CT_NAME,
+            '<:cancel:809790666930126888>': RaidPlanerState.CLOSE,
         }
 
         await self.send_react(emb, reactions)
 
-    async def create_template(self, answer):
-        emb = Embed(title='RaidPlaner', description='state 1')
-        await self.send_msg(emb, RaidPlanerState.MAIN)
+    async def create_template_name(self):
+        emb = Embed(title='RaidPlaner',
+                    description='To create a new template you first need to give it a name:'
+                    )
 
-    async def use_template(self, answer):
-        emb = Embed(title='RaidPlaner', description='state 2')
+        reactions = {
+            '<:cancel:809790666930126888>': RaidPlanerState.MAIN,
+        }
+        await self.send_both(emb, RaidPlanerState.CT_DESCRIPTION, self.set_template_name, reactions)
+
+    async def set_template_name(self, answer):
+        if len(answer) > 10:
+            emb = Embed(title='RaidPlaner',
+                        description='Name can not be longer than 10 characters'
+                        )
+            await self.send_ns(emb)
+            return False
+        self.templateName = answer
+
+    async def create_template_desc(self):
+        emb = Embed(title='RaidPlaner',
+                    description='Now write a few lines to describe your event.'
+                    )
+
+        reactions = {
+            '<:cancel:809790666930126888>': RaidPlanerState.MAIN,
+        }
+        await self.send_both(emb, RaidPlanerState.CT_PREVIEW, self.set_template_desc, reactions)
+
+    async def set_template_desc(self, answer):
+        self.templateDesc = answer
+
+    async def create_template_preview(self):
+        emb = Embed(title=self.templateName,
+                    description=self.templateDesc
+                    )
+
+        await self.send_ns(embed=emb)
+        emb = Embed(title='RaidPlaner',
+                    description='Above you can see the preview. Looking good eh?'
+                    )
+
+        reactions = {
+            '👍': RaidPlanerState.MAIN,
+        }
+        await self.send_react(emb, reactions)
+
+    async def use_template(self):
+        emb = Embed(title='RaidPlaner', description='use_template PoC message (send text to continue)')
         await self.send_msg(emb, RaidPlanerState.MAIN)
 
 
