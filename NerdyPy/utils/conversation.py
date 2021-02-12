@@ -1,6 +1,6 @@
 from enum import Enum
 
-from discord import Embed, Message
+from discord import Embed
 
 
 class AnswerType(Enum):
@@ -34,7 +34,8 @@ class Conversation:
     def create_state_handler(self):
         """
         Overwrite needed!!!
-        :returns a dictionary of [int/method(str)] to call methods on state changes
+        all send methods with expected reaction or message answers will refer to this dictionary and call the method.
+        :returns a dictionary of [uniqueKey/method()] to call methods on state changes
         """
         return {}
 
@@ -68,6 +69,11 @@ class Conversation:
         await self.repost_state()
 
     async def send_react(self, embed, reactions):
+        """
+        Send embed with expected reaction response
+        :param embed: iscord text embed
+        :param reactions: dictionary of emojis and the target state. emojis will be added as reactions.
+        """
         self.answerType = AnswerType.REACTION
         self.reactions = reactions
         self.currentMessage = await self.user.send(embed=embed)
@@ -75,12 +81,25 @@ class Conversation:
             await self.currentMessage.add_reaction(emoji)
 
     async def send_msg(self, embed, next_state, answer_handler=None):
+        """
+        Send embed with expected text response
+        :param embed: discord text embed
+        :param next_state: state the conversation will be when answer is received.
+        :param answer_handler: separate answer handling -> method(str)
+        """
         self.answerType = AnswerType.TEXT
         self.nextState = next_state
         self.answerHandler = answer_handler
         self.currentMessage = await self.user.send(embed=embed)
 
     async def send_both(self, embed, next_state, answer_handler, reactions):
+        """
+        Send embed with expected text or reaction response
+        :param embed: discord text embed
+        :param next_state: state the conversation will be when answer is received.
+        :param answer_handler: separate answer handling -> method(str)
+        :param reactions: dictionary of emojis and the target state. emojis will be added as reactions.
+        """
         self.answerType = AnswerType.BOTH
         self.nextState = next_state
         self.answerHandler = answer_handler
@@ -89,7 +108,15 @@ class Conversation:
         for emoji in reactions.keys():
             await self.currentMessage.add_reaction(emoji)
 
+    async def send_ns(self, embed):
+        """
+        Send embed with no expected response
+        :param embed: discord text embed
+        """
+        await self.user.send(embed=embed)
+
     async def close(self):
+        """closes this conversation"""
         self.isActive = False
 
 
