@@ -148,7 +148,7 @@ class NerpyBot(commands.Bot):
         if isinstance(message.channel, discord.DMChannel):
             conv = self.convMan.get_user_conversation(message.author)
             if conv is not None and conv.answerType == AnswerType.TEXT:
-                await conv.on_message(message)
+                await conv.on_message(message.content)
                 invoke = False
 
         if invoke:
