@@ -1,6 +1,6 @@
 from enum import Enum
 
-from discord import Embed, Reaction, Message
+from discord import Embed, Message
 
 
 class AnswerType(Enum):
@@ -12,36 +12,46 @@ class AnswerType(Enum):
 class Conversation:
 
     def __init__(self, user):
-        self.user = user
         self.bot = None
-        self.currentMessage = None
-        self.previousState = 0
-        self.currentState = 0
+
+        self.user = user
         self.answerType = None
+
+        self.stateHandler = self.create_state_handler()
+        self.currentState = list(self.stateHandler.keys())[0]
+
+        self.currentMessage = None
+        self.lastResponse = None
+
+        self.previousState = 0
         self.nextState = None
 
-    async def initial_message(self):
-        pass
+    def create_state_handler(self):
+        """
+        Overwrite needed!!!
+        :returns a dictionary of [int/method(str)] to call methods on state changes
+        """
+        return {}
 
-    async def on_react(self, reaction: Reaction):
-        if self.answerType == AnswerType.REACTION and self.currentMessage.id == reaction.message.id:
-            self.previousState = self.currentState
-            self.currentState = self.nextState[str(reaction.emoji)]
-            self.currentMessage = None
-            await self.on_state_change()
+    async def repost_state(self):
+        await self.stateHandler[self.currentState](self.lastResponse)
 
-    async def on_state_change(self):
-        pass
+    def is_conv_message(self, message_id, answer_type: AnswerType):
+        return message_id == self.currentMessage.id and answer_type == self.answerType
+
+    async def on_react(self, reaction):
+        self.previousState = self.currentState
+        self.currentState = self.nextState[str(reaction)]
+        self.currentMessage = None
+        self.lastResponse = reaction
+        await self.repost_state()
 
     async def on_message(self, message: Message):
-        if self.answerType == AnswerType.TEXT and self.currentMessage.id == message.id:
-            self.previousState = self.currentState
-            self.currentState = self.nextState
-            self.currentMessage = None
-            await self.on_answer_received(message)
-
-    async def on_answer_received(self, message: Message):
-        pass
+        self.previousState = self.currentState
+        self.currentState = self.nextState
+        self.currentMessage = None
+        self.lastResponse = message
+        await self.repost_state()
 
     async def send_react(self, embed, reactions):
         self.answerType = AnswerType.REACTION
@@ -56,6 +66,12 @@ class Conversation:
         self.currentMessage = await self.user.send(embed=embed)
 
 
+class PrevConvState(Enum):
+    INIT = 0
+    PREV = 1
+    NEXT = 2
+
+
 class PreConversation(Conversation):
 
     def __init__(self, conv_man, prev_conv: Conversation, next_conv: Conversation, user):
@@ -64,25 +80,32 @@ class PreConversation(Conversation):
         self.prevConv = prev_conv
         self.nextConv = next_conv
 
-    async def initial_message(self):
+    def create_state_handler(self):
+        return {
+            PrevConvState.INIT: self.initial_message,
+            PrevConvState.PREV: self.prev_conv,
+            PrevConvState.NEXT: self.next_conv
+        }
+
+    async def initial_message(self, answer):
         emb = Embed(title='PreConversation', description='You already have an active conversation. Do you want to '
                                                          'continue your old conversation (:arrow_backward:) or start '
                                                          'the new one (:arrow_forward:)')
 
         reactions = {
-            '◀': 0,
-            '▶': 1
+            '◀': PrevConvState.PREV,
+            '▶': PrevConvState.NEXT
         }
 
         await self.send_react(emb, reactions)
 
-    async def on_state_change(self):
-        if self.currentState == 1:
-            self.convMan.set_conversation(self.nextConv)
-            await self.nextConv.initial_message()
-        else:
-            self.convMan.set_conversation(self.prevConv)
-            await self.prevConv.on_state_change()
+    async def prev_conv(self, answer):
+        self.convMan.set_conversation(self.prevConv)
+        await self.prevConv.repost_state()
+
+    async def next_conv(self, answer):
+        self.convMan.set_conversation(self.nextConv)
+        await self.nextConv.repost_state()
 
 
 class ConversationManager:
@@ -111,7 +134,7 @@ class ConversationManager:
             conv.bot = self.bot
 
         self.set_conversation(conv)
-        await conv.initial_message()
+        await conv.repost_state()
 
     def set_conversation(self, conv: Conversation):
         orig_conv = self.get_user_conversation(conv.user)

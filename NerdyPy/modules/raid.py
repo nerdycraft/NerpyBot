@@ -28,7 +28,14 @@ class RaidPlanerState(Enum):
 
 class RaidConversation(Conversation):
 
-    async def initial_message(self):
+    def create_state_handler(self):
+        return {
+            RaidPlanerState.MAIN: self.initial_message,
+            RaidPlanerState.CREATE_TEMPLATE: self.create_template,
+            RaidPlanerState.USE_TEMPLATE: self.use_template
+        }
+
+    async def initial_message(self, answer):
         emb = Embed(title='RaidPlaner', description='Test message please ignore.')
         reactions = {
             '<:oof:809539203813605387>': RaidPlanerState.USE_TEMPLATE,
@@ -37,22 +44,13 @@ class RaidConversation(Conversation):
 
         await self.send_react(emb, reactions)
 
-    async def on_state_change(self):
-        switcher = {
-            RaidPlanerState.MAIN: self.on_state_0,
-            RaidPlanerState.CREATE_TEMPLATE: self.on_state_1,
-            RaidPlanerState.USE_TEMPLATE: self.on_state_2
-        }
-        await switcher.get(self.currentState)()
+    async def create_template(self, answer):
+        emb = Embed(title='RaidPlaner', description='state 1')
+        await self.send_msg(emb, RaidPlanerState.MAIN)
 
-    async def on_state_0(self):
-        await self.user.send('state 0')
-
-    async def on_state_1(self):
-        await self.user.send('state 1')
-
-    async def on_state_2(self):
-        await self.user.send('state 2')
+    async def use_template(self, answer):
+        emb = Embed(title='RaidPlaner', description='state 2')
+        await self.send_msg(emb, RaidPlanerState.MAIN)
 
 
 def setup(bot):

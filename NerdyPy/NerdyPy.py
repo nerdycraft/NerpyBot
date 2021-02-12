@@ -24,7 +24,7 @@ from models.guild_prefix import GuildPrefix
 from utils.audio import Audio
 from discord.ext import commands
 
-from utils.conversation import ConversationManager
+from utils.conversation import ConversationManager, AnswerType
 from utils.database import BASE
 from utils.errors import NerpyException
 
@@ -133,10 +133,12 @@ class NerpyBot(commands.Bot):
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
 
-    async def on_reaction_add(self, reaction, user):
-        conv = self.convMan.get_user_conversation(user)
-        if conv is not None:
-            await conv.on_react(reaction)
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        user = await self.fetch_user(payload.user_id)
+        if user is not None and not user.bot:
+            conv = self.convMan.get_user_conversation(user)
+            if conv is not None and conv.is_conv_message(payload.message_id, AnswerType.REACTION):
+                await conv.on_react(payload.emoji)
 
     async def on_message(self, message):
         if message.author.bot:
@@ -145,7 +147,7 @@ class NerpyBot(commands.Bot):
         invoke = True
         if isinstance(message.channel, discord.DMChannel):
             conv = self.convMan.get_user_conversation(message.author)
-            if conv is not None:
+            if conv is not None and conv.answerType == AnswerType.TEXT:
                 await conv.on_message(message)
                 invoke = False
 
