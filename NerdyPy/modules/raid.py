@@ -17,7 +17,7 @@ class Raid(Cog):
     @command()
     async def raidplaner(self, ctx):
         """sound and text tags"""
-        await self.bot.convMan.init_conversation(RaidConversation(ctx.author))
+        await self.bot.convMan.init_conversation(RaidConversation(ctx.author, ctx.guild))
 
 
 class RaidPlanerState(Enum):

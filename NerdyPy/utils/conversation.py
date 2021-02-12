@@ -11,14 +11,16 @@ class AnswerType(Enum):
 
 class Conversation:
 
-    def __init__(self, user):
+    def __init__(self, user, guild):
         self.bot = None
 
         self.user = user
-        self.answerType = None
+        self.guild = guild
 
         self.stateHandler = self.create_state_handler()
         self.currentState = list(self.stateHandler.keys())[0]
+
+        self.answerType = None
 
         self.currentMessage = None
         self.lastResponse = None
@@ -75,7 +77,7 @@ class PrevConvState(Enum):
 class PreConversation(Conversation):
 
     def __init__(self, conv_man, prev_conv: Conversation, next_conv: Conversation, user):
-        super().__init__(user)
+        super().__init__(user, None)
         self.convMan = conv_man
         self.prevConv = prev_conv
         self.nextConv = next_conv
