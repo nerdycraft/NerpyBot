@@ -24,6 +24,7 @@ from models.guild_prefix import GuildPrefix
 from utils.audio import Audio
 from discord.ext import commands
 
+from utils.conversation import ConversationManager
 from utils.database import BASE
 from utils.errors import NerpyException
 
@@ -49,6 +50,8 @@ class NerpyBot(commands.Bot):
         self.last_cmd_cache = {}
         self.usr_cmd_err_spam = {}
         self.usr_cmd__err_spam_threshold = int(self.config["bot"]["error_spam_threshold"])
+
+        self.convMan = ConversationManager(self)
 
         self.ENGINE = create_engine(self.config["bot"]["db"], echo=False)
         self.SESSION = sessionmaker(bind=self.ENGINE)
@@ -129,6 +132,25 @@ class NerpyBot(commands.Bot):
 
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
+
+    async def on_reaction_add(self, reaction, user):
+        conv = self.convMan.get_user_conversation(user)
+        if conv is not None:
+            await conv.on_react(reaction)
+
+    async def on_message(self, message):
+        if message.author.bot:
+            return
+
+        invoke = True
+        if isinstance(message.channel, discord.DMChannel):
+            conv = self.convMan.get_user_conversation(message.author)
+            if conv is not None:
+                await conv.on_message(message)
+                invoke = False
+
+        if invoke:
+            await self.process_commands(message)
 
     async def send(self, guild_id, cur_chan, msg, emb=None, file=None, files=None, delete_after=None):
         with self.session_scope() as session:
