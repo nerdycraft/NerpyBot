@@ -38,8 +38,11 @@ class Conversation:
     async def repost_state(self):
         await self.stateHandler[self.currentState]()
 
-    def is_conv_message(self, message_id, answer_type: AnswerType):
-        return message_id == self.currentMessage.id and answer_type == self.answerType
+    def is_conv_message(self, message_id):
+        return message_id == self.currentMessage.id
+
+    def is_answer_type(self, answer_type: AnswerType):
+        return answer_type == self.answerType or self.answerType == AnswerType.BOTH
 
     async def on_react(self, reaction):
         self.previousState = self.currentState
