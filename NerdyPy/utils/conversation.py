@@ -26,6 +26,8 @@ class Conversation:
         self.lastResponse = None
 
         self.nextState = None
+        self.reactions = None
+        self.answerHandler = None
 
     def create_state_handler(self):
         """
@@ -44,7 +46,7 @@ class Conversation:
         return answer_type == self.answerType or self.answerType == AnswerType.BOTH
 
     async def on_react(self, reaction):
-        self.currentState = self.nextState[str(reaction)]
+        self.currentState = self.reactions[str(reaction)]
         self.currentMessage = None
         self.lastResponse = reaction
         await self.repost_state()
@@ -53,19 +55,32 @@ class Conversation:
         self.currentState = self.nextState
         self.currentMessage = None
         self.lastResponse = message
+        if self.answerHandler is not None:
+            await self.answerHandler(message)
+        self.answerHandler = None
         await self.repost_state()
 
     async def send_react(self, embed, reactions):
         self.answerType = AnswerType.REACTION
-        self.nextState = reactions
+        self.reactions = reactions
         self.currentMessage = await self.user.send(embed=embed)
         for emoji in reactions.keys():
             await self.currentMessage.add_reaction(emoji)
 
-    async def send_msg(self, embed, next_state):
+    async def send_msg(self, embed, next_state, answer_handler=None):
         self.answerType = AnswerType.TEXT
         self.nextState = next_state
+        self.answerHandler = answer_handler
         self.currentMessage = await self.user.send(embed=embed)
+
+    async def send_both(self, embed, next_state, answer_handler, reactions):
+        self.answerType = AnswerType.BOTH
+        self.nextState = next_state
+        self.answerHandler = answer_handler
+        self.reactions = reactions
+        self.currentMessage = await self.user.send(embed=embed)
+        for emoji in reactions.keys():
+            await self.currentMessage.add_reaction(emoji)
 
 
 class PrevConvState(Enum):
