@@ -25,7 +25,6 @@ class Conversation:
         self.currentMessage = None
         self.lastResponse = None
 
-        self.previousState = 0
         self.nextState = None
 
     def create_state_handler(self):
@@ -45,14 +44,12 @@ class Conversation:
         return answer_type == self.answerType or self.answerType == AnswerType.BOTH
 
     async def on_react(self, reaction):
-        self.previousState = self.currentState
         self.currentState = self.nextState[str(reaction)]
         self.currentMessage = None
         self.lastResponse = reaction
         await self.repost_state()
 
-    async def on_message(self, message: Message):
-        self.previousState = self.currentState
+    async def on_message(self, message):
         self.currentState = self.nextState
         self.currentMessage = None
         self.lastResponse = message
