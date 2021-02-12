@@ -36,7 +36,7 @@ class Conversation:
         return {}
 
     async def repost_state(self):
-        await self.stateHandler[self.currentState](self.lastResponse)
+        await self.stateHandler[self.currentState]()
 
     def is_conv_message(self, message_id, answer_type: AnswerType):
         return message_id == self.currentMessage.id and answer_type == self.answerType
@@ -89,7 +89,7 @@ class PreConversation(Conversation):
             PrevConvState.NEXT: self.next_conv
         }
 
-    async def initial_message(self, answer):
+    async def initial_message(self):
         emb = Embed(title='PreConversation', description='You already have an active conversation. Do you want to '
                                                          'continue your old conversation (:arrow_backward:) or start '
                                                          'the new one (:arrow_forward:)')
@@ -101,11 +101,11 @@ class PreConversation(Conversation):
 
         await self.send_react(emb, reactions)
 
-    async def prev_conv(self, answer):
+    async def prev_conv(self):
         self.convMan.set_conversation(self.prevConv)
         await self.prevConv.repost_state()
 
-    async def next_conv(self, answer):
+    async def next_conv(self):
         self.convMan.set_conversation(self.nextConv)
         await self.nextConv.repost_state()
 
