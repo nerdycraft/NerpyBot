@@ -46,18 +46,23 @@ class Conversation:
         return answer_type == self.answerType or self.answerType == AnswerType.BOTH
 
     async def on_react(self, reaction):
-        self.currentState = self.reactions[str(reaction)]
-        self.currentMessage = None
-        self.lastResponse = reaction
-        await self.repost_state()
+        if str(reaction) in self.reactions:
+            self.currentState = self.reactions[str(reaction)]
+            self.currentMessage = None
+            self.lastResponse = reaction
+            await self.repost_state()
 
     async def on_message(self, message):
-        self.currentState = self.nextState
-        self.currentMessage = None
-        self.lastResponse = message
+        valid = True
         if self.answerHandler is not None:
-            await self.answerHandler(message)
-        self.answerHandler = None
+            valid = await self.answerHandler(message)
+            self.answerHandler = None
+
+        if valid or valid is None:
+            self.currentState = self.nextState
+            self.currentMessage = None
+            self.lastResponse = message
+
         await self.repost_state()
 
     async def send_react(self, embed, reactions):
