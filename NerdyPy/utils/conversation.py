@@ -89,6 +89,9 @@ class Conversation:
         for emoji in reactions.keys():
             await self.currentMessage.add_reaction(emoji)
 
+    async def close(self):
+        self.isActive = False
+
 
 class PrevConvState(Enum):
     INIT = 0
@@ -145,7 +148,7 @@ class ConversationManager:
     async def init_conversation(self, conv: Conversation):
         conv.bot = self.bot
         prev_conv = self.get_user_conversation(conv.user)
-        if prev_conv is not None:
+        if prev_conv is not None and prev_conv.isActive:
             conv = PreConversation(self, prev_conv, conv, conv.user)
             conv.bot = self.bot
 
