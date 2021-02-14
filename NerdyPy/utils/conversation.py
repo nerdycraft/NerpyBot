@@ -11,8 +11,8 @@ class AnswerType(Enum):
 
 class Conversation:
 
-    def __init__(self, user, guild):
-        self.bot = None
+    def __init__(self, bot, user, guild):
+        self.bot = bot
 
         self.user = user
         self.guild = guild
@@ -128,8 +128,8 @@ class PrevConvState(Enum):
 
 class PreConversation(Conversation):
 
-    def __init__(self, conv_man, prev_conv: Conversation, next_conv: Conversation, user):
-        super().__init__(user, None)
+    def __init__(self, conv_man, bot, prev_conv: Conversation, next_conv: Conversation, user):
+        super().__init__(bot, user, None)
         self.convMan = conv_man
         self.prevConv = prev_conv
         self.nextConv = next_conv
@@ -173,11 +173,9 @@ class ConversationManager:
         return self.conversations.get(usr.id)
 
     async def init_conversation(self, conv: Conversation):
-        conv.bot = self.bot
         prev_conv = self.get_user_conversation(conv.user)
         if prev_conv is not None and prev_conv.isActive:
-            conv = PreConversation(self, prev_conv, conv, conv.user)
-            conv.bot = self.bot
+            conv = PreConversation(self, self.bot, prev_conv, conv, conv.user)
 
         self.set_conversation(conv)
         await conv.repost_state()

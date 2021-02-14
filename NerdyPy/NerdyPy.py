@@ -54,7 +54,7 @@ class NerpyBot(commands.Bot):
         self.convMan = ConversationManager(self)
 
         self.ENGINE = create_engine(self.config["bot"]["db"], echo=False)
-        self.SESSION = sessionmaker(bind=self.ENGINE)
+        self.SESSION = sessionmaker(bind=self.ENGINE, expire_on_commit=False)
 
         self.create_all()
         self._import_modules()
