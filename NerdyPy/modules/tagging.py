@@ -45,8 +45,9 @@ class Tagging(Cog):
         *content: clean_content,
     ):
         """create tag content"""
-        if Tag.exists(name, ctx.guild.id):
-            raise NerpyException("tag already exists!")
+        with self.bot.session_scope() as session:
+            if Tag.exists(name, ctx.guild.id, session):
+                raise NerpyException("tag already exists!")
 
         async with ctx.typing():
             with self.bot.session_scope() as session:
@@ -73,8 +74,9 @@ class Tagging(Cog):
     @bot_has_permissions(send_messages=True)
     async def add(self, ctx, name: clean_content, *content: clean_content):
         """add an entry to an existing tag"""
-        if not Tag.exists(name, ctx.guild.id):
-            raise NerpyException("tag doesn't exists!")
+        with self.bot.session_scope() as session:
+            if not Tag.exists(name, ctx.guild.id, session):
+                raise NerpyException("tag doesn't exists!")
 
         async with ctx.typing():
             with self.bot.session_scope() as session:
@@ -88,8 +90,9 @@ class Tagging(Cog):
     @bot_has_permissions(send_messages=True)
     async def volume(self, ctx, name: clean_content, vol):
         """adjust the volume of a sound tag (WIP)"""
-        if not Tag.exists(name, ctx.guild.id):
-            raise NerpyException("tag doesn't exist!")
+        with self.bot.session_scope() as session:
+            if not Tag.exists(name, ctx.guild.id, session):
+                raise NerpyException("tag doesn't exist!")
 
         with self.bot.session_scope() as session:
             _tag = Tag.get(name, ctx.guild.id, session)
