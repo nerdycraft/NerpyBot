@@ -33,18 +33,13 @@ class RaidTemplate(db.BASE):
         """returns all templates for given guild"""
         return session.query(RaidTemplate).filter(RaidTemplate.GuildId == guild_id).order_by(asc("CreateDate")).all()
 
-    def get_required_participants(self):
-        if self.get_encounter_count() == 0:
-            return 0
-        return self.Encounters[0].get_total_participants()
-
     def get_encounter_count(self):
         return len(self.Encounters)
 
     def create_info_embed(self):
         emb = Embed(title=self.Name,
                     description=f'{self.Description}\n'
-                                f'🧑‍🤝‍🧑{self.get_required_participants()}\n\n'
+                                f'🧑‍🤝‍🧑 {self.PlayerCount}\n\n'
                     )
 
         for enc in self.Encounters:

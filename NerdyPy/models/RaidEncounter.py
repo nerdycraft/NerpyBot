@@ -35,14 +35,14 @@ class RaidEncounter(db.BASE):
                         primaryjoin="and_(RaidTemplate.GuildId==RaidEncounter.GuildId, "
                                     "RaidTemplate.RaidId==RaidEncounter.RaidId)")
 
-    def get_total_participants(self):
+    def get_role_player_sum(self):
         return sum(r.Count for r in self.Roles)
 
     def get_role_count(self):
         return len(self.Roles)
 
     def info(self):
-        to_str = f'**{self.Name}** (🧑‍🤝‍🧑{self.get_total_participants()})\n\n'
+        to_str = f'**{self.Name}**\n\n'
         for role in self.Roles:
             to_str += f'{role}\n\n'
         return to_str

@@ -21,7 +21,8 @@ class RaidPlaner(Cog):
     @command()
     async def raidplaner(self, ctx):
         """sound and text tags"""
-        await self.bot.convMan.init_conversation(RaidConversation(self.bot, ctx.author, ctx.guild))
+        conv = RaidConversation(self.bot, ctx.author, self.bot.get_guild(606539392311361794))
+        await self.bot.convMan.init_conversation(conv)
 
 
 class RaidPlanerState(Enum):
@@ -68,7 +69,8 @@ class RaidPlanerState(Enum):
 
     CLOSE = 999
 
-# TODO: data validation
+
+# TODO: emoji check for roles
 
 
 class RaidConversation(Conversation):
@@ -138,7 +140,8 @@ class RaidConversation(Conversation):
         emb = Embed(title='RaidPlaner',
                     description='Hey there,\n'
                                 'this is NerdyBot with your raid planning tool. Just follow the path by responding '
-                                'via the reaction presets or with chat input. Now, what would you like to do?\n\n'
+                                'via the reaction presets or with chat input. Now, what would you like to do?'
+                                '\n\n'
                                 '<:check:809765339230896128>: schedule event\n'
                                 '--------------------------------------------\n'
                                 '<:add:809765525629698088>: create a new template\n'
@@ -162,15 +165,20 @@ class RaidConversation(Conversation):
     # region template
     async def conv_template_menu(self):
         emb = Embed(title='RaidPlaner',
-                    description=f'Template \'{self.tmpTemplate.Name}\' in the works. It is currently designed for '
-                                f'{self.tmpTemplate.get_required_participants()}🧑‍🤝‍🧑 players and has '
+                    description='**Template Creator**'
+                                '\n\n'
+                                f'Template \'{self.tmpTemplate.Name}\' in the works. It is currently designed for '
+                                f'{self.tmpTemplate.PlayerCount}🧑‍🤝‍🧑 players and has '
                                 f'{self.tmpTemplate.get_encounter_count()} encounters.'
                                 '\n\n'
                                 '<:edit2:810114710938189874>: change name and description\n'
+                                '--------------------------------------------\n'
                                 '<:add:809765525629698088>: add encounter\n'
                                 '<:edit:809884574497898557>: edit encounter\n'
                                 '<:remove:809885458220974100>: remove encounter\n'
+                                '--------------------------------------------\n'
                                 '<:preview:810222989450543116>: preview template\n'
+                                '--------------------------------------------\n'
                                 '<:check:809765339230896128>: save template\n'
                                 '<:cancel:809790666930126888>: cancel'
                     )
@@ -189,7 +197,7 @@ class RaidConversation(Conversation):
 
     async def conv_template_set_name(self):
         emb = Embed(title='RaidPlaner',
-                    description='To create a new template you first need to give it a name. Just type it in the chat.'
+                    description='Give your template a new name. Just type it in the chat.'
                     )
 
         reactions = {
@@ -265,7 +273,7 @@ class RaidConversation(Conversation):
 
     async def conv_template_remove_confirm(self):
         emb = Embed(title='RaidPlaner',
-                    description=f'Do your really want to remove template {self.tmpTemplate.Name}?'
+                    description=f'Do your really want to remove template \'{self.tmpTemplate.Name}\'?'
                     )
 
         reactions = {
@@ -286,36 +294,90 @@ class RaidConversation(Conversation):
         await self.conv_main_menu()
 
     async def set_template_name(self, answer):
-        if len(answer) > 10:
+        if len(answer) > 35:
             emb = Embed(title='RaidPlaner',
-                        description='Name can not be longer than 10 characters'
+                        description='Name can not be longer than 35 characters!'
+                        )
+            await self.send_ns(emb)
+            return False
+        if len(answer) < 5:
+            emb = Embed(title='RaidPlaner',
+                        description='Name can not be less than 5 characters!'
                         )
             await self.send_ns(emb)
             return False
         self.tmpTemplate.Name = answer
 
     async def set_template_desc(self, answer):
+        if len(answer) > 350:
+            emb = Embed(title='RaidPlaner',
+                        description='The description can not be longer than 350 characters!'
+                        )
+            await self.send_ns(emb)
+            return False
         self.tmpTemplate.Description = answer
 
     async def set_template_count(self, answer):
-        self.tmpTemplate.PlayerCount = int(answer)
+        if answer.isdigit():
+            emb = Embed(title='RaidPlaner',
+                        description='Please enter a valid numeric value!'
+                        )
+            await self.send_ns(emb)
+            return False
+
+        cnt = int(answer)
+
+        if cnt < 3:
+            emb = Embed(title='RaidPlaner',
+                        description='Value must be larger than 2!'
+                        )
+            await self.send_ns(emb)
+            return False
+
+        if cnt > 25:
+            emb = Embed(title='RaidPlaner',
+                        description='The player count is limited to 25!'
+                        )
+            await self.send_ns(emb)
+            return False
+        self.tmpTemplate.PlayerCount = cnt
 
     async def set_edit_template(self, answer):
-        self.tmpTemplate = self.templates[int(answer) - 1]
+        if answer.isdigit():
+            emb = Embed(title='RaidPlaner',
+                        description='Please enter a valid numeric value!'
+                        )
+            await self.send_ns(emb)
+            return False
+
+        idx = int(answer)
+
+        if idx > len(self.templates) or idx == 0:
+            emb = Embed(title='RaidPlaner',
+                        description='Value is not inside the selectable range!'
+                        )
+            await self.send_ns(emb)
+            return False
+
+        self.tmpTemplate = self.templates[idx - 1]
+
     # endregion
 
     # region encounter
     async def conv_encounter_menu(self):
         emb = Embed(title='RaidPlaner',
-                    description='Designing an encounter. The number of selectable roles defines the number selectable'
-                                'roles needed on following encounters. Currently your encounter looks like this:'
+                    description='**Encounter Creator**'
+                                '\n\n'
+                                'Preview:'
                                 '\n\n'
                                 f'{self.tmpEncounter.info()}'
                                 '\n\n'
                                 '<:edit2:810114710938189874>: change name an description\n'
+                                '--------------------------------------------\n'
                                 '<:add:809765525629698088>: add new role\n'
                                 '<:edit:809884574497898557>: edit an existing role\n'
                                 '<:remove:809885458220974100>: remove an existing role\n'
+                                '--------------------------------------------\n'
                                 '<:check:809765339230896128>: finish encounter\n'
                                 '<:cancel:809790666930126888>: cancel encounter creation\n'
                     )
@@ -347,7 +409,7 @@ class RaidConversation(Conversation):
             return await self.conv_encounter_menu()
 
         emb = Embed(title='RaidPlaner',
-                    description='Type in the number referencing a encounter below:'
+                    description='Type in the number referencing an encounter below:'
                                 '\n\n'
                     )
 
@@ -394,7 +456,7 @@ class RaidConversation(Conversation):
 
     async def conv_encounter_name(self):
         emb = Embed(title='RaidPlaner',
-                    description=f'Give your Encounter a new name. Currently it\'s {self.tmpEncounter.Name}.'
+                    description=f'Give your encounter \'{{self.tmpEncounter.Name}}\' a new name.'
                     )
 
         reactions = {
@@ -413,26 +475,64 @@ class RaidConversation(Conversation):
         await self.send_both(emb, RaidPlanerState.TEMPLATE_ENCOUNTER_MENU, self.set_encounter_desc, reactions)
 
     async def conv_encounter_save(self):
-        if self.tmpEncounter.isNew is True:
-            self.tmpTemplate.Encounters.append(self.tmpEncounter)
-            self.tmpEncounter.isNew = False
-        await self.conv_template_menu()
+        cur_cnt = self.tmpEncounter.get_role_player_sum()
+        if cur_cnt != self.tmpTemplate.PlayerCount:
+            emb = Embed(title='RaidPlaner',
+                        description=f'The encounter does not match the required player count of '
+                                    f'{self.tmpTemplate.PlayerCount}! It currently has {cur_cnt}.'
+                        )
+            await self.send_ns(emb)
+            await self.conv_encounter_menu()
+        else:
+            if self.tmpEncounter.isNew is True:
+                self.tmpTemplate.Encounters.append(self.tmpEncounter)
+                self.tmpEncounter.isNew = False
+            await self.conv_template_menu()
 
     async def set_encounter_name(self, answer):
-        if len(answer) > 10:
+        if len(answer) > 35:
             emb = Embed(title='RaidPlaner',
-                        description='Name can not be longer than 10 characters'
+                        description='Name can not be longer than 35 characters!'
+                        )
+            await self.send_ns(emb)
+            return False
+        if len(answer) < 5:
+            emb = Embed(title='RaidPlaner',
+                        description='Name can not be less than 5 characters!'
                         )
             await self.send_ns(emb)
             return False
         self.tmpEncounter.Name = answer
 
     async def set_encounter_desc(self, answer):
+        if len(answer) > 150:
+            emb = Embed(title='RaidPlaner',
+                        description='Description can not be longer than 150 characters!'
+                        )
+            await self.send_ns(emb)
+            return False
         self.tmpEncounter.Description = answer
 
     async def set_edit_encounter(self, answer):
-        self.tmpEncounter = self.tmpTemplate.Encounters[int(answer) - 1]
+        if answer.isdigit():
+            emb = Embed(title='RaidPlaner',
+                        description='Please enter a valid numeric value!'
+                        )
+            await self.send_ns(emb)
+            return False
+
+        idx = int(answer)
+
+        if idx > self.tmpTemplate.get_encounter_count() or idx == 0:
+            emb = Embed(title='RaidPlaner',
+                        description='Value is not inside the selectable range!'
+                        )
+            await self.send_ns(emb)
+            return False
+
+        self.tmpEncounter = self.tmpTemplate.Encounters[idx]
         self.tmpEncounter.Roles.sort(key=lambda r: r.SortIndex)
+
     # endregion
 
     # region role
@@ -448,7 +548,7 @@ class RaidConversation(Conversation):
 
     async def conv_role_add_desc(self):
         emb = Embed(title='RaidPlaner',
-                    description='Add a short description to your role.'
+                    description='Add a short description for the role.'
                     )
 
         reactions = {
@@ -469,7 +569,7 @@ class RaidConversation(Conversation):
 
     async def conv_role_add_sort(self):
         emb = Embed(title='RaidPlaner',
-                    description='Set the index by which the role should be sorted.'
+                    description='Set the index by which the role should be sorted inside the encounter.'
                     )
         reactions = {
             '<:cancel:809790666930126888>': RaidPlanerState.TEMPLATE_ENCOUNTER_MENU,
@@ -497,7 +597,7 @@ class RaidConversation(Conversation):
 
     async def conv_role_edit_name(self):
         emb = Embed(title='RaidPlaner',
-                    description=f'Give your role "{self.tmpRole.Name}" a new name. Remember: First character must be '
+                    description=f'Give your role \'{self.tmpRole.Name}\' a new name. Remember: First character must be '
                                 f'an emoji!'
                     )
         reactions = {
@@ -509,7 +609,8 @@ class RaidConversation(Conversation):
 
     async def conv_role_edit_desc(self):
         emb = Embed(title='RaidPlaner',
-                    description='Give your role a new description. Your current description:\n'
+                    description='Give your role a new description. Your current description:'
+                                '\n\n'
                                 f'*{self.tmpRole.Description}*'
                     )
 
@@ -569,7 +670,7 @@ class RaidConversation(Conversation):
 
     async def conv_remove_role_confirm(self):
         emb = Embed(title='RaidPlaner',
-                    description=f'Do your really want to remove role {self.tmpRole.Name}?'
+                    description=f'Do your really want to remove role \'{self.tmpRole.Name}\'?'
                     )
 
         reactions = {
@@ -593,19 +694,92 @@ class RaidConversation(Conversation):
             return False
 
     async def set_role_name(self, answer):
+        # todo extract and validate emoji
         self.tmpRole.Name = answer
 
     async def set_role_desc(self, answer):
+        if len(answer) > 150:
+            emb = Embed(title='RaidPlaner',
+                        description='Description can not be longer than 150 characters!'
+                        )
+            await self.send_ns(emb)
+            return False
         self.tmpRole.Description = answer
 
     async def set_role_count(self, answer):
-        self.tmpRole.Count = int(answer)
+        if answer.isdigit():
+            emb = Embed(title='RaidPlaner',
+                        description='Please enter a valid numeric value!'
+                        )
+            await self.send_ns(emb)
+            return False
+
+        cnt = int(answer)
+
+        if cnt > self.tmpTemplate.PlayerCount:
+            emb = Embed(title='RaidPlaner',
+                        description='Value exceeds the maximum player count of this event!'
+                        )
+            await self.send_ns(emb)
+            return False
+
+        chk = self.tmpEncounter.get_role_player_sum()
+        if self.tmpRole.isNew is not True:
+            chk -= self.tmpRole.Count
+        if chk + cnt > self.tmpTemplate.PlayerCount:
+            emb = Embed(title='RaidPlaner',
+                        description='Combined with all other roles this would exceed the player count of this event!'
+                        )
+            await self.send_ns(emb)
+            return False
+
+        if cnt <= 0:
+            emb = Embed(title='RaidPlaner',
+                        description='Value must be larger than 0!'
+                        )
+            await self.send_ns(emb)
+            return False
+
+        self.tmpRole.Count = cnt
 
     async def set_role_sort(self, answer):
-        self.tmpRole.SortIndex = int(answer)
+        if answer.isdigit():
+            emb = Embed(title='RaidPlaner',
+                        description='Please enter a valid numeric value!'
+                        )
+            await self.send_ns(emb)
+            return False
+
+        cnt = int(answer)
+
+        if cnt <= 0:
+            emb = Embed(title='RaidPlaner',
+                        description='Value must be larger than 0!'
+                        )
+            await self.send_ns(emb)
+            return False
+
+        self.tmpRole.SortIndex = cnt
 
     async def set_edit_role(self, answer):
-        self.tmpRole = self.tmpEncounter.Roles[int(answer) - 1]
+        if answer.isdigit():
+            emb = Embed(title='RaidPlaner',
+                        description='Please enter a valid numeric value!'
+                        )
+            await self.send_ns(emb)
+            return False
+
+        idx = int(answer)
+
+        if idx > self.tmpEncounter.get_role_count() or idx == 0:
+            emb = Embed(title='RaidPlaner',
+                        description='Value is not inside the selectable range!'
+                        )
+            await self.send_ns(emb)
+            return False
+
+        self.tmpRole = self.tmpEncounter.Roles[idx - 1]
+
     # endregion
 
     async def create_template_preview(self):
