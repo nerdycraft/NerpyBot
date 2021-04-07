@@ -76,9 +76,9 @@ class Conversation:
         """
         self.answerType = AnswerType.REACTION
         self.reactions = reactions
-        self.currentMessage = await self.user.send(embed=embed)
+        tmp = self.currentMessage = await self.user.send(embed=embed)
         for emoji in reactions.keys():
-            await self.currentMessage.add_reaction(emoji)
+            await tmp.add_reaction(emoji)
 
     async def send_msg(self, embed, next_state, answer_handler=None):
         """
