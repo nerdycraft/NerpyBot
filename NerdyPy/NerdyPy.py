@@ -6,26 +6,33 @@ import sys
 import json
 import asyncio
 import logging
+from contextlib import contextmanager
+
 import discord
 import argparse
 import traceback
 import configparser
 from pathlib import Path
 from datetime import datetime
+
+from sqlalchemy import create_engine
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import sessionmaker
+
 from models.default_channel import DefaultChannel
+from models.guild_prefix import GuildPrefix
 from utils.audio import Audio
 from discord.ext import commands
-from utils.reminder import Reminder
-from utils.database import create_all, session_scope
+
+from utils.database import BASE
 from utils.errors import NerpyException
-from utils.timed import Timed
 
 
 class NerpyBot(commands.Bot):
     """Discord Bot"""
 
     def __init__(self, config: configparser, debug: bool):
-        super().__init__(command_prefix="!", description="NerdyBot - Always one step ahead!")
+        super().__init__(command_prefix=determine_prefix, description="NerdyBot - Always one step ahead!")
 
         self.config = config
         self.debug = debug
@@ -34,18 +41,42 @@ class NerpyBot(commands.Bot):
         self.ops = config["bot"]["ops"]
         self.moderator_role = self.config["bot"]["moderator_role_name"]
         self.modules = json.loads(self.config["bot"]["modules"])
-        self.prefixes = ["!"]
         self.restart = True
         self.log = self._get_logger()
         self.uptime = datetime.utcnow()
 
         self.audio = Audio(self)
-        self.reminder = Reminder(self)
-        self.timed = Timed(self)
         self.last_cmd_cache = {}
+        self.usr_cmd_err_spam = {}
+        self.usr_cmd__err_spam_threshold = int(self.config["bot"]["error_spam_threshold"])
 
-        create_all()
+        self.ENGINE = create_engine(self.config["bot"]["db"], echo=False)
+        self.SESSION = sessionmaker(bind=self.ENGINE)
+
+        self.create_all()
         self._import_modules()
+
+    def create_all(self):
+        """ creates all tables previously defined"""
+        BASE.metadata.bind = self.ENGINE
+        BASE.metadata.create_all()
+
+    @contextmanager
+    def session_scope(self):
+        """Provide a transactional scope around a series of operations."""
+        session = self.SESSION()
+        error = None
+        try:
+            yield session
+            session.commit()
+        except SQLAlchemyError as ex:
+            session.rollback()
+            error = ex
+        finally:
+            session.close()
+
+        if error is not None:
+            raise NerpyException() from error
 
     async def on_ready(self):
         """calls when successfully logged in"""
@@ -64,8 +95,30 @@ class NerpyBot(commands.Bot):
             await ctx.message.delete()
 
     async def on_command_error(self, ctx, error):
-        if isinstance(error, commands.CommandError):
-            if isinstance(error, commands.CommandInvokeError) and not isinstance(error.original, NerpyException):
+        send_err = True
+        if isinstance(error, commands.CommandNotFound):
+            if ctx.author not in self.usr_cmd_err_spam:
+                self.usr_cmd_err_spam[ctx.author] = 0
+
+            if self.usr_cmd_err_spam[ctx.author] < self.usr_cmd__err_spam_threshold:
+                send_err = False
+                self.usr_cmd_err_spam[ctx.author] += 1
+            else:
+                self.usr_cmd_err_spam[ctx.author] = 0
+
+        if send_err:
+            if isinstance(error, commands.CommandError):
+                if isinstance(error, commands.CommandInvokeError) and not isinstance(error.original, NerpyException):
+                    print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
+                    traceback.print_tb(error.original.__traceback__)
+                    print(
+                        f"{error.original.__class__.__name__}: {error.original}",
+                        file=sys.stderr,
+                    )
+                    await ctx.author.send("Unhandled error occurred. Please report to bot author!")
+                else:
+                    await ctx.author.send(error)
+            else:
                 print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
                 traceback.print_tb(error.original.__traceback__)
                 print(
@@ -73,21 +126,12 @@ class NerpyBot(commands.Bot):
                     file=sys.stderr,
                 )
                 await ctx.author.send("Unhandled error occurred. Please report to bot author!")
-            else:
-                await ctx.author.send(error)
-        else:
-            print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
-            traceback.print_tb(error.original.__traceback__)
-            print(
-                f"{error.original.__class__.__name__}: {error.original}",
-                file=sys.stderr,
-            )
-            await ctx.author.send("Unhandled error occurred. Please report to bot author!")
+
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
 
     async def send(self, guild_id, cur_chan, msg, emb=None, file=None, files=None, delete_after=None):
-        with session_scope() as session:
+        with self.session_scope() as session:
             def_chan = DefaultChannel.get(guild_id, session)
             if def_chan is not None:
                 chan = self.get_channel(def_chan.ChannelId)
@@ -123,8 +167,6 @@ class NerpyBot(commands.Bot):
         self.log.info("shutting down server!")
         self.restart = False
         await self.audio.rip_loop()
-        await self.reminder.rip_loop()
-        await self.timed.rip_loop()
         await self.logout()
 
     def _import_modules(self):
@@ -153,6 +195,17 @@ class NerpyBot(commands.Bot):
         logger.addHandler(stdout_handler)
 
         return logger
+
+
+def determine_prefix(bot, message):
+    guild = message.guild
+    # Only allow custom prefixes in guild
+    if guild:
+        with bot.session_scope() as session:
+            pref = GuildPrefix.get(guild.id, session)
+            if pref is not None:
+                return pref.Prefix
+    return ["!"]  # default prefix
 
 
 def parse_arguments():

@@ -1,9 +1,9 @@
 import discord
 import utils.format as fmt
 from datetime import datetime
+from models.guild_prefix import GuildPrefix
 from utils.checks import is_botmod
 from utils.errors import NerpyException
-from utils.database import session_scope
 from models.default_channel import DefaultChannel
 from discord.ext.commands import Cog, command, group, check
 
@@ -71,7 +71,7 @@ class Management(Cog):
 
     @defch.command(name="get")
     async def _defch_get(self, ctx):
-        with session_scope() as session:
+        with self.bot.session_scope() as session:
             def_ch = DefaultChannel.get(ctx.guild.id, session)
             if def_ch is not None:
                 channel = self.bot.get_channel(def_ch.ChannelId).mention
@@ -84,7 +84,7 @@ class Management(Cog):
         if not chan.permissions_for(chan.guild.me).send_messages:
             raise NerpyException("Missing permission to send message to channel.")
 
-        with session_scope() as session:
+        with self.bot.session_scope() as session:
             def_ch = DefaultChannel.get(ctx.guild.id, session)
             if def_ch is None:
                 def_ch = DefaultChannel(GuildId=ctx.guild.id, CreateDate=datetime.utcnow(), Author=ctx.author.name)
@@ -92,19 +92,60 @@ class Management(Cog):
 
             def_ch.ModifiedDate = datetime.utcnow()
             def_ch.ChannelId = chan.id
-            session.flush()
 
         await ctx.send(f"Default response channel set to {chan.mention}.")
 
     @defch.command(name="remove")
     async def _defch_remove(self, ctx):
-        with session_scope() as session:
-            def_ch = DefaultChannel.get(ctx.guild.id, session)
-            if def_ch is not None:
-                session.delete(def_ch)
-
-            session.flush()
+        with self.bot.session_scope() as session:
+            DefaultChannel.delete(ctx.guild.id, session)
         await ctx.send("Default response channel removed.")
+
+    @command()
+    @check(is_botmod)
+    async def membercount(self, ctx):
+        """displays the current membercount of the server [bot-moderator]"""
+        await self.bot.sendc(ctx, fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
+
+    @group(invoke_without_command=True)
+    @check(is_botmod)
+    async def prefix(self, ctx):
+        """Sets the prefix for the bot"""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
+
+    @prefix.command(name="set")
+    async def _prefix_set(self, ctx, *, new_pref):
+        if " " in new_pref:
+            raise NerpyException("Spaces not allowed in prefixes")
+
+        with self.bot.session_scope() as session:
+            pref = GuildPrefix.get(ctx.guild.id, session)
+            if pref is None:
+                pref = GuildPrefix(GuildId=ctx.guild.id, CreateDate=datetime.utcnow(), Author=ctx.author.name)
+                session.add(pref)
+
+            pref.ModifiedDate = datetime.utcnow()
+            pref.Prefix = new_pref
+
+        await ctx.send(f"new prefix is now set to '{new_pref}'.")
+
+    @prefix.command(name="delete", aliases=["remove", "rm", "del"])
+    async def _prefix_del(self, ctx):
+        with self.bot.session_scope() as session:
+            GuildPrefix.delete(ctx.guild.id, session)
+        await ctx.send("Prefix removed.")
+
+    @check(is_botmod)
+    async def stop(self, ctx):
+        """stop sound playing [bot-moderator]"""
+        self.bot.audio.stop(ctx.guild.id)
+
+    @command()
+    @check(is_botmod)
+    async def leave(self, ctx):
+        """bot leaves the channel [bot-moderator]"""
+        await self.bot.audio.leave(ctx.guild.id)
 
 
 def setup(bot):

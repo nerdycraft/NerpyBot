@@ -41,10 +41,9 @@ class TimedMessage(db.BASE):
         return session.query(TimedMessage).filter(TimedMessage.GuildId == guild_id).order_by(asc("Id")).all()
 
     @classmethod
-    def delete(cls, timed_id, guild_id: int):
+    def delete(cls, timed_id, guild_id: int, session):
         """deletes a tag with given name for given guild"""
-        with db.session_scope() as session:
-            session.delete(TimedMessage.get(timed_id, guild_id, session))
+        session.delete(TimedMessage.get(timed_id, guild_id, session))
 
     def __str__(self):
         msg = f"==== {self.Id} ====\n\n"
