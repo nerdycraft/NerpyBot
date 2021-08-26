@@ -96,14 +96,15 @@ class NerpyBot(commands.Bot):
         try:
             yield session
             session.commit()
-        except SQLAlchemyError as ex:
+        except SQLAlchemyError as exc:
             session.rollback()
-            error = ex
+            error = exc
         finally:
             session.close()
 
         if error is not None:
-            raise NerpyException() from error
+            self.log.error(error)
+            raise NerpyException("There was an error with the database. Please report to Bot Author!")
 
     async def on_ready(self):
         """calls when successfully logged in"""
