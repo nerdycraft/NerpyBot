@@ -4,7 +4,6 @@ Main Class of the NerpyBot
 
 import sys
 import json
-import asyncio
 import logging
 from contextlib import contextmanager
 
@@ -175,7 +174,7 @@ class NerpyBot(commands.Bot):
     async def sendc(self, ctx, msg, emb=None, file=None, files=None, delete_after=None):
         await self.send(ctx.guild.id, ctx.channel, msg, emb, file, files, delete_after)
 
-    async def run(self):
+    async def start(self):
         """
         generator connects the discord bot to the server
         """
@@ -186,7 +185,7 @@ class NerpyBot(commands.Bot):
         else:
             self.log.error("No credentials available to login.")
             raise RuntimeError()
-        await self.connect()
+        await self.connect(reconnect=self.restart)
 
     async def shutdown(self):
         """
@@ -195,7 +194,7 @@ class NerpyBot(commands.Bot):
         self.log.info("shutting down server!")
         self.restart = False
         await self.audio.rip_loop()
-        await self.logout()
+        await self.close()
 
     def _import_modules(self):
         for module in self.modules:
@@ -286,7 +285,6 @@ if __name__ == "__main__":
     print(INTRO)
 
     RUNNING = True
-    LOOP = asyncio.get_event_loop()
     ARGS = parse_arguments()
     CONFIG = parse_config(ARGS.config)
     DEBUG = ARGS.debug
@@ -294,20 +292,10 @@ if __name__ == "__main__":
     if "bot" in CONFIG:
         BOT = NerpyBot(CONFIG, DEBUG)
 
-        while RUNNING:
-            try:
-                LOOP.run_until_complete(BOT.run())
-            except discord.LoginFailure:
-                BOT.log.error(traceback.format_exc())
-                BOT.log.error("Failed to login")
-            except KeyboardInterrupt:
-                LOOP.run_until_complete(BOT.logout())
-            except Exception as ex:
-                BOT.log.exception("Fatal exception, attempting graceful logout", exc_info=ex)
-                LOOP.run_until_complete(BOT.logout())
-            finally:
-                LOOP.close()
-                if BOT.restart is False:
-                    RUNNING = False
+        try:
+            BOT.run()
+        except discord.LoginFailure:
+            BOT.log.error(traceback.format_exc())
+            BOT.log.error("Failed to login")
     else:
         raise NerpyException("Bot config not found.")
