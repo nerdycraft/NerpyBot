@@ -4,7 +4,6 @@ Main Class of the NerpyBot
 
 import sys
 import json
-import asyncio
 import logging
 from contextlib import contextmanager
 
