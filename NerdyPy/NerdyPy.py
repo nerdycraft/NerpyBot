@@ -63,13 +63,13 @@ class NerpyBot(commands.Bot):
             db_host = ""
             db_port = ""
 
-            if "db_password" in database_config and not database_config["db_password"]:
+            if "db_password" in database_config and database_config["db_password"]:
                 db_password = f':{database_config["db_password"]}'
-            if "db_username" in database_config and not database_config["db_username"]:
+            if "db_username" in database_config and database_config["db_username"]:
                 db_username = database_config["db_username"]
-            if "db_host" in database_config and not database_config["db_host"]:
+            if "db_host" in database_config and database_config["db_host"]:
                 db_host = f'@{database_config["db_host"]}'
-            if "db_port" in database_config and not database_config["db_port"]:
+            if "db_port" in database_config and database_config["db_port"]:
                 db_port = f':{database_config["db_port"]}'
 
             db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
