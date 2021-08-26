@@ -5,6 +5,9 @@ on:
     branches:
       - master
       - 'releases/**'
+  release:
+      types:
+        - published
 
 jobs:
   build_image:

@@ -76,7 +76,7 @@ class NerpyBot(commands.Bot):
             db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
             db_connection_string = f"{db_type}://{db_authentication}/{db_name}"
 
-        self.ENGINE = create_engine(db_connection_string, echo=self.debug, echo_pool="debug")
+        self.ENGINE = create_engine(db_connection_string, echo=self.debug)
         self.SESSION = sessionmaker(bind=self.ENGINE)
 
         self.create_all()
