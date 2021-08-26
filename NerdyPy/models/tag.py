@@ -34,7 +34,7 @@ class Tag(db.BASE):
 
     @classmethod
     def exists(cls, name, guild_id: int, session):
-        """ checks the database if a tag with that name exists for that guild"""
+        """checks the database if a tag with that name exists for that guild"""
         count = session.query(Tag).filter(Tag.Name == name).filter(Tag.GuildId == guild_id).count()
         return True if count > 0 else False
 

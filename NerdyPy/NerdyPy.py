@@ -63,7 +63,7 @@ class NerpyBot(commands.Bot):
             db_host = ""
             db_port = ""
 
-            if any(s in db_type for s in ('mysql', 'mariadb')):
+            if any(s in db_type for s in ("mysql", "mariadb")):
                 db_type = f'{database_config["db_type"]}+pymysql'
             if "db_password" in database_config and database_config["db_password"]:
                 db_password = f':{database_config["db_password"]}'
@@ -77,14 +77,14 @@ class NerpyBot(commands.Bot):
             db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
             db_connection_string = f"{db_type}://{db_authentication}/{db_name}"
 
-        self.ENGINE = create_engine(db_connection_string, echo=self.debug, echo_pool='debug')
+        self.ENGINE = create_engine(db_connection_string, echo=self.debug, echo_pool="debug")
         self.SESSION = sessionmaker(bind=self.ENGINE)
 
         self.create_all()
         self._import_modules()
 
     def create_all(self):
-        """ creates all tables previously defined"""
+        """creates all tables previously defined"""
         BASE.metadata.bind = self.ENGINE
         BASE.metadata.create_all()
 
@@ -110,7 +110,7 @@ class NerpyBot(commands.Bot):
         self.log.info("Ready!")
 
     async def on_command_completion(self, ctx):
-        """ deleting msg on cmd completion """
+        """deleting msg on cmd completion"""
         if self.restart is True and not isinstance(ctx.channel, discord.DMChannel):
             if ctx.guild.id not in self.last_cmd_cache:
                 self.last_cmd_cache[ctx.guild.id] = []
