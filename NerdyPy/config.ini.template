@@ -8,16 +8,28 @@ token =
 ops = []
 error_spam_threshold = 5
 moderator_role_name =
-db = sqlite:///db.db
+modules = ["admin", "fun", "league", "random", "search", "tagging", "utility", "wow", "management"]
+
+[database]
+;db_type can be any of mysql, sqlite, postgresql, oracle or even mssql
+db_type = sqlite
+db_name = db.db
+db_username =
+db_password =
+db_host =
+db_port =
 
 [search]
+;imgur
 imgur =
+;genius song lyrics
 genius =
+;omdb movie database
 omdb =
+;igdb video game database
 igdb =
+;youtube
 ytkey =
-malusr =
-malpwd =
 
 [utility]
 openweather =
