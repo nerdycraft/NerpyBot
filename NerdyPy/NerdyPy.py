@@ -39,8 +39,8 @@ class NerpyBot(commands.Bot):
         self.client_id = config["bot"]["client_id"]
         self.token = config["bot"]["token"]
         self.ops = config["bot"]["ops"]
-        self.moderator_role = self.config["bot"]["moderator_role_name"]
-        self.modules = json.loads(self.config["bot"]["modules"])
+        self.moderator_role = config["bot"]["moderator_role_name"]
+        self.modules = json.loads(config["bot"]["modules"])
         self.restart = True
         self.log = self._get_logger()
         self.uptime = datetime.utcnow()
@@ -48,9 +48,34 @@ class NerpyBot(commands.Bot):
         self.audio = Audio(self)
         self.last_cmd_cache = {}
         self.usr_cmd_err_spam = {}
-        self.usr_cmd__err_spam_threshold = int(self.config["bot"]["error_spam_threshold"])
+        self.usr_cmd__err_spam_threshold = int(config["bot"]["error_spam_threshold"])
 
-        self.ENGINE = create_engine(self.config["bot"]["db"], echo=False)
+        # database variables
+        if "database" not in config:
+            self.log.error("No Database specified! Fallback to local SQLite Database!")
+            db_connection_string = "sqlite:///db.db"
+        else:
+            database_config = config["database"]
+            db_type = database_config["db_type"]
+            db_name = database_config["db_name"]
+            db_username = ""
+            db_password = ""
+            db_host = ""
+            db_port = ""
+
+            if "db_password" in database_config and not database_config["db_password"]:
+                db_password = f':{database_config["db_password"]}'
+            if "db_username" in database_config and not database_config["db_username"]:
+                db_username = database_config["db_username"]
+            if "db_host" in database_config and not database_config["db_host"]:
+                db_host = f'@{database_config["db_host"]}'
+            if "db_port" in database_config and not database_config["db_port"]:
+                db_port = f':{database_config["db_port"]}'
+
+            db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
+            db_connection_string = f"{db_type}://{db_authentication}/{db_name}"
+
+        self.ENGINE = create_engine(db_connection_string, echo=False)
         self.SESSION = sessionmaker(bind=self.ENGINE)
 
         self.create_all()
