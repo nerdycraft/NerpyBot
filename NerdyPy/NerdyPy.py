@@ -63,6 +63,8 @@ class NerpyBot(commands.Bot):
             db_host = ""
             db_port = ""
 
+            if any(s in db_type for s in ('mysql', 'mariadb')):
+                db_type = f'{database_config["db_type"]}+pymysql'
             if "db_password" in database_config and database_config["db_password"]:
                 db_password = f':{database_config["db_password"]}'
             if "db_username" in database_config and database_config["db_username"]:
@@ -75,7 +77,7 @@ class NerpyBot(commands.Bot):
             db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
             db_connection_string = f"{db_type}://{db_authentication}/{db_name}"
 
-        self.ENGINE = create_engine(db_connection_string, echo=False, echo_pool='debug')
+        self.ENGINE = create_engine(db_connection_string, echo=self.debug, echo_pool='debug')
         self.SESSION = sessionmaker(bind=self.ENGINE)
 
         self.create_all()
