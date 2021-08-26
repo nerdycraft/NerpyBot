@@ -14,7 +14,7 @@ class TagEntry(db.BASE):
 
     Id = Column(Integer, primary_key=True)
     TagId = Column(Integer, ForeignKey("Tag.Id"))
-    TextContent = Column(String)
+    TextContent = Column(String(length=300))
     ByteContent = Column(LargeBinary)
 
     tag = relationship("Tag", back_populates="entries")

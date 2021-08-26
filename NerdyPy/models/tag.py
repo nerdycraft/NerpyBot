@@ -18,9 +18,9 @@ class Tag(db.BASE):
 
     Id = Column(Integer, primary_key=True)
     GuildId = Column(BigInteger)
-    Name = Column(String)
+    Name = Column(String(length=30))
     Type = Column(Integer)
-    Author = Column(String)
+    Author = Column(String(length=30))
     CreateDate = Column(DateTime)
     Count = Column(Integer)
     Volume = Column(Integer)

@@ -18,11 +18,11 @@ class TimedMessage(db.BASE):
     GuildId = Column(BigInteger)
     ChannelId = Column(BigInteger)
     CreateDate = Column(DateTime)
-    Author = Column(String)
+    Author = Column(String(length=30))
     Repeat = Column(Integer)
     Minutes = Column(Integer)
     LastSend = Column(DateTime)
-    Message = Column(String)
+    Message = Column(String(length=30))
     Count = Column(Integer)
 
     @classmethod
