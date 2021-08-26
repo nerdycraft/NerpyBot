@@ -12,10 +12,10 @@ class GuildPrefix(db.BASE):
     __table_args__ = (Index("GuildPrefix_GuildId", "GuildId"),)
 
     GuildId = Column(BigInteger, primary_key=True)
-    Prefix = Column(String(length=30))
+    Prefix = Column(String(30))
     CreateDate = Column(DateTime)
     ModifiedDate = Column(DateTime)
-    Author = Column(String(length=30))
+    Author = Column(String(30))
 
     @classmethod
     def get(cls, guild_id, session):
