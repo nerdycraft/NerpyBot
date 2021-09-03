@@ -15,6 +15,14 @@ from discord.ext.commands import (
 )
 
 
+def _tagging_add_tag_entries(session, _tag, content):
+    for entry in content:
+        if _tag.Type == TagType.text.value or _tag.Type == TagType.url.value:
+            _tag.add_entry(entry, session)
+        elif _tag.Type is TagType.sound.value:
+            _tag.add_entry(entry, session, byt=download(entry))
+
+
 class Tagging(Cog):
     """Command group for sound and text tags"""
 
@@ -22,6 +30,18 @@ class Tagging(Cog):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
+
+    @group(invoke_without_command=True, name="play")
+    async def _tagging_play(self, ctx):
+        """Play your favorite Music from Youtube and many more!"""
+        if ctx.invoked_subcommand is None:
+            args = str(ctx.message.clean_content).split(" ")
+            if len(args) > 2:
+                raise NerpyException("Command not found!")
+            elif len(args) <= 1:
+                await ctx.send_help(ctx.command)
+            else:
+                await self._send(ctx, args[1])
 
     @group(invoke_without_command=True, aliases=["t"])
     async def tag(self, ctx):
@@ -65,7 +85,7 @@ class Tagging(Cog):
                 Tag.add(_tag, session)
                 session.flush()
 
-                self._add_tag_entries(session, _tag, content)
+                _tagging_add_tag_entries(session, _tag, content)
 
             self.bot.log.info(f"creating tag {ctx.guild.name}/{name} finished")
         await self.bot.sendc(ctx, f"tag {name} created!")
@@ -81,7 +101,7 @@ class Tagging(Cog):
         async with ctx.typing():
             with self.bot.session_scope() as session:
                 _tag = Tag.get(name, ctx.guild.id, session)
-                self._add_tag_entries(session, _tag, content)
+                _tagging_add_tag_entries(session, _tag, content)
 
             self.bot.log.info(f"added entry to tag {ctx.guild.name}/{name}.")
         await self.bot.sendc(ctx, f"Entry added to tag {name}!")
@@ -90,6 +110,7 @@ class Tagging(Cog):
     @bot_has_permissions(send_messages=True)
     async def volume(self, ctx, name: clean_content, vol):
         """adjust the volume of a sound tag (WIP)"""
+        self.bot.log.info(f"set volume of {name} to {vol} from {ctx.guild.id}")
         with self.bot.session_scope() as session:
             if not Tag.exists(name, ctx.guild.id, session):
                 raise NerpyException("tag doesn't exist!")
@@ -97,7 +118,7 @@ class Tagging(Cog):
         with self.bot.session_scope() as session:
             _tag = Tag.get(name, ctx.guild.id, session)
             _tag.Volume = vol
-            session.flush()
+        await self.bot.sendc(ctx, f"changed volume of {name} to {vol}")
 
     @tag.command()
     @bot_has_permissions(send_messages=True)
@@ -153,43 +174,63 @@ class Tagging(Cog):
 
             await self.bot.sendc(ctx, fmt.box(msg))
 
-    # noinspection PyMethodMayBeStatic
-    def _add_tag_entries(self, session, _tag, content):
-        for entry in content:
-            if _tag.Type == TagType.text.value or _tag.Type == TagType.url.value:
-                _tag.add_entry(entry, session)
-            elif _tag.Type is TagType.sound.value:
-                _tag.add_entry(entry, session, byt=download(entry))
-
     async def _send(self, ctx, tag_name):
-        self.bot.log.info(f"{ctx.guild.name} requesting {tag_name} tag")
+        sound_data = None
+        play_sound = False
+        volume = 100
+
+        if ctx.invoked_with == "play":
+            self.bot.log.info(f"{ctx.guild.name} requesting {tag_name} to play")
+
+            await self.bot.sendc(ctx, f"Adding entry to queue.")
+            async with ctx.typing():
+                sound_data = download(tag_name)
+            await self.bot.sendc(ctx, f"Entry added!")
+            play_sound = True
+        else:
+            self.bot.log.info(f"{ctx.guild.name} requesting {tag_name} tag")
+            _tag_type, _tag_volume, _tag_content = self._get_tag(ctx, tag_name)
+            if TagType(_tag_type) is TagType.sound:
+                play_sound = True
+                volume = _tag_volume
+                sound_data = _tag_content
+            else:
+                await self.bot.sendc(ctx, _tag_content)
+
+        if play_sound:
+            if ctx.author.voice is None:
+                raise NerpyException("Not connected to a voice channel.")
+            if not ctx.author.voice.channel.permissions_for(ctx.guild.me).connect:
+                raise NerpyException("Missing permission to connect to channel.")
+
+            sound = AudioSegment.from_file(io.BytesIO(sound_data))
+            if sound.channels != 2:
+                sound = sound.set_channels(2)
+            if sound.frame_rate < 40000:
+                sound = sound.set_frame_rate(44100)
+
+            song = QueuedSong(io.BytesIO(sound.raw_data), ctx.author.voice.channel, volume)
+            await self.bot.audio.play(ctx.guild.id, song)
+
+    def _get_tag(self, ctx, tag_name):
         with self.bot.session_scope() as session:
             _tag = Tag.get(tag_name, ctx.guild.id, session)
             if _tag is None:
                 raise NerpyException("No such tag found")
 
-            entries = _tag.entries.all()
+            tag_type = _tag.Type
+            tag_volume = _tag.Volume
+            tag_entries = _tag.entries.all()
+            tag_random_entry = tag_entries[randint(0, (len(tag_entries) - 1))]
 
-            entry = entries[randint(0, (len(entries) - 1))]
-            if TagType(_tag.Type) is TagType.sound:
-                if ctx.author.voice is None:
-                    raise NerpyException("Not connected to a voice channel.")
-                if not ctx.author.voice.channel.permissions_for(ctx.guild.me).connect:
-                    raise NerpyException("Missing permission to connect to channel.")
-
-                sound = AudioSegment.from_file(io.BytesIO(entry.ByteContent))
-                if sound.channels != 2:
-                    sound = sound.set_channels(2)
-                if sound.frame_rate < 40000:
-                    sound = sound.set_frame_rate(44100)
-
-                song = QueuedSong(io.BytesIO(sound.raw_data), ctx.author.voice.channel, _tag.Volume)
-                await self.bot.audio.play(ctx.guild.id, song)
+            if TagType(tag_type) is TagType.sound:
+                tag_content = tag_random_entry.ByteContent
             else:
-                await self.bot.sendc(ctx, entry.TextContent)
+                tag_content = tag_random_entry.TextContent
 
             _tag.Count += 1
-            session.flush()
+
+        return tag_type, tag_volume, tag_content
 
 
 def setup(bot):

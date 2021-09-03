@@ -115,6 +115,7 @@ class Audio:
             await self._play(song)
 
     def stop(self, guild_id):
+        """Stops current audio from playing"""
         if self._has_queue(guild_id):
             self.queue[guild_id][QueueKey.VOICE_CLIENT].stop()
 

@@ -136,16 +136,22 @@ class Management(Cog):
             GuildPrefix.delete(ctx.guild.id, session)
         await ctx.send("Prefix removed.")
 
-    @check(is_botmod)
-    async def stop(self, ctx):
-        """stop sound playing [bot-moderator]"""
+    @command(name="skip")
+    async def _skip_audio(self, ctx):
+        """skip current sound playing"""
+        self.bot.log.info(f"{ctx.guild.name} requesting skip!")
         self.bot.audio.stop(ctx.guild.id)
 
-    @command()
+    @command(name="leave", aliases=["stop"])
     @check(is_botmod)
-    async def leave(self, ctx):
+    async def _bot_leave_channel(self, ctx):
         """bot leaves the channel [bot-moderator]"""
         await self.bot.audio.leave(ctx.guild.id)
+
+    @command(name="queue")
+    async def _list_sound_queue(self, ctx):
+        """list current items in queue"""
+        return
 
 
 def setup(bot):
