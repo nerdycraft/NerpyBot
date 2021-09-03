@@ -182,10 +182,10 @@ class Tagging(Cog):
         if ctx.invoked_with == "play":
             self.bot.log.info(f"{ctx.guild.name} requesting {tag_name} to play")
 
-            await self.bot.sendc(ctx, f"Adding entry to queue.")
+            await self.bot.sendc(ctx, "Adding entry to queue.")
             async with ctx.typing():
                 sound_data = download(tag_name)
-            await self.bot.sendc(ctx, f"Entry added!")
+            await self.bot.sendc(ctx, "Entry added!")
             play_sound = True
         else:
             self.bot.log.info(f"{ctx.guild.name} requesting {tag_name} tag")

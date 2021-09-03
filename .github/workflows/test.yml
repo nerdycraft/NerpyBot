@@ -18,7 +18,7 @@ jobs:
         pip install flake8 black
     - name: Lint with flake8
       run: |
-        flake8 NerdyPy --count --max-line-length=127 --statistics
+        flake8 --count --max-line-length=127 --statistics NerdyPy
     - name: Lint with black
       run: |
         black -t py38 -l 120 --check --diff NerdyPy
