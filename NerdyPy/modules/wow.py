@@ -7,7 +7,83 @@ from datetime import datetime
 from utils.errors import NerpyException
 from wowapi import WowApi, WowApiException
 from datetime import datetime as dt, timedelta as td
-from discord.ext.commands import Cog, group, clean_content, MissingRequiredArgument, Converter
+from discord.ext.commands import Cog, group, clean_content, MissingRequiredArgument
+
+
+def _wow_get_link(site, profile):
+    url = None
+
+    if site == "armory":
+        url = "https://worldofwarcraft.com/en-us/character"
+    elif site == "raiderio":
+        url = "https://raider.io/characters"
+    elif site == "warcraftlogs":
+        url = "https://www.warcraftlogs.com/character"
+    elif site == "wowprogress":
+        url = "https://www.wowprogress.com/character"
+
+    return f"{url}/{profile}"
+
+
+def _wow_get_raiderio_score(region, realm, name):
+    base_url = "https://raider.io/api/v1/characters/profile"
+    args = f"?region={region}&realm={realm}&name={name}&fields=mythic_plus_scores_by_season:current"
+
+    req = requests.get(f"{base_url}{args}")
+
+    if req.status_code == 200:
+        resp = req.json()
+
+        if len(resp["mythic_plus_scores_by_season"]) > 0:
+            return resp["mythic_plus_scores_by_season"][0]["scores"]["all"]
+        else:
+            return None
+
+
+def _wow_get_best_mythic_keys(region, realm, name):
+    base_url = "https://raider.io/api/v1/characters/profile"
+    args = f"?region={region}&realm={realm}&name={name}&fields=mythic_plus_best_runs"
+
+    req = requests.get(f"{base_url}{args}")
+
+    if req.status_code == 200:
+        resp = req.json()
+
+        keys = []
+        for key in resp["mythic_plus_best_runs"]:
+            base_datetime = dt(1970, 1, 1)
+            delta = td(milliseconds=key["clear_time_ms"])
+            target_date = base_datetime + delta
+            keys.append(
+                {
+                    "dungeon": key["short_name"],
+                    "level": key["mythic_level"],
+                    "clear_time": target_date.strftime("%M:%S"),
+                }
+            )
+
+        return keys
+
+
+def _wow_get_current_affixes(region):
+    base_url = "https://raider.io/api/v1/mythic-plus/affixes"
+    args = f"?region={region}&locale=en"
+
+    req = requests.get(f"{base_url}{args}")
+
+    if req.status_code == 200:
+        resp = req.json()
+
+        first = True
+        affix_list = ""
+        for affix in resp["affix_details"]:
+            if first:
+                first = False
+                affix_list += f'[{affix["name"]}]({affix["wowhead_url"]})'
+            else:
+                affix_list += f' / [{affix["name"]}]({affix["wowhead_url"]})'
+
+        return affix_list
 
 
 class WorldofWarcraft(Cog):
@@ -28,7 +104,7 @@ class WorldofWarcraft(Cog):
             "MOTS": "Mists of Tirna Scithe",
             "DOS": "De Other Side",
             "HOA": "Halls of Atonement",
-            "SD": "Sanguine Depths"
+            "SD": "Sanguine Depths",
         }
         self.dungeon_names_de = {
             "die nekrotische schneise": "NW",
@@ -44,7 +120,7 @@ class WorldofWarcraft(Cog):
             "die hallen der sühne": "HOA",
             "hallen der sühne": "HOA",
             "die blutigen tiefen": "SD",
-            "blutige tiefen": "SD"
+            "blutige tiefen": "SD",
         }
         self.dungeon_names_en = {
             "necrotic wake": "NW",
@@ -54,7 +130,7 @@ class WorldofWarcraft(Cog):
             "mists of tirna scithe": "MOTS",
             "de other side": "DOS",
             "halls of atonement": "HOA",
-            "sanguine depths": "SD"
+            "sanguine depths": "SD",
         }
         self.footer_text = [
             "Brought to you by your friendly neighborhood spider. ;)",
@@ -72,96 +148,9 @@ class WorldofWarcraft(Cog):
             "Yippie-ki-yay, motherfucker!",
             "I'll be back.",
             "Why so serious?",
-            "Frankly, my dear, I don't give a damn."
+            "Frankly, my dear, I don't give a damn.",
         ]
 
-    # noinspection PyMethodMayBeStatic
-    def _get_link(self, site, profile):
-        url = None
-
-        if site == "armory":
-            url = "https://worldofwarcraft.com/en-us/character"
-        elif site == "raiderio":
-            url = "https://raider.io/characters"
-        elif site == "warcraftlogs":
-            url = "https://www.warcraftlogs.com/character"
-        elif site == "wowprogress":
-            url = "https://www.wowprogress.com/character"
-
-        return f"{url}/{profile}"
-
-    async def _get_character(self, ctx, realm, region, name):
-        namespace = f"profile-{region}"
-
-        self.api.get_character_profile_status(region, namespace, realm, name)
-        character = self.api.get_character_profile_summary(region, f"profile-{region}", realm, name)
-        assets = self.api.get_character_media_summary(region, f"profile-{region}", realm, name)["assets"]
-        profile_picture = [asset for asset in assets if asset["key"] == "avatar"][0]["value"]
-
-        return character, profile_picture
-
-    # noinspection PyMethodMayBeStatic
-    def _get_raiderio_score(self, region, realm, name):
-        base_url = "https://raider.io/api/v1/characters/profile"
-        args = f"?region={region}&realm={realm}&name={name}&fields=mythic_plus_scores_by_season:current"
-
-        req = requests.get(f"{base_url}{args}")
-
-        if req.status_code == 200:
-            resp = req.json()
-
-            if len(resp["mythic_plus_scores_by_season"]) > 0:
-                return resp["mythic_plus_scores_by_season"][0]["scores"]["all"]
-            else:
-                return None
-
-    # noinspection PyMethodMayBeStatic
-    def _get_best_mythic_keys(self, region, realm, name):
-        base_url = "https://raider.io/api/v1/characters/profile"
-        args = f"?region={region}&realm={realm}&name={name}&fields=mythic_plus_best_runs"
-
-        req = requests.get(f"{base_url}{args}")
-
-        if req.status_code == 200:
-            resp = req.json()
-
-            keys = []
-            for key in resp["mythic_plus_best_runs"]:
-                base_datetime = dt(1970, 1, 1)
-                delta = td(milliseconds=key["clear_time_ms"])
-                target_date = base_datetime + delta
-                keys.append(
-                    {
-                        "dungeon": key["short_name"],
-                        "level": key["mythic_level"],
-                        "clear_time": target_date.strftime("%M:%S"),
-                    }
-                )
-
-            return keys
-
-    # noinspection PyMethodMayBeStatic
-    def _get_current_affixes(self, region):
-        base_url = "https://raider.io/api/v1/mythic-plus/affixes"
-        args = f"?region={region}&locale=en"
-
-        req = requests.get(f"{base_url}{args}")
-
-        if req.status_code == 200:
-            resp = req.json()
-
-            first = True
-            affix_list = ""
-            for affix in resp["affix_details"]:
-                if first:
-                    first = False
-                    affix_list += f'[{affix["name"]}]({affix["wowhead_url"]})'
-                else:
-                    affix_list += f' / [{affix["name"]}]({affix["wowhead_url"]})'
-
-            return affix_list
-
-    # noinspection PyMethodMayBeStatic
     def _convert_dungeon_names(self, name):
         dungeon_name = None
         name_lower = name.lower()
@@ -173,7 +162,6 @@ class WorldofWarcraft(Cog):
 
         return dungeon_name
 
-    # noinspection PyMethodMayBeStatic
     def _format_keystones_to_embed(self, ctx, keys):
         emb = discord.Embed(
             title=f"Keystones for {ctx.guild.name}",
@@ -187,18 +175,28 @@ class WorldofWarcraft(Cog):
 
         for key in keys:
             keyname = key["KeystoneName"].upper()
-            ks_name += f'{self.dungeon_names[keyname]}\n'
+            ks_name += f"{self.dungeon_names[keyname]}\n"
             ks_level += f'{key["KeystoneLevel"]}\n'
             char += f'{key["Character"]}\n'
 
         emb.add_field(name="Dungeon", value=ks_name, inline=True)
         emb.add_field(name="Level", value=ks_level, inline=True)
         emb.add_field(name="Character", value=char, inline=True)
-        emb.add_field(name="Affixes", value=self._get_current_affixes(ctx.guild.region[0][:2]), inline=True)
+        emb.add_field(name="Affixes", value=_wow_get_current_affixes(ctx.guild.region[0][:2]), inline=True)
 
         emb.set_footer(text=choice(self.footer_text))
 
         return emb
+
+    async def _get_character(self, realm, region, name):
+        namespace = f"profile-{region}"
+
+        self.api.get_character_profile_status(region, namespace, realm, name)
+        character = self.api.get_character_profile_summary(region, f"profile-{region}", realm, name)
+        assets = self.api.get_character_media_summary(region, f"profile-{region}", realm, name)["assets"]
+        profile_picture = [asset for asset in assets if asset["key"] == "avatar"][0]["value"]
+
+        return character, profile_picture
 
     @group(invoke_without_command=True)
     async def wow(self, ctx):
@@ -223,15 +221,15 @@ class WorldofWarcraft(Cog):
                 name = name.lower()
                 profile = f"{region}/{realm}/{name}"
 
-                character, profile_picture = await self._get_character(ctx, realm, region, name)
+                character, profile_picture = await self._get_character(realm, region, name)
 
-                best_keys = self._get_best_mythic_keys(region, realm, name)
-                rio_score = self._get_raiderio_score(region, realm, name)
+                best_keys = _wow_get_best_mythic_keys(region, realm, name)
+                rio_score = _wow_get_raiderio_score(region, realm, name)
 
-                armory = self._get_link("armory", profile)
-                raiderio = self._get_link("raiderio", profile)
-                warcraftlogs = self._get_link("warcraftlogs", profile)
-                wowprogress = self._get_link("wowprogress", profile)
+                armory = _wow_get_link("armory", profile)
+                raiderio = _wow_get_link("raiderio", profile)
+                warcraftlogs = _wow_get_link("warcraftlogs", profile)
+                wowprogress = _wow_get_link("wowprogress", profile)
 
                 emb = discord.Embed(
                     title=f'{character["name"]} | {realm.capitalize()} | {region.upper()} | {character["active_spec"]["name"]["en_US"]} {character["character_class"]["name"]["en_US"]} | {character["equipped_item_level"]} ilvl',
@@ -275,7 +273,8 @@ class WorldofWarcraft(Cog):
     @mplus.group(invoke_without_command=True, name="keystones", aliases=["ks", "keys", "stone", "key"])
     async def _mplus_keystones(self, ctx):
         if ctx.invoked_subcommand is None:
-            keys = WoW.get_keystones(ctx.guild.id)
+            with self.bot.session_scope() as session:
+                keys = WoW.get_keystones(ctx.guild.id, session)
             if len(keys) > 0:
                 await self.bot.sendc(ctx, "", emb=self._format_keystones_to_embed(ctx, keys))
             else:
@@ -288,11 +287,11 @@ class WorldofWarcraft(Cog):
 
     @_mplus_dungeons.command(name="list")
     async def _mplus_dungeons_list(self, ctx):
-        msg = f"\n# German Names #\n"
+        msg = "\n# German Names #\n"
         for entry in self.dungeon_names_de:
             msg += f"{entry}\n"
 
-        msg += f"\n# English Names #\n"
+        msg += "\n# English Names #\n"
         for entry in self.dungeon_names_en:
             msg += f"{entry}\n"
 
@@ -308,7 +307,8 @@ class WorldofWarcraft(Cog):
     @_mplus_keystones_get.command(name="level")
     async def _mplus_keystones_get_by_level(self, ctx, level: clean_content):
         """get all keystones by a specific level"""
-        keys = WoW.get_keystone_by_level(ctx.guild.id, level)
+        with self.bot.session_scope() as session:
+            keys = WoW.get_keystone_by_level(ctx.guild.id, level, session)
         if len(keys) > 0:
             await self.bot.sendc(ctx, "", emb=self._format_keystones_to_embed(ctx, keys))
         else:
@@ -317,15 +317,18 @@ class WorldofWarcraft(Cog):
     @_mplus_keystones_get.command(name="dungeon")
     async def _mplus_keystones_get_by_dungeon(self, ctx, *dungeon):
         """get all keystones by a specific dungeon"""
-        _clean_dungeon = ' '.join(dungeon)
-        if len(_clean_dungeon) > 4:
-            _short_dungeon_name = self._convert_dungeon_names(_clean_dungeon)
-            if _short_dungeon_name is None:
-                raise NerpyException("Seems like you searched for a dungeon I do not know. Please verify if you spelled it correctly.")
+        _clean_dungeon = " ".join(dungeon)
+        with self.bot.session_scope() as session:
+            if len(_clean_dungeon) > 4:
+                _short_dungeon_name = self._convert_dungeon_names(_clean_dungeon)
+                if _short_dungeon_name is None:
+                    raise NerpyException(
+                        "Seems like you searched for a dungeon I do not know. Please verify if you spelled it correctly."
+                    )
+                else:
+                    keys = WoW.get_keystone_by_name(ctx.guild.id, _short_dungeon_name, session)
             else:
-                keys = WoW.get_keystone_by_name(ctx.guild.id, _short_dungeon_name)
-        else:
-            keys = WoW.get_keystone_by_name(ctx.guild.id, dungeon)
+                keys = WoW.get_keystone_by_name(ctx.guild.id, dungeon, session)
 
         if len(keys) > 0:
             await self.bot.sendc(ctx, "", emb=self._format_keystones_to_embed(ctx, keys))
@@ -335,7 +338,8 @@ class WorldofWarcraft(Cog):
     @_mplus_keystones_get.command(name="character")
     async def _mplus_keystones_get_by_character(self, ctx, character: clean_content):
         """get all keystones by a specific character"""
-        keys = WoW.get_keystone_by_character(ctx.guild.id, character)
+        with self.bot.session_scope() as session:
+            keys = WoW.get_keystone_by_character(ctx.guild.id, character, session)
         if len(keys) > 0:
             await self.bot.sendc(ctx, "", emb=self._format_keystones_to_embed(ctx, keys))
         else:
@@ -344,15 +348,18 @@ class WorldofWarcraft(Cog):
     @_mplus_keystones.command(name="add", ignore_extra=True)
     async def _mplus_keystones_add(self, ctx, keystone_name, keystone_level, character):
         creation_date = datetime.utcnow()
-        if WoW.exists(ctx.guild.id, character):
-            raise NerpyException("Keystone already exists for this character!")
-        else:
-            try:
-                WoW.add(ctx.guild.id, keystone_name, keystone_level, character, creation_date, ctx.author.name)
-            except:
-                raise NerpyException("Could not add keystone to database.")
+        with self.bot.session_scope() as session:
+            if WoW.exists(ctx.guild.id, character, session):
+                raise NerpyException("Keystone already exists for this character!")
+            else:
+                try:
+                    WoW.add(
+                        ctx.guild.id, keystone_name, keystone_level, character, creation_date, ctx.author.name, session
+                    )
+                except:
+                    raise NerpyException("Could not add keystone to database.")
 
-            await self.bot.sendc(ctx, "Keystone added to database.")
+                await self.bot.sendc(ctx, "Keystone added to database.")
 
     @_mplus_keystones_add.error
     async def _mplus_keystones_add_error(self, ctx, error):
@@ -361,11 +368,12 @@ class WorldofWarcraft(Cog):
 
     @_mplus_keystones.command(name="remove", aliases=["rm", "delete", "del"])
     async def _mplus_keystones_remove(self, ctx, character):
-        if WoW.exists(ctx.guild.id, character):
-            WoW.delete(ctx.guild.id, character)
-            await self.bot.sendc(ctx, "Keystone successfully deleted.")
-        else:
-            raise NerpyException(f"There is no saved key for character {character}.")
+        with self.bot.session_scope() as session:
+            if WoW.exists(ctx.guild.id, character, session):
+                WoW.delete(ctx.guild.id, character, session)
+                await self.bot.sendc(ctx, "Keystone successfully deleted.")
+            else:
+                raise NerpyException(f"There is no saved key for character {character}.")
 
     @_mplus_keystones_remove.error
     async def _mplus_keystones_remove_error(self, ctx, error):

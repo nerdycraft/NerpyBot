@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from utils import database as db
-from utils.database import session_scope
 from sqlalchemy import Integer, BigInteger, SmallInteger, Column, DateTime, String, Index, inspect
 
 
@@ -12,7 +11,7 @@ class WoW(db.BASE):
     __tablename__ = "WoW"
     __table_args__ = (
         Index("WoW_GuildId", "GuildId"),
-        Index("WoW_Character_GuildId", "Character", "GuildId", unique=True)
+        Index("WoW_Character_GuildId", "Character", "GuildId", unique=True),
     )
 
     Id = Column(Integer, primary_key=True)
@@ -26,88 +25,87 @@ class WoW(db.BASE):
 
     @classmethod
     def object_as_dict(cls, obj):
-        return {c.key: getattr(obj, c.key)
-                for c in inspect(obj).mapper.column_attrs}
+        return {c.key: getattr(obj, c.key) for c in inspect(obj).mapper.column_attrs}
 
     @classmethod
-    def exists(cls, guild_id: int, character):
-        """ checks if a character already has a key for this guild"""
-        with session_scope() as session:
-            count = session.query(WoW).filter(WoW.GuildId == guild_id).filter(WoW.Character == character).count()
+    def exists(cls, guild_id: int, character, session):
+        """checks if a character already has a key for this guild"""
+        count = session.query(WoW).filter(WoW.GuildId == guild_id).filter(WoW.Character == character).count()
+
         return True if count > 0 else False
 
     @classmethod
-    def get_keystones(cls, guild_id: int):
+    def get_keystones(cls, guild_id: int, session):
         """returns all keystones for guild"""
-        with session_scope() as session:
-            keystones = []
-            result = session.query(WoW).filter(WoW.GuildId == guild_id).all()
+        keystones = []
+        result = session.query(WoW).filter(WoW.GuildId == guild_id).all()
 
-            for key in result:
-                keystones.append(cls.object_as_dict(key))
+        for key in result:
+            keystones.append(cls.object_as_dict(key))
 
-            return keystones
+        return keystones
 
     @classmethod
-    def get_keystone_by_author(cls, guild_id: int, author):
+    def get_keystone_by_author(cls, guild_id: int, author, session):
         """returns all keystones added by a specific user"""
-        with session_scope() as session:
-            keystones = []
-            result = session.query(WoW).filter(WoW.GuildId == guild_id).filter(WoW.Author == author).all()
+        keystones = []
+        result = session.query(WoW).filter(WoW.GuildId == guild_id).filter(WoW.Author == author).all()
 
-            for key in result:
-                keystones.append(cls.object_as_dict(key))
+        for key in result:
+            keystones.append(cls.object_as_dict(key))
 
-            return keystones
+        return keystones
 
     @classmethod
-    def get_keystone_by_level(cls, guild_id: int, keystone_level):
+    def get_keystone_by_level(cls, guild_id: int, keystone_level, session):
         """returns all keystone with a specific level"""
-        with session_scope() as session:
-            keystones = []
-            result = session.query(WoW).filter(WoW.GuildId == guild_id).filter(WoW.KeystoneLevel == keystone_level).all()
+        keystones = []
+        result = session.query(WoW).filter(WoW.GuildId == guild_id).filter(WoW.KeystoneLevel == keystone_level).all()
 
-            for key in result:
-                keystones.append(cls.object_as_dict(key))
+        for key in result:
+            keystones.append(cls.object_as_dict(key))
 
-            return keystones
+        return keystones
 
     @classmethod
-    def get_keystone_by_name(cls, guild_id: int, keystone_name):
+    def get_keystone_by_name(cls, guild_id: int, keystone_name, session):
         """return all keystones by name"""
-        with session_scope() as session:
-            keystones = []
-            result = session.query(WoW).filter(WoW.GuildId == guild_id).filter(WoW.KeystoneName == keystone_name).all()
+        keystones = []
+        result = session.query(WoW).filter(WoW.GuildId == guild_id).filter(WoW.KeystoneName == keystone_name).all()
 
-            for key in result:
-                keystones.append(cls.object_as_dict(key))
+        for key in result:
+            keystones.append(cls.object_as_dict(key))
 
-            return keystones
+        return keystones
 
     @classmethod
-    def get_keystone_by_character(cls, guild_id: int, character):
+    def get_keystone_by_character(cls, guild_id: int, character, session):
         """return all keystones for a given character"""
-        with session_scope() as session:
-            keystones = []
-            result = session.query(WoW).filter(WoW.GuildId == guild_id).filter(WoW.Character == character).all()
+        keystones = []
+        result = session.query(WoW).filter(WoW.GuildId == guild_id).filter(WoW.Character == character).all()
 
-            for key in result:
-                keystones.append(cls.object_as_dict(key))
+        for key in result:
+            keystones.append(cls.object_as_dict(key))
 
-            return keystones
+        return keystones
 
     @classmethod
-    def delete(cls, guild_id: int, character):
+    def delete(cls, guild_id: int, character, session):
         """deletes a keystone for character in given guild"""
-        with session_scope() as session:
-            objects = session.query(WoW).filter(WoW.GuildId == guild_id).filter(WoW.Character == character)
-            for o in objects:
-                session.delete(o)
-            session.flush()
+        objects = session.query(WoW).filter(WoW.GuildId == guild_id).filter(WoW.Character == character)
+        for o in objects:
+            session.delete(o)
+        session.flush()
 
     @classmethod
-    def add(cls, guild_id: int, keystone_name: str, keystone_level: str, character: str, createdate, author):
-        with session_scope() as session:
-            keystone = WoW(GuildId=guild_id, KeystoneName=keystone_name, KeystoneLevel=keystone_level, Character=character, CreateDate=createdate, Author=author)
-            session.add(keystone)
-            session.flush()
+    def add(cls, guild_id: int, keystone_name: str, keystone_level: str, character: str, createdate, author, session):
+        keystone = WoW(
+            GuildId=guild_id,
+            KeystoneName=keystone_name,
+            KeystoneLevel=keystone_level,
+            Character=character,
+            CreateDate=createdate,
+            Author=author,
+        )
+        session.add(keystone)
+        session.flush()
