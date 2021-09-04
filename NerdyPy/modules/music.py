@@ -83,7 +83,9 @@ class Music(Cog):
         playlist_infos = fetch_yt_infos(playlist_url)
 
         if "_type" not in playlist_infos:
-            await self.bot.sendc(ctx, "This is not a playlist. Please add a single video directly with the play command.")
+            await self.bot.sendc(
+                ctx, "This is not a playlist. Please add a single video directly with the play command."
+            )
             await ctx.send_help(ctx.command)
         else:
             playlist_entries = playlist_infos["entries"]
