@@ -10,15 +10,15 @@ class RaidEncounter(db.BASE):
     __tablename__ = "RaidEncounter"
 
     GuildId = Column(BigInteger, primary_key=True)
-    RaidId = Column(BigInteger, primary_key=True)
+    TemplateId = Column(BigInteger, primary_key=True)
     EncounterId = Column(BigInteger, primary_key=True)
     Name = Column(String)
     Description = Column(String)
 
-    __table_args__ = (Index("RaidEncounter_GuildId_RaidId", "GuildId", "RaidId"),
+    __table_args__ = (Index("RaidEncounter_GuildId_TemplateId", "GuildId", "TemplateId"),
                       ForeignKeyConstraint(
-                          [GuildId, RaidId],
-                          [RaidTemplate.GuildId, RaidTemplate.RaidId]
+                          [GuildId, TemplateId],
+                          [RaidTemplate.GuildId, RaidTemplate.TemplateId]
                       ))
 
     Roles = relationship(
@@ -27,13 +27,13 @@ class RaidEncounter(db.BASE):
         cascade="all, delete, delete-orphan",
         lazy="joined",
         primaryjoin="and_(RaidEncounter.GuildId==RaidEncounterRole.GuildId, "
-                    "RaidEncounter.RaidId==RaidEncounterRole.RaidId,"
+                    "RaidEncounter.TemplateId==RaidEncounterRole.TemplateId,"
                     "RaidEncounter.EncounterId==RaidEncounterRole.EncounterId)"
     )
 
     Raid = relationship("RaidTemplate", back_populates="Encounters",
                         primaryjoin="and_(RaidTemplate.GuildId==RaidEncounter.GuildId, "
-                                    "RaidTemplate.RaidId==RaidEncounter.RaidId)")
+                                    "RaidTemplate.TemplateId==RaidEncounter.TemplateId)")
 
     def get_role_player_sum(self):
         return sum(r.Count for r in self.Roles)

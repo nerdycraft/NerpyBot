@@ -10,7 +10,7 @@ class RaidEncounterRole(db.BASE):
     __tablename__ = "RaidEncounterRole"
 
     GuildId = Column(BigInteger, primary_key=True)
-    RaidId = Column(BigInteger, primary_key=True)
+    TemplateId = Column(BigInteger, primary_key=True)
     EncounterId = Column(BigInteger, primary_key=True)
     Name = Column(String, primary_key=True)
     Icon = Column(String)
@@ -18,16 +18,16 @@ class RaidEncounterRole(db.BASE):
     Count = Column(Integer)
     SortIndex = Column(Integer)
 
-    __table_args__ = (Index("RaidEncounterRole_GuildId_RaidId_EncounterId", "GuildId", "RaidId", "EncounterId"),
+    __table_args__ = (Index("RaidEncounterRole_GuildId_TemplateId_EncounterId", "GuildId", "TemplateId", "EncounterId"),
                       ForeignKeyConstraint(
-                          [GuildId, RaidId, EncounterId],
-                          [RaidEncounter.GuildId, RaidEncounter.RaidId, RaidEncounter.EncounterId]
+                          [GuildId, TemplateId, EncounterId],
+                          [RaidEncounter.GuildId, RaidEncounter.TemplateId, RaidEncounter.EncounterId]
                       ))
 
     Encounter = relationship("RaidEncounter",
                              back_populates="Roles",
                              primaryjoin="and_(RaidEncounter.GuildId==RaidEncounterRole.GuildId, "
-                                         "RaidEncounter.RaidId==RaidEncounterRole.RaidId,"
+                                         "RaidEncounter.TemplateId==RaidEncounterRole.TemplateId,"
                                          "RaidEncounter.EncounterId==RaidEncounterRole.EncounterId)")
 
     def __str__(self):

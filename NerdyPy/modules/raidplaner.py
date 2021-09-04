@@ -6,6 +6,7 @@ from discord.ext.commands import Cog, command
 
 from models.RaidEncounter import RaidEncounter
 from models.RaidEncounterRole import RaidEncounterRole
+from models.RaidEvent import RaidEvent
 from models.RaidTemplate import RaidTemplate
 from utils.conversation import Conversation
 
@@ -64,7 +65,14 @@ class RaidPlanerState(Enum):
     TEMPLATE_ENCOUNTER_ROLE_REMOVE_SAVE = 342
     TEMPLATE_ENCOUNTER_ROLE_SAVE = 399
 
-    EVENT = 500
+    EVENT_CREATE = 500
+    EVENT_CREATE_TEMPLATE = 501
+    EVENT_CREATE_NAME = 502
+    EVENT_CREATE_DESC = 503
+    EVENT_CREATE_START = 504
+    EVENT_CREATE_END = 505
+    EVENT_CREATE_CHANNEL = 506
+    EVENT_CREATE_PREVIEW = 509
     EVENT_EDIT = 600
 
     CLOSE = 999
@@ -78,12 +86,16 @@ class RaidConversation(Conversation):
     # noinspection PyTypeChecker
     def __init__(self, bot, user, guild):
         super().__init__(bot, user, guild)
+
+        self.templates = []
+
         self.tmpTemplate: RaidTemplate = None
         self.tmpEncounter: RaidEncounter = None
         self.tmpRole: RaidEncounterRole = None
 
-        with self.bot.session_scope() as session:
-            self.templates = RaidTemplate.get_from_guild(guild.id, session)
+        self.tmpEvent: RaidEvent = None
+
+        self.refresh_data()
 
     def create_state_handler(self):
         return {
@@ -132,11 +144,20 @@ class RaidConversation(Conversation):
             RaidPlanerState.TEMPLATE_ENCOUNTER_ROLE_REMOVE_SAVE: self.conv_remove_role_save,
 
             RaidPlanerState.TEMPLATE_PREVIEW: self.create_template_preview,
-            RaidPlanerState.EVENT: self.use_template,
+
+            RaidPlanerState.EVENT_CREATE: self.conv_create_event,
+            RaidPlanerState.EVENT_CREATE_TEMPLATE: self.conv_create_event_template,
+            RaidPlanerState.EVENT_CREATE_NAME: self.conv_create_event_name,
+            RaidPlanerState.EVENT_CREATE_DESC: self.conv_create_event_desc,
+            RaidPlanerState.EVENT_CREATE_START: self.conv_create_event_template,
+            RaidPlanerState.EVENT_CREATE_END: self.conv_create_event_template,
+            RaidPlanerState.EVENT_CREATE_CHANNEL: self.conv_create_event_template,
+
             RaidPlanerState.CLOSE: self.close
         }
 
     async def conv_main_menu(self):
+        self.refresh_data()
         emb = Embed(title='RaidPlaner',
                     description='Hey there,\n'
                                 'this is NerdyBot with your raid planning tool. Just follow the path by responding '
@@ -152,7 +173,7 @@ class RaidConversation(Conversation):
                     )
 
         reactions = {
-            '<:check:809765339230896128>': RaidPlanerState.EVENT,
+            '<:check:809765339230896128>': RaidPlanerState.EVENT_CREATE,
             '<:edit2:810114710938189874>': RaidPlanerState.EVENT_EDIT,
             '<:add:809765525629698088>': RaidPlanerState.TEMPLATE_ADD,
             '<:edit:809884574497898557>': RaidPlanerState.TEMPLATE_EDIT,
@@ -228,7 +249,7 @@ class RaidConversation(Conversation):
     async def conv_template_create(self):
         self.tmpTemplate = RaidTemplate(
             GuildId=self.guild.id,
-            RaidId=len(self.templates) + 1,
+            TemplateId=len(self.templates) + 1,
             Name=f'RaidTemplate {len(self.templates) + 1}',
             PlayerCount=10,
             CreateDate=datetime.utcnow()
@@ -318,7 +339,7 @@ class RaidConversation(Conversation):
         self.tmpTemplate.Description = answer
 
     async def set_template_count(self, answer):
-        if answer.isdigit():
+        if not answer.isdigit():
             emb = Embed(title='RaidPlaner',
                         description='Please enter a valid numeric value!'
                         )
@@ -343,7 +364,7 @@ class RaidConversation(Conversation):
         self.tmpTemplate.PlayerCount = cnt
 
     async def set_edit_template(self, answer):
-        if answer.isdigit():
+        if not answer.isdigit():
             emb = Embed(title='RaidPlaner',
                         description='Please enter a valid numeric value!'
                         )
@@ -396,7 +417,7 @@ class RaidConversation(Conversation):
     async def conv_encounter_add(self):
         self.tmpEncounter = RaidEncounter(
             GuildId=self.guild.id,
-            RaidId=self.tmpTemplate.RaidId,
+            TemplateId=self.tmpTemplate.TemplateId,
             EncounterId=self.tmpTemplate.get_encounter_count() + 1,
             Name=f'Encounter {self.tmpTemplate.get_encounter_count() + 1}'
         )
@@ -514,7 +535,7 @@ class RaidConversation(Conversation):
         self.tmpEncounter.Description = answer
 
     async def set_edit_encounter(self, answer):
-        if answer.isdigit():
+        if not answer.isdigit():
             emb = Embed(title='RaidPlaner',
                         description='Please enter a valid numeric value!'
                         )
@@ -687,9 +708,10 @@ class RaidConversation(Conversation):
     async def create_new_role(self, answer):
         self.tmpRole = RaidEncounterRole(
             GuildId=self.guild.id,
-            RaidId=self.tmpEncounter.RaidId,
+            TemplateId=self.tmpEncounter.TemplateId,
             EncounterId=self.tmpEncounter.EncounterId,
         )
+        self.tmpRole.isNew = True
         if await self.set_role_name(answer) is not None:
             return False
 
@@ -707,7 +729,7 @@ class RaidConversation(Conversation):
         self.tmpRole.Description = answer
 
     async def set_role_count(self, answer):
-        if answer.isdigit():
+        if not answer.isdigit():
             emb = Embed(title='RaidPlaner',
                         description='Please enter a valid numeric value!'
                         )
@@ -743,7 +765,7 @@ class RaidConversation(Conversation):
         self.tmpRole.Count = cnt
 
     async def set_role_sort(self, answer):
-        if answer.isdigit():
+        if not answer.isdigit():
             emb = Embed(title='RaidPlaner',
                         description='Please enter a valid numeric value!'
                         )
@@ -762,7 +784,7 @@ class RaidConversation(Conversation):
         self.tmpRole.SortIndex = cnt
 
     async def set_edit_role(self, answer):
-        if answer.isdigit():
+        if not answer.isdigit():
             emb = Embed(title='RaidPlaner',
                         description='Please enter a valid numeric value!'
                         )
@@ -782,6 +804,80 @@ class RaidConversation(Conversation):
 
     # endregion
 
+    # region event creation
+    async def conv_create_event(self):
+        self.tmpEvent = RaidEvent(
+
+        )
+        await self.conv_create_event_template()
+
+    async def conv_create_event_template(self):
+        template_count = len(self.templates)
+        if template_count == 0:
+            return await self.conv_main_menu()
+
+        emb = Embed(title='RaidPlaner')
+
+        for i in range(template_count):
+            val = ''
+            if self.templates[i].Description is not None:
+                val = self.templates[i].Description + '\n'
+
+            val += f'Players: {self.templates[i].PlayerCount}\n'
+            val += f'Encounters: {self.templates[i].get_encounter_count()}'
+
+            emb.add_field(name=f'`{i + 1}`: {self.templates[i].Name}',
+                          value=val
+                          )
+
+        reactions = {
+            '<:cancel:809790666930126888>': RaidPlanerState.MAIN_MENU,
+        }
+        await self.send_both(emb, RaidPlanerState.EVENT_CREATE_NAME, self.set_edit_template, reactions)
+
+    async def conv_create_event_name(self):
+        emb = Embed(title='RaidPlaner',
+                    description='Give your RaidEvent a name. Just type it in the chat.'
+                    )
+
+        await self.send_msg(emb, RaidPlanerState.EVENT_CREATE_DESC, self.set_event_name)
+
+    async def conv_create_event_desc(self):
+        emb = Embed(title='RaidPlaner',
+                    description='Write a few lines to describe your event. This will overwrite the description of the '
+                                'template.'
+                    )
+
+        reactions = {
+            '⏩': RaidPlanerState.EVENT_CREATE_START,
+        }
+        await self.send_both(emb, RaidPlanerState.EVENT_CREATE_START, self.set_event_desc, reactions)
+
+    async def set_event_name(self, answer):
+        if len(answer) > 35:
+            emb = Embed(title='RaidPlaner',
+                        description='Name can not be longer than 35 characters!'
+                        )
+            await self.send_ns(emb)
+            return False
+        if len(answer) < 5:
+            emb = Embed(title='RaidPlaner',
+                        description='Name can not be less than 5 characters!'
+                        )
+            await self.send_ns(emb)
+            return False
+        self.tmpEvent.Name = answer
+
+    async def set_event_desc(self, answer):
+        if len(answer) > 350:
+            emb = Embed(title='RaidPlaner',
+                        description='The description can not be longer than 350 characters!'
+                        )
+            await self.send_ns(emb)
+            return False
+        self.tmpEvent.Description = answer
+    # endregion
+
     async def create_template_preview(self):
         await self.send_ns(embed=self.tmpTemplate.create_embed())
         emb = Embed(title='RaidPlaner',
@@ -793,9 +889,9 @@ class RaidConversation(Conversation):
         }
         await self.send_react(emb, reactions)
 
-    async def use_template(self):
-        emb = Embed(title='RaidPlaner', description='use_template PoC message (send text to continue)')
-        await self.send_msg(emb, RaidPlanerState.MAIN_MENU)
+    def refresh_data(self):
+        with self.bot.session_scope() as session:
+            self.templates = RaidTemplate.get_from_guild(self.guild.id, session)
 
 
 def setup(bot):
