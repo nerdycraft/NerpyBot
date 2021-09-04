@@ -1,5 +1,4 @@
 import io
-import collections
 import utils.format as fmt
 from utils.audio import QueuedSong
 from utils.checks import is_botmod
@@ -22,7 +21,6 @@ class Music(Cog):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
-        self.queue = {}
         self.config = self.bot.config["search"]
 
     @group(name="queue")
@@ -103,18 +101,14 @@ class Music(Cog):
         volume = 100
 
         self.bot.log.info(f"{ctx.guild.name} requesting {title} to play")
-        if ctx.guild.id not in self.queue:
-            self.queue[ctx.guild.id] = collections.deque()
-
-        self.queue[ctx.guild.id].append(url)
         await self.bot.sendc(ctx, fmt.box(f"{title} added to queue!"))
 
         # song = QueuedSong(self.bot.get_channel(606539392319750170), volume, self._fetch)
-        song = QueuedSong(ctx.author.voice.channel, volume, self._fetch)
+        song = QueuedSong(ctx.author.voice.channel, volume, self._fetch, url)
         await self.bot.audio.play(ctx.guild.id, song)
 
     def _fetch(self, song: QueuedSong):
-        sound_data = download(self.queue[song.channel.guild.id].popleft(), self.bot.debug)
+        sound_data = download(song.fetch_data, self.bot.debug)
         song.stream = io.BytesIO(sound_data)
 
     def _clear_queue(self, guild_id):

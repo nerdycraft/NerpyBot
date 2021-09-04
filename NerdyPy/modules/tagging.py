@@ -1,5 +1,4 @@
 import io
-import collections
 import utils.format as fmt
 from random import randint
 from datetime import datetime
@@ -13,6 +12,10 @@ from discord.ext.commands import (
     clean_content,
     bot_has_permissions,
 )
+
+
+def _fetch(song: QueuedSong):
+    song.stream = song.fetch_data
 
 
 class Tagging(Cog):
@@ -157,24 +160,18 @@ class Tagging(Cog):
 
     async def _send(self, ctx, tag_name):
         self.bot.log.info(f"{ctx.guild.name} requesting {tag_name} tag")
-        _tag_type, _tag_volume, _tag_content = self._get_tag(ctx, tag_name)
+        _tag_type, _tag_volume, _tag_content = self._get_tag(ctx.guild.id, tag_name)
         if TagType(_tag_type) is TagType.sound:
             if ctx.author.voice is None:
                 raise NerpyException("Not connected to a voice channel.")
             if not ctx.author.voice.channel.permissions_for(ctx.guild.me).connect:
                 raise NerpyException("Missing permission to connect to channel.")
-            if ctx.guild.id not in self.queue:
-                self.queue[ctx.guild.id] = collections.deque()
-            self.queue[ctx.guild.id].append(io.BytesIO(_tag_content))
 
             # song = QueuedSong(self.bot.get_channel(606539392319750170), _tag_volume, self._fetch)
-            song = QueuedSong(ctx.author.voice.channel, _tag_volume, self._fetch)
+            song = QueuedSong(ctx.author.voice.channel, _tag_volume, _fetch, io.BytesIO(_tag_content))
             await self.bot.audio.play(ctx.guild.id, song)
         else:
             await self.bot.sendc(ctx, _tag_content)
-
-    def _fetch(self, song: QueuedSong):
-        song.stream = self.queue[song.channel.guild.id].popleft()
 
     def _tagging_add_tag_entries(self, session, _tag, content):
         for entry in content:
@@ -183,9 +180,9 @@ class Tagging(Cog):
             elif _tag.Type is TagType.sound.value:
                 _tag.add_entry(entry, session, byt=download(entry, self.bot.debug))
 
-    def _get_tag(self, ctx, tag_name):
+    def _get_tag(self, guild_id, tag_name):
         with self.bot.session_scope() as session:
-            _tag = Tag.get(tag_name, ctx.guild.id, session)
+            _tag = Tag.get(tag_name, guild_id, session)
             if _tag is None:
                 raise NerpyException("No such tag found")
 

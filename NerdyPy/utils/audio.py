@@ -21,20 +21,24 @@ class BufferKey(enum.Enum):
 class QueuedSong:
     """Models Class for Queued Songs"""
 
-    def __init__(self, channel: discord.VoiceChannel, volume, fetcher):
+    def __init__(self, channel: discord.VoiceChannel, volume, fetcher, fetch_data):
         self.stream = None
         self.channel = channel
         self.volume = volume
-        self.fetcher = fetcher
+        self._fetcher = fetcher
+        self.fetch_data = fetch_data
 
+    def fetch_buffer(self):
+        self._fetcher(self)
+        self.convert_audio()
 
-def convert_audio(song: QueuedSong):
-    sound = AudioSegment.from_file(song.stream)
-    if sound.channels != 2:
-        sound = sound.set_channels(2)
-    if sound.frame_rate < 40000:
-        sound = sound.set_frame_rate(44100)
-    song.stream = io.BytesIO(sound.raw_data)
+    def convert_audio(self):
+        sound = AudioSegment.from_file(self.stream)
+        if sound.channels != 2:
+            sound = sound.set_channels(2)
+        if sound.frame_rate < 40000:
+            sound = sound.set_frame_rate(44100)
+        self.stream = io.BytesIO(sound.raw_data)
 
 
 class Audio:
@@ -84,8 +88,7 @@ class Audio:
         for s in self.buffer[guild_id][BufferKey.QUEUE]:
             if _index >= 5:
                 break
-            s.fetcher(s)
-            convert_audio(s)
+            s.fetch_buffer()
             _index = _index + 1
 
     def _add_to_buffer(self, guild_id, song):
@@ -134,8 +137,7 @@ class Audio:
             self._add_to_buffer(guild_id, song)
         else:
             self._setup_buffer(guild_id)
-            song.fetcher(song)
-            convert_audio(song)
+            song.fetch_buffer()
             await self._play(song)
 
     def clear_buffer(self, guild_id):
