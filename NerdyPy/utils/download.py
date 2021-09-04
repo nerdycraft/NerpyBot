@@ -27,7 +27,7 @@ YTDL_ARGS = {
 }
 
 
-def convert(file):
+def convert(file, debug):
     """Convert downloaded file to playable ByteStream"""
     # TODO: Add better Exception handling
     stream, _ = (
@@ -35,12 +35,23 @@ def convert(file):
         .filter("loudnorm")
         .output("pipe:", format="mp3", ac=2, ar="48000")
         .overwrite_output()
-        .run(capture_stdout=True)
+        .run(capture_stdout=debug)
     )
     return stream
 
 
-def download(url: str):
+def fetch_yt_infos(url: str):
+    title = None
+    ytdl = youtube_dl.YoutubeDL(YTDL_ARGS)
+
+    video = ytdl.extract_info(url)
+    if video is not None:
+        title = video["title"]
+
+    return title
+
+
+def download(url: str, debug):
     """download audio content (maybe transform?)"""
     dlfile = ""
     ytdl = youtube_dl.YoutubeDL(YTDL_ARGS)
@@ -70,7 +81,7 @@ def download(url: str):
     if dlfile is None:
         raise NerpyException(f"could not find a download in: {url}")
     else:
-        return convert(dlfile)
+        return convert(dlfile, debug)
 
 
 class Song:

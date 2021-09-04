@@ -163,8 +163,8 @@ class NerpyBot(commands.Bot):
             if def_chan is not None:
                 chan = self.get_channel(def_chan.ChannelId)
                 if chan is not None:
-                    await chan.send(msg, embed=emb, file=file, files=files, delete_after=delete_after)
-                    return
+                    ret = await chan.send(msg, embed=emb, file=file, files=files, delete_after=delete_after)
+                    return ret
 
         if not cur_chan.permissions_for(cur_chan.guild.me).send_messages:
             raise NerpyException("Missing permission to send message to channel.")
@@ -172,7 +172,8 @@ class NerpyBot(commands.Bot):
         await cur_chan.send(msg, embed=emb, file=file, files=files, delete_after=delete_after)
 
     async def sendc(self, ctx, msg, emb=None, file=None, files=None, delete_after=None):
-        await self.send(ctx.guild.id, ctx.channel, msg, emb, file, files, delete_after)
+        ret = await self.send(ctx.guild.id, ctx.channel, msg, emb, file, files, delete_after)
+        return ret
 
     async def start(self):
         """
