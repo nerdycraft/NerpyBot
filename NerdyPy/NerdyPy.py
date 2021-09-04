@@ -23,6 +23,7 @@ from models.guild_prefix import GuildPrefix
 from utils.audio import Audio
 from discord.ext import commands
 
+from utils.conversation import ConversationManager, AnswerType
 from utils.database import BASE
 from utils.errors import NerpyException
 
@@ -48,6 +49,7 @@ class NerpyBot(commands.Bot):
         self.last_cmd_cache = {}
         self.usr_cmd_err_spam = {}
         self.usr_cmd__err_spam_threshold = int(config["bot"]["error_spam_threshold"])
+        self.convMan = ConversationManager(self)
 
         # database variables
         if "database" not in config:
@@ -77,7 +79,7 @@ class NerpyBot(commands.Bot):
             db_connection_string = f"{db_type}://{db_authentication}/{db_name}"
 
         self.ENGINE = create_engine(db_connection_string, echo=self.debug)
-        self.SESSION = sessionmaker(bind=self.ENGINE)
+        self.SESSION = sessionmaker(bind=self.ENGINE, expire_on_commit=False)
 
         self.create_all()
         self._import_modules()
@@ -156,6 +158,29 @@ class NerpyBot(commands.Bot):
 
         if not isinstance(ctx.channel, discord.DMChannel):
             await ctx.message.delete()
+
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        user = await self.fetch_user(payload.user_id)
+        if user is None and user.bot:
+            return
+
+        conv = self.convMan.get_user_conversation(user)
+        if conv is not None and conv.is_conv_message(payload.message_id) and conv.is_answer_type(AnswerType.REACTION):
+            await conv.on_react(payload.emoji)
+
+    async def on_message(self, message):
+        if message.author.bot:
+            return
+
+        invoke = True
+        if isinstance(message.channel, discord.DMChannel):
+            conv = self.convMan.get_user_conversation(message.author)
+            if conv is not None and conv.is_answer_type(AnswerType.TEXT):
+                await conv.on_message(message.content)
+                invoke = False
+
+        if invoke:
+            await self.process_commands(message)
 
     async def send(self, guild_id, cur_chan, msg, emb=None, file=None, files=None, delete_after=None):
         with self.session_scope() as session:
