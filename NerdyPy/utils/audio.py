@@ -4,8 +4,9 @@ Handling Audio Transmission to discord api
 import io
 import enum
 import asyncio
+import queue
+
 import discord
-import collections
 from datetime import datetime
 from pydub import AudioSegment
 
@@ -50,7 +51,7 @@ class Audio:
         self.buffer = {}
         self.doLoop = True
         self.lastPlayed = {}
-        self.buffer_limit = self.bot.config["audio"]["buffer_limit"]
+        self.buffer_limit = int(self.bot.config["audio"]["buffer_limit"])
 
         self.bot.loop.create_task(self._queue_manager())
         self.bot.loop.create_task(self._timeout_manager())
@@ -59,6 +60,7 @@ class Audio:
         if song.stream is None:
             song.fetch_buffer()
         await self._join_channel(song.channel)
+        await asyncio.sleep(2)
         source = discord.PCMVolumeTransformer(discord.PCMAudio(song.stream))
         source.volume = song.volume / 100
         song.channel.guild.voice_client.play(
@@ -69,7 +71,7 @@ class Audio:
         self.lastPlayed[song.channel.guild.id] = datetime.now()
 
     async def _join_channel(self, channel: discord.VoiceChannel):
-        if channel.guild.voice_client is not None:
+        if channel.guild.voice_client is not None and channel.guild.voice_client.is_connected():
             if self.buffer[channel.guild.id][BufferKey.CHANNEL].id != channel.id:
                 await channel.guild.voice_client.move_to(channel)
         else:
@@ -82,13 +84,13 @@ class Audio:
         self.lastPlayed[guild_id] = datetime.now()
         self.buffer[guild_id] = {
             BufferKey.CHANNEL: None,
-            BufferKey.QUEUE: collections.deque(),
+            BufferKey.QUEUE: queue.Queue(),
             BufferKey.VOICE_CLIENT: None,
         }
 
     def _update_buffer(self, guild_id):
         _index = 0
-        for s in self.buffer[guild_id][BufferKey.QUEUE]:
+        for s in self.list_queue(guild_id):
             if _index >= self.buffer_limit:
                 break
             if s.stream is None:
@@ -96,13 +98,13 @@ class Audio:
             _index = _index + 1
 
     def _add_to_buffer(self, guild_id, song):
-        self.buffer[guild_id][BufferKey.QUEUE].append(song)
+        self.buffer[guild_id][BufferKey.QUEUE].put(song)
 
     def _has_buffer(self, guild_id):
         return guild_id in self.buffer
 
     def _has_item_in_buffer(self, guild_id):
-        return len(self.buffer[guild_id][BufferKey.QUEUE]) > 0
+        return self.buffer[guild_id][BufferKey.QUEUE].qsize() > 0
 
     def _is_playing(self, guild_id):
         return (
@@ -133,7 +135,7 @@ class Audio:
             last = dict(self.lastPlayed)
             for guild_id in last:
                 if self._has_buffer(guild_id) and self._has_item_in_buffer(guild_id) and not self._is_playing(guild_id):
-                    queued_song = self.buffer[guild_id][BufferKey.QUEUE].popleft()
+                    queued_song = self.buffer[guild_id][BufferKey.QUEUE].get()
                     await self._play(queued_song)
                     self._update_buffer(guild_id)
         self.queue_loop_running = False
@@ -153,18 +155,10 @@ class Audio:
             self.buffer.pop(guild_id)
             self.lastPlayed.pop(guild_id)
 
-    def remove_from_queue(self, guild_id, song):
-        """removes title from queue"""
-        if self._has_buffer(guild_id):
-            queue = self.buffer[guild_id][BufferKey.QUEUE]
-            for i in queue:
-                if i.title == song:
-                    self.buffer[guild_id][BufferKey.QUEUE].remove(i)
-
     def list_queue(self, guild_id):
         """lists audio queue"""
         if self._has_buffer(guild_id):
-            return self.buffer[guild_id][BufferKey.QUEUE]
+            return list(self.buffer[guild_id][BufferKey.QUEUE].queue)
 
     def stop(self, guild_id):
         """Stops current audio from playing"""
