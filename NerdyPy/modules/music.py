@@ -10,6 +10,7 @@ from discord.ext.commands import (
     Cog,
     group,
     check,
+    command,
     bot_has_permissions,
 )
 
@@ -22,6 +23,12 @@ class Music(Cog):
 
         self.bot = bot
         self.config = self.bot.config["search"]
+
+    @command(name="skip")
+    async def _skip_audio(self, ctx):
+        """skip current track"""
+        self.bot.log.info(f"{ctx.guild.name} requesting skip!")
+        self.bot.audio.stop(ctx.guild.id)
 
     @group(name="queue")
     async def queue(self, ctx):
@@ -48,12 +55,6 @@ class Music(Cog):
                 await self.bot.sendc(ctx, fmt.box(page, "md"))
             else:
                 await self.bot.sendc(ctx, fmt.box("Queue is empty."))
-
-    @queue.command(name="remove", aliases=["rm", "del", "delete"])
-    async def _remove_sound_from_queue(self, ctx, *, song):
-        """remove sound from queue"""
-        self.bot.audio.remove_from_queue(ctx.guild.id, song)
-        await self.bot.sendc(ctx, f"Removed '{song}' from Queue.")
 
     @queue.command(name="drop")
     @check(is_botmod)
