@@ -64,7 +64,6 @@ class Audio:
 
         self.lastPlayed[song.channel.guild.id] = datetime.now()
 
-    # noinspection PyUnresolvedReferences
     async def _join_channel(self, channel: discord.VoiceChannel):
         if channel.guild.voice_client is not None:
             if self.buffer[channel.guild.id][BufferKey.CHANNEL].id != channel.id:

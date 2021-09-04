@@ -52,7 +52,7 @@ class Music(Cog):
         await self.bot.sendc(ctx, "", emb)
 
     @queue.command(name="remove", aliases=["rm", "del", "delete"])
-    async def _remove_sound_from_queue(self, ctx, queue_id):
+    async def _remove_sound_from_queue(self, ctx, song_id):
         """remove sound from queue"""
         return
 
@@ -82,7 +82,6 @@ class Music(Cog):
     async def _search_music(self, ctx, *, query):
         """Search for music. Currently only Youtube is supported"""
         video = youtube(self.config["ytkey"], "url", query)
-
         if video is not None:
             await self._send_to_queue(ctx, video)
         else:
@@ -98,13 +97,11 @@ class Music(Cog):
             raise NerpyException("Missing permission to connect to channel.")
 
         title = fetch_yt_infos(url)
-        volume = 100
-
         self.bot.log.info(f"{ctx.guild.name} requesting {title} to play")
         await self.bot.sendc(ctx, fmt.box(f"{title} added to queue!"))
 
         # song = QueuedSong(self.bot.get_channel(606539392319750170), volume, self._fetch)
-        song = QueuedSong(ctx.author.voice.channel, volume, self._fetch, url)
+        song = QueuedSong(ctx.author.voice.channel, self._fetch, url)
         await self.bot.audio.play(ctx.guild.id, song)
 
     def _fetch(self, song: QueuedSong):
