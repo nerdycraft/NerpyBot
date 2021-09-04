@@ -21,8 +21,9 @@ class BufferKey(enum.Enum):
 class QueuedSong:
     """Models Class for Queued Songs"""
 
-    def __init__(self, channel: discord.VoiceChannel, fetcher, fetch_data):
+    def __init__(self, channel: discord.VoiceChannel, fetcher, fetch_data, title=None):
         self.stream = None
+        self.title = title
         self.channel = channel
         self.volume = 100
         self._fetcher = fetcher
@@ -54,6 +55,8 @@ class Audio:
         self.bot.loop.create_task(self._timeout_manager())
 
     async def _play(self, song):
+        if song.stream is None:
+            song.fetch_buffer()
         await self._join_channel(song.channel)
         source = discord.PCMVolumeTransformer(discord.PCMAudio(song.stream))
         source.volume = song.volume / 100
@@ -87,7 +90,8 @@ class Audio:
         for s in self.buffer[guild_id][BufferKey.QUEUE]:
             if _index >= 5:
                 break
-            s.fetch_buffer()
+            if s.stream is None:
+                s.fetch_buffer()
             _index = _index + 1
 
     def _add_to_buffer(self, guild_id, song):
@@ -100,7 +104,10 @@ class Audio:
         return len(self.buffer[guild_id][BufferKey.QUEUE]) > 0
 
     def _is_playing(self, guild_id):
-        return self.buffer[guild_id][BufferKey.VOICE_CLIENT].is_playing()
+        return (
+            self.buffer[guild_id][BufferKey.VOICE_CLIENT] is not None
+            and self.buffer[guild_id][BufferKey.VOICE_CLIENT].is_playing()
+        )
 
     async def _timeout_manager(self):
         self.timeout_loop_running = True
@@ -134,9 +141,9 @@ class Audio:
         """Plays a file from the local filesystem"""
         if guild_id in self.buffer and force is False:
             self._add_to_buffer(guild_id, song)
+            self._update_buffer(guild_id)
         else:
             self._setup_buffer(guild_id)
-            song.fetch_buffer()
             await self._play(song)
 
     def clear_buffer(self, guild_id):
@@ -144,6 +151,14 @@ class Audio:
         if self._has_buffer(guild_id):
             self.buffer.pop(guild_id)
             self.lastPlayed.pop(guild_id)
+
+    def remove_from_queue(self, guild_id, song):
+        """removes title from queue"""
+        if self._has_buffer(guild_id):
+            queue = self.buffer[guild_id][BufferKey.QUEUE]
+            for i in queue:
+                if i.title == song:
+                    self.buffer[guild_id][BufferKey.QUEUE].remove(i)
 
     def list_queue(self, guild_id):
         """lists audio queue"""

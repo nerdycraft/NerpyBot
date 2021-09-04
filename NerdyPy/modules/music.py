@@ -34,27 +34,29 @@ class Music(Cog):
     async def _list_sound_queue(self, ctx):
         """list current items in queue"""
         queue = self.bot.audio.list_queue(ctx.guild.id)
+        msg = ""
         _index = 0
-
-        emb = Embed(
-            title="Playlist",
-            color=Color(value=int("0099ff", 16)),
-            description="Current Playlist",
-        )
 
         if queue is not None:
             for t in queue:
-                emb.add_field(name="ID", value=str(_index), inline=True)
-                emb.add_field(name="Title", value=t.title, inline=True)
-                emb.add_field(name="\u200b", value="\u200b", inline=False)
+                yt_infos = fetch_yt_infos(t.fetch_data)
+                yt_title = yt_infos["title"]
+
+                msg += f"\n# Position {_index} #\n- "
+                msg += f"{yt_title}"
                 _index = _index + 1
 
-        await self.bot.sendc(ctx, "", emb)
+        for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
+            if page:
+                await self.bot.sendc(ctx, fmt.box(page, "md"))
+            else:
+                await self.bot.sendc(ctx, fmt.box("Queue is empty."))
 
     @queue.command(name="remove", aliases=["rm", "del", "delete"])
-    async def _remove_sound_from_queue(self, ctx, song_id):
+    async def _remove_sound_from_queue(self, ctx, *, song):
         """remove sound from queue"""
-        return
+        self.bot.audio.remove_from_queue(ctx.guild.id, song)
+        await self.bot.sendc(ctx, f"Removed '{song}' from Queue.")
 
     @queue.command(name="drop")
     @check(is_botmod)
@@ -81,9 +83,9 @@ class Music(Cog):
     @bot_has_permissions(send_messages=True)
     async def _search_music(self, ctx, *, query):
         """Search for music. Currently only Youtube is supported"""
-        video = youtube(self.config["ytkey"], "url", query)
-        if video is not None:
-            await self._send_to_queue(ctx, video)
+        video_url = youtube(self.config["ytkey"], "url", query)
+        if video_url is not None:
+            await self._send_to_queue(ctx, video_url)
         else:
             await self.bot.sendc(ctx, "Your search did not yield any results.")
 
@@ -96,13 +98,21 @@ class Music(Cog):
         if not ctx.author.voice.channel.permissions_for(ctx.guild.me).connect:
             raise NerpyException("Missing permission to connect to channel.")
 
-        title = fetch_yt_infos(url)
-        self.bot.log.info(f"{ctx.guild.name} requesting {title} to play")
-        await self.bot.sendc(ctx, fmt.box(f"{title} added to queue!"))
+        yt_infos = fetch_yt_infos(url)
+        yt_title = yt_infos["title"]
+        yt_thumbnail = yt_infos["thumbnails"][0]["url"]
+        self.bot.log.info(f"{ctx.guild.name} requesting {yt_title} to play")
+        emb = Embed(
+            title="Added Sond to Queue!",
+            color=Color(value=int("0099ff", 16)),
+            description=f"[{yt_title}]({url})",
+        )
+        emb.set_thumbnail(url=yt_thumbnail)
 
         # song = QueuedSong(self.bot.get_channel(606539392319750170), volume, self._fetch)
-        song = QueuedSong(ctx.author.voice.channel, self._fetch, url)
+        song = QueuedSong(ctx.author.voice.channel, self._fetch, url, yt_title)
         await self.bot.audio.play(ctx.guild.id, song)
+        await self.bot.sendc(ctx, "", emb)
 
     def _fetch(self, song: QueuedSong):
         sound_data = download(song.fetch_data, self.bot.debug)

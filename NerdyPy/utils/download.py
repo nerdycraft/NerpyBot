@@ -41,14 +41,11 @@ def convert(file, debug):
 
 
 def fetch_yt_infos(url: str):
-    title = None
     ytdl = youtube_dl.YoutubeDL(YTDL_ARGS)
 
     video = ytdl.extract_info(url)
     if video is not None:
-        title = video["title"]
-
-    return title
+        return video
 
 
 def download(url: str, debug):
