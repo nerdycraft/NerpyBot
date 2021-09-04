@@ -4,7 +4,6 @@ Main Class of the NerpyBot
 
 import sys
 import json
-import asyncio
 import logging
 from contextlib import contextmanager
 
@@ -40,8 +39,8 @@ class NerpyBot(commands.Bot):
         self.client_id = config["bot"]["client_id"]
         self.token = config["bot"]["token"]
         self.ops = config["bot"]["ops"]
-        self.moderator_role = self.config["bot"]["moderator_role_name"]
-        self.modules = json.loads(self.config["bot"]["modules"])
+        self.moderator_role = config["bot"]["moderator_role_name"]
+        self.modules = json.loads(config["bot"]["modules"])
         self.restart = True
         self.log = self._get_logger()
         self.uptime = datetime.utcnow()
@@ -49,18 +48,44 @@ class NerpyBot(commands.Bot):
         self.audio = Audio(self)
         self.last_cmd_cache = {}
         self.usr_cmd_err_spam = {}
-        self.usr_cmd__err_spam_threshold = int(self.config["bot"]["error_spam_threshold"])
-
+        self.usr_cmd__err_spam_threshold = int(config["bot"]["error_spam_threshold"])
         self.convMan = ConversationManager(self)
+        
+        # database variables
+        if "database" not in config:
+            self.log.error("No Database specified! Fallback to local SQLite Database!")
+            db_connection_string = "sqlite:///db.db"
+        else:
+            database_config = config["database"]
+            db_type = database_config["db_type"]
+            db_name = database_config["db_name"]
+            db_username = ""
+            db_password = ""
+            db_host = ""
+            db_port = ""
 
-        self.ENGINE = create_engine(self.config["bot"]["db"], echo=False)
+            if any(s in db_type for s in ("mysql", "mariadb")):
+                db_type = f'{database_config["db_type"]}+pymysql'
+            if "db_password" in database_config and database_config["db_password"]:
+                db_password = f':{database_config["db_password"]}'
+            if "db_username" in database_config and database_config["db_username"]:
+                db_username = database_config["db_username"]
+            if "db_host" in database_config and database_config["db_host"]:
+                db_host = f'@{database_config["db_host"]}'
+            if "db_port" in database_config and database_config["db_port"]:
+                db_port = f':{database_config["db_port"]}'
+
+            db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
+            db_connection_string = f"{db_type}://{db_authentication}/{db_name}"
+
+        self.ENGINE = create_engine(db_connection_string, echo=self.debug)
         self.SESSION = sessionmaker(bind=self.ENGINE, expire_on_commit=False)
 
         self.create_all()
         self._import_modules()
 
     def create_all(self):
-        """ creates all tables previously defined"""
+        """creates all tables previously defined"""
         BASE.metadata.bind = self.ENGINE
         BASE.metadata.create_all()
 
@@ -72,21 +97,22 @@ class NerpyBot(commands.Bot):
         try:
             yield session
             session.commit()
-        except SQLAlchemyError as ex:
+        except SQLAlchemyError as exc:
             session.rollback()
-            error = ex
+            error = exc
         finally:
             session.close()
 
         if error is not None:
-            raise NerpyException() from error
+            self.log.error(error)
+            raise NerpyException("There was an error with the database. Please report to Bot Author!")
 
     async def on_ready(self):
         """calls when successfully logged in"""
         self.log.info("Ready!")
 
     async def on_command_completion(self, ctx):
-        """ deleting msg on cmd completion """
+        """deleting msg on cmd completion"""
         if self.restart is True and not isinstance(ctx.channel, discord.DMChannel):
             if ctx.guild.id not in self.last_cmd_cache:
                 self.last_cmd_cache[ctx.guild.id] = []
@@ -173,7 +199,7 @@ class NerpyBot(commands.Bot):
     async def sendc(self, ctx, msg, emb=None, file=None, files=None, delete_after=None):
         await self.send(ctx.guild.id, ctx.channel, msg, emb, file, files, delete_after)
 
-    async def run(self):
+    async def start(self):
         """
         generator connects the discord bot to the server
         """
@@ -184,7 +210,7 @@ class NerpyBot(commands.Bot):
         else:
             self.log.error("No credentials available to login.")
             raise RuntimeError()
-        await self.connect()
+        await self.connect(reconnect=self.restart)
 
     async def shutdown(self):
         """
@@ -193,7 +219,7 @@ class NerpyBot(commands.Bot):
         self.log.info("shutting down server!")
         self.restart = False
         await self.audio.rip_loop()
-        await self.logout()
+        await self.close()
 
     def _import_modules(self):
         for module in self.modules:
@@ -284,7 +310,6 @@ if __name__ == "__main__":
     print(INTRO)
 
     RUNNING = True
-    LOOP = asyncio.get_event_loop()
     ARGS = parse_arguments()
     CONFIG = parse_config(ARGS.config)
     DEBUG = ARGS.debug
@@ -292,20 +317,10 @@ if __name__ == "__main__":
     if "bot" in CONFIG:
         BOT = NerpyBot(CONFIG, DEBUG)
 
-        while RUNNING:
-            try:
-                LOOP.run_until_complete(BOT.run())
-            except discord.LoginFailure:
-                BOT.log.error(traceback.format_exc())
-                BOT.log.error("Failed to login")
-            except KeyboardInterrupt:
-                LOOP.run_until_complete(BOT.logout())
-            except Exception as ex:
-                BOT.log.exception("Fatal exception, attempting graceful logout", exc_info=ex)
-                LOOP.run_until_complete(BOT.logout())
-            finally:
-                LOOP.close()
-                if BOT.restart is False:
-                    RUNNING = False
+        try:
+            BOT.run()
+        except discord.LoginFailure:
+            BOT.log.error(traceback.format_exc())
+            BOT.log.error("Failed to login")
     else:
         raise NerpyException("Bot config not found.")

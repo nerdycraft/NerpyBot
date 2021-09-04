@@ -15,7 +15,7 @@ class DefaultChannel(db.BASE):
     ChannelId = Column(BigInteger)
     CreateDate = Column(DateTime)
     ModifiedDate = Column(DateTime)
-    Author = Column(String)
+    Author = Column(String(30))
 
     @classmethod
     def get(cls, guild_id, session):
