@@ -268,6 +268,8 @@ def parse_config(config_file=None):
 
     if config_file is None:
         config_file = Path("./config.ini")
+    else:
+        config_file = Path(config_file)
 
     if config_file.exists():
         config.read(config_file)
@@ -287,7 +289,7 @@ if __name__ == "__main__":
 
     RUNNING = True
     ARGS = parse_arguments()
-    CONFIG = parse_config(ARGS.config)
+    CONFIG = parse_config(ARGS.config[0])
     DEBUG = ARGS.debug
 
     if "bot" in CONFIG:

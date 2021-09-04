@@ -37,3 +37,8 @@ db_password = very$ecurepassw0rd
 db_host = mysql_host
 db_port = 3306
 ```
+
+# Join NerdyBot
+https://discord.com/api/oauth2/authorize?client_id=680780403992297493&permissions=2217978944&scope=bot
+# Join HumanMusic
+https://discord.com/api/oauth2/authorize?client_id=883659062175211570&permissions=2217978944&scope=bot
