@@ -15,11 +15,10 @@ class RaidEncounter(db.BASE):
     Name = Column(String)
     Description = Column(String)
 
-    __table_args__ = (Index("RaidEncounter_GuildId_TemplateId", "GuildId", "TemplateId"),
-                      ForeignKeyConstraint(
-                          [GuildId, TemplateId],
-                          [RaidTemplate.GuildId, RaidTemplate.TemplateId]
-                      ))
+    __table_args__ = (
+        Index("RaidEncounter_GuildId_TemplateId", "GuildId", "TemplateId"),
+        ForeignKeyConstraint([GuildId, TemplateId], [RaidTemplate.GuildId, RaidTemplate.TemplateId]),
+    )
 
     Roles = relationship(
         "RaidEncounterRole",
@@ -27,13 +26,16 @@ class RaidEncounter(db.BASE):
         cascade="all, delete, delete-orphan",
         lazy="joined",
         primaryjoin="and_(RaidEncounter.GuildId==RaidEncounterRole.GuildId, "
-                    "RaidEncounter.TemplateId==RaidEncounterRole.TemplateId,"
-                    "RaidEncounter.EncounterId==RaidEncounterRole.EncounterId)"
+        "RaidEncounter.TemplateId==RaidEncounterRole.TemplateId,"
+        "RaidEncounter.EncounterId==RaidEncounterRole.EncounterId)",
     )
 
-    Raid = relationship("RaidTemplate", back_populates="Encounters",
-                        primaryjoin="and_(RaidTemplate.GuildId==RaidEncounter.GuildId, "
-                                    "RaidTemplate.TemplateId==RaidEncounter.TemplateId)")
+    Raid = relationship(
+        "RaidTemplate",
+        back_populates="Encounters",
+        primaryjoin="and_(RaidTemplate.GuildId==RaidEncounter.GuildId, "
+        "RaidTemplate.TemplateId==RaidEncounter.TemplateId)",
+    )
 
     def get_role_player_sum(self):
         return sum(r.Count for r in self.Roles)
@@ -42,7 +44,7 @@ class RaidEncounter(db.BASE):
         return len(self.Roles)
 
     def info(self):
-        to_str = f'**{self.Name}**\n\n'
+        to_str = f"**{self.Name}**\n\n"
         for role in self.Roles:
-            to_str += f'{role}\n\n'
+            to_str += f"{role}\n\n"
         return to_str

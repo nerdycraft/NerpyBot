@@ -10,7 +10,6 @@ class AnswerType(Enum):
 
 
 class Conversation:
-
     def __init__(self, bot, user, guild):
         self.bot = bot
 
@@ -127,7 +126,6 @@ class PrevConvState(Enum):
 
 
 class PreConversation(Conversation):
-
     def __init__(self, conv_man, bot, prev_conv: Conversation, next_conv: Conversation, user):
         super().__init__(bot, user, None)
         self.convMan = conv_man
@@ -138,18 +136,18 @@ class PreConversation(Conversation):
         return {
             PrevConvState.INIT: self.initial_message,
             PrevConvState.PREV: self.prev_conv,
-            PrevConvState.NEXT: self.next_conv
+            PrevConvState.NEXT: self.next_conv,
         }
 
     async def initial_message(self):
-        emb = Embed(title='PreConversation', description='You already have an active conversation. Do you want to '
-                                                         'continue your old conversation (:arrow_backward:) or start '
-                                                         'the new one (:arrow_forward:)')
+        emb = Embed(
+            title="PreConversation",
+            description="You already have an active conversation. Do you want to "
+            "continue your old conversation (:arrow_backward:) or start "
+            "the new one (:arrow_forward:)",
+        )
 
-        reactions = {
-            '◀': PrevConvState.PREV,
-            '▶': PrevConvState.NEXT
-        }
+        reactions = {"◀": PrevConvState.PREV, "▶": PrevConvState.NEXT}
 
         await self.send_react(emb, reactions)
 

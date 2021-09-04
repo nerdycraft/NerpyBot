@@ -18,17 +18,21 @@ class RaidEncounterRole(db.BASE):
     Count = Column(Integer)
     SortIndex = Column(Integer)
 
-    __table_args__ = (Index("RaidEncounterRole_GuildId_TemplateId_EncounterId", "GuildId", "TemplateId", "EncounterId"),
-                      ForeignKeyConstraint(
-                          [GuildId, TemplateId, EncounterId],
-                          [RaidEncounter.GuildId, RaidEncounter.TemplateId, RaidEncounter.EncounterId]
-                      ))
+    __table_args__ = (
+        Index("RaidEncounterRole_GuildId_TemplateId_EncounterId", "GuildId", "TemplateId", "EncounterId"),
+        ForeignKeyConstraint(
+            [GuildId, TemplateId, EncounterId],
+            [RaidEncounter.GuildId, RaidEncounter.TemplateId, RaidEncounter.EncounterId],
+        ),
+    )
 
-    Encounter = relationship("RaidEncounter",
-                             back_populates="Roles",
-                             primaryjoin="and_(RaidEncounter.GuildId==RaidEncounterRole.GuildId, "
-                                         "RaidEncounter.TemplateId==RaidEncounterRole.TemplateId,"
-                                         "RaidEncounter.EncounterId==RaidEncounterRole.EncounterId)")
+    Encounter = relationship(
+        "RaidEncounter",
+        back_populates="Roles",
+        primaryjoin="and_(RaidEncounter.GuildId==RaidEncounterRole.GuildId, "
+        "RaidEncounter.TemplateId==RaidEncounterRole.TemplateId,"
+        "RaidEncounter.EncounterId==RaidEncounterRole.EncounterId)",
+    )
 
     def __str__(self):
-        return f'{self.Icon} ***{self.Name}*** ({self.Count})\n{self.Description}'
+        return f"{self.Icon} ***{self.Name}*** ({self.Count})\n{self.Description}"

@@ -50,7 +50,7 @@ class NerpyBot(commands.Bot):
         self.usr_cmd_err_spam = {}
         self.usr_cmd__err_spam_threshold = int(config["bot"]["error_spam_threshold"])
         self.convMan = ConversationManager(self)
-        
+
         # database variables
         if "database" not in config:
             self.log.error("No Database specified! Fallback to local SQLite Database!")

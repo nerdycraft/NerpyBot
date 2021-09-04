@@ -26,7 +26,7 @@ class RaidTemplate(db.BASE):
         cascade="all, delete, delete-orphan",
         lazy="joined",
         primaryjoin="and_(RaidTemplate.GuildId==RaidEncounter.GuildId, "
-                    "RaidTemplate.TemplateId==RaidEncounter.TemplateId) "
+        "RaidTemplate.TemplateId==RaidEncounter.TemplateId) ",
     )
 
     @classmethod
@@ -38,10 +38,7 @@ class RaidTemplate(db.BASE):
         return len(self.Encounters)
 
     def create_info_embed(self):
-        emb = Embed(title=self.Name,
-                    description=f'{self.Description}\n'
-                                f'🧑‍🤝‍🧑 {self.PlayerCount}\n\n'
-                    )
+        emb = Embed(title=self.Name, description=f"{self.Description}\n" f"🧑‍🤝‍🧑 {self.PlayerCount}\n\n")
 
         for enc in self.Encounters:
             emb.description += str(enc)
