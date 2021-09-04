@@ -19,6 +19,9 @@ db_password =
 db_host =
 db_port =
 
+[audio]
+buffer_limit = 5
+
 [search]
 ;imgur
 imgur =

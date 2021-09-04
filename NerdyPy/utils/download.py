@@ -26,6 +26,8 @@ YTDL_ARGS = {
     "default_search": "auto",
 }
 
+YTDL = youtube_dl.YoutubeDL(YTDL_ARGS)
+
 
 def convert(file, debug):
     """Convert downloaded file to playable ByteStream"""
@@ -40,19 +42,20 @@ def convert(file, debug):
     return stream
 
 
-def fetch_yt_infos(url: str):
-    ytdl = youtube_dl.YoutubeDL(YTDL_ARGS)
+def lookup_file(file_name):
+    for file in os.listdir(f"{DL_DIR}"):
+        if file.startswith(file_name):
+            return os.path.join(DL_DIR, file)
 
-    video = ytdl.extract_info(url)
+
+def fetch_yt_infos(url: str):
+    video = YTDL.extract_info(url, download=False)
     if video is not None:
         return video
 
 
 def download(url: str, debug):
     """download audio content (maybe transform?)"""
-    dlfile = ""
-    ytdl = youtube_dl.YoutubeDL(YTDL_ARGS)
-
     req = urllib.request.Request(
         url,
         headers={
@@ -67,18 +70,18 @@ def download(url: str, debug):
         with urllib.request.urlopen(req) as response, open(dlfile, "wb") as out_file:
             shutil.copyfileobj(response, out_file)
     else:
-        video = ytdl.extract_info(url)
+        video = YTDL.extract_info(url, download=False)
         song = Song(**video)
+        dlfile = lookup_file(song.idn)
 
-        for file in os.listdir(f"{DL_DIR}"):
-            if file.startswith(song.idn):
-                dlfile = os.path.join(DL_DIR, file)
-                break
+        if dlfile is None:
+            YTDL.download([song.webpage_url])
+            dlfile = lookup_file(song.idn)
 
     if dlfile is None:
         raise NerpyException(f"could not find a download in: {url}")
-    else:
-        return convert(dlfile, debug)
+
+    return convert(dlfile, debug)
 
 
 class Song:

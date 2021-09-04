@@ -39,11 +39,8 @@ class Music(Cog):
 
         if queue is not None:
             for t in queue:
-                yt_infos = fetch_yt_infos(t.fetch_data)
-                yt_title = yt_infos["title"]
-
                 msg += f"\n# Position {_index} #\n- "
-                msg += f"{yt_title}"
+                msg += f"{t.title}"
                 _index = _index + 1
 
         for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
@@ -79,6 +76,20 @@ class Music(Cog):
             else:
                 await self._send_to_queue(ctx, args[1])
 
+    @_play_music.command(name="playlist")
+    @bot_has_permissions(send_messages=True)
+    async def _add_playlist(self, ctx, playlist_url):
+        await self.bot.sendc(ctx, "Please bear with me. This can take a while.")
+        playlist_infos = fetch_yt_infos(playlist_url)
+
+        if "_type" not in playlist_infos:
+            await self.bot.sendc(ctx, "This is not a playlist. Please add a single video directly with the play command.")
+            await ctx.send_help(ctx.command)
+        else:
+            playlist_entries = playlist_infos["entries"]
+            for entry in playlist_entries:
+                await self._send_to_queue(ctx, entry["webpage_url"])
+
     @_play_music.command(name="search", aliases=["find", "lookup"])
     @bot_has_permissions(send_messages=True)
     async def _search_music(self, ctx, *, query):
@@ -92,27 +103,32 @@ class Music(Cog):
     def _has_queue(self, guild_id):
         return guild_id in self.queue
 
-    async def _send_to_queue(self, ctx, url):
+    async def _send_to_queue(self, ctx, video_url):
         if ctx.author.voice is None:
             raise NerpyException("Not connected to a voice channel.")
         if not ctx.author.voice.channel.permissions_for(ctx.guild.me).connect:
             raise NerpyException("Missing permission to connect to channel.")
 
-        yt_infos = fetch_yt_infos(url)
-        yt_title = yt_infos["title"]
-        yt_thumbnail = yt_infos["thumbnails"][0]["url"]
-        self.bot.log.info(f"{ctx.guild.name} requesting {yt_title} to play")
-        emb = Embed(
-            title="Added Sond to Queue!",
-            color=Color(value=int("0099ff", 16)),
-            description=f"[{yt_title}]({url})",
-        )
-        emb.set_thumbnail(url=yt_thumbnail)
+        video_infos = fetch_yt_infos(video_url)
 
-        # song = QueuedSong(self.bot.get_channel(606539392319750170), volume, self._fetch)
-        song = QueuedSong(ctx.author.voice.channel, self._fetch, url, yt_title)
-        await self.bot.audio.play(ctx.guild.id, song)
-        await self.bot.sendc(ctx, "", emb)
+        if "_type" in video_infos:
+            await self.bot.sendc(ctx, "Please use the playlist command for playlists.")
+            await ctx.send_help(ctx.command)
+        else:
+            video_title = video_infos["title"]
+            video_thumbnail = video_infos["thumbnails"][0]["url"]
+            self.bot.log.info(f"{ctx.guild.name} requesting {video_title} to play")
+            emb = Embed(
+                title="Added Song to Queue!",
+                color=Color(value=int("0099ff", 16)),
+                description=f"[{video_title}]({video_url})",
+            )
+            emb.set_thumbnail(url=video_thumbnail)
+
+            # song = QueuedSong(self.bot.get_channel(606539392319750170), volume, self._fetch)
+            song = QueuedSong(ctx.author.voice.channel, self._fetch, video_url, video_title)
+            await self.bot.audio.play(ctx.guild.id, song)
+            await self.bot.sendc(ctx, "", emb)
 
     def _fetch(self, song: QueuedSong):
         sound_data = download(song.fetch_data, self.bot.debug)
