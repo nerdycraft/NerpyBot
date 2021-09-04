@@ -50,6 +50,7 @@ class Audio:
         self.buffer = {}
         self.doLoop = True
         self.lastPlayed = {}
+        self.buffer_limit = self.bot.config["audio"]["buffer_limit"]
 
         self.bot.loop.create_task(self._queue_manager())
         self.bot.loop.create_task(self._timeout_manager())
@@ -88,7 +89,7 @@ class Audio:
     def _update_buffer(self, guild_id):
         _index = 0
         for s in self.buffer[guild_id][BufferKey.QUEUE]:
-            if _index >= 5:
+            if _index >= self.buffer_limit:
                 break
             if s.stream is None:
                 s.fetch_buffer()
