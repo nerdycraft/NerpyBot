@@ -21,10 +21,10 @@ class BufferKey(enum.Enum):
 class QueuedSong:
     """Models Class for Queued Songs"""
 
-    def __init__(self, channel: discord.VoiceChannel, volume, fetcher, fetch_data):
+    def __init__(self, channel: discord.VoiceChannel, fetcher, fetch_data):
         self.stream = None
         self.channel = channel
-        self.volume = volume
+        self.volume = 100
         self._fetcher = fetcher
         self.fetch_data = fetch_data
 

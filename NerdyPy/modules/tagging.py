@@ -1,6 +1,5 @@
 import io
 import utils.format as fmt
-from random import randint
 from datetime import datetime
 from utils.audio import QueuedSong
 from utils.download import download
@@ -12,10 +11,6 @@ from discord.ext.commands import (
     clean_content,
     bot_has_permissions,
 )
-
-
-def _fetch(song: QueuedSong):
-    song.stream = song.fetch_data
 
 
 class Tagging(Cog):
@@ -160,18 +155,31 @@ class Tagging(Cog):
 
     async def _send(self, ctx, tag_name):
         self.bot.log.info(f"{ctx.guild.name} requesting {tag_name} tag")
-        _tag_type, _tag_volume, _tag_content = self._get_tag(ctx.guild.id, tag_name)
-        if TagType(_tag_type) is TagType.sound:
-            if ctx.author.voice is None:
-                raise NerpyException("Not connected to a voice channel.")
-            if not ctx.author.voice.channel.permissions_for(ctx.guild.me).connect:
-                raise NerpyException("Missing permission to connect to channel.")
+        with self.bot.session_scope() as session:
+            _tag = Tag.get(tag_name, ctx.guild.id, session)
+            if _tag is None:
+                raise NerpyException("No such tag found")
 
-            # song = QueuedSong(self.bot.get_channel(606539392319750170), _tag_volume, self._fetch)
-            song = QueuedSong(ctx.author.voice.channel, _tag_volume, _fetch, io.BytesIO(_tag_content))
-            await self.bot.audio.play(ctx.guild.id, song)
-        else:
-            await self.bot.sendc(ctx, _tag_content)
+            if TagType(_tag.Type) is TagType.sound:
+                if ctx.author.voice is None:
+                    raise NerpyException("Not connected to a voice channel.")
+                if not ctx.author.voice.channel.permissions_for(ctx.guild.me).connect:
+                    raise NerpyException("Missing permission to connect to channel.")
+
+                # song = QueuedSong(self.bot.get_channel(606539392319750170), _tag_volume, self._fetch)
+                song = QueuedSong(ctx.author.voice.channel, self._fetch, tag_name)
+                await self.bot.audio.play(ctx.guild.id, song)
+            else:
+                random_entry = _tag.get_random_entry()
+                await self.bot.sendc(ctx, random_entry.TextContent)
+
+    def _fetch(self, song: QueuedSong):
+        with self.bot.session_scope() as session:
+            _tag = Tag.get(song.fetch_data, song.channel.guild.id, session)
+            random_entry = _tag.get_random_entry()
+
+            song.stream = io.BytesIO(random_entry.ByteContent)
+            song.volume = _tag.Volume
 
     def _tagging_add_tag_entries(self, session, _tag, content):
         for entry in content:
@@ -179,26 +187,6 @@ class Tagging(Cog):
                 _tag.add_entry(entry, session)
             elif _tag.Type is TagType.sound.value:
                 _tag.add_entry(entry, session, byt=download(entry, self.bot.debug))
-
-    def _get_tag(self, guild_id, tag_name):
-        with self.bot.session_scope() as session:
-            _tag = Tag.get(tag_name, guild_id, session)
-            if _tag is None:
-                raise NerpyException("No such tag found")
-
-            tag_type = _tag.Type
-            tag_volume = _tag.Volume
-            tag_entries = _tag.entries.all()
-            tag_random_entry = tag_entries[randint(0, (len(tag_entries) - 1))]
-
-            if TagType(tag_type) is TagType.sound:
-                tag_content = tag_random_entry.ByteContent
-            else:
-                tag_content = tag_random_entry.TextContent
-
-            _tag.Count += 1
-
-        return tag_type, tag_volume, tag_content
 
 
 def setup(bot):
