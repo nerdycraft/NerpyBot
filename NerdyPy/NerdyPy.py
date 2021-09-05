@@ -161,7 +161,7 @@ class NerpyBot(commands.Bot):
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         user = await self.fetch_user(payload.user_id)
-        if user is None and user.bot:
+        if user is None or user.bot:
             return
 
         conv = self.convMan.get_user_conversation(user)
@@ -292,7 +292,7 @@ def parse_config(config_file=None):
     if config_file is None:
         config_file = Path("./config.ini")
     else:
-        config_file = Path(config_file)
+        config_file = Path(config_file[0])
 
     if config_file.exists():
         config.read(config_file)
@@ -312,7 +312,7 @@ if __name__ == "__main__":
 
     RUNNING = True
     ARGS = parse_arguments()
-    CONFIG = parse_config(ARGS.config[0])
+    CONFIG = parse_config(ARGS.config)
     DEBUG = ARGS.debug
 
     if "bot" in CONFIG:
