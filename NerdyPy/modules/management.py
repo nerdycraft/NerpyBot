@@ -136,14 +136,9 @@ class Management(Cog):
             GuildPrefix.delete(ctx.guild.id, session)
         await ctx.send("Prefix removed.")
 
+    @command(name="leave", aliases=["stop"])
     @check(is_botmod)
-    async def stop(self, ctx):
-        """stop sound playing [bot-moderator]"""
-        self.bot.audio.stop(ctx.guild.id)
-
-    @command()
-    @check(is_botmod)
-    async def leave(self, ctx):
+    async def _bot_leave_channel(self, ctx):
         """bot leaves the channel [bot-moderator]"""
         await self.bot.audio.leave(ctx.guild.id)
 

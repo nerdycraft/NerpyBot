@@ -12,5 +12,6 @@ __pycache__/
 venv/
 tmp/
 /NerdyPy/config.ini
+/NerdyPy/config_humanmusic.ini
 NerpyBot.code-workspace
 .env

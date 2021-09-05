@@ -5,7 +5,7 @@ import discord
 import utils.format as fmt
 from datetime import datetime
 from utils.errors import NerpyException
-from googleapiclient.discovery import build
+from utils.helpers import youtube
 from discord.ext.commands import Cog, command, group, bot_has_permissions
 
 
@@ -84,16 +84,9 @@ class Search(Cog):
     @bot_has_permissions(send_messages=True)
     async def youtube(self, ctx, *, query):
         """don't stick too long, you might get lost"""
+        msg = youtube(self.config["ytkey"], "url", query)
 
-        youtube = build("youtube", "v3", developerKey=self.config["ytkey"])
-
-        search_response = youtube.search().list(q=query, part="id,snippet", type="video", maxResults=1).execute()
-
-        items = search_response.get("items", [])
-
-        if len(items) > 0:
-            msg = f'https://www.youtube.com/watch?v={items[0]["id"]["videoId"]}'
-        else:
+        if msg is None:
             msg = "And i thought everything is on youtube :open_mouth:"
         await self.bot.sendc(ctx, msg)
 

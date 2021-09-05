@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from enum import Enum
+from random import randint
 from utils import database as db
 from models.tagentry import TagEntry
 from sqlalchemy.orm import relationship
@@ -61,6 +62,12 @@ class Tag(db.BASE):
     def add_entry(self, text: str, session, byt: bytes = None):
         """add a tag entry with given name for given guild"""
         session.add(TagEntry(TagId=self.Id, TextContent=text, ByteContent=byt))
+
+    def get_random_entry(self):
+        """gets a random tag entry"""
+        tag_entries = self.entries.all()
+        random_entry = tag_entries[randint(0, (len(tag_entries) - 1))]
+        return random_entry
 
     def __str__(self):
         msg = f"==== {self.Name} ====\n\n"
