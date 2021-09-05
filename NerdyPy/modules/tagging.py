@@ -64,7 +64,7 @@ class Tagging(Cog):
                 Tag.add(_tag, session)
                 session.flush()
 
-                self._tagging_add_tag_entries(session, _tag, content)
+                self._add_tag_entries(session, _tag, content)
 
             self.bot.log.info(f"creating tag {ctx.guild.name}/{name} finished")
         await self.bot.sendc(ctx, f"tag {name} created!")
@@ -80,7 +80,7 @@ class Tagging(Cog):
         async with ctx.typing():
             with self.bot.session_scope() as session:
                 _tag = Tag.get(name, ctx.guild.id, session)
-                self._tagging_add_tag_entries(session, _tag, content)
+                self._add_tag_entries(session, _tag, content)
 
             self.bot.log.info(f"added entry to tag {ctx.guild.name}/{name}.")
         await self.bot.sendc(ctx, f"Entry added to tag {name}!")
@@ -181,7 +181,7 @@ class Tagging(Cog):
             song.stream = io.BytesIO(random_entry.ByteContent)
             song.volume = _tag.Volume
 
-    def _tagging_add_tag_entries(self, session, _tag, content):
+    def _add_tag_entries(self, session, _tag, content):
         for entry in content:
             if _tag.Type == TagType.text.value or _tag.Type == TagType.url.value:
                 _tag.add_entry(entry, session)
