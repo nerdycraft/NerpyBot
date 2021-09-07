@@ -75,11 +75,13 @@ class Music(Cog):
             elif len(args) <= 1:
                 await ctx.send_help(ctx.command)
             else:
+                await ctx.message.add_reaction('🤓')
                 await self._send_to_queue(ctx, args[1])
 
     @_play_music.command(name="playlist")
     @bot_has_permissions(send_messages=True)
     async def _add_playlist(self, ctx, playlist_url):
+        await ctx.message.add_reaction('🤓')
         await self.bot.sendc(ctx, "Please bear with me. This can take a while.")
         playlist_infos = fetch_yt_infos(playlist_url)
 
