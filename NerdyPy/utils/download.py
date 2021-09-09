@@ -49,9 +49,7 @@ def lookup_file(file_name):
 
 
 def fetch_yt_infos(url: str):
-    video = YTDL.extract_info(url, download=False)
-    if video is not None:
-        return video
+    return YTDL.extract_info(url, download=False)
 
 
 def download(url: str, debug):
@@ -70,12 +68,12 @@ def download(url: str, debug):
         with urllib.request.urlopen(req) as response, open(dlfile, "wb") as out_file:
             shutil.copyfileobj(response, out_file)
     else:
-        video = YTDL.extract_info(url, download=False)
+        video = fetch_yt_infos(url)
         song = Song(**video)
         dlfile = lookup_file(song.idn)
 
         if dlfile is None:
-            YTDL.download([song.webpage_url])
+            _ = YTDL.download([song.webpage_url])
             dlfile = lookup_file(song.idn)
 
     if dlfile is None:
