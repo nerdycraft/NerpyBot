@@ -29,7 +29,7 @@ YTDL_ARGS = {
 YTDL = youtube_dl.YoutubeDL(YTDL_ARGS)
 
 
-def convert(file, debug):
+def convert(file):
     """Convert downloaded file to playable ByteStream"""
     # TODO: Add better Exception handling
     stream, _ = (
@@ -37,7 +37,7 @@ def convert(file, debug):
         .filter("loudnorm")
         .output("pipe:", format="mp3", ac=2, ar="48000")
         .overwrite_output()
-        .run(capture_stdout=debug)
+        .run(capture_stdout=True)
     )
     return stream
 
