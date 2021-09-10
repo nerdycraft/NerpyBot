@@ -1,15 +1,18 @@
-FROM python:3-alpine
+FROM python:3
 
 WORKDIR /app/NerdyPy
 
 COPY setup.py /app/setup.py
 COPY NerdyPy /app/NerdyPy
 
-RUN apk add --no-cache build-base libffi-dev \
+RUN apt update && apt install -qqy --no-install-recommends \
+      build-essential \
+      libffi-dev \
+      ffmpeg \
+      libopus0 \
     && pip install --no-cache-dir --trusted-host pypi.python.org /app/ \
-    && apk del build-base libffi-dev \
-    && rm -rf /var/cache/apk/*
-
-RUN apk add --no-cache gcc ffmpeg opus opus-dev
+    && apt purge -qqy --autoremove build-essential libffi-dev \
+    && apt clean \
+    && rm -rf /var/lib/apt/lists/*
 
 CMD ["python", "/app/NerdyPy/NerdyPy.py"]
