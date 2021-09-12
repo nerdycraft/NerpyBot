@@ -181,12 +181,13 @@ class Tagging(Cog):
             song.stream = io.BytesIO(random_entry.ByteContent)
             song.volume = _tag.Volume
 
-    def _add_tag_entries(self, session, _tag, content):
+    @staticmethod
+    def _add_tag_entries(session, _tag, content):
         for entry in content:
             if _tag.Type == TagType.text.value or _tag.Type == TagType.url.value:
                 _tag.add_entry(entry, session)
             elif _tag.Type is TagType.sound.value:
-                _tag.add_entry(entry, session, byt=download(entry, self.bot.debug))
+                _tag.add_entry(entry, session, byt=download(entry))
 
 
 def setup(bot):

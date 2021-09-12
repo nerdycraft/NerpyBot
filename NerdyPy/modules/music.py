@@ -133,8 +133,9 @@ class Music(Cog):
             await self.bot.audio.play(ctx.guild.id, song)
             await self.bot.sendc(ctx, "", emb)
 
-    def _fetch(self, song: QueuedSong):
-        sound_data = download(song.fetch_data, self.bot.debug)
+    @staticmethod
+    def _fetch(song: QueuedSong):
+        sound_data = download(song.fetch_data)
         song.stream = io.BytesIO(sound_data)
 
     def _clear_queue(self, guild_id):
