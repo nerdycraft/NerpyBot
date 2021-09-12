@@ -52,7 +52,7 @@ def fetch_yt_infos(url: str):
     return YTDL.extract_info(url, download=False)
 
 
-def download(url: str, debug):
+def download(url: str):
     """download audio content (maybe transform?)"""
     req = urllib.request.Request(
         url,
@@ -79,7 +79,7 @@ def download(url: str, debug):
     if dlfile is None:
         raise NerpyException(f"could not find a download in: {url}")
 
-    return convert(dlfile, debug)
+    return convert(dlfile)
 
 
 class Song:
