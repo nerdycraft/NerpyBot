@@ -136,7 +136,7 @@ class Music(Cog):
     @staticmethod
     def _fetch(song: QueuedSong):
         sound_data = download(song.fetch_data)
-        song.stream = io.BytesIO(sound_data)
+        song.stream = sound_data
 
     def _clear_queue(self, guild_id):
         """Clears the Audio Queue"""

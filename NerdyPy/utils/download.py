@@ -1,21 +1,24 @@
 """
-download method for Audio Content
-
-Needs testing!
+download and conversion method for Audio Content
 """
 
 import os
 import shutil
-import urllib.request
 import uuid
-import ffmpeg
-from utils.errors import NerpyException
-
 import youtube_dl
+import urllib.request
+from utils.errors import NerpyException
+from discord import FFmpegPCMAudio
+
 
 DL_DIR = "tmp"
 if not os.path.exists(DL_DIR):
     os.makedirs(DL_DIR)
+
+FFMPEG_OPTIONS = {
+    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+    'options': '-vn'
+}
 
 YTDL_ARGS = {
     "format": "bestaudio/best",
@@ -31,15 +34,7 @@ YTDL = youtube_dl.YoutubeDL(YTDL_ARGS)
 
 def convert(file):
     """Convert downloaded file to playable ByteStream"""
-    # TODO: Add better Exception handling
-    stream, _ = (
-        ffmpeg.input(file)
-        .filter("loudnorm")
-        .output("pipe:", format="mp3", ac=2, ar="48000")
-        .overwrite_output()
-        .run(capture_stdout=True)
-    )
-    return stream
+    return FFmpegPCMAudio(file, **FFMPEG_OPTIONS)
 
 
 def lookup_file(file_name):
