@@ -16,9 +16,7 @@ DL_DIR = "tmp"
 if not os.path.exists(DL_DIR):
     os.makedirs(DL_DIR)
 
-FFMPEG_OPTIONS = {
-    'options': '-vn'
-}
+FFMPEG_OPTIONS = {"options": "-vn"}
 
 YTDL_ARGS = {
     "format": "bestaudio/best",

@@ -8,12 +8,7 @@ import queue
 
 from datetime import datetime
 from pydub import AudioSegment
-from discord import (
-    PCMVolumeTransformer,
-    FFmpegPCMAudio,
-    PCMAudio,
-    VoiceChannel
-)
+from discord import PCMVolumeTransformer, FFmpegPCMAudio, PCMAudio, VoiceChannel
 
 
 class BufferKey(enum.Enum):
