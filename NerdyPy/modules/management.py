@@ -5,7 +5,7 @@ from models.guild_prefix import GuildPrefix
 from utils.checks import is_botmod
 from utils.errors import NerpyException
 from models.default_channel import DefaultChannel
-from discord.ext.commands import Cog, command, group, check
+from discord.ext.commands import Cog, command, group, check, bot_has_permissions
 
 
 class Management(Cog):
@@ -15,6 +15,12 @@ class Management(Cog):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
+
+    @command()
+    @bot_has_permissions(send_messages=True)
+    async def ping(self, ctx):
+        """Pong."""
+        await self.bot.sendc(ctx, "Pong.")
 
     @group(invoke_without_command=False, aliases=["u"])
     @check(is_botmod)

@@ -140,12 +140,6 @@ class Fun(Cog):
 
     @command()
     @bot_has_permissions(send_messages=True)
-    async def ping(self, ctx):
-        """Pong."""
-        await self.bot.sendc(ctx, "Pong.")
-
-    @command()
-    @bot_has_permissions(send_messages=True)
     async def choose(self, ctx, *choices):
         """
         Chooses between multiple choices.
