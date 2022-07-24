@@ -6,9 +6,9 @@ import enum
 import asyncio
 import queue
 
-import discord
 from datetime import datetime
 from pydub import AudioSegment
+from discord import PCMVolumeTransformer, FFmpegPCMAudio, PCMAudio, VoiceChannel
 
 
 class BufferKey(enum.Enum):
@@ -22,7 +22,7 @@ class BufferKey(enum.Enum):
 class QueuedSong:
     """Models Class for Queued Songs"""
 
-    def __init__(self, channel: discord.VoiceChannel, fetcher, fetch_data, title=None):
+    def __init__(self, channel: VoiceChannel, fetcher, fetch_data, title=None):
         self.stream = None
         self.title = title
         self.channel = channel
@@ -32,7 +32,8 @@ class QueuedSong:
 
     def fetch_buffer(self):
         self._fetcher(self)
-        self.convert_audio()
+        if not isinstance(self.stream, FFmpegPCMAudio):
+            self.convert_audio()
 
     def convert_audio(self):
         sound = AudioSegment.from_file(self.stream)
@@ -40,7 +41,7 @@ class QueuedSong:
             sound = sound.set_channels(2)
         if sound.frame_rate < 40000:
             sound = sound.set_frame_rate(44100)
-        self.stream = io.BytesIO(sound.raw_data)
+        self.stream = PCMAudio(io.BytesIO(sound.raw_data))
 
 
 class Audio:
@@ -61,16 +62,16 @@ class Audio:
             song.fetch_buffer()
         await self._join_channel(song.channel)
         await asyncio.sleep(2)
-        source = discord.PCMVolumeTransformer(discord.PCMAudio(song.stream))
+        source = PCMVolumeTransformer(song.stream)
         source.volume = song.volume / 100
         song.channel.guild.voice_client.play(
             source,
-            after=lambda e: self.bot.log.error("Player error: %s" % e) if e else None,
+            after=lambda e: self.bot.log.error(f"Player error: {e}") if e else None,
         )
 
         self.lastPlayed[song.channel.guild.id] = datetime.now()
 
-    async def _join_channel(self, channel: discord.VoiceChannel):
+    async def _join_channel(self, channel: VoiceChannel):
         if channel.guild.voice_client is not None and channel.guild.voice_client.is_connected():
             if self.buffer[channel.guild.id][BufferKey.CHANNEL].id != channel.id:
                 await channel.guild.voice_client.move_to(channel)

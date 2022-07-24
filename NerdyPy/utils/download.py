@@ -1,21 +1,22 @@
 """
-download method for Audio Content
-
-Needs testing!
+download and conversion method for Audio Content
 """
 
 import os
-import shutil
-import urllib.request
 import uuid
-import ffmpeg
-from utils.errors import NerpyException
-
+import logging
 import youtube_dl
+import requests
+from utils.errors import NerpyException
+from discord import FFmpegPCMAudio
 
+
+LOG = logging.getLogger("Nerpy")
 DL_DIR = "tmp"
 if not os.path.exists(DL_DIR):
     os.makedirs(DL_DIR)
+
+FFMPEG_OPTIONS = {"options": "-vn"}
 
 YTDL_ARGS = {
     "format": "bestaudio/best",
@@ -29,17 +30,10 @@ YTDL_ARGS = {
 YTDL = youtube_dl.YoutubeDL(YTDL_ARGS)
 
 
-def convert(file):
+def convert(source, is_stream=False):
     """Convert downloaded file to playable ByteStream"""
-    # TODO: Add better Exception handling
-    stream, _ = (
-        ffmpeg.input(file)
-        .filter("loudnorm")
-        .output("pipe:", format="mp3", ac=2, ar="48000")
-        .overwrite_output()
-        .run(capture_stdout=True)
-    )
-    return stream
+    LOG.info("Converting File...")
+    return FFmpegPCMAudio(source, **FFMPEG_OPTIONS, pipe=is_stream)
 
 
 def lookup_file(file_name):
@@ -49,24 +43,26 @@ def lookup_file(file_name):
 
 
 def fetch_yt_infos(url: str):
+    LOG.info("Fetching Information about Video from Youtube...")
     return YTDL.extract_info(url, download=False)
 
 
 def download(url: str):
     """download audio content (maybe transform?)"""
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
-        },
-    )
+    req_headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
+    }
 
     split = os.path.splitext(url)
 
     if split[1] is not None and split[1] != "":
         dlfile = os.path.join(DL_DIR, f"{str(uuid.uuid4())}{split[1]}")
-        with urllib.request.urlopen(req) as response, open(dlfile, "wb") as out_file:
-            shutil.copyfileobj(response, out_file)
+        with requests.get(url, headers=req_headers) as response:
+            response.raise_for_status()
+            with open(dlfile, "wb") as out_file:
+                LOG.info("Downloading file")
+                for chunk in response.iter_content():
+                    out_file.write(chunk)
     else:
         video = fetch_yt_infos(url)
         song = Song(**video)
