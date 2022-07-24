@@ -114,21 +114,22 @@ class Music(Cog):
 
         video_infos = fetch_yt_infos(video_url)
 
-        if "_type" in video_infos:
+        if "_type" in video_infos and video_infos.get("_type") == "playlist":
             await self.bot.sendc(ctx, "Please use the playlist command for playlists.")
             await ctx.send_help(ctx.command)
         else:
             video_title = video_infos["title"]
-            video_thumbnail = video_infos["thumbnails"][0]["url"]
+            video_thumbnail = video_infos.get("thumbnails", [dict()])[0].get("url")
             self.bot.log.info(f"{ctx.guild.name} requesting {video_title} to play")
             emb = Embed(
                 title="Added Song to Queue!",
                 color=Color(value=int("0099ff", 16)),
                 description=f"[{video_title}]({video_url})",
             )
-            emb.set_thumbnail(url=video_thumbnail)
+            if video_thumbnail is not None:
+                emb.set_thumbnail(url=video_thumbnail)
 
-            # song = QueuedSong(self.bot.get_channel(606539392319750170), volume, self._fetch)
+            # song = QueuedSong(ctx.author.voice.channel, _tag_volume, self._fetch, tag_name)
             song = QueuedSong(ctx.author.voice.channel, self._fetch, video_url, video_title)
             await self.bot.audio.play(ctx.guild.id, song)
             await self.bot.sendc(ctx, "", emb)

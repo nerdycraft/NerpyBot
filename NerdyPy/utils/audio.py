@@ -10,6 +10,7 @@ from datetime import datetime
 from pydub import AudioSegment
 from discord import (
     PCMVolumeTransformer,
+    FFmpegPCMAudio,
     PCMAudio,
     VoiceChannel
 )
@@ -36,7 +37,8 @@ class QueuedSong:
 
     def fetch_buffer(self):
         self._fetcher(self)
-        #self.convert_audio()
+        if not isinstance(self.stream, FFmpegPCMAudio):
+            self.convert_audio()
 
     def convert_audio(self):
         sound = AudioSegment.from_file(self.stream)
@@ -44,7 +46,7 @@ class QueuedSong:
             sound = sound.set_channels(2)
         if sound.frame_rate < 40000:
             sound = sound.set_frame_rate(44100)
-        self.stream = io.BytesIO(sound.raw_data)
+        self.stream = PCMAudio(io.BytesIO(sound.raw_data))
 
 
 class Audio:
