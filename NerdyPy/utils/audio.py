@@ -71,7 +71,7 @@ class Audio:
         source.volume = song.volume / 100
         song.channel.guild.voice_client.play(
             source,
-            after=lambda e: self.bot.log.error("Player error: %s" % e) if e else None,
+            after=lambda e: self.bot.log.error(f"Player error: {e}") if e else None,
         )
 
         self.lastPlayed[song.channel.guild.id] = datetime.now()
