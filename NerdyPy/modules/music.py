@@ -1,4 +1,3 @@
-import io
 import utils.format as fmt
 from utils.audio import QueuedSong
 from utils.checks import is_botmod
@@ -129,7 +128,6 @@ class Music(Cog):
             if video_thumbnail is not None:
                 emb.set_thumbnail(url=video_thumbnail)
 
-            # song = QueuedSong(ctx.author.voice.channel, _tag_volume, self._fetch, tag_name)
             song = QueuedSong(ctx.author.voice.channel, self._fetch, video_url, video_title)
             await self.bot.audio.play(ctx.guild.id, song)
             await self.bot.sendc(ctx, "", emb)

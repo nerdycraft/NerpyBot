@@ -166,7 +166,6 @@ class Tagging(Cog):
                 if not ctx.author.voice.channel.permissions_for(ctx.guild.me).connect:
                     raise NerpyException("Missing permission to connect to channel.")
 
-                # song = QueuedSong(ctx.author.voice.channel, _tag_volume, self._fetch, tag_name)
                 song = QueuedSong(ctx.author.voice.channel, self._fetch, tag_name)
                 await self.bot.audio.play(ctx.guild.id, song)
             else:
