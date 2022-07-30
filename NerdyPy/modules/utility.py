@@ -4,11 +4,11 @@ import datetime
 import utils.format as fmt
 from utils.errors import NerpyException
 from discord import app_commands
-from discord.ext.commands import Cog, hybrid_command, bot_has_permissions
+from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions
 
 
 @bot_has_permissions(send_messages=True)
-class Utility(Cog):
+class Utility(GroupCog):
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
 
