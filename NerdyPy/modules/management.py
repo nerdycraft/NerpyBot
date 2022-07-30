@@ -1,15 +1,14 @@
 import discord
 import utils.format as fmt
 from typing import Optional
-from datetime import datetime
-from models.guild_prefix import GuildPrefix
 from utils.checks import is_botmod
 from utils.errors import NerpyException
-from discord.ext.commands import Cog, hybrid_command, hybrid_group, check, bot_has_permissions
+from discord.app_commands import checks
+from discord.ext.commands import GroupCog, hybrid_command, hybrid_group, check, bot_has_permissions
 
 
 @check(is_botmod)
-class Management(Cog):
+class Management(GroupCog):
     """cog for bot management"""
 
     def __init__(self, bot):
@@ -23,7 +22,8 @@ class Management(Cog):
         """Pong."""
         await ctx.send("Pong.")
 
-    @hybrid_group(invoke_without_command=True, default_permissions="moderate_members", aliases=["u"])
+    @hybrid_group(aliases=["u"])
+    @checks.has_permissions(moderate_members=True)
     async def user(self, ctx):
         """user management [bot-moderator]"""
         if ctx.invoked_subcommand is None:
@@ -87,50 +87,6 @@ class Management(Cog):
     async def membercount(self, ctx):
         """displays the current membercount of the server [bot-moderator]"""
         await ctx.send(fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
-
-    @hybrid_group(invoke_without_command=True, default_permissions="moderate_members")
-    async def prefix(self, ctx):
-        """Sets the prefix for the bot [bot-moderator]"""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
-
-    @prefix.command(name="get")
-    async def _prefix_get(self, ctx):
-        with self.bot.session_scope() as session:
-            pref = GuildPrefix.get(ctx.guild.id, session)
-            if pref is not None:
-                await ctx.send(f"The current prefix is set to: {pref.Prefix}")
-            else:
-                await ctx.send(
-                    'There is no custom prefix set. I will respond to Slash Commands or the default prefix "!".'
-                )
-
-    @prefix.command(name="set")
-    async def _prefix_set(self, ctx, *, new_pref):
-        if " " in new_pref:
-            raise NerpyException("Spaces not allowed in prefixes")
-
-        with self.bot.session_scope() as session:
-            pref = GuildPrefix.get(ctx.guild.id, session)
-            if pref is None:
-                pref = GuildPrefix(GuildId=ctx.guild.id, CreateDate=datetime.utcnow(), Author=ctx.author.name)
-                session.add(pref)
-
-            pref.ModifiedDate = datetime.utcnow()
-            pref.Prefix = new_pref
-
-        await ctx.send(f"new prefix is now set to '{new_pref}'.")
-
-    @prefix.command(name="delete", aliases=["remove", "rm", "del"])
-    async def _prefix_del(self, ctx):
-        with self.bot.session_scope() as session:
-            GuildPrefix.delete(ctx.guild.id, session)
-        await ctx.send("Prefix removed.")
-
-    @hybrid_command(name="leave", aliases=["stop"])
-    async def _bot_leave_channel(self, ctx):
-        """bot leaves the channel [bot-moderator]"""
-        await self.bot.audio.leave(ctx.guild.id)
 
 
 async def setup(bot):
