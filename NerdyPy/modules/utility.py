@@ -3,6 +3,7 @@ import discord
 import datetime
 import utils.format as fmt
 from utils.errors import NerpyException
+from discord import app_commands
 from discord.ext.commands import Cog, hybrid_command, bot_has_permissions
 
 
@@ -23,6 +24,7 @@ class Utility(Cog):
         )
 
     @hybrid_command(hidden=True)
+    @app_commands.rename(query="city")
     @bot_has_permissions(embed_links=True)
     async def weather(self, ctx, *, query: str):
         """outputs weather information"""
