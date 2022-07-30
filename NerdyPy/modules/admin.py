@@ -1,6 +1,6 @@
 import discord
 from utils.checks import is_operator
-from discord.ext.commands import Cog, command, check
+from discord.ext.commands import Cog, hybrid_command, check
 
 
 class Admin(Cog):
@@ -11,7 +11,7 @@ class Admin(Cog):
 
         self.bot = bot
 
-    @command(hidden=True)
+    @hybrid_command(hidden=True)
     @check(is_operator)
     async def shutdown(self, ctx):
         """shutdown the bot nicely (bot owner only)"""
@@ -20,6 +20,6 @@ class Admin(Cog):
         await self.bot.shutdown()
 
 
-def setup(bot):
+async def setup(bot):
     """adds this module to the bot"""
-    bot.add_cog(Admin(bot))
+    await bot.add_cog(Admin(bot))

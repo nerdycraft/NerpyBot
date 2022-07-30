@@ -801,6 +801,6 @@ class RaidConversation(Conversation):
             self.templates = RaidTemplate.get_from_guild(self.guild.id, session)
 
 
-def setup(bot):
+async def setup(bot):
     """adds this module to the bot"""
-    bot.add_cog(RaidPlaner(bot))
+    await bot.add_cog(RaidPlaner(bot))

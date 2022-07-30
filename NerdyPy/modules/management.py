@@ -1,13 +1,20 @@
 import discord
 import utils.format as fmt
+from typing import Optional
 from datetime import datetime
 from models.guild_prefix import GuildPrefix
 from utils.checks import is_botmod
 from utils.errors import NerpyException
-from models.default_channel import DefaultChannel
-from discord.ext.commands import Cog, command, group, check, bot_has_permissions
+from discord.ext.commands import (
+    Cog,
+    hybrid_command,
+    hybrid_group,
+    check,
+    bot_has_permissions
+)
 
 
+@check(is_botmod)
 class Management(Cog):
     """cog for bot management"""
 
@@ -16,109 +23,92 @@ class Management(Cog):
 
         self.bot = bot
 
-    @command()
+    @hybrid_command()
     @bot_has_permissions(send_messages=True)
     async def ping(self, ctx):
         """Pong."""
-        await self.bot.sendc(ctx, "Pong.")
+        await ctx.send("Pong.")
 
-    @group(invoke_without_command=False, aliases=["u"])
-    @check(is_botmod)
+    @hybrid_group(invoke_without_command=True, default_permissions="moderate_members", aliases=["u"])
     async def user(self, ctx):
-        """user management"""
+        """user management [bot-moderator]"""
+        if ctx.invoked_subcommand is None:
+            args = str(ctx.message.clean_content).split(" ")
+            if len(args) > 2:
+                raise NerpyException("Command not found!")
+            elif len(args) <= 1:
+                await ctx.send_help(ctx.command)
+            else:
+                await ctx.send(args[1])
 
-    @user.command()
-    async def info(self, ctx, user: discord.Member):
+    @user.command(name="info")
+    async def _get_user_info(self, ctx, member: Optional[discord.Member]):
         """displays information about given user [bot-moderator]"""
-        created = user.created_at.strftime("%d. %B %Y - %H:%M")
-        joined = user.joined_at.strftime("%d. %B %Y - %H:%M")
 
-        emb = discord.Embed(title=user.display_name)
-        emb.description = f"original name: {user.name}"
-        emb.set_thumbnail(url=user.avatar_url)
+        member = member or ctx.author
+        created = member.created_at.strftime("%d. %B %Y - %H:%M")
+        joined = member.joined_at.strftime("%d. %B %Y - %H:%M")
+
+        emb = discord.Embed(title=member.display_name)
+        emb.description = f"original name: {member.name}"
+        emb.set_thumbnail(url=member.avatar.url)
         emb.add_field(name="created", value=created)
         emb.add_field(name="joined", value=joined)
-        emb.add_field(name="top role", value=user.top_role.name.replace("@", ""))
+        emb.add_field(name="top role", value=member.top_role.name.replace("@", ""))
         rn = []
-        for r in user.roles:
+        for r in member.roles:
             rn.append(r.name.replace("@", ""))
 
         emb.add_field(name="roles", value=", ".join(rn), inline=False)
 
-        await self.bot.sendc(ctx, "", emb=emb)
+        await ctx.send(embed=emb)
 
-    @user.command()
-    async def list(self, ctx):
-        """displays a list of all users on your server"""
+    @user.command(name="list")
+    async def _list_user_info_from_guild(self, ctx):
+        """displays a list of all users on your server [bot-moderator]"""
         msg = ""
-        for member in self.bot.guild.members:
-            msg += f"{member.display_name} - created at {member.created_at} - joined at {member.joined_at}\n"
+        for member in ctx.guild.members:
+            created = member.created_at.strftime("%d. %b %Y - %H:%M")
+            joined = member.joined_at.strftime("%d. %b %Y - %H:%M")
+            msg += f"{member.display_name}: [created: {created} | joined: {joined}]\n"
 
         for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
-            await self.bot.sendc(ctx, fmt.box(page, "md"))
+            await ctx.send(fmt.box(page))
 
-    @command()
-    @check(is_botmod)
+    @hybrid_command()
     async def history(self, ctx):
-        """displays the last 10 received commands since last restart"""
+        """displays the last 10 received commands since last restart [bot-moderator]"""
         if ctx.guild.id in ctx.bot.last_cmd_cache:
             msg = ""
             for m in ctx.bot.last_cmd_cache[ctx.guild.id]:
-                msg += f"{m.author} - {m.content}\n"
+                if m.content != "":
+                    msg += f"{m.author} - {m.content}\n"
 
-            await self.bot.sendc(ctx, fmt.box(msg, "md"))
+            if msg != "":
+                await ctx.send(fmt.box(msg))
+                return
+        await ctx.send("No recent commands to display.")
 
-    @group(aliases=["defaultchannel"], invoke_without_command=True)
-    @check(is_botmod)
-    async def defch(self, ctx):
-        """Sets the default response channel for the bot"""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
-
-    @defch.command(name="get")
-    async def _defch_get(self, ctx):
-        with self.bot.session_scope() as session:
-            def_ch = DefaultChannel.get(ctx.guild.id, session)
-            if def_ch is not None:
-                channel = self.bot.get_channel(def_ch.ChannelId).mention
-                await ctx.send(f"Current default response channel set to: {channel}")
-            else:
-                await ctx.send("There is currently no default response channel set.")
-
-    @defch.command(name="set")
-    async def _defch_set(self, ctx, chan: discord.TextChannel):
-        if not chan.permissions_for(chan.guild.me).send_messages:
-            raise NerpyException("Missing permission to send message to channel.")
-
-        with self.bot.session_scope() as session:
-            def_ch = DefaultChannel.get(ctx.guild.id, session)
-            if def_ch is None:
-                def_ch = DefaultChannel(GuildId=ctx.guild.id, CreateDate=datetime.utcnow(), Author=ctx.author.name)
-                session.add(def_ch)
-
-            def_ch.ModifiedDate = datetime.utcnow()
-            def_ch.ChannelId = chan.id
-
-        await ctx.send(f"Default response channel set to {chan.mention}.")
-
-    @defch.command(name="remove")
-    async def _defch_remove(self, ctx):
-        with self.bot.session_scope() as session:
-            DefaultChannel.delete(ctx.guild.id, session)
-        await ctx.send("Default response channel removed.")
-
-    @command()
-    @check(is_botmod)
+    @hybrid_command()
     async def membercount(self, ctx):
         """displays the current membercount of the server [bot-moderator]"""
-        await self.bot.sendc(ctx, fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
+        await ctx.send(fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
 
-    @group(invoke_without_command=True)
-    @check(is_botmod)
+    @hybrid_group(invoke_without_command=True, default_permissions="moderate_members")
     async def prefix(self, ctx):
-        """Sets the prefix for the bot"""
+        """Sets the prefix for the bot [bot-moderator]"""
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
+
+    @prefix.command(name="get")
+    async def _prefix_get(self, ctx):
+        with self.bot.session_scope() as session:
+            pref = GuildPrefix.get(ctx.guild.id, session)
+            if pref is not None:
+                await ctx.send(f"The current prefix is set to: {pref.Prefix}")
+            else:
+                await ctx.send('There is no custom prefix set. '
+                               'I will respond to Slash Commands or the default prefix "!".')
 
     @prefix.command(name="set")
     async def _prefix_set(self, ctx, *, new_pref):
@@ -142,13 +132,12 @@ class Management(Cog):
             GuildPrefix.delete(ctx.guild.id, session)
         await ctx.send("Prefix removed.")
 
-    @command(name="leave", aliases=["stop"])
-    @check(is_botmod)
+    @hybrid_command(name="leave", aliases=["stop"])
     async def _bot_leave_channel(self, ctx):
         """bot leaves the channel [bot-moderator]"""
         await self.bot.audio.leave(ctx.guild.id)
 
 
-def setup(bot):
+async def setup(bot):
     """adds this module to the bot"""
-    bot.add_cog(Management(bot))
+    await bot.add_cog(Management(bot))
