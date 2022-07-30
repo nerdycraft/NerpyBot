@@ -21,7 +21,7 @@ class Admin(GroupCog):
 
     @prefix.command(name="get")
     async def _prefix_get(self, ctx):
-        """"Get the prefix currently used. [bot-moderator]"""
+        """ "Get the prefix currently used. [bot-moderator]"""
         with self.bot.session_scope() as session:
             pref = GuildPrefix.get(ctx.guild.id, session)
             if pref is not None:
