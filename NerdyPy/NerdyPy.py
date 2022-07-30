@@ -124,7 +124,7 @@ class NerpyBot(commands.Bot):
 
     async def on_ready(self):
         """calls when successfully logged in"""
-        self.log.info("Ready!")
+        self.log.info(f'Logged in as {self.user} (ID: {self.user.id})')
 
     async def on_command_completion(self, ctx):
         """deleting msg on cmd completion"""
