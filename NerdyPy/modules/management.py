@@ -5,13 +5,7 @@ from datetime import datetime
 from models.guild_prefix import GuildPrefix
 from utils.checks import is_botmod
 from utils.errors import NerpyException
-from discord.ext.commands import (
-    Cog,
-    hybrid_command,
-    hybrid_group,
-    check,
-    bot_has_permissions
-)
+from discord.ext.commands import Cog, hybrid_command, hybrid_group, check, bot_has_permissions
 
 
 @check(is_botmod)
@@ -107,8 +101,9 @@ class Management(Cog):
             if pref is not None:
                 await ctx.send(f"The current prefix is set to: {pref.Prefix}")
             else:
-                await ctx.send('There is no custom prefix set. '
-                               'I will respond to Slash Commands or the default prefix "!".')
+                await ctx.send(
+                    'There is no custom prefix set. I will respond to Slash Commands or the default prefix "!".'
+                )
 
     @prefix.command(name="set")
     async def _prefix_set(self, ctx, *, new_pref):
