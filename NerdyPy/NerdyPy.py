@@ -13,6 +13,7 @@ from pathlib import Path
 from datetime import datetime
 from contextlib import contextmanager
 from discord.ext import commands
+from discord.ext.commands import CheckFailure
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
@@ -157,10 +158,11 @@ class NerpyBot(commands.Bot):
                     traceback.print_tb(error.original.__traceback__)
                     self.log.error(f"{error.original.__class__.__name__}: {error.original}")
                     await ctx.author.send("Unhandled error occurred. Please report to bot author!")
-                elif isinstance(error.original, NerpyException):
-                    await ctx.author.send(error.original)
-                else:
-                    self.log.error(error)
+                if not isinstance(error, CheckFailure):
+                    if isinstance(error.original, NerpyException):
+                        await ctx.author.send(error.original)
+                    else:
+                        self.log.error(error)
             else:
                 self.log.error(f"In {ctx.command.qualified_name}:")
                 traceback.print_tb(error.original.__traceback__)
