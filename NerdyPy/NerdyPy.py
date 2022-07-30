@@ -4,13 +4,13 @@ Main Class of the NerpyBot
 
 import sys
 import json
-import logging
 from contextlib import contextmanager
 
 import discord
 import argparse
 import traceback
 import configparser
+import utils.logging as logging
 from pathlib import Path
 from datetime import datetime
 
@@ -42,7 +42,7 @@ class NerpyBot(commands.Bot):
         self.moderator_role = config["bot"]["moderator_role_name"]
         self.modules = json.loads(config["bot"]["modules"])
         self.restart = True
-        self.log = self._get_logger()
+        self.log = logging.get_logger("nerpybot")
         self.uptime = datetime.utcnow()
 
         self.audio = Audio(self)
@@ -53,7 +53,7 @@ class NerpyBot(commands.Bot):
 
         # database variables
         if "database" not in config:
-            self.log.error("No Database specified! Fallback to local SQLite Database!")
+            self.log.warning("No Database specified! Fallback to local SQLite Database!")
             db_connection_string = "sqlite:///db.db"
         else:
             database_config = config["database"]
@@ -78,7 +78,7 @@ class NerpyBot(commands.Bot):
             db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
             db_connection_string = f"{db_type}://{db_authentication}/{db_name}"
 
-        self.ENGINE = create_engine(db_connection_string, echo=self.debug)
+        self.ENGINE = create_engine(db_connection_string)
         self.SESSION = sessionmaker(bind=self.ENGINE, expire_on_commit=False)
 
         self.create_all()
@@ -93,19 +93,16 @@ class NerpyBot(commands.Bot):
     def session_scope(self):
         """Provide a transactional scope around a series of operations."""
         session = self.SESSION()
-        error = None
         try:
             yield session
             session.commit()
         except SQLAlchemyError as exc:
             session.rollback()
-            error = exc
+            self.log.error(exc)
+            raise NerpyException("There was an error with the database. Please report to Bot Author!")
         finally:
             session.close()
 
-        if error is not None:
-            self.log.error(error)
-            raise NerpyException("There was an error with the database. Please report to Bot Author!")
 
     async def on_ready(self):
         """calls when successfully logged in"""
@@ -138,22 +135,18 @@ class NerpyBot(commands.Bot):
         if send_err:
             if isinstance(error, commands.CommandError):
                 if isinstance(error, commands.CommandInvokeError) and not isinstance(error.original, NerpyException):
-                    print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
+                    self.log.error(f"In {ctx.command.qualified_name}:")
                     traceback.print_tb(error.original.__traceback__)
-                    print(
-                        f"{error.original.__class__.__name__}: {error.original}",
-                        file=sys.stderr,
-                    )
+                    self.log.error(f"{error.original.__class__.__name__}: {error.original}")
                     await ctx.author.send("Unhandled error occurred. Please report to bot author!")
+                elif isinstance(error.original, NerpyException):
+                    await ctx.author.send(error.original)
                 else:
-                    await ctx.author.send(error)
+                    self.log.error(error)
             else:
-                print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
+                self.log.error(f"In {ctx.command.qualified_name}:")
                 traceback.print_tb(error.original.__traceback__)
-                print(
-                    f"{error.original.__class__.__name__}: {error.original}",
-                    file=sys.stderr,
-                )
+                self.log.error(f"{error.original.__class__.__name__}: {error.original}")
                 await ctx.author.send("Unhandled error occurred. Please report to bot author!")
 
         if not isinstance(ctx.channel, discord.DMChannel):
@@ -207,7 +200,7 @@ class NerpyBot(commands.Bot):
             self.activity = discord.Game(name="!help for help")
             await self.login(self.token)
         else:
-            self.log.error("No credentials available to login.")
+            self.log.critical("No credentials available to login.")
             raise RuntimeError()
         await self.connect(reconnect=self.restart)
 
@@ -230,22 +223,6 @@ class NerpyBot(commands.Bot):
                 if self.debug:
                     traceback.print_exc()
 
-    # noinspection PyMethodMayBeStatic
-    def _get_logger(self):
-        logger = logging.getLogger("Nerpy")
-        logger.setLevel(logging.INFO)
-
-        fmt = logging.Formatter(
-            "%(asctime)s %(levelname)s %(module)s %(funcName)s %(lineno)d: %(message)s",
-            datefmt="[%d/%m/%Y %H:%M]",
-        )
-
-        stdout_handler = logging.StreamHandler(sys.stdout)
-        stdout_handler.setFormatter(fmt)
-
-        logger.addHandler(stdout_handler)
-
-        return logger
 
 
 def determine_prefix(bot, message):
@@ -313,15 +290,22 @@ if __name__ == "__main__":
     RUNNING = True
     ARGS = parse_arguments()
     CONFIG = parse_config(ARGS.config)
-    DEBUG = ARGS.debug
+    if str(ARGS.loglevel).upper() == "DEBUG" or ARGS.verbosity > 0:
+        DEBUG = True
+    else:
+        DEBUG = False
 
     if "bot" in CONFIG:
         BOT = NerpyBot(CONFIG, DEBUG)
+        for logger_name in ["nerpybot", "sqlalchemy.engine"]:
+            logging.create_logger(ARGS.verbosity, ARGS.loglevel, logger_name)
 
         try:
             BOT.run()
         except discord.LoginFailure:
             BOT.log.error(traceback.format_exc())
             BOT.log.error("Failed to login")
+        except KeyboardInterrupt:
+            pass
     else:
         raise NerpyException("Bot config not found.")

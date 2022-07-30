@@ -11,7 +11,7 @@ from utils.errors import NerpyException
 from discord import FFmpegPCMAudio
 
 
-LOG = logging.getLogger("Nerpy")
+LOG = logging.getLogger("nerpybot")
 DL_DIR = "tmp"
 if not os.path.exists(DL_DIR):
     os.makedirs(DL_DIR)
