@@ -21,4 +21,4 @@ jobs:
         flake8 --count --max-line-length=127 --statistics NerdyPy
     - name: Lint with black
       run: |
-        black -t py38 -l 120 --check --diff NerdyPy
+        black -t py310 -l 120 --check --diff NerdyPy
