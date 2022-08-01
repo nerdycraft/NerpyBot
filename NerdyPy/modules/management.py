@@ -36,6 +36,7 @@ class Management(GroupCog):
                 await ctx.send(args[1])
 
     @user.command(name="info")
+    @checks.has_permissions(moderate_members=True)
     async def _get_user_info(self, ctx, member: Optional[discord.Member]):
         """displays information about given user [bot-moderator]"""
 
@@ -58,6 +59,7 @@ class Management(GroupCog):
         await ctx.send(embed=emb)
 
     @user.command(name="list")
+    @checks.has_permissions(moderate_members=True)
     async def _list_user_info_from_guild(self, ctx):
         """displays a list of all users on your server [bot-moderator]"""
         msg = ""
