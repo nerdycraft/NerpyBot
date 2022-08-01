@@ -4,18 +4,18 @@ import datetime
 import utils.format as fmt
 from utils.errors import NerpyException
 from discord import app_commands
-from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions
+from discord.ext.commands import Cog, hybrid_command, bot_has_permissions
 
 
 @bot_has_permissions(send_messages=True)
-class Utility(GroupCog):
+class Utility(Cog):
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
         self.weather_api_key = self.bot.config.get("utility", "openweather")
 
-    @hybrid_command()
+    @hybrid_command(hidden=True)
     async def uptime(self, ctx):
         """shows bot uptime"""
         td = datetime.datetime.utcnow() - self.bot.uptime
@@ -23,7 +23,7 @@ class Utility(GroupCog):
             fmt.inline(f"Uptime: {td.days} Days, {td.seconds // 3600} Hours and {(td.seconds // 60) % 60} Minutes"),
         )
 
-    @hybrid_command(hidden=True)
+    @hybrid_command()
     @app_commands.rename(query="city")
     @bot_has_permissions(embed_links=True)
     async def weather(self, ctx, *, query: str):
