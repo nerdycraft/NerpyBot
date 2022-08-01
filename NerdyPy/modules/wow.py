@@ -2,10 +2,11 @@ import discord
 import requests
 from utils.errors import NerpyException
 from wowapi import WowApi, WowApiException
-from discord.ext.commands import Cog, group
+from discord.ext.commands import Cog, hybrid_group, bot_has_permissions
 from datetime import datetime as dt, timedelta as td
 
 
+@bot_has_permissions(send_messages=True)
 class WorldofWarcraft(Cog):
     """WOW API"""
 
@@ -17,8 +18,8 @@ class WorldofWarcraft(Cog):
         self.api = WowApi(self.config["wow_id"], self.config["wow_secret"])
         self.regions = ["eu", "us"]
 
-    # noinspection PyMethodMayBeStatic
-    def _get_link(self, site, profile):
+    @staticmethod
+    def _get_link(site, profile):
         url = None
 
         if site == "armory":
@@ -32,7 +33,7 @@ class WorldofWarcraft(Cog):
 
         return f"{url}/{profile}"
 
-    async def _get_character(self, ctx, realm, region, name):
+    async def _get_character(self, realm, region, name):
         namespace = f"profile-{region}"
 
         self.api.get_character_profile_status(region, namespace, realm, name)
@@ -42,8 +43,8 @@ class WorldofWarcraft(Cog):
 
         return character, profile_picture
 
-    # noinspection PyMethodMayBeStatic
-    def _get_raiderio_score(self, region, realm, name):
+    @staticmethod
+    def _get_raiderio_score(region, realm, name):
         base_url = "https://raider.io/api/v1/characters/profile"
         args = f"?region={region}&realm={realm}&name={name}&fields=mythic_plus_scores_by_season:current"
 
@@ -57,8 +58,8 @@ class WorldofWarcraft(Cog):
             else:
                 return None
 
-    # noinspection PyMethodMayBeStatic
-    def _get_best_mythic_keys(self, region, realm, name):
+    @staticmethod
+    def _get_best_mythic_keys(region, realm, name):
         base_url = "https://raider.io/api/v1/characters/profile"
         args = f"?region={region}&realm={realm}&name={name}&fields=mythic_plus_best_runs"
 
@@ -82,7 +83,7 @@ class WorldofWarcraft(Cog):
 
             return keys
 
-    @group(invoke_without_command=True)
+    @hybrid_group()
     async def wow(self, ctx):
         """Get ALL the Infos about WoW"""
         if ctx.invoked_subcommand is None:
@@ -105,7 +106,7 @@ class WorldofWarcraft(Cog):
                 name = name.lower()
                 profile = f"{region}/{realm}/{name}"
 
-                character, profile_picture = await self._get_character(ctx, realm, region, name)
+                character, profile_picture = await self._get_character(realm, region, name)
 
                 best_keys = self._get_best_mythic_keys(region, realm, name)
                 rio_score = self._get_raiderio_score(region, realm, name)
@@ -144,14 +145,14 @@ class WorldofWarcraft(Cog):
                     inline=True,
                 )
 
-            await self.bot.sendc(ctx, "", emb)
+            await ctx.send(embed=emb)
         except WowApiException:
-            await self.bot.sendc(ctx, "No Character with this name found.")
+            await ctx.send("No Character with this name found.")
 
 
-def setup(bot):
+async def setup(bot):
     """adds this module to the bot"""
     if "wow" in bot.config:
-        bot.add_cog(WorldofWarcraft(bot))
+        await bot.add_cog(WorldofWarcraft(bot))
     else:
         raise NerpyException("Config not found.")
