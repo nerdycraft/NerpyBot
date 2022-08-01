@@ -4,17 +4,17 @@ import discord
 import utils.format as fmt
 from random import randint, choice
 from utils.errors import NerpyException
-from discord.ext.commands import Cog, command, bot_has_permissions
+from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions
 
 
-class Random(Cog):
+@bot_has_permissions(send_messages=True)
+class Random(GroupCog):
     """who is that random"""
 
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
-
         self.lennys = [
             "( ͡° ͜ʖ ͡°)",
             "( ͠° ͟ʖ ͡°)",
@@ -27,14 +27,12 @@ class Random(Cog):
             "ヽ༼ຈل͜ຈ༽ﾉ",
         ]
 
-    @command()
-    @bot_has_permissions(send_messages=True)
+    @hybrid_command()
     async def lenny(self, ctx):
         """Displays a random lenny face."""
-        await self.bot.sendc(ctx, choice(self.lennys))
+        await ctx.send(choice(self.lennys))
 
-    @command()
-    @bot_has_permissions(send_messages=True)
+    @hybrid_command()
     async def chuck(self, ctx):
         """random chuck norris joke."""
         url = "http://api.icndb.com/jokes/random"
@@ -45,10 +43,9 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await self.bot.sendc(ctx, data["value"]["joke"])
+                await ctx.send(data.get("value", dict()).get("joke"))
 
-    @command()
-    @bot_has_permissions(send_messages=True)
+    @hybrid_command()
     async def yomomma(self, ctx):
         """random yomomma joke"""
         url = "http://api.yomomma.info"
@@ -59,10 +56,9 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await self.bot.sendc(ctx, data["joke"])
+                await ctx.send(data.get("joke"))
 
-    @command()
-    @bot_has_permissions(send_messages=True)
+    @hybrid_command()
     async def quote(self, ctx):
         """random quote"""
         url = "http://quotesondesign.com/wp-json/posts?filter[orderby]=rand"
@@ -73,10 +69,9 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await self.bot.sendc(ctx, fmt.strip_tags(data[0]["content"]) + "  - " + data[0]["title"])
+                await ctx.send(f'{fmt.strip_tags(data[0].get("content"))} - {data[0].get("title")}')
 
-    @command()
-    @bot_has_permissions(send_messages=True)
+    @hybrid_command()
     async def trump(self, ctx):
         """random trump tweet"""
         url = "https://api.whatdoestrumpthink.com/api/v1/quotes/random"
@@ -89,12 +84,11 @@ class Random(Cog):
                     raise NerpyException(err)
                 data = await response.json()
                 emb = discord.Embed(title="Donald Trump")
-                emb.description = data["message"]
+                emb.description = data.get("message")
                 emb.set_thumbnail(url=trump_pic)
-                await self.bot.sendc(ctx, "", emb=emb)
+        await ctx.send(embed=emb)
 
-    @command()
-    @bot_has_permissions(send_messages=True)
+    @hybrid_command()
     async def xkcd(self, ctx):
         """random xkcd comic"""
         url = "https://xkcd.com/"
@@ -112,12 +106,11 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await self.bot.sendc(ctx, data["img"])
+        await ctx.send(data.get("img"))
 
-    @command()
-    @bot_has_permissions(send_messages=True)
+    @hybrid_command()
     async def bunny(self, ctx):
-        """why do i have a random bunny gif command???"""
+        """Why do I have a random bunny gif command???"""
         url = "https://api.bunnies.io/v2/loop/random/?media=gif"
 
         async with aiohttp.ClientSession() as session:
@@ -126,10 +119,9 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await self.bot.sendc(ctx, data["media"]["gif"])
+        await ctx.send(data.get("media").get("gif"))
 
-    @command()
-    @bot_has_permissions(send_messages=True)
+    @hybrid_command()
     async def cat(self, ctx):
         """random cat command are legit"""
         url = "http://aws.random.cat/meow"
@@ -140,10 +132,9 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await self.bot.sendc(ctx, data["file"])
+        await ctx.send(data.get("file"))
 
-    @command()
-    @bot_has_permissions(send_messages=True)
+    @hybrid_command()
     async def catfact(self, ctx):
         """random cat command are legit"""
         url = "https://catfact.ninja/fact"
@@ -154,9 +145,9 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await self.bot.sendc(ctx, data["fact"])
+        await ctx.send(data.get("fact"))
 
 
-def setup(bot):
+async def setup(bot):
     """adds this module to the bot"""
-    bot.add_cog(Random(bot))
+    await bot.add_cog(Random(bot))
