@@ -1,12 +1,10 @@
-flake8~=4.0.1
+flake8~=5.0.4
 black~=22.6.0
 pydub~=0.25.1
-SQLAlchemy~=1.4.39
-requests~=2.23.0
-setuptools~=63.2.0
-discord.py[voice]==2.0.0a0
+SQLAlchemy~=1.4.40
+discord.py[voice]==2.0.0
 python-wowapi==4.0.0
 ffmpeg-python~=0.2.0
 youtube_dl~=2021.12.17
 PyMySQL~=1.0.2
-google-api-python-client~=2.55.0
+google-api-python-client~=2.57.0
