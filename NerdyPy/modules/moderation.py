@@ -8,7 +8,7 @@ from discord.ext.commands import GroupCog, hybrid_command, hybrid_group, check, 
 
 
 @check(is_botmod)
-class Management(GroupCog):
+class Moderation(GroupCog):
     """cog for bot management"""
 
     def __init__(self, bot):
@@ -16,16 +16,10 @@ class Management(GroupCog):
 
         self.bot = bot
 
-    @hybrid_command()
-    @bot_has_permissions(send_messages=True)
-    async def ping(self, ctx):
-        """Pong."""
-        await ctx.send("Pong.")
-
     @hybrid_group(aliases=["u"])
     @checks.has_permissions(moderate_members=True)
     async def user(self, ctx):
-        """user management [bot-moderator]"""
+        """user moderation [bot-moderator]"""
         if ctx.invoked_subcommand is None:
             args = str(ctx.message.clean_content).split(" ")
             if len(args) > 2:
@@ -93,4 +87,4 @@ class Management(GroupCog):
 
 async def setup(bot):
     """adds this module to the bot"""
-    await bot.add_cog(Management(bot))
+    await bot.add_cog(Moderation(bot))

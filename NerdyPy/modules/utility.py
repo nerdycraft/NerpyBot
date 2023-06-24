@@ -15,6 +15,12 @@ class Utility(Cog):
         self.bot = bot
         self.weather_api_key = self.bot.config.get("utility", "openweather")
 
+    @hybrid_command()
+    @bot_has_permissions(send_messages=True)
+    async def ping(self, ctx):
+        """Pong."""
+        await ctx.send("Pong.")
+
     @hybrid_command(hidden=True)
     async def uptime(self, ctx):
         """shows bot uptime"""

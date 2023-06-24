@@ -1,7 +1,7 @@
 from datetime import datetime
 from models.guild_prefix import GuildPrefix
 from discord.app_commands import checks
-from discord.ext.commands import GroupCog, hybrid_command, hybrid_group
+from discord.ext.commands import GroupCog, hybrid_command, group
 
 
 @checks.has_permissions(administrator=True)
@@ -13,7 +13,7 @@ class Admin(GroupCog):
 
         self.bot = bot
 
-    @hybrid_group()
+    @group()
     async def prefix(self, ctx):
         """Manage the prefix for the bot [bot-moderator]"""
         if ctx.invoked_subcommand is None:
