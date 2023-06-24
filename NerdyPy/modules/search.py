@@ -1,12 +1,15 @@
 """ Search Modul """
+
 # -- coding: utf-8 --
 import aiohttp
 import discord
 import utils.format as fmt
+from typing import Literal
 from datetime import datetime
 from utils.errors import NerpyException
 from utils.helpers import youtube
 from discord import app_commands
+from discord.app_commands import Choice
 from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions
 
 
@@ -89,12 +92,12 @@ class Search(GroupCog):
         await ctx.send(msg)
 
     @hybrid_command()
-    @app_commands.rename(query_type="", query="")
+    @app_commands.rename(query="name")
     @app_commands.describe(
         query_type='Which kind of Media you want to search for. Possible values are "Movie", "Series" or "Episode".',
         query="What do you want to search for?",
     )
-    async def imdb(self, ctx, query_type: str, query: str):
+    async def imdb(self, ctx, query_type: Literal["movie", "series", "episode"], query: str):
         """omdb movie information"""
         rip, emb = await self._imdb_search(query_type.lower(), query)
         await ctx.send(rip, embed=emb)
