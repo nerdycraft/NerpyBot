@@ -1,28 +1,33 @@
+# -*- coding: utf-8 -*-
 """
 Main Class of the NerpyBot
 """
 
-import json
-import discord
-import asyncio
 import argparse
-import traceback
+import asyncio
 import configparser
-import utils.logging as logging
-from pathlib import Path
-from datetime import datetime
+import json
+import traceback
 from contextlib import contextmanager
+from datetime import datetime
+from pathlib import Path
+from typing import List
+
+import discord
+from discord import HTTPException, LoginFailure
+from discord.app_commands import CommandSyncFailure
 from discord.ext import commands
 from discord.ext.commands import CheckFailure
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
+
+import utils.logging as logging
 from models.guild_prefix import GuildPrefix
 from utils.audio import Audio
 from utils.conversation import ConversationManager, AnswerType
 from utils.database import BASE
 from utils.errors import NerpyException
-from typing import List
 
 
 class NerpyBot(commands.Bot):
