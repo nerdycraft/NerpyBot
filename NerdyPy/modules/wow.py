@@ -1,8 +1,7 @@
 import discord
 import requests
 from utils.errors import NerpyException
-from utils.checks import is_wow_mod
-from discord.ext.commands import Cog, hybrid_group, bot_has_permissions, check
+from discord.ext.commands import Cog, hybrid_group, bot_has_permissions
 from datetime import datetime as dt, timedelta as td
 from blizzardapi import BlizzardApi
 

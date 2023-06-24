@@ -9,7 +9,6 @@ from datetime import datetime
 from utils.errors import NerpyException
 from utils.helpers import youtube
 from discord import app_commands
-from discord.app_commands import Choice
 from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions
 
 
