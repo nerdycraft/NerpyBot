@@ -1,18 +1,14 @@
-FROM python:3
+FROM python:3.11-alpine
 
 WORKDIR /app/NerdyPy
 
-COPY setup.py /app/setup.py
+COPY pyproject.toml poetry.lock /app/
 COPY NerdyPy /app/NerdyPy
 
-RUN apt update && apt install -qqy --no-install-recommends \
-      build-essential \
+RUN apk add --no-cache \
       libffi-dev \
       ffmpeg \
-      libopus0 \
-    && pip install --no-cache-dir --trusted-host pypi.python.org /app/ \
-    && apt purge -qqy --autoremove build-essential libffi-dev \
-    && apt clean \
-    && rm -rf /var/lib/apt/lists/*
+      opus \
+    && poetry install
 
 CMD ["python", "/app/NerdyPy/NerdyPy.py"]
