@@ -1285,12 +1285,16 @@ description = "YouTube video downloader"
 category = "main"
 optional = false
 python-versions = "*"
-files = [
-    {file = "youtube_dl-2021.12.17-py2.py3-none-any.whl", hash = "sha256:f1336d5de68647e0364a47b3c0712578e59ec76f02048ff5c50ef1c69d79cd55"},
-    {file = "youtube_dl-2021.12.17.tar.gz", hash = "sha256:bc59e86c5d15d887ac590454511f08ce2c47698d5a82c27bfe27b5d814bbaed2"},
-]
+files = []
+develop = false
+
+[package.source]
+type = "git"
+url = "https://github.com/ytdl-org/youtube-dl.git"
+reference = "master"
+resolved_reference = "fa7f0effbe4e14fcf70e1dc4496371c9862b64b9"
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "d0c4bcd19c490af423735b85eb7e7d34c150d171527dbd60105e12a120784bbe"
+content-hash = "706d727544808abc366fed8ce3409f2f92b65ae91d52875029adc03c615bc318"
