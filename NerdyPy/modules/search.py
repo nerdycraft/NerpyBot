@@ -71,7 +71,7 @@ class Search(GroupCog):
                 data = await response.json()
                 emb = discord.Embed(title=f'"{query}" on genius.com:')
                 if len(data.get("response", dict()).get("hits")) > 0:
-                    item = data.get("response",dict()).get("hits")[0].get("result")
+                    item = data.get("response", dict()).get("hits")[0].get("result")
                     emb.description = item.get("full_title")
                     emb.set_thumbnail(url=item.get("header_image_thumbnail_url"))
                     emb.url = item.get("url")
@@ -178,8 +178,8 @@ class Search(GroupCog):
 
                 if search_result["Response"] == "True":
                     id_url = (
-                        f"http://www.omdbapi.com/?apikey={self.config['omdb']}&i="
-                        + search_result["Search"][0]["imdbID"]
+                            f"http://www.omdbapi.com/?apikey={self.config['omdb']}&i="
+                            + search_result["Search"][0]["imdbID"]
                     )
 
                     async with session.get(id_url) as id_response:

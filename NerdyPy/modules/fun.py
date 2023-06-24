@@ -155,7 +155,7 @@ class Fun(GroupCog):
     @hybrid_command(name="8ball", aliases=["8b"])
     async def eightball(self, ctx, question: str):
         """
-        Ask 8 ball a question
+        Ask 8-Ball a question.
         Question must end with a question mark.
         """
         if not question.endswith("?") or question == "?":

@@ -49,7 +49,7 @@ class TimedMessage(db.BASE):
         msg = f"==== {self.Id} ====\n\n"
         msg += f"Author: {self.Author}\n"
         msg += f"Created: {self.CreateDate.strftime('%Y-%m-%d %H:%M')}\n"
-        msg += f"Next Message: {(self.LastSend + timedelta(minutes=self.Minutes)).strftime('%Y-%m-%d %H:%M')}\n"
+        msg += f"Next Message: {(self.LastSend + timedelta(minutes=self.Minutes.float())).strftime('%Y-%m-%d %H:%M')}\n"
         msg += f"Message: {self.Message}\n"
         msg += f"Hits: {self.Count}\n"
         return msg

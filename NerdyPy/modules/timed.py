@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime, timedelta
 from models.timed_message import TimedMessage
 from utils.errors import NerpyException
@@ -99,7 +98,7 @@ class Timed(Cog):
 
 
 async def setup(bot):
-    if "reminder" in bot.config:
+    if "timed_message" in bot.config:
         await bot.add_cog(Timed(bot))
     else:
         raise NerpyException("Config not found.")
