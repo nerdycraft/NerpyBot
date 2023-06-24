@@ -17,6 +17,14 @@ async def is_botmod(ctx):
     return False
 
 
+async def is_wow_mod(ctx):
+    if ctx.author.roles is not None:
+        for role in ctx.author.roles:
+            if role.name == ctx.bot.config.get("wow", "wow_moderator_role_name"):
+                return True
+    return False
+
+
 async def is_connected_to_voice(ctx):
     if ctx.author.voice is None or ctx.author.voice.channel is None:
         await ctx.author.send("I don't know where you are. Please connect to a voice channel.")

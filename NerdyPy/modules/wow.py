@@ -1,9 +1,10 @@
 import discord
 import requests
 from utils.errors import NerpyException
-from wowapi import WowApi, WowApiException
-from discord.ext.commands import Cog, hybrid_group, bot_has_permissions
+from utils.checks import is_wow_mod
+from discord.ext.commands import Cog, hybrid_group, bot_has_permissions, check
 from datetime import datetime as dt, timedelta as td
+from blizzardapi import BlizzardApi
 
 
 @bot_has_permissions(send_messages=True)
@@ -14,8 +15,8 @@ class WorldofWarcraft(Cog):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
-        self.config = self.bot.config["wow"]
-        self.api = WowApi(self.config["wow_id"], self.config["wow_secret"])
+        self.config = bot.config
+        self.api = BlizzardApi(self.config.get("wow", "wow_id"), self.config.get("wow", "wow_secret"))
         self.regions = ["eu", "us"]
 
     @staticmethod
@@ -34,11 +35,11 @@ class WorldofWarcraft(Cog):
         return f"{url}/{profile}"
 
     async def _get_character(self, realm, region, name):
-        namespace = f"profile-{region}"
+        locale = "en-US"
 
-        self.api.get_character_profile_status(region, namespace, realm, name)
-        character = self.api.get_character_profile_summary(region, f"profile-{region}", realm, name)
-        assets = self.api.get_character_media_summary(region, f"profile-{region}", realm, name)["assets"]
+        self.api.wow.profile.get_character_profile_status(region, locale, realm, name)
+        character = self.api.wow.profile.get_character_profile_summary(region, locale, realm, name)
+        assets = self.api.wow.profile.get_character_media_summary(region, locale, realm, name)["assets"]
         profile_picture = [asset for asset in assets if asset["key"] == "avatar"][0]["value"]
 
         return character, profile_picture
@@ -89,8 +90,9 @@ class WorldofWarcraft(Cog):
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
+    @bot_has_permissions(send_messages=True, embed_links=True)
     @wow.command(aliases=["search", "char"])
-    async def armory(self, ctx, name: str, realm: str, region: str = None):
+    async def armory(self, ctx, name: str, realm: str, region: str = "eu"):
         """
         search for character
 
@@ -99,9 +101,6 @@ class WorldofWarcraft(Cog):
         """
         try:
             async with ctx.typing():
-                if region is None:
-                    region = ctx.guild.region[0][:2]
-
                 realm = realm.lower()
                 name = name.lower()
                 profile = f"{region}/{realm}/{name}"
@@ -146,7 +145,7 @@ class WorldofWarcraft(Cog):
                 )
 
             await ctx.send(embed=emb)
-        except WowApiException:
+        except NerpyException:
             await ctx.send("No Character with this name found.")
 
 
