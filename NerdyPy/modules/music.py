@@ -5,6 +5,7 @@ from utils.download import download, fetch_yt_infos
 from utils.helpers import youtube
 from utils.errors import NerpyException
 from discord import Embed, Color
+from discord.app_commands import command
 from discord.ext.commands import (
     GroupCog,
     hybrid_group,
@@ -15,16 +16,16 @@ from discord.ext.commands import (
 
 
 @bot_has_permissions(send_messages=True)
-class Music(GroupCog, Audio):
+class Music(GroupCog):
     """Command group for sound and text tags"""
 
     def __init__(self, bot):
-        super().__init__(bot)
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
         self.config = self.bot.config["search"]
         self.queue = {}
+        self.audio = self.bot.audio
 
     def cog_unload(self):
         self._queue_manager.cancel()
@@ -34,7 +35,13 @@ class Music(GroupCog, Audio):
     async def _skip_audio(self, ctx):
         """skip current track"""
         self.bot.log.info(f"{ctx.guild.name} requesting skip!")
-        self.stop(ctx.guild.id)
+        self.audio.stop(ctx.guild.id)
+
+    @check(is_botmod)
+    @command(name="stop")
+    async def _stop_playing_audio(self, ctx):
+        """bot stops playing audio [bot-moderator]"""
+        await self.audio.leave(ctx.guild.id)
 
     @hybrid_group(name="queue")
     async def _queue(self, ctx):
@@ -45,7 +52,7 @@ class Music(GroupCog, Audio):
     @_queue.command(name="list")
     async def _list_queue(self, ctx):
         """list current items in queue"""
-        queue = self.list_queue(ctx.guild.id)
+        queue = self.audio.list_queue(ctx.guild.id)
         msg = ""
         _index = 0
 
@@ -65,8 +72,8 @@ class Music(GroupCog, Audio):
     @check(is_botmod)
     async def _drop_queue(self, ctx):
         """drop the playlist entirely"""
-        self.stop(ctx.guild.id)
-        self.clear_buffer(ctx.guild.id)
+        self.audio.stop(ctx.guild.id)
+        self.audio.clear_buffer(ctx.guild.id)
         self._clear_queue(ctx.guild.id)
 
     @hybrid_group(name="play")
@@ -136,7 +143,7 @@ class Music(GroupCog, Audio):
                 emb.set_thumbnail(url=video_thumbnail)
 
             song = QueuedSong(ctx.author.voice.channel, self._fetch, video_url, video_title)
-            await self.play(ctx.guild.id, song)
+            await self.audio.play(ctx.guild.id, song)
             if ctx.interaction is not None:
                 await followup.send(embed=emb)
             else:
@@ -157,4 +164,5 @@ class Music(GroupCog, Audio):
 
 
 async def setup(bot):
+    """adds this module to the bot"""
     await bot.add_cog(Music(bot))
