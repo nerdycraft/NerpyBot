@@ -38,8 +38,8 @@ class WorldofWarcraft(Cog):
 
         self.api.wow.profile.get_character_profile_status(region, locale, realm, name)
         character = self.api.wow.profile.get_character_profile_summary(region, locale, realm, name)
-        assets = self.api.wow.profile.get_character_media_summary(region, locale, realm, name)["assets"]
-        profile_picture = [asset for asset in assets if asset["key"] == "avatar"][0]["value"]
+        assets = self.api.wow.profile.get_character_media_summary(region, locale, realm, name).get("assets", list())
+        profile_picture = "".join(asset.get("value") for asset in assets if asset.get("key") == "avatar")
 
         return character, profile_picture
 
@@ -105,6 +105,9 @@ class WorldofWarcraft(Cog):
                 profile = f"{region}/{realm}/{name}"
 
                 character, profile_picture = await self._get_character(realm, region, name)
+
+                if character.get("code") == 404:
+                    raise NerpyException
 
                 best_keys = self._get_best_mythic_keys(region, realm, name)
                 rio_score = self._get_raiderio_score(region, realm, name)
