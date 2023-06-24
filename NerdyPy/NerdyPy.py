@@ -22,6 +22,7 @@ from utils.audio import Audio
 from utils.conversation import ConversationManager, AnswerType
 from utils.database import BASE
 from utils.errors import NerpyException
+from typing import List
 
 
 class NerpyBot(commands.Bot):
@@ -81,8 +82,7 @@ class NerpyBot(commands.Bot):
 
     def create_all(self):
         """creates all tables previously defined"""
-        BASE.metadata.bind = self.ENGINE
-        BASE.metadata.create_all()
+        BASE.metadata.create_all(self.ENGINE)
 
     @contextmanager
     def session_scope(self):
@@ -221,14 +221,14 @@ def get_intents():
     return discord.Intents.all()
 
 
-def determine_prefix(bot, message):
+def determine_prefix(bot, message) -> List[str]:
     guild = message.guild
     # Only allow custom prefixes in guild
     if guild:
         with bot.session_scope() as session:
             pref = GuildPrefix.get(guild.id, session)
             if pref is not None:
-                return pref.Prefix
+                return [pref.Prefix]
     return ["!"]  # default prefix
 
 

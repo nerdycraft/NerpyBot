@@ -7,7 +7,7 @@ from datetime import datetime
 from utils.errors import NerpyException
 from utils.helpers import youtube
 from discord import app_commands
-from discord.ext.commands import GroupCog, hybrid_command, hybrid_group, bot_has_permissions
+from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions
 
 
 @bot_has_permissions(send_messages=True)
