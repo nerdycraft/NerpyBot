@@ -10,7 +10,7 @@ COPY NerdyPy /app/NerdyPy
 RUN apk add --no-cache \
       libffi-dev \
       ffmpeg \
-      opus \
+      libopusenc \
     && pip install \
       --no-cache-dir \
       --trusted-host pypi.python.org \
