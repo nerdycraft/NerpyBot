@@ -1,5 +1,5 @@
 import utils.format as fmt
-from utils.audio import Audio, QueuedSong
+from utils.audio import QueuedSong
 from utils.checks import is_botmod, is_connected_to_voice
 from utils.download import download, fetch_yt_infos
 from utils.helpers import youtube
