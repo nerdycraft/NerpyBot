@@ -1,8 +1,11 @@
-""" timed message database model """
 # -*- coding: utf-8 -*-
+""" timed message database model """
+
 from datetime import timedelta
-from utils import database as db
+
 from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc
+
+from utils import database as db
 
 
 class TimedMessage(db.BASE):

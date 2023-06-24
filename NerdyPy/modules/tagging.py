@@ -1,11 +1,8 @@
+# -*- coding: utf-8 -*-
+
 import io
-import utils.format as fmt
 from datetime import datetime
-from utils.audio import QueuedSong
-from utils.download import download
-from utils.errors import NerpyException
-from utils.checks import is_connected_to_voice
-from models.tag import Tag, TagType, TagTypeConverter
+
 from discord import app_commands
 from discord.ext.commands import (
     GroupCog,
@@ -14,6 +11,13 @@ from discord.ext.commands import (
     clean_content,
     bot_has_permissions,
 )
+
+import utils.format as fmt
+from models.tag import Tag, TagType, TagTypeConverter
+from utils.audio import QueuedSong
+from utils.checks import is_connected_to_voice
+from utils.download import download
+from utils.errors import NerpyException
 
 
 @app_commands.guild_only()

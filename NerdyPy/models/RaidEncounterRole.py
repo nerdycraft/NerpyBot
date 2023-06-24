@@ -1,7 +1,10 @@
-from models.RaidEncounter import RaidEncounter
-from utils import database as db
+# -*- coding: utf-8 -*-
+
 from sqlalchemy import Column, BigInteger, String, Integer, Index, ForeignKeyConstraint
 from sqlalchemy.orm import relationship
+
+from models.RaidEncounter import RaidEncounter
+from utils import database as db
 
 
 class RaidEncounterRole(db.BASE):

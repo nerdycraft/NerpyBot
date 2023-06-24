@@ -1,9 +1,5 @@
-import utils.format as fmt
-from utils.audio import QueuedSong
-from utils.checks import is_botmod, is_connected_to_voice
-from utils.download import download, fetch_yt_infos
-from utils.helpers import youtube
-from utils.errors import NerpyException
+# -*- coding: utf-8 -*-
+
 from discord import Embed, Color
 from discord.app_commands import command
 from discord.ext.commands import (
@@ -13,6 +9,13 @@ from discord.ext.commands import (
     hybrid_command,
     bot_has_permissions,
 )
+
+import utils.format as fmt
+from utils.audio import QueuedSong
+from utils.checks import is_botmod, is_connected_to_voice
+from utils.download import download, fetch_yt_infos
+from utils.errors import NerpyException
+from utils.helpers import youtube
 
 
 @bot_has_permissions(send_messages=True)

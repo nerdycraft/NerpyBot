@@ -1,14 +1,16 @@
-""" Tag DB Model """
 # -*- coding: utf-8 -*-
+""" Tag DB Model """
 
 from enum import Enum
 from random import randint
-from utils import database as db
-from models.tagentry import TagEntry
-from sqlalchemy.orm import relationship
-from utils.errors import NerpyException
+
 from discord.ext.commands import Converter
 from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc
+from sqlalchemy.orm import relationship
+
+from models.tagentry import TagEntry
+from utils import database as db
+from utils.errors import NerpyException
 
 
 class Tag(db.BASE):

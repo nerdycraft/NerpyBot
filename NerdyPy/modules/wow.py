@@ -1,9 +1,13 @@
+# -*- coding: utf-8 -*-
+
+from datetime import datetime as dt, timedelta as td
+
 import discord
 import requests
-from utils.errors import NerpyException
-from discord.ext.commands import Cog, hybrid_group, bot_has_permissions
-from datetime import datetime as dt, timedelta as td
 from blizzardapi import BlizzardApi
+from discord.ext.commands import Cog, hybrid_group, bot_has_permissions
+
+from utils.errors import NerpyException
 
 
 @bot_has_permissions(send_messages=True)

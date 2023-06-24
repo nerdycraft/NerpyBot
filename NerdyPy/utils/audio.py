@@ -1,14 +1,17 @@
+# -*- coding: utf-8 -*-
 """
 Handling Audio Transmission to discord api
 """
-import io
-import enum
+
 import asyncio
+import enum
+import io
 import queue
 from datetime import datetime
-from pydub import AudioSegment
+
 from discord import PCMVolumeTransformer, FFmpegPCMAudio, PCMAudio, VoiceChannel
 from discord.ext import tasks
+from pydub import AudioSegment
 
 
 class BufferKey(enum.Enum):

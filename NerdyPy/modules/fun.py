@@ -1,8 +1,12 @@
-import discord
+# -*- coding: utf-8 -*-
+
 from random import randint, choice
-from utils.errors import NerpyException
+
+import discord
 from discord.app_commands import describe
 from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions
+
+from utils.errors import NerpyException
 
 
 @bot_has_permissions(send_messages=True)
