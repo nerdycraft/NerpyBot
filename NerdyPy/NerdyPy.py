@@ -18,7 +18,6 @@ from discord import HTTPException, LoginFailure
 from discord.app_commands import CommandSyncFailure
 from discord.ext import commands
 from discord.ext.commands import CheckFailure
-# from discord.ext.commands.hybrid import HybridAppCommand
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
@@ -104,23 +103,6 @@ class NerpyBot(commands.Bot):
         finally:
             session.close()
 
-    # async def commands_need_sync(self):
-    #     def _filter_command(_global_cmd, _app_cmd):
-    #         if type(_app_cmd) is HybridAppCommand and _app_cmd.root_parent is not None:
-    #             if _global_cmd.name == _app_cmd.root_parent.name:
-    #                 return next((_cmd for _cmd in _global_cmd.options if _filter_command(_cmd, _global_cmd)), None)
-    #             return False
-    #         else:
-    #             return _global_cmd.name == _app_cmd.name
-    #
-    #     global_app_commands = await self.tree.fetch_commands()
-    #     for command in self.tree.walk_commands():
-    #         root_cmd = next((cmd for cmd in global_app_commands if _filter_command(cmd, command)), None)
-    #         if not root_cmd:
-    #             return True
-    #
-    #     return False
-
     async def setup_hook(self):
         # load modules
         for module in self.modules:
@@ -134,7 +116,6 @@ class NerpyBot(commands.Bot):
         self.create_all()
 
         # sync commands
-        # if await self.commands_need_sync():
         try:
             self.log.info("Syncing commands...")
             synced_cmds = await self.tree.sync()
