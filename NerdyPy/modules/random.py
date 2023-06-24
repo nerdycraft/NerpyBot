@@ -1,10 +1,14 @@
+# -*- coding: utf-8 -*-
 """ Random Memes """
+
+from random import randint, choice
+
 import aiohttp
 import discord
-import utils.format as fmt
-from random import randint, choice
-from utils.errors import NerpyException
 from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions
+
+import utils.format as fmt
+from utils.errors import NerpyException
 
 
 @bot_has_permissions(send_messages=True)

@@ -1,10 +1,14 @@
+# -*- coding: utf-8 -*-
+
+import datetime
+
 import aiohttp
 import discord
-import datetime
-import utils.format as fmt
-from utils.errors import NerpyException
 from discord import app_commands
 from discord.ext.commands import Cog, hybrid_command, bot_has_permissions
+
+import utils.format as fmt
+from utils.errors import NerpyException
 
 
 @bot_has_permissions(send_messages=True)

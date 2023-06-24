@@ -1,8 +1,9 @@
-""" default channel dbmodel """
 # -*- coding: utf-8 -*-
+""" default channel dbmodel """
+
+from sqlalchemy import BigInteger, Column, DateTime, String, Index
 
 from utils import database as db
-from sqlalchemy import BigInteger, Column, DateTime, String, Index
 
 
 class GuildPrefix(db.BASE):

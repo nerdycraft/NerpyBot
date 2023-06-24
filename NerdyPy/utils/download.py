@@ -1,15 +1,17 @@
+# -*- coding: utf-8 -*-
 """
 download and conversion method for Audio Content
 """
 
+import logging
 import os
 import uuid
-import logging
-import youtube_dl
+
 import requests
-from utils.errors import NerpyException
+import youtube_dl
 from discord import FFmpegPCMAudio
 
+from utils.errors import NerpyException
 
 LOG = logging.getLogger("nerpybot")
 DL_DIR = "tmp"

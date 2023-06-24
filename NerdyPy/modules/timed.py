@@ -1,9 +1,13 @@
+# -*- coding: utf-8 -*-
+
 from datetime import datetime, timedelta
+
+from discord.ext import tasks
+from discord.ext.commands import Cog, hybrid_group
+
 from models.timed_message import TimedMessage
 from utils.errors import NerpyException
 from utils.format import pagify, box
-from discord.ext.commands import Cog, hybrid_group
-from discord.ext import tasks
 
 
 class Timed(Cog):

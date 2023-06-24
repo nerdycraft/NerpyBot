@@ -1,7 +1,11 @@
+# -*- coding: utf-8 -*-
+
 from datetime import datetime
-from models.guild_prefix import GuildPrefix
+
 from discord.app_commands import checks
 from discord.ext.commands import GroupCog, hybrid_command, group
+
+from models.guild_prefix import GuildPrefix
 
 
 @checks.has_permissions(administrator=True)

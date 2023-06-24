@@ -1,9 +1,10 @@
-""" Raid DB Model """
 # -*- coding: utf-8 -*-
+""" Raid DB Model """
+
 from discord import Embed
+from sqlalchemy import BigInteger, Column, String, Index, DateTime, asc, Integer
 
 from utils import database as db
-from sqlalchemy import BigInteger, Column, String, Index, DateTime, asc, Integer
 
 
 class RaidEvent(db.BASE):

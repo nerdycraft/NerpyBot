@@ -1,9 +1,10 @@
-""" tag entry database model """
 # -*- coding: utf-8 -*-
+""" tag entry database model """
+
+from sqlalchemy import Integer, Column, ForeignKey, LargeBinary, String, Index
+from sqlalchemy.orm import relationship
 
 from utils import database as db
-from sqlalchemy.orm import relationship
-from sqlalchemy import Integer, Column, ForeignKey, LargeBinary, String, Index
 
 
 class TagEntry(db.BASE):

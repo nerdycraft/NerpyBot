@@ -1,28 +1,33 @@
+# -*- coding: utf-8 -*-
 """
 Main Class of the NerpyBot
 """
 
-import json
-import discord
-import asyncio
 import argparse
-import traceback
+import asyncio
 import configparser
-import utils.logging as logging
-from pathlib import Path
-from datetime import datetime
+import json
+import traceback
 from contextlib import contextmanager
+from datetime import datetime
+from pathlib import Path
+from typing import List
+
+import discord
+from discord import HTTPException, LoginFailure
+from discord.app_commands import CommandSyncFailure
 from discord.ext import commands
 from discord.ext.commands import CheckFailure
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
+
+import utils.logging as logging
 from models.guild_prefix import GuildPrefix
 from utils.audio import Audio
 from utils.conversation import ConversationManager, AnswerType
 from utils.database import BASE
 from utils.errors import NerpyException
-from typing import List
 
 
 class NerpyBot(commands.Bot):
@@ -98,14 +103,6 @@ class NerpyBot(commands.Bot):
         finally:
             session.close()
 
-    async def commands_need_sync(self):
-        global_app_commands = await self.tree.fetch_commands()
-        for command in self.tree.walk_commands():
-            if command.name not in global_app_commands:
-                return True
-
-        return False
-
     async def setup_hook(self):
         # load modules
         for module in self.modules:
@@ -119,9 +116,13 @@ class NerpyBot(commands.Bot):
         self.create_all()
 
         # sync commands
-        if await self.commands_need_sync():
+        try:
             self.log.info("Syncing commands...")
-            await self.tree.sync()
+            synced_cmds = await self.tree.sync()
+        except (HTTPException, CommandSyncFailure):
+            raise NerpyException("Could not sync commands to Discord API.")
+        else:
+            self.log.info(f"Synced commands: {', '.join(cmds.name for cmds in synced_cmds)}")
 
     async def on_ready(self):
         """calls when successfully logged in"""
@@ -291,7 +292,7 @@ if __name__ == "__main__":
 
         try:
             asyncio.run(BOT.start())
-        except discord.LoginFailure:
+        except LoginFailure:
             BOT.log.error(traceback.format_exc())
             BOT.log.error("Failed to login")
         except KeyboardInterrupt:

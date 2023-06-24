@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """discord and other format functions"""
 
 from html.parser import HTMLParser

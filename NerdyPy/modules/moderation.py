@@ -1,10 +1,14 @@
-import discord
-import utils.format as fmt
+# -*- coding: utf-8 -*-
+
 from typing import Optional
-from utils.checks import is_botmod
-from utils.errors import NerpyException
+
+import discord
 from discord.app_commands import checks
 from discord.ext.commands import GroupCog, hybrid_command, hybrid_group, check
+
+import utils.format as fmt
+from utils.checks import is_botmod
+from utils.errors import NerpyException
 
 
 @check(is_botmod)

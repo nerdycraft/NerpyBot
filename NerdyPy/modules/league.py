@@ -1,8 +1,12 @@
-import discord
-import aiohttp
+# -*- coding: utf-8 -*-
+
 from enum import Enum
-from utils.errors import NerpyException
+
+import aiohttp
+import discord
 from discord.ext.commands import Cog, command, Converter
+
+from utils.errors import NerpyException
 
 
 class Region(Enum):
