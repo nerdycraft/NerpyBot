@@ -1,10 +1,12 @@
 import discord
 from random import randint, choice
 from utils.errors import NerpyException
-from discord.ext.commands import Cog, command, bot_has_permissions
+from discord.app_commands import describe
+from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions
 
 
-class Fun(Cog):
+@bot_has_permissions(send_messages=True)
+class Fun(GroupCog):
     """HAHA commands so fun, much wow"""
 
     def __init__(self, bot):
@@ -123,8 +125,7 @@ class Fun(Cog):
             63: "For every given male character, there is a female version of that character; conversely",
         }
 
-    @command()
-    @bot_has_permissions(send_messages=True)
+    @hybrid_command()
     async def roll(self, ctx, dice: int = 6):
         """
         Rolls random number (between 1 and user choice)
@@ -134,70 +135,74 @@ class Fun(Cog):
         mention = ctx.message.author.mention
         if dice > 1:
             n = randint(1, dice)
-            await self.bot.sendc(ctx, f"{mention} rolled a d{dice}\n\n:game_die: {n} :game_die:")
+            await ctx.send(f"{mention} rolled a d{dice}\n\n:game_die: {n} :game_die:")
         else:
-            await self.bot.sendc(ctx, f"{mention} rolled a 'AmIRetarded'-dice\n\n:game_die: yes :game_die:")
+            await ctx.send(f"{mention} rolled a 'AmIRetarded'-dice\n\n:game_die: yes :game_die:")
 
-    @command()
-    @bot_has_permissions(send_messages=True)
-    async def choose(self, ctx, *choices):
+    @hybrid_command()
+    async def choose(self, ctx, choices: str):
         """
-        Chooses between multiple choices.
-        To denote multiple choices, you should use double quotes.
+        Makes a choice for you.
+        Choices need to be seperated by "," and sentences also need to be encased by "".
         """
-        choices_str = ", ".join(choices)
+        choices_list = choices.split(",")
         if len(choices) < 2:
             raise NerpyException("Not enough choices to pick from.")
 
         mention = ctx.message.author.mention
-        await self.bot.sendc(ctx, f"{mention} asked me to choose between: {choices_str}\n\nI choose {choice(choices)}")
+        await ctx.send(f"{mention} asked me to choose between: {choices}\n\nI choose {choice(choices_list)}")
 
-    @command(name="8ball", aliases=["8b"])
-    @bot_has_permissions(send_messages=True)
-    async def eightball(self, ctx, *, question: str):
+    @hybrid_command(name="8ball", aliases=["8b"])
+    async def eightball(self, ctx, question: str):
         """
-        Ask 8 ball a question
+        Ask 8-Ball a question.
         Question must end with a question mark.
         """
         if not question.endswith("?") or question == "?":
-            raise NerpyException("That doesn't look like a question.")
+            await ctx.send("That doesn't look like a question.")
 
         mention = ctx.message.author.mention
-        await self.bot.sendc(ctx, f"{mention} asked me: {question}\n\n{choice(self.ball)}`")
+        await ctx.send(f"{mention} asked me: {question}\n\n{choice(self.ball)}`")
 
-    @command(no_pm=True)
-    @bot_has_permissions(send_messages=True)
-    async def hug(self, ctx, user: discord.Member, intensity: int = 1):
+    @hybrid_command(no_pm=True)
+    @describe(intensity="The intensity of your hug. 0 to 4 levels, default is random")
+    async def hug(self, ctx, user: discord.Member, intensity: int = None):
         """
         Because everyone likes hugs!
 
         <user> has to be a valid @user
-        <intensity> 0 to 4 levels default is 1
+        <intensity> 0 to 4 levels default is random
         """
         name = user.mention
         author = ctx.message.author.mention
-        if intensity <= 0:
-            intensity = 0
-        if intensity >= 4:
-            intensity = 4
+        if intensity is not None:
+            if intensity <= 0:
+                intensity = 0
+            if intensity >= 4:
+                intensity = 4
 
-        await self.bot.sendc(ctx, f"{author} {self.hugs[intensity]} {name}")
+            await ctx.send(f"{author} {self.hugs[intensity]} {name}")
+        else:
+            await ctx.send(f"{author} {choice(self.hugs)} {name}")
 
-    @command()
-    @bot_has_permissions(send_messages=True)
-    async def leet(self, ctx, degree: int, *, text: str):
+    @hybrid_command()
+    @describe(
+        intensity="Set the intensity for the conversion. 5 levels, starting with 1",
+        text="Any text you want to convert",
+    )
+    async def leet(self, ctx, intensity: int, text: str):
         """
         convert text into 1337speak
 
-        <degree> 5 levels, starting with 1
-        <text> anytext you want to convert
+        <intensity> 5 levels, starting with 1
+        <text> any text you want to convert
         """
-        if degree > 0:
-            if degree > 6:
-                degree = 6
+        if intensity > 0:
+            if intensity > 5:
+                intensity = 5
 
             valid_chars = self.leetdegrees[0]
-            for i in range(1, degree):
+            for i in range(1, intensity):
                 valid_chars.extend(self.leetdegrees[i])
 
             leettext = ""
@@ -209,9 +214,9 @@ class Fun(Cog):
 
             text = leettext
 
-        await self.bot.sendc(ctx, text)
+        await ctx.send(text)
 
-    @command()
+    @hybrid_command()
     async def roti(self, ctx, num: int = None):
         """
         rules of the internet
@@ -220,20 +225,19 @@ class Fun(Cog):
         """
         if num:
             if num not in self.rotis:
-                raise NerpyException("Sorry 4chan pleb, no rules found with this number")
+                await ctx.send("Sorry 4chan pleb, no rules found with this number")
             rule = num
         else:
             rule = choice(list(self.rotis.keys()))
-        await self.bot.sendc(ctx, f"Rule {rule}: {self.rotis[rule]}")
+        await ctx.send(f"Rule {rule}: {self.rotis[rule]}")
 
-    @command()
-    @bot_has_permissions(send_messages=True)
-    async def say(self, ctx, *, text: str):
+    @hybrid_command()
+    async def say(self, ctx, text: str):
         """
         makes the bot say what you want :O
         """
-        await self.bot.sendc(ctx, text)
+        await ctx.send(text)
 
 
-def setup(bot):
-    bot.add_cog(Fun(bot))
+async def setup(bot):
+    await bot.add_cog(Fun(bot))

@@ -11,7 +11,7 @@ from utils.errors import NerpyException
 from discord import FFmpegPCMAudio
 
 
-LOG = logging.getLogger("Nerpy")
+LOG = logging.getLogger("nerpybot")
 DL_DIR = "tmp"
 if not os.path.exists(DL_DIR):
     os.makedirs(DL_DIR)
@@ -25,6 +25,7 @@ YTDL_ARGS = {
     "extractaudio": True,
     "audioformat": "mp3",
     "default_search": "auto",
+    "source_address": "0.0.0.0",  # bind to ipv4 since ipv6 addresses cause issues sometimes
 }
 
 YTDL = youtube_dl.YoutubeDL(YTDL_ARGS)

@@ -2,58 +2,57 @@
 Main Class of the NerpyBot
 """
 
-import sys
 import json
-import logging
-from contextlib import contextmanager
-
 import discord
+import asyncio
 import argparse
 import traceback
 import configparser
+import utils.logging as logging
 from pathlib import Path
 from datetime import datetime
-
+from contextlib import contextmanager
+from discord.ext import commands
+from discord.ext.commands import CheckFailure
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
-
-from models.default_channel import DefaultChannel
 from models.guild_prefix import GuildPrefix
 from utils.audio import Audio
-from discord.ext import commands
-
 from utils.conversation import ConversationManager, AnswerType
 from utils.database import BASE
 from utils.errors import NerpyException
+from typing import List
 
 
 class NerpyBot(commands.Bot):
     """Discord Bot"""
 
-    def __init__(self, config: configparser, debug: bool):
-        super().__init__(command_prefix=determine_prefix, description="NerdyBot - Always one step ahead!")
+    def __init__(self, config: configparser.ConfigParser, intents: discord.Intents, debug: bool):
+        super().__init__(
+            command_prefix=determine_prefix, description="NerdyBot - Always one step ahead!", intents=intents
+        )
 
         self.config = config
         self.debug = debug
-        self.client_id = config["bot"]["client_id"]
-        self.token = config["bot"]["token"]
-        self.ops = config["bot"]["ops"]
-        self.moderator_role = config["bot"]["moderator_role_name"]
-        self.modules = json.loads(config["bot"]["modules"])
+        self.client_id = config.get("bot", "client_id")
+        self.token = config.get("bot", "token")
+        self.ops = config.get("bot", "ops")
+        self.moderator_role = config.get("bot", "moderator_role_name")
+        self.modules = json.loads(config.get("bot", "modules"))
         self.restart = True
-        self.log = self._get_logger()
+        self.log = logging.get_logger("nerpybot")
         self.uptime = datetime.utcnow()
 
         self.audio = Audio(self)
         self.last_cmd_cache = {}
         self.usr_cmd_err_spam = {}
-        self.usr_cmd__err_spam_threshold = int(config["bot"]["error_spam_threshold"])
+        self.usr_cmd__err_spam_threshold = config.getint("bot", "error_spam_threshold")
         self.convMan = ConversationManager(self)
 
         # database variables
         if "database" not in config:
-            self.log.error("No Database specified! Fallback to local SQLite Database!")
+            self.log.warning("No Database specified! Fallback to local SQLite Database!")
             db_connection_string = "sqlite:///db.db"
         else:
             database_config = config["database"]
@@ -78,38 +77,55 @@ class NerpyBot(commands.Bot):
             db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
             db_connection_string = f"{db_type}://{db_authentication}/{db_name}"
 
-        self.ENGINE = create_engine(db_connection_string, echo=self.debug)
+        self.ENGINE = create_engine(db_connection_string)
         self.SESSION = sessionmaker(bind=self.ENGINE, expire_on_commit=False)
-
-        self.create_all()
-        self._import_modules()
 
     def create_all(self):
         """creates all tables previously defined"""
-        BASE.metadata.bind = self.ENGINE
-        BASE.metadata.create_all()
+        BASE.metadata.create_all(self.ENGINE)
 
     @contextmanager
     def session_scope(self):
         """Provide a transactional scope around a series of operations."""
         session = self.SESSION()
-        error = None
         try:
             yield session
             session.commit()
         except SQLAlchemyError as exc:
             session.rollback()
-            error = exc
+            self.log.error(exc)
+            raise NerpyException("There was an error with the database. Please report to Bot Author!")
         finally:
             session.close()
 
-        if error is not None:
-            self.log.error(error)
-            raise NerpyException("There was an error with the database. Please report to Bot Author!")
+    async def commands_need_sync(self):
+        global_app_commands = await self.tree.fetch_commands()
+        for command in self.tree.walk_commands():
+            if command.name not in global_app_commands:
+                return True
+
+        return False
+
+    async def setup_hook(self):
+        # load modules
+        for module in self.modules:
+            try:
+                await self.load_extension(f"modules.{module}")
+            except (ImportError, commands.ExtensionFailed, discord.ClientException) as e:
+                self.log.error(f"failed to load extension {module}. {e}")
+                self.log.debug(traceback.print_exc())
+
+        # create database/tables and such stuff
+        self.create_all()
+
+        # sync commands
+        if await self.commands_need_sync():
+            self.log.info("Syncing commands...")
+            await self.tree.sync()
 
     async def on_ready(self):
         """calls when successfully logged in"""
-        self.log.info("Ready!")
+        self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
 
     async def on_command_completion(self, ctx):
         """deleting msg on cmd completion"""
@@ -138,22 +154,19 @@ class NerpyBot(commands.Bot):
         if send_err:
             if isinstance(error, commands.CommandError):
                 if isinstance(error, commands.CommandInvokeError) and not isinstance(error.original, NerpyException):
-                    print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
+                    self.log.error(f"In {ctx.command.qualified_name}:")
                     traceback.print_tb(error.original.__traceback__)
-                    print(
-                        f"{error.original.__class__.__name__}: {error.original}",
-                        file=sys.stderr,
-                    )
+                    self.log.error(f"{error.original.__class__.__name__}: {error.original}")
                     await ctx.author.send("Unhandled error occurred. Please report to bot author!")
-                else:
-                    await ctx.author.send(error)
+                if not isinstance(error, CheckFailure):
+                    if isinstance(error.original, NerpyException):
+                        await ctx.author.send(error.original)
+                    else:
+                        self.log.error(error)
             else:
-                print(f"In {ctx.command.qualified_name}:", file=sys.stderr)
+                self.log.error(f"In {ctx.command.qualified_name}:")
                 traceback.print_tb(error.original.__traceback__)
-                print(
-                    f"{error.original.__class__.__name__}: {error.original}",
-                    file=sys.stderr,
-                )
+                self.log.error(f"{error.original.__class__.__name__}: {error.original}")
                 await ctx.author.send("Unhandled error occurred. Please report to bot author!")
 
         if not isinstance(ctx.channel, discord.DMChannel):
@@ -182,23 +195,7 @@ class NerpyBot(commands.Bot):
         if invoke:
             await self.process_commands(message)
 
-    async def send(self, guild_id, cur_chan, msg, emb=None, file=None, files=None, delete_after=None):
-        with self.session_scope() as session:
-            def_chan = DefaultChannel.get(guild_id, session)
-            if def_chan is not None:
-                chan = self.get_channel(def_chan.ChannelId)
-                if chan is not None:
-                    return await chan.send(msg, embed=emb, file=file, files=files, delete_after=delete_after)
-
-        if not cur_chan.permissions_for(cur_chan.guild.me).send_messages:
-            raise NerpyException("Missing permission to send message to channel.")
-
-        await cur_chan.send(msg, embed=emb, file=file, files=files, delete_after=delete_after)
-
-    async def sendc(self, ctx, msg, emb=None, file=None, files=None, delete_after=None):
-        return await self.send(ctx.guild.id, ctx.channel, msg, emb, file, files, delete_after)
-
-    async def start(self):
+    async def start(self, token: str = None, reconnect: bool = True):
         """
         generator connects the discord bot to the server
         """
@@ -207,7 +204,7 @@ class NerpyBot(commands.Bot):
             self.activity = discord.Game(name="!help for help")
             await self.login(self.token)
         else:
-            self.log.error("No credentials available to login.")
+            self.log.critical("No credentials available to login.")
             raise RuntimeError()
         await self.connect(reconnect=self.restart)
 
@@ -217,76 +214,40 @@ class NerpyBot(commands.Bot):
         """
         self.log.info("shutting down server!")
         self.restart = False
-        await self.audio.rip_loop()
         await self.close()
 
-    def _import_modules(self):
-        for module in self.modules:
-            try:
-                self.load_extension(f"modules.{module}")
-            except (ImportError, commands.ExtensionFailed, discord.ClientException) as e:
-                # TODO: Add better Exception handling
-                self.log.error(f"failed to load extension {module}. {e}")
-                if self.debug:
-                    traceback.print_exc()
 
-    # noinspection PyMethodMayBeStatic
-    def _get_logger(self):
-        logger = logging.getLogger("Nerpy")
-        logger.setLevel(logging.INFO)
-
-        fmt = logging.Formatter(
-            "%(asctime)s %(levelname)s %(module)s %(funcName)s %(lineno)d: %(message)s",
-            datefmt="[%d/%m/%Y %H:%M]",
-        )
-
-        stdout_handler = logging.StreamHandler(sys.stdout)
-        stdout_handler.setFormatter(fmt)
-
-        logger.addHandler(stdout_handler)
-
-        return logger
+def get_intents():
+    return discord.Intents.all()
 
 
-def determine_prefix(bot, message):
+def determine_prefix(bot, message) -> List[str]:
     guild = message.guild
     # Only allow custom prefixes in guild
     if guild:
         with bot.session_scope() as session:
             pref = GuildPrefix.get(guild.id, session)
             if pref is not None:
-                return pref.Prefix
+                return [pref.Prefix]
     return ["!"]  # default prefix
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
     """
     parser for starting arguments
 
     currently only supports auto restart
     """
     parser = argparse.ArgumentParser(description="-> NerpyBot <-")
-    parser.add_argument(
-        "--auto-restart",
-        "-r",
-        help="Autorestarts NerdyPy in case of issues",
-        action="store_true",
-    )
-    parser.add_argument(
-        "--config",
-        "-c",
-        help="Specify config file for NerdyPy",
-        nargs=1,
-    )
-    parser.add_argument(
-        "--debug",
-        help="Debug",
-        action="store_true",
-    )
+    parser.add_argument("-r", "--auto-restart", help="Autorestarts NerdyPy in case of issues", action="store_true")
+    parser.add_argument("-c", "--config", help="Specify config file for NerdyPy", nargs=1)
+    parser.add_argument("-v", "--verbose", action="count", required=False, dest="verbosity", default=0)
+    parser.add_argument("-l", "--loglevel", action="store", required=False, dest="loglevel", default="WARNING")
+
     return parser.parse_args()
 
 
-def parse_config(config_file=None):
+def parse_config(config_file=None) -> configparser.ConfigParser:
     config = configparser.ConfigParser(interpolation=None)
 
     if config_file is None:
@@ -301,27 +262,39 @@ def parse_config(config_file=None):
 
 
 if __name__ == "__main__":
-    # fmt: off
-    INTRO = (
-        "==========================\n"
-        "       - Nerpy Bot -      \n"
-        "==========================\n"
+    print(
+        """
+'##::: ##:'########:'########::'########::'##:::'##::::'########:::'#######::'########:
+ ###:: ##: ##.....:: ##.... ##: ##.... ##:. ##:'##::::: ##.... ##:'##.... ##:... ##..::
+ ####: ##: ##::::::: ##:::: ##: ##:::: ##::. ####:::::: ##:::: ##: ##:::: ##:::: ##::::
+ ## ## ##: ######::: ########:: ########::::. ##::::::: ########:: ##:::: ##:::: ##::::
+ ##. ####: ##...:::: ##.. ##::: ##.....:::::: ##::::::: ##.... ##: ##:::: ##:::: ##::::
+ ##:. ###: ##::::::: ##::. ##:: ##::::::::::: ##::::::: ##:::: ##: ##:::: ##:::: ##::::
+ ##::. ##: ########: ##:::. ##: ##::::::::::: ##::::::: ########::. #######::::: ##::::
+..::::..::........::..:::::..::..::::::::::::..::::::::........::::.......::::::..:::::
+"""
     )
-    # fmt: on
-    print(INTRO)
 
     RUNNING = True
     ARGS = parse_arguments()
     CONFIG = parse_config(ARGS.config)
-    DEBUG = ARGS.debug
+    INTENTS = get_intents()
+    if str(ARGS.loglevel).upper() == "DEBUG" or ARGS.verbosity > 0:
+        DEBUG = True
+    else:
+        DEBUG = False
 
     if "bot" in CONFIG:
-        BOT = NerpyBot(CONFIG, DEBUG)
+        for logger_name in ["nerpybot", "sqlalchemy.engine"]:
+            logging.create_logger(ARGS.verbosity, ARGS.loglevel, logger_name)
+        BOT = NerpyBot(CONFIG, INTENTS, DEBUG)
 
         try:
-            BOT.run()
+            asyncio.run(BOT.start())
         except discord.LoginFailure:
             BOT.log.error(traceback.format_exc())
             BOT.log.error("Failed to login")
+        except KeyboardInterrupt:
+            pass
     else:
         raise NerpyException("Bot config not found.")

@@ -1,18 +1,22 @@
-FROM python:3
+FROM python:3.11-alpine
+
+ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 
 WORKDIR /app/NerdyPy
 
-COPY setup.py /app/setup.py
+COPY pyproject.toml poetry.lock README.md /app/
 COPY NerdyPy /app/NerdyPy
 
-RUN apt update && apt install -qqy --no-install-recommends \
-      build-essential \
+RUN apk add --no-cache \
       libffi-dev \
       ffmpeg \
-      libopus0 \
-    && pip install --no-cache-dir --trusted-host pypi.python.org /app/ \
-    && apt purge -qqy --autoremove build-essential libffi-dev \
-    && apt clean \
-    && rm -rf /var/lib/apt/lists/*
+      opus \
+    && pip install \
+      --no-cache-dir \
+      --trusted-host pypi.python.org \
+      poetry
 
-CMD ["python", "/app/NerdyPy/NerdyPy.py"]
+RUN poetry install \
+    && rm -rf ~/.cache/pypoetry ~/.local/share/virtualenv
+
+CMD ["poetry", "run", "python", "/app/NerdyPy/NerdyPy.py"]

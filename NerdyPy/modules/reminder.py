@@ -1,57 +1,56 @@
-import asyncio
 from datetime import datetime, timedelta
 from utils.errors import NerpyException
-from discord.ext.commands import Cog, command, bot_has_permissions
+from discord.ext import tasks
+from discord.ext.commands import Cog, hybrid_command, bot_has_permissions
 
 
+@bot_has_permissions(send_messages=True)
 class Reminder(Cog):
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
         self.reminders = []
-        self.doLoop = True
-        self.task = self.bot.loop.create_task(self._loop())
         self.config = self.bot.config["reminder"]
-
-    def add(self, author, channel, time, message):
-        self.reminders.append({"author": author, "channel": channel, "time": time, "message": message})
-
-    async def _loop(self):
-        self.loopRunning = True
-        while self.doLoop:
-            await asyncio.sleep(1)
-
-            removals = []
-            for rem in self.reminders:
-                if rem["time"] <= datetime.now():
-                    mention = rem["author"].mention
-                    message = rem["message"]
-                    await rem["channel"].send(f"{mention}, reminding you of: {message}")
-                    removals.append(rem)
-
-            for r in removals:
-                self.reminders.remove(r)
-        self.loopRunning = False
 
     def cog_unload(self):
         self.task.cancel()
 
-    @command()
-    @bot_has_permissions(send_messages=True)
+    def add(self, author, channel, time, message):
+        self.reminders.append({"author": author, "channel": channel, "time": time, "message": message})
+
+    @tasks.loop(seconds=5)
+    async def _loop(self):
+        removals = []
+        for rem in self.reminders:
+            if rem["time"] <= datetime.now():
+                mention = rem["author"].mention
+                message = rem["message"]
+                await rem["author"].send(f"{mention}, reminding you of: {message}")
+                removals.append(rem)
+
+        for r in removals:
+            self.reminders.remove(r)
+
+    @_loop.before_loop
+    async def _before_loop(self):
+        self.bot.loop.create_task(self._loop)
+        self.bot.log.info("Waiting for Bot to be ready...")
+        await self.bot.wait_until_ready()
+
+    @hybrid_command()
     async def remindme(self, ctx, mins: int, *, text: str):
         """
         sets a reminder
 
-        bot will answer in the channel you asked for it
+        bot will answer in a DM
         """
         self.bot.reminder.add(ctx.author, ctx.message.channel, datetime.now() + timedelta(minutes=mins), text)
+        await ctx.send(f"{ctx.author.mention}, i will remind you in {mins} minutes")
 
-        await self.bot.sendc(ctx, f"{ctx.author.mention}, i will remind you in {mins} minutes")
 
-
-def setup(bot):
+async def setup(bot):
     if "reminder" in bot.config:
-        bot.add_cog(Reminder(bot))
+        await bot.add_cog(Reminder(bot))
     else:
         raise NerpyException("Config not found.")

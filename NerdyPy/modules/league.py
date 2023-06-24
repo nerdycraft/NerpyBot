@@ -39,7 +39,6 @@ class League(Cog):
         self.config = self.bot.config["league"]
 
     async def _get_latest_version(self):
-
         if self.version is None:
             async with aiohttp.ClientSession() as session:
                 async with session.get("https://ddragon.leagueoflegends.com/api/versions.json") as response:
