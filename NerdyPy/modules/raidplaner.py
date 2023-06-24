@@ -82,7 +82,6 @@ class RaidPlanerState(Enum):
 
 
 class RaidConversation(Conversation):
-
     # noinspection PyTypeChecker
     def __init__(self, bot, user, guild):
         super().__init__(bot, user, guild)

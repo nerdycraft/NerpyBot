@@ -180,8 +180,7 @@ class Search(GroupCog):
 
                 if search_result["Response"] == "True":
                     id_url = (
-                            f"http://www.omdbapi.com/?apikey={self.config['omdb']}&i="
-                            + search_result["Search"][0]["imdbID"]
+                        f"http://www.omdbapi.com/?apikey={self.config['omdb']}&i={search_result['Search'][0]['imdbID']}"
                     )
 
                     async with session.get(id_url) as id_response:
