@@ -4,7 +4,7 @@ from typing import Optional
 from utils.checks import is_botmod
 from utils.errors import NerpyException
 from discord.app_commands import checks
-from discord.ext.commands import GroupCog, hybrid_command, hybrid_group, check, bot_has_permissions
+from discord.ext.commands import GroupCog, hybrid_command, hybrid_group, check
 
 
 @check(is_botmod)
