@@ -2,11 +2,10 @@ FROM python:3.11
 
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 
-WORKDIR /app/NerdyPy
-
 COPY pyproject.toml poetry.lock README.md /app/
 COPY NerdyPy /app/NerdyPy
 
+WORKDIR /app/NerdyPy
 RUN apt update && apt install -qqy --no-install-recommends \
       build-essential \
       libffi-dev \
@@ -20,7 +19,7 @@ RUN apt update && apt install -qqy --no-install-recommends \
     && apt clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN poetry install --without dev \
+RUN poetry install --no-interaction --no-ansi --without dev \
     && rm -rf ~/.cache/pypoetry ~/.local/share/virtualenv
 
 CMD ["poetry", "run", "python", "/app/NerdyPy/NerdyPy.py"]
