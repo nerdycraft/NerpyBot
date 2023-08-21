@@ -23,8 +23,11 @@ class AutoDelete(db.BASE):
 
     @classmethod
     def get_by_channel(cls, guild_id: int, channel_id: int, session):
-        return session.query(AutoDelete).filter(AutoDelete.GuildId == guild_id and AutoDelete.ChannelId ==
-                                                channel_id).first()
+        return (
+            session.query(AutoDelete)
+            .filter(AutoDelete.GuildId == guild_id and AutoDelete.ChannelId == channel_id)
+            .first()
+        )
 
     @classmethod
     def delete(cls, guild_id: int, channel_id: int, session):

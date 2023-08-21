@@ -31,8 +31,7 @@ class AutoDeleter(GroupCog, group_name="autodeleter"):
                 for configured_channel in configured_channels:
                     list_before = datetime.utcnow() - timedelta(seconds=configured_channel.DeleteAfter)
                     channel = guild.get_channel(configured_channel.ChannelId)
-                    hist = [message async for message in channel.history(before=list_before)]
-                    # channel.purge(before=list_before)
+                    channel.purge(before=list_before)
 
     @hybrid_command(name="create")
     async def create_autodeleter(self, ctx, *, channel: discord.TextChannel, delete_after: str):
