@@ -118,7 +118,8 @@ class NerpyBot(commands.Bot):
         # sync commands
         try:
             self.log.info("Syncing commands...")
-            synced_cmds = await self.tree.sync()
+            # synced_cmds = await self.tree.sync()
+            synced_cmds = []
         except (HTTPException, CommandSyncFailure):
             raise NerpyException("Could not sync commands to Discord API.")
         else:

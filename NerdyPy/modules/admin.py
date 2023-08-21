@@ -3,9 +3,11 @@
 from datetime import datetime
 
 from discord.app_commands import checks
-from discord.ext.commands import GroupCog, hybrid_command, group
+from discord.ext import tasks
+from discord.ext.commands import GroupCog, hybrid_command, group, hybrid_group
 
 from models.guild_prefix import GuildPrefix
+from models.rolechecker import RoleChecker
 
 
 @checks.has_permissions(administrator=True)
@@ -16,6 +18,39 @@ class Admin(GroupCog):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
+        self.settings = {}
+        self._role_checker.start()
+
+    def cog_unload(self):
+        self._role_checker.cancel()
+
+    @tasks.loop(seconds=5)
+    async def _role_checker(self):
+        msg = ""
+        with self.bot.session_scope() as session:
+            for guild in self.bot.guilds:
+                self.bot.log.info(guild.name)
+                if RoleChecker.is_rolecheck_enabled(guild.id, session):
+                    for member in guild.members:
+                        if len(member.roles) == 1:
+                            joined = member.joined_at.strftime("%d. %b %Y - %H:%M")
+                            msg += f"{member.display_name}: joined: {joined}\n"
+
+    @_role_checker.before_loop
+    async def _role_checker_before_loop(self):
+        self.bot.log.info("Waiting for Bot to be ready...")
+        await self.bot.wait_until_ready()
+
+    @hybrid_group()
+    async def rolechecker(self, ctx):
+        """Activates the Role Checker. Kicking optional! [bot-moderator]"""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
+
+    @rolechecker.command(name="channel")
+    async def _rolechecker_set_channel(self, ctx, channel):
+        if channel is None:
+            await ctx.send_help(ctx.command)
 
     @group()
     async def prefix(self, ctx):
