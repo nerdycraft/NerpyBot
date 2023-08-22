@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime, timedelta
+from typing import Optional, Union
 
 import discord
 import pytimeparse
@@ -17,39 +18,77 @@ class AutoDeleter(GroupCog, group_name="autodeleter"):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
+        self.delete_time_limit = pytimeparse.parse("14 days")
         self._loop.start()
 
     def cog_unload(self):
         self._loop.cancel()
 
-    @tasks.loop(hours=4)
+    @tasks.loop(minutes=5)
     async def _loop(self):
         with self.bot.session_scope() as session:
             for guild in self.bot.guilds:
-                configured_channels = AutoDelete.get(guild.id, session)
+                configurations = AutoDelete.get(guild.id, session)
 
-                for configured_channel in configured_channels:
-                    list_before = datetime.utcnow() - timedelta(seconds=configured_channel.DeleteAfter)
-                    channel = guild.get_channel(configured_channel.ChannelId)
-                    await channel.purge(before=list_before)
+                for configuration in configurations:
+                    messages_to_delete = []
+                    if configuration.DeleteOlderThan is None:
+                        list_before = None
+                    else:
+                        list_before = datetime.utcnow() - timedelta(seconds=configuration.DeleteOlderThan)
+                    list_after = datetime.utcnow() - timedelta(seconds=self.delete_time_limit)
+                    channel = guild.get_channel(configuration.ChannelId)
+                    messages = [
+                        message
+                        async for message in channel.history(before=list_before, after=list_after, oldest_first=False)
+                    ]
+
+                    while len(messages) > configuration.KeepMessages:
+                        message = messages.pop()
+                        if not configuration.DeletePinnedMessage and message.pinned:
+                            continue
+                        self.bot.log.info(f"Queue message {message.id}, created at {message.created_at} for deletion.")
+                        messages_to_delete.append(message)
+
+                    await channel.delete_messages(messages_to_delete)
 
     @hybrid_command(name="create")
-    async def create_autodeleter(self, ctx, *, channel: discord.TextChannel, delete_after: str):
+    async def create_autodeleter(
+        self,
+        ctx,
+        *,
+        channel: discord.TextChannel,
+        delete_older_than: Optional[Union[str | None]],
+        keep_messages: Optional[Union[int | None]],
+        delete_pinned_message: bool,
+    ):
         channel_id = channel.id
         channel_name = channel.name
 
         with self.bot.session_scope() as session:
-            configuration_exists = AutoDelete.get_by_channel(ctx.guild.id, channel_id, session)
-            if configuration_exists is not None:
+            configuration = AutoDelete.get_by_channel(ctx.guild.id, channel_id, session)
+            if configuration is not None:
                 await ctx.send(
                     "This Channel is already configured for AutoDelete."
                     "Please edit or delete the existing configuration."
                 )
             else:
                 if ctx.guild.get_channel(channel_id) is not None:
-                    delete_in_seconds = pytimeparse.parse(delete_after)
+                    if delete_older_than is None:
+                        configuration.DeleteOlderThan = delete_older_than
+                    else:
+                        delete_in_seconds = pytimeparse.parse(delete_older_than)
+                        if delete_in_seconds > self.delete_time_limit:
+                            await ctx.send("Cannot delete messages older than 14 days!")
+                            return
 
-                    deleter = AutoDelete(GuildId=ctx.guild.id, ChannelId=channel_id, DeleteAfter=delete_in_seconds)
+                    deleter = AutoDelete(
+                        GuildId=ctx.guild.id,
+                        ChannelId=channel_id,
+                        KeepMessages=keep_messages,
+                        DeleteOlderThan=delete_in_seconds,
+                        DeletePinnedMessage=delete_pinned_message,
+                    )
                     session.add(deleter)
 
         await ctx.send(f'AutoDeleter configured for channel "{channel_name}".')
@@ -60,26 +99,41 @@ class AutoDeleter(GroupCog, group_name="autodeleter"):
         channel_name = channel.name
 
         with self.bot.session_scope() as session:
-            configuration_exists = AutoDelete.get_by_channel(ctx.guild.id, channel_id, session)
-            if configuration_exists is not None:
+            configuration = AutoDelete.get_by_channel(ctx.guild.id, channel_id, session)
+            if configuration is not None:
                 AutoDelete.delete(ctx.guild.id, channel_id, session)
                 await ctx.send(f'Deleted configuration for channel "{channel_name}".')
             else:
                 await ctx.send(f'No configuration for channel "{channel_name}" found!')
 
     @hybrid_command(name="edit")
-    async def modify_autodeleter(self, ctx, *, channel: discord.TextChannel, delete_after: str):
+    async def modify_autodeleter(
+        self,
+        ctx,
+        *,
+        channel: discord.TextChannel,
+        delete_older_than: Optional[Union[str | None]],
+        keep_messages: Optional[Union[int | None]],
+        delete_pinned_message: bool,
+    ):
         channel_id = channel.id
         channel_name = channel.name
 
         with self.bot.session_scope() as session:
-            configuration_exists = AutoDelete.get_by_channel(ctx.guild.id, channel_id, session)
-            if configuration_exists is not None:
-                delete_in_seconds = pytimeparse.parse(delete_after)
+            configuration = AutoDelete.get_by_channel(ctx.guild.id, channel_id, session)
+            if configuration is not None:
+                if delete_older_than is None:
+                    configuration.DeleteOlderThan = delete_older_than
+                else:
+                    delete_in_seconds = pytimeparse.parse(delete_older_than)
+                    if delete_in_seconds > self.delete_time_limit:
+                        await ctx.send("Cannot delete messages older than 14 days!")
+                        return
+                    configuration.DeleteOlderThan = delete_in_seconds
+                configuration.KeepMessages = keep_messages
+                configuration.DeletePinnedMessage = delete_pinned_message
 
-                configuration_exists.DeleteAfter = delete_in_seconds
-
-                await ctx.send(f'Changed delete threshold to "{delete_after}" in Channel "{channel_name}".')
+                await ctx.send(f'Updated configuration for channel "{channel_name}".')
             else:
                 await ctx.send(f'Configuration for channel "{channel_name}" does not exist. Please create one first.')
 
