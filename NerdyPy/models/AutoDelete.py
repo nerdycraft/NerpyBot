@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """ AutoDelete Messages """
 
-from sqlalchemy import BigInteger, Column, Index
+from sqlalchemy import BigInteger, Column, Index, Boolean
 
 from utils import database as db
 
@@ -14,7 +14,9 @@ class AutoDelete(db.BASE):
 
     GuildId = Column(BigInteger, primary_key=True)
     ChannelId = Column(BigInteger, primary_key=True)
-    DeleteAfter = Column(BigInteger)
+    KeepMessages = Column(BigInteger, default=0)
+    DeleteOlderThan = Column(BigInteger)
+    DeletePinnedMessage = Column(Boolean, default=False)
 
     @classmethod
     def get(cls, guild_id: int, session):
