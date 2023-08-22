@@ -34,7 +34,7 @@ class AutoDeleter(GroupCog, group_name="autodeleter"):
                         list_before = None
                     else:
                         list_before = datetime.utcnow() - timedelta(seconds=configuration.DeleteOlderThan)
-                    list_before = list_before.replace(tzinfo=timezone.utc)
+                        list_before = list_before.replace(tzinfo=timezone.utc)
                     channel = guild.get_channel(configuration.ChannelId)
                     messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
 
@@ -68,15 +68,15 @@ class AutoDeleter(GroupCog, group_name="autodeleter"):
             else:
                 if ctx.guild.get_channel(channel_id) is not None:
                     if delete_older_than is None:
-                        configuration.DeleteOlderThan = delete_older_than
+                        delete = delete_older_than
                     else:
-                        delete_in_seconds = pytimeparse.parse(delete_older_than)
+                        delete = pytimeparse.parse(delete_older_than)
 
                     deleter = AutoDelete(
                         GuildId=ctx.guild.id,
                         ChannelId=channel_id,
                         KeepMessages=keep_messages,
-                        DeleteOlderThan=delete_in_seconds,
+                        DeleteOlderThan=delete,
                         DeletePinnedMessage=delete_pinned_message,
                     )
                     session.add(deleter)
