@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Union
 
 import discord
@@ -18,7 +18,6 @@ class AutoDeleter(GroupCog, group_name="autodeleter"):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
-        self.delete_time_limit = pytimeparse.parse("14 days")
         self._loop.start()
 
     def cog_unload(self):
@@ -31,26 +30,20 @@ class AutoDeleter(GroupCog, group_name="autodeleter"):
                 configurations = AutoDelete.get(guild.id, session)
 
                 for configuration in configurations:
-                    messages_to_delete = []
                     if configuration.DeleteOlderThan is None:
                         list_before = None
                     else:
                         list_before = datetime.utcnow() - timedelta(seconds=configuration.DeleteOlderThan)
-                    list_after = datetime.utcnow() - timedelta(seconds=self.delete_time_limit)
+                    list_before = list_before.replace(tzinfo=timezone.utc)
                     channel = guild.get_channel(configuration.ChannelId)
-                    messages = [
-                        message
-                        async for message in channel.history(before=list_before, after=list_after, oldest_first=False)
-                    ]
+                    messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
 
                     while len(messages) > configuration.KeepMessages:
                         message = messages.pop()
                         if not configuration.DeletePinnedMessage and message.pinned:
                             continue
-                        self.bot.log.info(f"Queue message {message.id}, created at {message.created_at} for deletion.")
-                        messages_to_delete.append(message)
-
-                    await channel.delete_messages(messages_to_delete)
+                        self.bot.log.info(f"Delete message {message.id}, created at {message.created_at}.")
+                        await message.delete()
 
     @hybrid_command(name="create")
     async def create_autodeleter(
@@ -78,9 +71,6 @@ class AutoDeleter(GroupCog, group_name="autodeleter"):
                         configuration.DeleteOlderThan = delete_older_than
                     else:
                         delete_in_seconds = pytimeparse.parse(delete_older_than)
-                        if delete_in_seconds > self.delete_time_limit:
-                            await ctx.send("Cannot delete messages older than 14 days!")
-                            return
 
                     deleter = AutoDelete(
                         GuildId=ctx.guild.id,
@@ -126,9 +116,6 @@ class AutoDeleter(GroupCog, group_name="autodeleter"):
                     configuration.DeleteOlderThan = delete_older_than
                 else:
                     delete_in_seconds = pytimeparse.parse(delete_older_than)
-                    if delete_in_seconds > self.delete_time_limit:
-                        await ctx.send("Cannot delete messages older than 14 days!")
-                        return
                     configuration.DeleteOlderThan = delete_in_seconds
                 configuration.KeepMessages = keep_messages
                 configuration.DeletePinnedMessage = delete_pinned_message
