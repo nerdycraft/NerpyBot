@@ -38,23 +38,22 @@ class Admin(GroupCog):
                 configuration = RoleChecker.get(guild.id, session)
                 if configuration is None:
                     continue
-                if configuration.Enabled:
+                if configuration.Enabled and configuration.KickAfter > 0:
                     for member in guild.members:
                         if len(member.roles) == 1:
-                            if configuration.KickAfter > 0:
-                                kick_reminder = datetime.utcnow() - timedelta(seconds=(configuration.KickAfter / 2))
-                                kick_reminder = kick_reminder.replace(tzinfo=timezone.utc)
-                                kick_after = datetime.utcnow() - timedelta(seconds=configuration.KickAfter)
-                                kick_after = kick_after.replace(tzinfo=timezone.utc)
+                            kick_reminder = datetime.utcnow() - timedelta(seconds=(configuration.KickAfter / 2))
+                            kick_reminder = kick_reminder.replace(tzinfo=timezone.utc)
+                            kick_after = datetime.utcnow() - timedelta(seconds=configuration.KickAfter)
+                            kick_after = kick_after.replace(tzinfo=timezone.utc)
 
-                                if member.joined_at < kick_after:
-                                    self.bot.log.debug(f"Kick member {member.display_name}!")
-                                    await member.kick()
-                                elif member.joined_at < kick_reminder:
-                                    await member.send(
-                                        f"You have not selected a role on {guild.name}. "
-                                        f"Please choose a role or you will be kicked on {humanize.naturaldate(kick_after)}."
-                                    )
+                            if member.joined_at < kick_after:
+                                self.bot.log.debug(f"Kick member {member.display_name}!")
+                                await member.kick()
+                            elif member.joined_at < kick_reminder:
+                                await member.send(
+                                    f"You have not selected a role on {guild.name}. "
+                                    f"Please choose a role or you will be kicked on {humanize.naturaldate(kick_after)}."
+                                )
 
     @_role_checker.before_loop
     async def _role_checker_before_loop(self):
