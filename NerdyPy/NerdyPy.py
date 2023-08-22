@@ -244,7 +244,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("-r", "--auto-restart", help="Autorestarts NerdyPy in case of issues", action="store_true")
     parser.add_argument("-c", "--config", help="Specify config file for NerdyPy", nargs=1)
     parser.add_argument("-v", "--verbose", action="count", required=False, dest="verbosity", default=0)
-    parser.add_argument("-l", "--loglevel", action="store", required=False, dest="loglevel", default="WARNING")
+    parser.add_argument("-l", "--loglevel", action="store", required=False, dest="loglevel", default="INFO")
 
     return parser.parse_args()
 

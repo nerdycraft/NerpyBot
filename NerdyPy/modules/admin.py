@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+import discord
 from discord.app_commands import checks
 from discord.ext import tasks
 from discord.ext.commands import GroupCog, hybrid_command, group
@@ -34,6 +35,8 @@ class Admin(GroupCog):
                 if configuration.Enabled:
                     for member in guild.members:
                         if len(member.roles) == 1:
+                            if configuration.KickAfter > 0:
+                                print("Kick")
                             joined = member.joined_at.strftime("%d. %b %Y - %H:%M")
                             msg += f"{member.display_name}: joined: {joined}\n"
 
@@ -43,7 +46,7 @@ class Admin(GroupCog):
         await self.bot.wait_until_ready()
 
     @hybrid_command()
-    async def rolechecker(self, ctx, enable: bool):
+    async def rolechecker(self, ctx, enable: bool, kick_after: str, channel: discord.TextChannel):
         """Activates the Role Checker. Kicking optional! [bot-moderator]"""
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)

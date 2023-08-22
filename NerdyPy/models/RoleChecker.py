@@ -13,8 +13,9 @@ class RoleChecker(db.BASE):
     __table_args__ = (Index("RoleChecker_GuildId", "GuildId"),)
 
     GuildId = Column(BigInteger, primary_key=True)
-    KickAfter = Column(BigInteger)
+    KickAfter = Column(BigInteger, default=0)
     Enabled = Column(Boolean, default=False)
+    ChannelId = Column(BigInteger)
 
     @classmethod
     def get(cls, guild_id: int, session):
