@@ -36,9 +36,7 @@ class AutoDeleter(GroupCog, group_name="autodeleter"):
                         list_before = datetime.utcnow() - timedelta(seconds=configuration.DeleteOlderThan)
                         list_before = list_before.replace(tzinfo=timezone.utc)
                     channel = guild.get_channel(configuration.ChannelId)
-                    messages = [
-                        message async for message in channel.history(before=list_before, oldest_first=True)
-                    ]
+                    messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
 
                     while len(messages) > configuration.KeepMessages:
                         message = messages.pop(0)
