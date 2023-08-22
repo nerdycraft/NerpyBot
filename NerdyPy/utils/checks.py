@@ -22,8 +22,7 @@ async def is_botmod(ctx):
 async def is_wow_mod(ctx):
     if ctx.author.roles is not None:
         for role in ctx.author.roles:
-            if role.name == ctx.bot.config.get("wow", "wow_moderator_role_name"):
-                return True
+            return role.name == ctx.bot.config.get("wow", "wow_moderator_role_name")
     return False
 
 

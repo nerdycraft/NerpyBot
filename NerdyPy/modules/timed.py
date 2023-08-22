@@ -6,7 +6,6 @@ from discord.ext import tasks
 from discord.ext.commands import Cog, hybrid_group
 
 from models.timed_message import TimedMessage
-from utils.errors import NerpyException
 from utils.format import pagify, box
 
 
@@ -16,8 +15,7 @@ class Timed(Cog):
 
         self.bot = bot
         self.reminders = []
-        self.doLoop = True
-        self.config = self.bot.config["timed_message"]
+        self._loop.start()
 
     def cog_unload(self):
         self._loop.cancel()
@@ -96,13 +94,9 @@ class Timed(Cog):
 
     @_loop.before_loop
     async def _before_loop(self):
-        self.bot.loop.create_task(self._loop)
         self.bot.log.info("Waiting for Bot to be ready...")
         await self.bot.wait_until_ready()
 
 
 async def setup(bot):
-    if "timed_message" in bot.config:
-        await bot.add_cog(Timed(bot))
-    else:
-        raise NerpyException("Config not found.")
+    await bot.add_cog(Timed(bot))
