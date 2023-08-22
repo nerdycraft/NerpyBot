@@ -4,7 +4,7 @@ from typing import Optional
 
 import discord
 from discord.app_commands import checks
-from discord.ext.commands import GroupCog, hybrid_command, hybrid_group, check
+from discord.ext.commands import GroupCog, hybrid_command, hybrid_group, check, command
 
 import utils.format as fmt
 from utils.checks import is_botmod
@@ -69,7 +69,7 @@ class Moderation(GroupCog):
         for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
             await ctx.send(fmt.box(page))
 
-    @hybrid_command()
+    @command()
     async def history(self, ctx):
         """displays the last 10 received commands since last restart [bot-moderator]"""
         if ctx.guild.id in ctx.bot.last_cmd_cache:

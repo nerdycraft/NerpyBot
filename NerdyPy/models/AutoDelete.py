@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """ AutoDelete Messages """
 
-from sqlalchemy import BigInteger, Column, Index, Boolean
+from sqlalchemy import Integer, BigInteger, Column, Index, Boolean
 
 from utils import database as db
 
@@ -10,10 +10,14 @@ class AutoDelete(db.BASE):
     """database entity model for AutoDelete"""
 
     __tablename__ = "AutoDelete"
-    __table_args__ = (Index("AutoDelete_GuildId", "GuildId"),)
+    __table_args__ = (
+        Index("AutoDelete_GuildId", "GuildId"),
+        Index("AutoDelete_GuildId_ChannelId", "GuildId", "ChannelId", unique=True),
+    )
 
-    GuildId = Column(BigInteger, primary_key=True)
-    ChannelId = Column(BigInteger, primary_key=True)
+    Id = Column(Integer, primary_key=True)
+    GuildId = Column(BigInteger)
+    ChannelId = Column(BigInteger)
     KeepMessages = Column(BigInteger, default=0)
     DeleteOlderThan = Column(BigInteger)
     DeletePinnedMessage = Column(Boolean, default=False)
@@ -27,7 +31,8 @@ class AutoDelete(db.BASE):
     def get_by_channel(cls, guild_id: int, channel_id: int, session):
         return (
             session.query(AutoDelete)
-            .filter(AutoDelete.GuildId == guild_id and AutoDelete.ChannelId == channel_id)
+            .filter(AutoDelete.GuildId == guild_id)
+            .filter(AutoDelete.ChannelId == channel_id)
             .first()
         )
 

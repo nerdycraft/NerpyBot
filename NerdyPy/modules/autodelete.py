@@ -39,7 +39,7 @@ class AutoDeleter(GroupCog, group_name="autodeleter"):
                     messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
 
                     while len(messages) > configuration.KeepMessages:
-                        message = messages.pop()
+                        message = messages.pop(0)
                         if not configuration.DeletePinnedMessage and message.pinned:
                             continue
                         self.bot.log.info(f"Delete message {message.id}, created at {message.created_at}.")
@@ -71,6 +71,9 @@ class AutoDeleter(GroupCog, group_name="autodeleter"):
                         delete = delete_older_than
                     else:
                         delete = pytimeparse.parse(delete_older_than)
+                        if delete is None:
+                            await ctx.send("Only timespans up until weeks are allowed. Do not use months or years.")
+                            return
 
                     deleter = AutoDelete(
                         GuildId=ctx.guild.id,
