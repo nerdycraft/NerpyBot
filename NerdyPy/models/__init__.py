@@ -3,8 +3,8 @@
 import models.RaidEncounter
 import models.RaidEncounterRole
 import models.RaidTemplate
-import models.rolechecker
-import models.guild_prefix
-import models.tag
-import models.tagentry
-import models.timed_message
+import models.RoleChecker
+import models.GuildPrefix
+import models.Tag
+import models.TagEntry
+import models.TimedMessage

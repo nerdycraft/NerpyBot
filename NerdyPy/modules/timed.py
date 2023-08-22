@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from discord.ext import tasks
 from discord.ext.commands import Cog, hybrid_group
 
-from models.timed_message import TimedMessage
+from models.TimedMessage import TimedMessage
 from utils.format import pagify, box
 
 

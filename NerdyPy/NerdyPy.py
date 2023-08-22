@@ -23,7 +23,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
 import utils.logging as logging
-from models.guild_prefix import GuildPrefix
+from models.GuildPrefix import GuildPrefix
 from utils.audio import Audio
 from utils.conversation import ConversationManager, AnswerType
 from utils.database import BASE
