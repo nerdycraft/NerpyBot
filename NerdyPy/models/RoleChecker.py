@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """ General message database model """
 
-from sqlalchemy import BigInteger, Column, Boolean, Integer, Index, select
+from sqlalchemy import BigInteger, Column, Boolean, Index
 
 from utils import database as db
 
@@ -15,12 +15,11 @@ class RoleChecker(db.BASE):
     GuildId = Column(BigInteger, primary_key=True)
     KickAfter = Column(BigInteger, default=0)
     Enabled = Column(Boolean, default=False)
-    ChannelId = Column(BigInteger)
 
     @classmethod
     def get(cls, guild_id: int, session):
         """get all"""
-        return session.query(RoleChecker).filter(RoleChecker.GuildId == guild_id).all()
+        return session.query(RoleChecker).filter(RoleChecker.GuildId == guild_id).first()
 
     @classmethod
     def delete(cls, guild_id: int, session):
