@@ -32,7 +32,6 @@ class Admin(GroupCog):
 
     @tasks.loop(time=times)
     async def _role_checker(self):
-        msg = ""
         with self.bot.session_scope() as session:
             for guild in self.bot.guilds:
                 self.bot.log.info(guild.name)
