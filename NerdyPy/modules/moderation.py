@@ -56,6 +56,22 @@ class Moderation(GroupCog):
 
         await ctx.send(embed=emb)
 
+    @user.command(name="without_roles")
+    @checks.has_permissions(moderate_members=True)
+    async def _get_user_without_roles(self, ctx):
+        """displays users without any roles associated. [bot-moderator]"""
+
+        msg = ""
+        for member in ctx.guild.members:
+            if len(member.roles) == 1:
+                joined = member.joined_at.strftime("%d. %b %Y - %H:%M")
+                msg += f"{member.display_name}: joined: {joined}\n"
+
+        if msg == "":
+            msg = "None found."
+        for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
+            await ctx.send(fmt.box(page))
+
     @user.command(name="list")
     @checks.has_permissions(moderate_members=True)
     async def _list_user_info_from_guild(self, ctx):

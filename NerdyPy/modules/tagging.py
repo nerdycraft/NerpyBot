@@ -13,7 +13,7 @@ from discord.ext.commands import (
 )
 
 import utils.format as fmt
-from models.tag import Tag, TagType, TagTypeConverter
+from models.Tag import Tag, TagType, TagTypeConverter
 from utils.audio import QueuedSong
 from utils.checks import is_connected_to_voice
 from utils.download import download

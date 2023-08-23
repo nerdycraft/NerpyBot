@@ -1,11 +1,19 @@
 # -*- coding: utf-8 -*-
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone, time
 
+import humanize
+import pytimeparse
 from discord.app_commands import checks
+from discord.ext import tasks
 from discord.ext.commands import GroupCog, hybrid_command, group
 
-from models.guild_prefix import GuildPrefix
+from models.GuildPrefix import GuildPrefix
+from models.RoleChecker import RoleChecker
+
+utc = timezone.utc
+# If no tzinfo is given then UTC is assumed.
+times = [time(hour=8, tzinfo=utc), time(hour=12, minute=30, tzinfo=utc), time(hour=18, tzinfo=utc)]
 
 
 @checks.has_permissions(administrator=True)
@@ -16,6 +24,64 @@ class Admin(GroupCog):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
+        self.settings = {}
+        self._role_checker.start()
+
+    def cog_unload(self):
+        self._role_checker.cancel()
+
+    @tasks.loop(time=times)
+    async def _role_checker(self):
+        with self.bot.session_scope() as session:
+            for guild in self.bot.guilds:
+                self.bot.log.info(guild.name)
+                configuration = RoleChecker.get(guild.id, session)
+                if configuration is None:
+                    continue
+                if configuration.Enabled and configuration.KickAfter > 0:
+                    for member in guild.members:
+                        if len(member.roles) == 1:
+                            kick_reminder = datetime.utcnow() - timedelta(seconds=(configuration.KickAfter / 2))
+                            kick_reminder = kick_reminder.replace(tzinfo=timezone.utc)
+                            kick_after = datetime.utcnow() - timedelta(seconds=configuration.KickAfter)
+                            kick_after = kick_after.replace(tzinfo=timezone.utc)
+
+                            if member.joined_at < kick_after:
+                                self.bot.log.debug(f"Kick member {member.display_name}!")
+                                await member.kick()
+                            elif member.joined_at < kick_reminder:
+                                await member.send(
+                                    f"You have not selected a role on {guild.name}. "
+                                    f"Please choose a role or you will be kicked on {humanize.naturaldate(kick_after)}."
+                                )
+
+    @_role_checker.before_loop
+    async def _role_checker_before_loop(self):
+        self.bot.log.info("Waiting for Bot to be ready...")
+        await self.bot.wait_until_ready()
+
+    @hybrid_command()
+    async def rolechecker(self, ctx, enable: bool, kick_after: str):
+        """Activates the Role Checker. [bot-moderator]"""
+        with self.bot.session_scope() as session:
+            configuration = RoleChecker.get(ctx.guild.id, session)
+            if kick_after is not None:
+                kick_time = pytimeparse.parse(kick_after)
+            else:
+                await ctx.send("You need to specify when I should kick someone!")
+                return
+            if configuration is not None:
+                configuration.KickAfter = kick_time
+                configuration.Enabled = enable
+            else:
+                rolechecker = RoleChecker(
+                    GuildId=ctx.guild.id,
+                    KickAfter=kick_time,
+                    Enabled=enable,
+                )
+                session.add(rolechecker)
+
+        await ctx.send("RoleChecker configured for this server.")
 
     @group()
     async def prefix(self, ctx):
