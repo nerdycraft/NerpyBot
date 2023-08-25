@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """ General message database model """
 
-from sqlalchemy import BigInteger, Column, Boolean, Index
+from sqlalchemy import BigInteger, Column, Boolean, Index, Text
 
 from utils import database as db
 
@@ -15,6 +15,7 @@ class RoleChecker(db.BASE):
     GuildId = Column(BigInteger, primary_key=True)
     KickAfter = Column(BigInteger, default=0)
     Enabled = Column(Boolean, default=False)
+    ReminderMessage = Column(Text)
 
     @classmethod
     def get(cls, guild_id: int, session):

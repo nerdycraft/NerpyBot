@@ -282,11 +282,13 @@ if __name__ == "__main__":
     INTENTS = get_intents()
     if str(ARGS.loglevel).upper() == "DEBUG" or ARGS.verbosity > 0:
         DEBUG = True
+        loggers = ["nerpybot", "sqlalchemy.engine"]
     else:
         DEBUG = False
+        loggers = ["nerpybot"]
 
     if "bot" in CONFIG:
-        for logger_name in ["nerpybot", "sqlalchemy.engine"]:
+        for logger_name in loggers:
             logging.create_logger(ARGS.verbosity, ARGS.loglevel, logger_name)
         BOT = NerpyBot(CONFIG, INTENTS, DEBUG)
 
