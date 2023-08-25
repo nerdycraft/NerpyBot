@@ -31,16 +31,15 @@ class Admin(GroupCog):
     def cog_unload(self):
         self._role_checker.cancel()
 
-    # @tasks.loop(time=loop_run_time)
-    @tasks.loop(seconds=30)
+    @tasks.loop(time=loop_run_time)
     async def _role_checker(self):
         with self.bot.session_scope() as session:
             for guild in self.bot.guilds:
-                self.bot.log.info(guild.name)
                 configuration = RoleChecker.get(guild.id, session)
                 if configuration is None:
                     continue
                 if configuration.Enabled and configuration.KickAfter > 0:
+                    self.bot.log.info(f"Checking for member without role in {guild.name}.")
                     for member in guild.members:
                         if len(member.roles) == 1:
                             kick_reminder = datetime.utcnow() - timedelta(seconds=(configuration.KickAfter / 2))
