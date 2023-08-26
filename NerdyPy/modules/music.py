@@ -8,17 +8,18 @@ from discord.ext.commands import (
     check,
     hybrid_command,
     bot_has_permissions,
+    has_permissions,
 )
 
 import utils.format as fmt
 from utils.audio import QueuedSong
-from utils.checks import is_botmod, is_connected_to_voice
+from utils.checks import is_connected_to_voice
 from utils.download import download, fetch_yt_infos
 from utils.errors import NerpyException
 from utils.helpers import youtube
 
 
-@bot_has_permissions(send_messages=True)
+@bot_has_permissions(send_messages=True, speak=True)
 class Music(GroupCog):
     """Command group for sound and text tags"""
 
@@ -30,17 +31,12 @@ class Music(GroupCog):
         self.queue = {}
         self.audio = self.bot.audio
 
-    def cog_unload(self):
-        self._queue_manager.cancel()
-        self._timeout_manager.cancel()
-
     @hybrid_command(name="skip")
     async def _skip_audio(self, ctx):
         """skip current track"""
         self.bot.log.info(f"{ctx.guild.name} requesting skip!")
         self.audio.stop(ctx.guild.id)
 
-    @check(is_botmod)
     @command(name="stop")
     async def _stop_playing_audio(self, ctx):
         """bot stops playing audio [bot-moderator]"""
@@ -72,7 +68,7 @@ class Music(GroupCog):
                 await ctx.send("Queue is empty.", ephemeral=True)
 
     @_queue.command(name="drop")
-    @check(is_botmod)
+    @has_permissions(mute_members=True)
     async def _drop_queue(self, ctx):
         """drop the playlist entirely"""
         self.audio.stop(ctx.guild.id)
