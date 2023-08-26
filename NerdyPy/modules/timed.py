@@ -1,27 +1,29 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime, timedelta
+from typing import Optional
 
+import discord
 from discord.ext import tasks
-from discord.ext.commands import Cog, hybrid_group
+from discord.ext.commands import GroupCog, hybrid_command
 
 from models.TimedMessage import TimedMessage
 from utils.format import pagify, box
 
 
-class Timed(Cog):
+class Timed(GroupCog, group_name="timed-message"):
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
         self.reminders = []
-        self._loop.start()
+        self._timed_loop.start()
 
     def cog_unload(self):
-        self._loop.cancel()
+        self._timed_loop.cancel()
 
     @tasks.loop(seconds=30)
-    async def _loop(self):
+    async def _timed_loop(self):
         with self.bot.session_scope() as session:
             for guild in self.bot.guilds:
                 msgs = TimedMessage.get_all_from_guild(guild.id, session)
@@ -40,21 +42,20 @@ class Timed(Cog):
 
             session.flush()
 
-    @hybrid_group()
-    async def timed(self, ctx):
-        """
-        timed messages
-        """
-
-    @timed.command()
-    async def create(self, ctx, minutes: int, repeat: bool, message: str):
+    @hybrid_command()
+    async def create(self, ctx, channel: Optional[discord.TextChannel], minutes: int, repeat: bool, message: str):
         """
         creates a message which gets send after a certain time
         """
         with self.bot.session_scope() as session:
+            if channel:
+                channel_id = channel.id
+            else:
+                channel_id = ctx.channel.id
+
             msg = TimedMessage(
                 GuildId=ctx.guild.id,
-                ChannelId=ctx.channel.id,
+                ChannelId=channel_id,
                 Author=str(ctx.author),
                 CreateDate=datetime.utcnow(),
                 LastSend=datetime.utcnow(),
@@ -69,7 +70,7 @@ class Timed(Cog):
 
         await ctx.send("Message created.", ephemeral=True)
 
-    @timed.command()
+    @hybrid_command()
     async def list(self, ctx):
         """
         list all current timed messages
@@ -82,7 +83,7 @@ class Timed(Cog):
         for page in pagify(to_send, delims=["\n#"], page_length=1990):
             await ctx.send(box(page, "md"))
 
-    @timed.command()
+    @hybrid_command()
     async def delete(self, ctx, timed_id: int):
         """
         deletes a timed message
@@ -92,9 +93,9 @@ class Timed(Cog):
 
         await ctx.send("Message deleted.", ephemeral=True)
 
-    @_loop.before_loop
+    @_timed_loop.before_loop
     async def _before_loop(self):
-        self.bot.log.info("Waiting for Bot to be ready...")
+        self.bot.log.info("Timed: Waiting for Bot to be ready...")
         await self.bot.wait_until_ready()
 
 
