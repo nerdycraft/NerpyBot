@@ -140,9 +140,15 @@ class NerpyBot(commands.Bot):
 
             await ctx.message.delete()
 
-    async def on_command_error(self, ctx, error):
+    async def on_command_error(self, ctx: context.Context, error) -> None:
+        """
+        Sends an error message to the command invoker
+
+        :param ctx:
+        :param error:
+        """
         send_err = True
-        if isinstance(error, commands.CommandNotFound):
+        if isinstance(error, CommandNotFound):
             if ctx.author not in self.usr_cmd_err_spam:
                 self.usr_cmd_err_spam[ctx.author] = 0
 
@@ -153,24 +159,34 @@ class NerpyBot(commands.Bot):
                 self.usr_cmd_err_spam[ctx.author] = 0
 
         if send_err:
-            if isinstance(error, commands.CommandError):
+            if isinstance(error, CommandError):
                 if isinstance(error, commands.CommandInvokeError) and not isinstance(error.original, NerpyException):
                     self.log.error(f"In {ctx.command.qualified_name}:")
                     traceback.print_tb(error.original.__traceback__)
                     self.log.error(f"{error.original.__class__.__name__}: {error.original}")
                     await ctx.author.send("Unhandled error occurred. Please report to bot author!")
+                if isinstance(error.original, app_commands.CommandInvokeError) and isinstance(
+                    error.original.original, NerpyException
+                ):
+                    await ctx.send(error.original.original.args[0])
                 if not isinstance(error, CheckFailure):
                     if isinstance(error.original, NerpyException):
-                        await ctx.author.send(error.original)
+                        if ctx.interaction is None:
+                            await ctx.author.send("".join(error.original.args[0]))
+                        else:
+                            await ctx.send("".join(error.original.args[0]))
                     else:
                         self.log.error(error)
             else:
                 self.log.error(f"In {ctx.command.qualified_name}:")
                 traceback.print_tb(error.original.__traceback__)
                 self.log.error(f"{error.original.__class__.__name__}: {error.original}")
-                await ctx.author.send("Unhandled error occurred. Please report to bot author!")
+                if ctx.interaction is None:
+                    await ctx.author.send("Unhandled error occurred. Please report to bot author!")
+                else:
+                    await ctx.send("Unhandled error occurred. Please report to bot author!")
 
-        if not isinstance(ctx.channel, discord.DMChannel):
+        if not isinstance(ctx.channel, discord.DMChannel) and ctx.interaction is None:
             await ctx.message.delete()
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
