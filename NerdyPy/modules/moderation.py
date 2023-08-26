@@ -5,13 +5,13 @@ from typing import Optional, Union
 import discord
 import humanize
 import pytimeparse
-from discord.app_commands import checks
+from discord.app_commands import checks, describe, rename
 from discord.ext import tasks
 from discord.ext.commands import Cog, hybrid_command, hybrid_group, command
 
 import utils.format as fmt
 from models.AutoDelete import AutoDelete
-from models.RoleChecker import RoleChecker
+from models.AutoKicker import AutoKicker
 from utils.errors import NerpyException
 
 utc = timezone.utc
@@ -26,18 +26,18 @@ class Moderation(Cog):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
-        self._rolechecker.start()
+        self._autokicker.start()
         self._autodeleter.start()
 
     def cog_unload(self):
-        self._rolechecker.cancel()
+        self._autokicker.cancel()
         self._autodeleter.cancel()
 
     @tasks.loop(time=loop_run_time)
-    async def _rolechecker(self):
+    async def _autokicker(self):
         with self.bot.session_scope() as session:
             for guild in self.bot.guilds:
-                configuration = RoleChecker.get(guild.id, session)
+                configuration = AutoKicker.get(guild.id, session)
                 if configuration is None:
                     continue
                 if configuration.Enabled and configuration.KickAfter > 0:
@@ -84,11 +84,16 @@ class Moderation(Cog):
                         await message.delete()
 
     @hybrid_command()
+    @describe(
+        kick_after='Time after someone get\'s kicked, like "1 day", "1 week" or "5 minutes". Supports also '
+        'abbreviations like "min" and "h".'
+    )
+    @rename(kick_reminder_message="reminder_message")
     @checks.has_permissions(kick_members=True)
-    async def rolechecker(self, ctx, enable: bool, kick_after: str, kick_reminder_message: Optional[str]):
+    async def autokicker(self, ctx, enable: bool, kick_after: str, kick_reminder_message: Optional[str]):
         """Activates the Role Checker. [bot-moderator]"""
         with self.bot.session_scope() as session:
-            configuration = RoleChecker.get(ctx.guild.id, session)
+            configuration = AutoKicker.get(ctx.guild.id, session)
             if kick_after is not None:
                 kick_time = pytimeparse.parse(kick_after)
                 if kick_time is None:
@@ -102,15 +107,15 @@ class Moderation(Cog):
                 configuration.Enabled = enable
                 configuration.ReminderMessage = kick_reminder_message
             else:
-                rolechecker = RoleChecker(
+                autokicker = AutoKicker(
                     GuildId=ctx.guild.id,
                     KickAfter=kick_time,
                     Enabled=enable,
                     ReminderMessage=kick_reminder_message,
                 )
-                session.add(rolechecker)
+                session.add(autokicker)
 
-        await ctx.send("RoleChecker configured for this server.")
+        await ctx.send("AutoKicker configured for this server.")
 
     @hybrid_group()
     @checks.has_permissions(manage_messages=True)
@@ -292,7 +297,7 @@ class Moderation(Cog):
                 return
         await ctx.send("No recent commands to display.")
 
-    @_rolechecker.before_loop
+    @_autokicker.before_loop
     async def _role_checker_before_loop(self):
         self.bot.log.info("Rolechecker: Waiting for Bot to be ready...")
         await self.bot.wait_until_ready()
