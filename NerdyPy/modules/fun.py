@@ -4,13 +4,13 @@ from random import randint, choice
 
 import discord
 from discord.app_commands import describe
-from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions
+from discord.ext.commands import Cog, hybrid_command, bot_has_permissions
 
 from utils.errors import NerpyException
 
 
 @bot_has_permissions(send_messages=True)
-class Fun(GroupCog):
+class Fun(Cog):
     """HAHA commands so fun, much wow"""
 
     def __init__(self, bot):
