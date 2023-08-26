@@ -14,10 +14,17 @@ from pathlib import Path
 from typing import List
 
 import discord
-from discord import HTTPException, LoginFailure
+from discord import HTTPException, LoginFailure, app_commands
 from discord.app_commands import CommandSyncFailure
 from discord.ext import commands
-from discord.ext.commands import CheckFailure
+from discord.ext.commands import (
+    Bot,
+    CheckFailure,
+    ExtensionFailed,
+    CommandNotFound,
+    CommandError,
+    context,
+)
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
@@ -30,10 +37,11 @@ from utils.database import BASE
 from utils.errors import NerpyException
 
 
-class NerpyBot(commands.Bot):
+class NerpyBot(Bot):
     """Discord Bot"""
 
     def __init__(self, config: configparser.ConfigParser, intents: discord.Intents, debug: bool):
+        # noinspection PyTypeChecker
         super().__init__(
             command_prefix=determine_prefix, description="NerdyBot - Always one step ahead!", intents=intents
         )
@@ -85,13 +93,16 @@ class NerpyBot(commands.Bot):
         self.ENGINE = create_engine(db_connection_string)
         self.SESSION = sessionmaker(bind=self.ENGINE, expire_on_commit=False)
 
-    def create_all(self):
+    def create_all(self) -> None:
         """creates all tables previously defined"""
         BASE.metadata.create_all(self.ENGINE)
 
     @contextmanager
-    def session_scope(self):
-        """Provide a transactional scope around a series of operations."""
+    def session_scope(self) -> object:
+        """Provide a transactional scope around a series of operations.
+
+        :rtype: object
+        """
         session = self.SESSION()
         try:
             yield session
@@ -103,12 +114,18 @@ class NerpyBot(commands.Bot):
         finally:
             session.close()
 
-    async def setup_hook(self):
+    async def setup_hook(self) -> None:
+        """
+        Discord Bot setup_hook
+        Loads Modules and creates Databases
+
+        Also syncs Slash Commands to the discord api
+        """
         # load modules
         for module in self.modules:
             try:
                 await self.load_extension(f"modules.{module}")
-            except (ImportError, commands.ExtensionFailed, discord.ClientException) as e:
+            except (ImportError, ExtensionFailed, discord.ClientException) as e:
                 self.log.error(f"failed to load extension {module}. {e}")
                 self.log.debug(traceback.print_exc())
 
@@ -124,12 +141,16 @@ class NerpyBot(commands.Bot):
         else:
             self.log.info(f"Synced commands: {', '.join(cmds.name for cmds in synced_cmds)}")
 
-    async def on_ready(self):
+    async def on_ready(self) -> None:
         """calls when successfully logged in"""
         self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
 
-    async def on_command_completion(self, ctx):
-        """deleting msg on cmd completion"""
+    async def on_command_completion(self, ctx) -> None:
+        """
+        Deleting msg on cmd completion (this is only true if no slash command was used)
+
+        Also adds legacy commands to the command cache, which can then be queried by the 'history' command
+        """
         if self.restart is True and not isinstance(ctx.channel, discord.DMChannel):
             if ctx.guild.id not in self.last_cmd_cache:
                 self.last_cmd_cache[ctx.guild.id] = []
@@ -189,7 +210,13 @@ class NerpyBot(commands.Bot):
         if not isinstance(ctx.channel, discord.DMChannel) and ctx.interaction is None:
             await ctx.message.delete()
 
-    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
+        """
+        Handles reactions to messages
+
+        :param payload:
+        :return:
+        """
         user = await self.fetch_user(payload.user_id)
         if user is None or user.bot:
             return
@@ -198,7 +225,13 @@ class NerpyBot(commands.Bot):
         if conv is not None and conv.is_conv_message(payload.message_id) and conv.is_answer_type(AnswerType.REACTION):
             await conv.on_react(payload.emoji)
 
-    async def on_message(self, message):
+    async def on_message(self, message: discord.message.Message) -> None:
+        """
+        Handles chats in DMs to the bot
+
+        :param message:
+        :return:
+        """
         if message.author.bot:
             return
 
@@ -212,9 +245,12 @@ class NerpyBot(commands.Bot):
         if invoke:
             await self.process_commands(message)
 
-    async def start(self, token: str = None, reconnect: bool = True):
+    async def start(self, token: str = None, reconnect: bool = True) -> None:
         """
         generator connects the discord bot to the server
+
+        :param token: str
+        :param reconnect: bool
         """
         self.log.info("Logging into Discord...")
         if self.token:
@@ -225,7 +261,7 @@ class NerpyBot(commands.Bot):
             raise RuntimeError()
         await self.connect(reconnect=self.restart)
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """
         shutting down discord nicely
         """
@@ -234,11 +270,19 @@ class NerpyBot(commands.Bot):
         await self.close()
 
 
-def get_intents():
+def get_intents() -> discord.Intents:
     return discord.Intents.all()
 
 
 def determine_prefix(bot, message) -> List[str]:
+    """
+    Gets the current prefix if any and set's it for the bot.
+    Defaults to '!'
+
+    :param bot: NerpyBot
+    :param message: discord.message.Message
+    :return: List[str]
+    """
     guild = message.guild
     # Only allow custom prefixes in guild
     if guild:
@@ -292,7 +336,6 @@ if __name__ == "__main__":
 """
     )
 
-    RUNNING = True
     ARGS = parse_arguments()
     CONFIG = parse_config(ARGS.config)
     INTENTS = get_intents()
