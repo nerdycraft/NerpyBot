@@ -5,14 +5,14 @@ from random import randint, choice
 
 import aiohttp
 import discord
-from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions
+from discord.ext.commands import Cog, hybrid_command, bot_has_permissions
 
 import utils.format as fmt
 from utils.errors import NerpyException
 
 
 @bot_has_permissions(send_messages=True)
-class Random(GroupCog):
+class Random(Cog):
     """who is that random"""
 
     def __init__(self, bot):
@@ -36,36 +36,38 @@ class Random(GroupCog):
         """Displays a random lenny face."""
         await ctx.send(choice(self.lennys))
 
-    @hybrid_command()
-    async def chuck(self, ctx):
-        """random chuck norris joke."""
-        url = "http://api.icndb.com/jokes/random"
+    # Webserver Error 500 (maybe gone forever)
+    # @hybrid_command()
+    # async def chuck(self, ctx):
+    #     """random chuck norris joke."""
+    #     url = "http://api.icndb.com/jokes/random"
+    #
+    #     async with aiohttp.ClientSession() as session:
+    #         async with session.get(url) as response:
+    #             if response.status != 200:
+    #                 err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
+    #                 raise NerpyException(err)
+    #             data = await response.json()
+    #             await ctx.send(data.get("value", dict()).get("joke"))
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status != 200:
-                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
-                    raise NerpyException(err)
-                data = await response.json()
-                await ctx.send(data.get("value", dict()).get("joke"))
-
-    @hybrid_command()
-    async def yomomma(self, ctx):
-        """random yomomma joke"""
-        url = "http://api.yomomma.info"
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status != 200:
-                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
-                    raise NerpyException(err)
-                data = await response.json()
-                await ctx.send(data.get("joke"))
+    # Same here, error 500
+    # @hybrid_command()
+    # async def yomomma(self, ctx):
+    #     """random yomomma joke"""
+    #     url = "http://api.yomomma.info"
+    #
+    #     async with aiohttp.ClientSession() as session:
+    #         async with session.get(url) as response:
+    #             if response.status != 200:
+    #                 err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
+    #                 raise NerpyException(err)
+    #             data = await response.json()
+    #             await ctx.send(data.get("joke"))
 
     @hybrid_command()
     async def quote(self, ctx):
         """random quote"""
-        url = "http://quotesondesign.com/wp-json/posts?filter[orderby]=rand"
+        url = "https://quotesondesign.com/wp-json/wp/v2/posts/?orderby=rand"
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
@@ -73,7 +75,10 @@ class Random(GroupCog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(f'{fmt.strip_tags(data[0].get("content"))} - {data[0].get("title")}')
+                await ctx.send(
+                    f'{fmt.strip_tags(data[0].get("content").get("rendered"))} - '
+                    f'{data[0].get("title").get("rendered")}'
+                )
 
     @hybrid_command()
     async def trump(self, ctx):
@@ -125,18 +130,19 @@ class Random(GroupCog):
                 data = await response.json()
         await ctx.send(data.get("media").get("gif"))
 
-    @hybrid_command()
-    async def cat(self, ctx):
-        """random cat command are legit"""
-        url = "http://aws.random.cat/meow"
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status != 200:
-                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
-                    raise NerpyException(err)
-                data = await response.json()
-        await ctx.send(data.get("file"))
+    # Seems down for the moment, but may be coming back
+    # @hybrid_command()
+    # async def cat(self, ctx):
+    #     """random cat command are legit"""
+    #     url = "http://aws.random.cat/meow"
+    #
+    #     async with aiohttp.ClientSession() as session:
+    #         async with session.get(url) as response:
+    #             if response.status != 200:
+    #                 err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
+    #                 raise NerpyException(err)
+    #             data = await response.json()
+    #     await ctx.send(data.get("file"))
 
     @hybrid_command()
     async def catfact(self, ctx):
