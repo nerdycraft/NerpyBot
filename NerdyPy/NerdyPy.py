@@ -190,14 +190,12 @@ class NerpyBot(Bot):
                     error.original.original, NerpyException
                 ):
                     await ctx.send(error.original.original.args[0])
-                if not isinstance(error, CheckFailure):
-                    if isinstance(error.original, NerpyException):
-                        if ctx.interaction is None:
-                            await ctx.author.send("".join(error.original.args[0]))
-                        else:
-                            await ctx.send("".join(error.original.args[0]))
+                if not isinstance(error, CheckFailure) and isinstance(error.original, NerpyException):
+                    if ctx.interaction is None:
+                        await ctx.author.send("".join(error.original.args[0]))
                     else:
-                        self.log.error(error)
+                        await ctx.send("".join(error.original.args[0]))
+                self.log.error(error)
             else:
                 self.log.error(f"In {ctx.command.qualified_name}:")
                 traceback.print_tb(error.original.__traceback__)
