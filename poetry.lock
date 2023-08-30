@@ -678,6 +678,21 @@ files = [
 ]
 
 [[package]]
+name = "igdb-api-v4"
+version = "0.2.0"
+description = "An API wrapper for IGDB API v4"
+optional = false
+python-versions = ">=3"
+files = [
+    {file = "igdb-api-v4-0.2.0.tar.gz", hash = "sha256:1798c16c38d66e35e444cc692c5f6ba0ec6b9fa9d6e47fe8129a5dab25760837"},
+    {file = "igdb_api_v4-0.2.0-py3-none-any.whl", hash = "sha256:aa717fbf6c7dde853f222b789405fed49287034ed9feb177f3be50cba0c9ecfd"},
+]
+
+[package.dependencies]
+protobuf = "*"
+requests = "*"
+
+[[package]]
 name = "mccabe"
 version = "0.7.0"
 description = "McCabe checker, plugin for flake8"
@@ -1257,4 +1272,4 @@ resolved_reference = "86e3cf5e5849aefcc540c19bb5fa5ab7f470d1c1"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "0222b703e785d82ab63bb049006ab17c02e33b21fa6415bd3f30ab9f00bc7222"
+content-hash = "dd674627e8720f3185a5ed0ea6bb7f9c3c317ded0e150333fe4d87c335388f6c"

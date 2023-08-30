@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 from random import randint, choice
+from typing import Optional
 
 import discord
-from discord.app_commands import describe
 from discord.ext.commands import Cog, hybrid_command, bot_has_permissions
 
 from utils.errors import NerpyException
@@ -169,13 +169,17 @@ class Fun(Cog):
         await ctx.send(f"{mention} asked me: {question}\n\n{choice(self.ball)}`")
 
     @hybrid_command(no_pm=True)
-    @describe(intensity="The intensity of your hug. 0 to 4 levels, default is random")
-    async def hug(self, ctx, user: discord.Member, intensity: int = None):
+    async def hug(self, ctx, user: discord.Member, intensity: Optional[int] = None):
         """
         Because everyone likes hugs!
 
-        <user> has to be a valid @user
-        <intensity> 0 to 4 levels default is random
+        Parameters
+        ----------
+        ctx
+        user: discord.Member
+             has to be a valid @user
+        intensity: Optional[int]
+            The intensity of your hug. 0 to 4 levels, default is random
         """
         name = user.mention
         author = ctx.message.author.mention
@@ -190,16 +194,17 @@ class Fun(Cog):
             await ctx.send(f"{author} {choice(self.hugs)} {name}")
 
     @hybrid_command()
-    @describe(
-        intensity="Set the intensity for the conversion. 5 levels, starting with 1",
-        text="Any text you want to convert",
-    )
     async def leet(self, ctx, intensity: int, text: str):
         """
         convert text into 1337speak
 
-        <intensity> 5 levels, starting with 1
-        <text> any text you want to convert
+        Parameters
+        ----------
+        ctx
+        intensity: int
+            Set the intensity for the conversion. 5 levels, starting with 1
+        text: str
+             any text you want to convert
         """
         if intensity > 0:
             if intensity > 5:

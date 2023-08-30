@@ -5,7 +5,7 @@ from typing import Optional, Union
 import discord
 import humanize
 import pytimeparse
-from discord.app_commands import checks, describe, rename
+from discord.app_commands import checks, rename
 from discord.ext import tasks
 from discord.ext.commands import Cog, hybrid_command, hybrid_group, command
 
@@ -32,6 +32,10 @@ class Moderation(Cog):
     def cog_unload(self):
         self._autokicker.cancel()
         self._autodeleter.cancel()
+
+    @staticmethod
+    def _send_hidden_message(ctx, msg):
+        return ctx.send(msg, ephemeral=True)
 
     @tasks.loop(time=loop_run_time)
     async def _autokicker(self):
@@ -84,23 +88,31 @@ class Moderation(Cog):
                         await message.delete()
 
     @hybrid_command()
-    @describe(
-        kick_after='Time after someone get\'s kicked, like "1 day", "1 week" or "5 minutes". Supports also '
-        'abbreviations like "min" and "h".'
-    )
     @rename(kick_reminder_message="reminder_message")
     @checks.has_permissions(kick_members=True)
     async def autokicker(self, ctx, enable: bool, kick_after: str, kick_reminder_message: Optional[str]):
-        """Activates the Role Checker. [bot-moderator]"""
+        """Activates the AutoKicker. [bot-moderator]
+
+        Parameters
+        ----------
+        ctx
+        enable: bool
+        kick_after: str
+            Time after someone get's kicked, like "1 day", "1 week" or "5 minutes".
+            Supports also abbreviations like "min" and "h".
+        kick_reminder_message: Optional[str]
+        """
         with self.bot.session_scope() as session:
             configuration = AutoKicker.get(ctx.guild.id, session)
             if kick_after is not None:
                 kick_time = pytimeparse.parse(kick_after)
                 if kick_time is None:
-                    await ctx.send("Only timespans up until weeks are allowed. Do not use months or years.")
+                    await self._send_hidden_message(
+                        ctx, "Only timespans up until weeks are allowed. Do not use months or years."
+                    )
                     return
             else:
-                await ctx.send("You need to specify when I should kick someone!")
+                await self._send_hidden_message(ctx, "You need to specify when I should kick someone!")
                 return
             if configuration is not None:
                 configuration.KickAfter = kick_time
@@ -115,7 +127,7 @@ class Moderation(Cog):
                 )
                 session.add(autokicker)
 
-        await ctx.send("AutoKicker configured for this server.")
+        await self._send_hidden_message(ctx, "AutoKicker configured for this server.")
 
     @hybrid_group()
     @checks.has_permissions(manage_messages=True)
@@ -141,15 +153,29 @@ class Moderation(Cog):
         keep_messages: Optional[Union[int | None]],
         delete_pinned_message: bool,
     ):
+        """
+        Creates AutoDeletion configuration on a per-channel basis.
+
+        Parameters
+        ----------
+        ctx
+        channel: discord.TextChannel
+        delete_older_than: Optional[Union[str | None]]
+            Time after messages get deleted, like "1 day", "1 week" or "5 minutes".
+            Supports also abbreviations like "min" and "h".
+        keep_messages: Optional[Union[int | None]]
+            Messages to keep after deletion. Can be used in combination with "delete_older_than".
+        delete_pinned_message: bool
+        """
         channel_id = channel.id
         channel_name = channel.name
 
         with self.bot.session_scope() as session:
             configuration = AutoDelete.get_by_channel(ctx.guild.id, channel_id, session)
             if configuration is not None:
-                await ctx.send(
-                    "This Channel is already configured for AutoDelete."
-                    "Please edit or delete the existing configuration."
+                await self._send_hidden_message(
+                    ctx,
+                    "This Channel is already configured for AutoDelete. Please edit or delete the existing configuration.",
                 )
             else:
                 if ctx.guild.get_channel(channel_id) is not None:
@@ -158,7 +184,9 @@ class Moderation(Cog):
                     else:
                         delete = pytimeparse.parse(delete_older_than)
                         if delete is None:
-                            await ctx.send("Only timespans up until weeks are allowed. Do not use months or years.")
+                            await self._send_hidden_message(
+                                ctx, "Only timespans up until weeks are allowed. Do not use months or years."
+                            )
                             return
 
                     deleter = AutoDelete(
@@ -170,11 +198,19 @@ class Moderation(Cog):
                     )
                     session.add(deleter)
 
-        await ctx.send(f'AutoDeleter configured for channel "{channel_name}".')
+        await self._send_hidden_message(ctx, f'AutoDeleter configured for channel "{channel_name}".')
 
     @autodeleter.command(name="delete")
     @checks.has_permissions(manage_messages=True)
     async def delete_autodeleter(self, ctx, *, channel: discord.TextChannel):
+        """
+        Delete AutoDelete configuration for a channel.
+
+        Parameters
+        ----------
+        ctx
+        channel
+        """
         channel_id = channel.id
         channel_name = channel.name
 
@@ -182,9 +218,9 @@ class Moderation(Cog):
             configuration = AutoDelete.get_by_channel(ctx.guild.id, channel_id, session)
             if configuration is not None:
                 AutoDelete.delete(ctx.guild.id, channel_id, session)
-                await ctx.send(f'Deleted configuration for channel "{channel_name}".')
+                await self._send_hidden_message(ctx, f'Deleted configuration for channel "{channel_name}".')
             else:
-                await ctx.send(f'No configuration for channel "{channel_name}" found!')
+                await self._send_hidden_message(ctx, f'No configuration for channel "{channel_name}" found!')
 
     @autodeleter.command(name="edit")
     @checks.has_permissions(manage_messages=True)
@@ -197,6 +233,20 @@ class Moderation(Cog):
         keep_messages: Optional[Union[int | None]],
         delete_pinned_message: bool,
     ):
+        """
+        Modifies a AutoDeletion configuration for a channel.
+
+        Parameters
+        ----------
+        ctx
+        channel: discord.TextChannel
+        delete_older_than: Optional[Union[str | None]]
+            Time after messages get deleted, like "1 day", "1 week" or "5 minutes".
+            Supports also abbreviations like "min" and "h".
+        keep_messages: Optional[Union[int | None]]
+            Messages to keep after deletion. Can be used in combination with "delete_older_than".
+        delete_pinned_message: bool
+        """
         channel_id = channel.id
         channel_name = channel.name
 
@@ -211,9 +261,11 @@ class Moderation(Cog):
                 configuration.KeepMessages = keep_messages
                 configuration.DeletePinnedMessage = delete_pinned_message
 
-                await ctx.send(f'Updated configuration for channel "{channel_name}".')
+                await self._send_hidden_message(ctx, f'Updated configuration for channel "{channel_name}".')
             else:
-                await ctx.send(f'Configuration for channel "{channel_name}" does not exist. Please create one first.')
+                await self._send_hidden_message(
+                    ctx, f'Configuration for channel "{channel_name}" does not exist. Please create one first.'
+                )
 
     @hybrid_group(aliases=["u"])
     @checks.has_permissions(moderate_members=True)
@@ -254,7 +306,14 @@ class Moderation(Cog):
     @user.command(name="list")
     @checks.has_permissions(moderate_members=True)
     async def _list_user_info_from_guild(self, ctx, show_only_users_without_roles: Optional[bool]):
-        """displays a list of users on your server [bot-moderator]"""
+        """displays a list of users on your server [bot-moderator]
+
+        Parameters
+        ----------
+        ctx
+        show_only_users_without_roles: Optional[bool]
+            If True shows only Users without a Role. (The role everyone is not considered a given role)
+        """
         msg = ""
         if show_only_users_without_roles:
             for member in ctx.guild.members:

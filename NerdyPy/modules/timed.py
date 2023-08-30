@@ -78,10 +78,13 @@ class Timed(GroupCog, group_name="timed-message"):
         to_send = ""
         with self.bot.session_scope() as session:
             msgs = TimedMessage.get_all_from_guild(ctx.guild.id, session)
-            for msg in msgs:
-                to_send += f"{str(msg)}\n\n"
-        for page in pagify(to_send, delims=["\n#"], page_length=1990):
-            await ctx.send(box(page, "md"))
+            if len(msgs) > 0:
+                for msg in msgs:
+                    to_send += f"{str(msg)}\n\n"
+                for page in pagify(to_send, delims=["\n#"], page_length=1990):
+                    await ctx.send(box(page, "md"))
+            else:
+                await ctx.send("No messages in queue.")
 
     @hybrid_command()
     async def delete(self, ctx, timed_id: int):
