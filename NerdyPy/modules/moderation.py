@@ -7,7 +7,7 @@ import humanize
 import pytimeparse
 from discord.app_commands import checks, rename
 from discord.ext import tasks
-from discord.ext.commands import Cog, hybrid_command, hybrid_group, command
+from discord.ext.commands import Cog, hybrid_command, hybrid_group, command, Context
 
 import utils.format as fmt
 from models.AutoDelete import AutoDelete
@@ -34,7 +34,7 @@ class Moderation(Cog):
         self._autodeleter.cancel()
 
     @staticmethod
-    def _send_hidden_message(ctx, msg):
+    def _send_hidden_message(ctx: Context, msg: str):
         return ctx.send(msg, ephemeral=True)
 
     @tasks.loop(time=loop_run_time)
@@ -90,7 +90,7 @@ class Moderation(Cog):
     @hybrid_command()
     @rename(kick_reminder_message="reminder_message")
     @checks.has_permissions(kick_members=True)
-    async def autokicker(self, ctx, enable: bool, kick_after: str, kick_reminder_message: Optional[str]):
+    async def autokicker(self, ctx: Context, enable: bool, kick_after: str, kick_reminder_message: Optional[str]):
         """Activates the AutoKicker. [bot-moderator]
 
         Parameters
@@ -131,7 +131,7 @@ class Moderation(Cog):
 
     @hybrid_group()
     @checks.has_permissions(manage_messages=True)
-    async def autodeleter(self, ctx):
+    async def autodeleter(self, ctx: Context) -> None:
         """Manage autodeletion per channel [bot-moderator]"""
         if ctx.invoked_subcommand is None:
             args = str(ctx.message.clean_content).split(" ")
@@ -146,13 +146,13 @@ class Moderation(Cog):
     @checks.has_permissions(manage_messages=True)
     async def create_autodeleter(
         self,
-        ctx,
+        ctx: Context,
         *,
         channel: discord.TextChannel,
         delete_older_than: Optional[Union[str | None]],
         keep_messages: Optional[Union[int | None]],
         delete_pinned_message: bool,
-    ):
+    ) -> None:
         """
         Creates AutoDeletion configuration on a per-channel basis.
 
@@ -202,7 +202,7 @@ class Moderation(Cog):
 
     @autodeleter.command(name="delete")
     @checks.has_permissions(manage_messages=True)
-    async def delete_autodeleter(self, ctx, *, channel: discord.TextChannel):
+    async def delete_autodeleter(self, ctx: Context, *, channel: discord.TextChannel) -> None:
         """
         Delete AutoDelete configuration for a channel.
 
@@ -222,11 +222,38 @@ class Moderation(Cog):
             else:
                 await self._send_hidden_message(ctx, f'No configuration for channel "{channel_name}" found!')
 
+    @autodeleter.command(name="list")
+    @checks.has_permissions(manage_messages=True)
+    async def list_autodeleter(self, ctx: Context) -> None:
+        """
+        Lists AutoDelete configuration.
+
+        Parameters
+        ----------
+        ctx
+        """
+
+        with self.bot.session_scope() as session:
+            configurations = AutoDelete.get(ctx.guild.id, session)
+            if configurations is not None:
+                msg = "==== AutoDeleter Configuration ====\n"
+                for configuration in configurations:
+                    channel_name = ctx.guild.get_channel(configuration.ChannelId)
+                    msg += (
+                        f"Channel: {channel_name.name}, "
+                        f"DeleteOlderThan: {configuration.DeleteOlderThan}, "
+                        f"DeletePinnedMessages: {configuration.DeletePinnedMessage}, "
+                        f"KeepMessages: {configuration.KeepMessages}"
+                    )
+                await self._send_hidden_message(ctx, fmt.box(msg))
+            else:
+                await self._send_hidden_message(ctx, f"No configuration found!")
+
     @autodeleter.command(name="edit")
     @checks.has_permissions(manage_messages=True)
     async def modify_autodeleter(
         self,
-        ctx,
+        ctx: Context,
         *,
         channel: discord.TextChannel,
         delete_older_than: Optional[Union[str | None]],
@@ -269,7 +296,7 @@ class Moderation(Cog):
 
     @hybrid_group(aliases=["u"])
     @checks.has_permissions(moderate_members=True)
-    async def user(self, ctx):
+    async def user(self, ctx: Context):
         """user moderation [bot-moderator]"""
         if ctx.invoked_subcommand is None:
             args = str(ctx.message.clean_content).split(" ")
@@ -282,7 +309,7 @@ class Moderation(Cog):
 
     @user.command(name="info")
     @checks.has_permissions(moderate_members=True)
-    async def _get_user_info(self, ctx, member: Optional[discord.Member]):
+    async def _get_user_info(self, ctx: Context, member: Optional[discord.Member]):
         """displays information about given user [bot-moderator]"""
 
         member = member or ctx.author
@@ -305,7 +332,7 @@ class Moderation(Cog):
 
     @user.command(name="list")
     @checks.has_permissions(moderate_members=True)
-    async def _list_user_info_from_guild(self, ctx, show_only_users_without_roles: Optional[bool]):
+    async def _list_user_info_from_guild(self, ctx: Context, show_only_users_without_roles: Optional[bool]):
         """displays a list of users on your server [bot-moderator]
 
         Parameters
@@ -333,17 +360,17 @@ class Moderation(Cog):
             await ctx.send(fmt.box(page))
 
     @hybrid_command()
-    async def membercount(self, ctx):
+    async def membercount(self, ctx: Context):
         """displays the current membercount of the server [bot-moderator]"""
         await ctx.send(fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
 
     @hybrid_command(name="leave", aliases=["stop"])
-    async def _bot_leave_channel(self, ctx):
+    async def _bot_leave_channel(self, ctx: Context):
         """bot leaves the channel [bot-moderator]"""
         await self.bot.audio.leave(ctx.guild.id)
 
     @command()
-    async def history(self, ctx):
+    async def history(self, ctx: Context):
         """displays the last 10 received commands since last restart [bot-moderator]"""
         if ctx.guild.id in ctx.bot.last_cmd_cache:
             msg = ""
