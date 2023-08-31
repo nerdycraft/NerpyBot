@@ -65,7 +65,7 @@ class Music(GroupCog):
             if page:
                 await ctx.send(fmt.box(page, "md"))
             else:
-                await send_hidden_message("Queue is empty.")
+                await send_hidden_message(ctx, "Queue is empty.")
 
     @_queue.command(name="drop")
     @has_permissions(mute_members=True)
