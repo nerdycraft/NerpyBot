@@ -1267,7 +1267,7 @@ develop = false
 type = "git"
 url = "https://github.com/ytdl-org/youtube-dl.git"
 reference = "master"
-resolved_reference = "86e3cf5e5849aefcc540c19bb5fa5ab7f470d1c1"
+resolved_reference = "7d58f0769a8f08e46ea77432041577cef94c07e2"
 
 [metadata]
 lock-version = "2.0"
