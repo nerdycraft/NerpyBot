@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 from discord.ext import tasks
 from discord.ext.commands import Cog, hybrid_command, bot_has_permissions
 
+from utils.helpers import send_hidden_message
+
 
 @bot_has_permissions(send_messages=True)
 class Reminder(Cog):
@@ -42,7 +44,7 @@ class Reminder(Cog):
         bot will answer in a DM
         """
         self.add(ctx.author, ctx.message.channel, datetime.now() + timedelta(minutes=mins), text)
-        await ctx.send(f"Got it, {ctx.author.mention}. I will remind you in {mins} minute(s).", ephemeral=True)
+        await send_hidden_message(ctx, f"Got it, {ctx.author.mention}. I will remind you in {mins} minute(s).")
 
     @_reminder.before_loop
     async def _before_loop(self):

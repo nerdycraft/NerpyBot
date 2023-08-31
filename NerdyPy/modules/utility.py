@@ -9,6 +9,7 @@ from discord.ext.commands import Cog, hybrid_command, bot_has_permissions
 
 import utils.format as fmt
 from utils.errors import NerpyException
+from utils.helpers import send_hidden_message
 
 
 @bot_has_permissions(send_messages=True)
@@ -42,7 +43,7 @@ class Utility(Cog):
 
         for umlaut in ["ä", "ö", "ü"]:
             if umlaut in query:
-                ctx.send("Please use english names only!")
+                await send_hidden_message(ctx, "Please use english names only!")
                 return
 
         async with aiohttp.ClientSession() as session:

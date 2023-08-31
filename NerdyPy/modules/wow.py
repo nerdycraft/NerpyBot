@@ -8,6 +8,7 @@ from blizzardapi import BlizzardApi
 from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions
 
 from utils.errors import NerpyException
+from utils.helpers import send_hidden_message
 
 
 @bot_has_permissions(send_messages=True, embed_links=True)
@@ -145,7 +146,7 @@ class WorldofWarcraft(GroupCog, name="wow"):
 
             await ctx.send(embed=emb)
         except NerpyException:
-            await ctx.send("No Character with this name found.")
+            await send_hidden_message(ctx, "No Character with this name found.")
 
 
 async def setup(bot):

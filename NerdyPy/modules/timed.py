@@ -9,6 +9,7 @@ from discord.ext.commands import GroupCog, hybrid_command
 
 from models.TimedMessage import TimedMessage
 from utils.format import pagify, box
+from utils.helpers import send_hidden_message
 
 
 class Timed(GroupCog, group_name="timed-message"):
@@ -68,7 +69,7 @@ class Timed(GroupCog, group_name="timed-message"):
             session.add(msg)
             session.flush()
 
-        await ctx.send("Message created.", ephemeral=True)
+        await send_hidden_message(ctx, "Message created.")
 
     @hybrid_command()
     async def list(self, ctx):
@@ -84,7 +85,7 @@ class Timed(GroupCog, group_name="timed-message"):
                 for page in pagify(to_send, delims=["\n#"], page_length=1990):
                     await ctx.send(box(page, "md"))
             else:
-                await ctx.send("No messages in queue.")
+                await send_hidden_message(ctx, "No messages in queue.")
 
     @hybrid_command()
     async def delete(self, ctx, timed_id: int):
@@ -94,7 +95,7 @@ class Timed(GroupCog, group_name="timed-message"):
         with self.bot.session_scope() as session:
             TimedMessage.delete(timed_id, ctx.guild.id, session)
 
-        await ctx.send("Message deleted.", ephemeral=True)
+        await send_hidden_message(ctx, "Message deleted.")
 
     @_timed_loop.before_loop
     async def _before_loop(self):

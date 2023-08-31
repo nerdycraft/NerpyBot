@@ -16,7 +16,7 @@ from utils.audio import QueuedSong
 from utils.checks import is_connected_to_voice
 from utils.download import download, fetch_yt_infos
 from utils.errors import NerpyException
-from utils.helpers import youtube
+from utils.helpers import youtube, send_hidden_message
 
 
 @bot_has_permissions(send_messages=True, speak=True)
@@ -65,7 +65,7 @@ class Music(GroupCog):
             if page:
                 await ctx.send(fmt.box(page, "md"))
             else:
-                await ctx.send("Queue is empty.", ephemeral=True)
+                await send_hidden_message("Queue is empty.")
 
     @_queue.command(name="drop")
     @has_permissions(mute_members=True)
@@ -106,8 +106,7 @@ class Music(GroupCog):
         playlist_infos = fetch_yt_infos(playlist_url)
 
         if "_type" not in playlist_infos:
-            await ctx.send("This is not a playlist. Please add a single video directly with the play command.")
-            await ctx.send_help(ctx.command)
+            await send_hidden_message(ctx, "This is not a playlist. Please add a single video directly with the play command.")
         else:
             playlist_entries = playlist_infos["entries"]
             for entry in playlist_entries:
@@ -121,7 +120,7 @@ class Music(GroupCog):
         if video_url is not None:
             await self._send_to_queue(ctx, video_url)
         else:
-            await ctx.send("Your search did not yield any results.", ephemeral=True)
+            await send_hidden_message(ctx, "Your search did not yield any results.")
 
     async def _send_to_queue(self, ctx, video_url, followup=None):
         video_infos = fetch_yt_infos(video_url)

@@ -35,6 +35,7 @@ from utils.audio import Audio
 from utils.conversation import ConversationManager, AnswerType
 from utils.database import BASE
 from utils.errors import NerpyException
+from utils.helpers import send_hidden_message
 
 
 class NerpyBot(Bot):
@@ -189,12 +190,12 @@ class NerpyBot(Bot):
                 if isinstance(error.original, app_commands.CommandInvokeError) and isinstance(
                     error.original.original, NerpyException
                 ):
-                    await ctx.send(error.original.original.args[0])
+                    await send_hidden_message(ctx, error.original.original.args[0])
                 if not isinstance(error, CheckFailure) and isinstance(error.original, NerpyException):
                     if ctx.interaction is None:
                         await ctx.author.send("".join(error.original.args[0]))
                     else:
-                        await ctx.send("".join(error.original.args[0]))
+                        await send_hidden_message(ctx, "".join(error.original.args[0]))
                 self.log.error(error)
             else:
                 self.log.error(f"In {ctx.command.qualified_name}:")
@@ -203,7 +204,7 @@ class NerpyBot(Bot):
                 if ctx.interaction is None:
                     await ctx.author.send("Unhandled error occurred. Please report to bot author!")
                 else:
-                    await ctx.send("Unhandled error occurred. Please report to bot author!")
+                    await send_hidden_message(ctx, "Unhandled error occurred. Please report to bot author!")
 
         if not isinstance(ctx.channel, discord.DMChannel) and ctx.interaction is None:
             await ctx.message.delete()

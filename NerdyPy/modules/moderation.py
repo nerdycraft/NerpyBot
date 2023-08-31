@@ -13,6 +13,7 @@ import utils.format as fmt
 from models.AutoDelete import AutoDelete
 from models.AutoKicker import AutoKicker
 from utils.errors import NerpyException
+from utils.helpers import send_hidden_message
 
 utc = timezone.utc
 # If no tzinfo is given then UTC is assumed.
@@ -32,10 +33,6 @@ class Moderation(Cog):
     def cog_unload(self):
         self._autokicker.cancel()
         self._autodeleter.cancel()
-
-    @staticmethod
-    def _send_hidden_message(ctx: Context, msg: str):
-        return ctx.send(msg, ephemeral=True)
 
     @tasks.loop(time=loop_run_time)
     async def _autokicker(self):
@@ -107,12 +104,12 @@ class Moderation(Cog):
             if kick_after is not None:
                 kick_time = pytimeparse.parse(kick_after)
                 if kick_time is None:
-                    await self._send_hidden_message(
+                    await send_hidden_message(
                         ctx, "Only timespans up until weeks are allowed. Do not use months or years."
                     )
                     return
             else:
-                await self._send_hidden_message(ctx, "You need to specify when I should kick someone!")
+                await send_hidden_message(ctx, "You need to specify when I should kick someone!")
                 return
             if configuration is not None:
                 configuration.KickAfter = kick_time
@@ -127,7 +124,7 @@ class Moderation(Cog):
                 )
                 session.add(autokicker)
 
-        await self._send_hidden_message(ctx, "AutoKicker configured for this server.")
+        await send_hidden_message(ctx, "AutoKicker configured for this server.")
 
     @hybrid_group()
     @checks.has_permissions(manage_messages=True)
@@ -173,7 +170,7 @@ class Moderation(Cog):
         with self.bot.session_scope() as session:
             configuration = AutoDelete.get_by_channel(ctx.guild.id, channel_id, session)
             if configuration is not None:
-                await self._send_hidden_message(
+                await send_hidden_message(
                     ctx,
                     "This Channel is already configured for AutoDelete. Please edit or delete the existing configuration.",
                 )
@@ -184,7 +181,7 @@ class Moderation(Cog):
                     else:
                         delete = pytimeparse.parse(delete_older_than)
                         if delete is None:
-                            await self._send_hidden_message(
+                            await send_hidden_message(
                                 ctx, "Only timespans up until weeks are allowed. Do not use months or years."
                             )
                             return
@@ -198,7 +195,7 @@ class Moderation(Cog):
                     )
                     session.add(deleter)
 
-        await self._send_hidden_message(ctx, f'AutoDeleter configured for channel "{channel_name}".')
+        await send_hidden_message(ctx, f'AutoDeleter configured for channel "{channel_name}".')
 
     @autodeleter.command(name="delete")
     @checks.has_permissions(manage_messages=True)
@@ -218,9 +215,9 @@ class Moderation(Cog):
             configuration = AutoDelete.get_by_channel(ctx.guild.id, channel_id, session)
             if configuration is not None:
                 AutoDelete.delete(ctx.guild.id, channel_id, session)
-                await self._send_hidden_message(ctx, f'Deleted configuration for channel "{channel_name}".')
+                await send_hidden_message(ctx, f'Deleted configuration for channel "{channel_name}".')
             else:
-                await self._send_hidden_message(ctx, f'No configuration for channel "{channel_name}" found!')
+                await send_hidden_message(ctx, f'No configuration for channel "{channel_name}" found!')
 
     @autodeleter.command(name="list")
     @checks.has_permissions(manage_messages=True)
@@ -245,9 +242,9 @@ class Moderation(Cog):
                         f"DeletePinnedMessages: {configuration.DeletePinnedMessage}, "
                         f"KeepMessages: {configuration.KeepMessages}"
                     )
-                await self._send_hidden_message(ctx, fmt.box(msg))
+                await send_hidden_message(ctx, fmt.box(msg))
             else:
-                await self._send_hidden_message(ctx, f"No configuration found!")
+                await send_hidden_message(ctx, f"No configuration found!")
 
     @autodeleter.command(name="edit")
     @checks.has_permissions(manage_messages=True)
@@ -288,9 +285,9 @@ class Moderation(Cog):
                 configuration.KeepMessages = keep_messages
                 configuration.DeletePinnedMessage = delete_pinned_message
 
-                await self._send_hidden_message(ctx, f'Updated configuration for channel "{channel_name}".')
+                await send_hidden_message(ctx, f'Updated configuration for channel "{channel_name}".')
             else:
-                await self._send_hidden_message(
+                await send_hidden_message(
                     ctx, f'Configuration for channel "{channel_name}" does not exist. Please create one first.'
                 )
 
