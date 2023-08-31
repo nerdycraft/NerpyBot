@@ -44,7 +44,9 @@ class Timed(GroupCog, group_name="timed-message"):
             session.flush()
 
     @hybrid_command()
-    async def create(self, ctx: Context, channel: Optional[discord.TextChannel], minutes: int, repeat: bool, message: str):
+    async def create(
+        self, ctx: Context, channel: Optional[discord.TextChannel], minutes: int, repeat: bool, message: str
+    ):
         """
         creates a message which gets send after a certain time
         """
