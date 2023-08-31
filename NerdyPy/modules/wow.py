@@ -88,8 +88,8 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
             return keys
 
-    @hybrid_command(aliases=["search", "char"])
-    async def armory(self, ctx: Context, name: str, realm: str, region: str = "eu"):
+    @hybrid_command(name="armory", aliases=["search", "char"])
+    async def _wow_armory(self, ctx: Context, name: str, realm: str, region: str = "eu"):
         """
         search for character
 

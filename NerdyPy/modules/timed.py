@@ -43,8 +43,8 @@ class Timed(GroupCog, group_name="timed-message"):
 
             session.flush()
 
-    @hybrid_command()
-    async def create(
+    @hybrid_command(name="create")
+    async def _timed_create(
         self, ctx: Context, channel: Optional[discord.TextChannel], minutes: int, repeat: bool, message: str
     ):
         """
@@ -73,8 +73,8 @@ class Timed(GroupCog, group_name="timed-message"):
 
         await send_hidden_message(ctx, "Message created.")
 
-    @hybrid_command()
-    async def list(self, ctx: Context):
+    @hybrid_command(name="list")
+    async def _timed_list(self, ctx: Context):
         """
         list all current timed messages
         """
@@ -89,8 +89,8 @@ class Timed(GroupCog, group_name="timed-message"):
             else:
                 await send_hidden_message(ctx, "No messages in queue.")
 
-    @hybrid_command()
-    async def delete(self, ctx: Context, timed_id: int):
+    @hybrid_command(name="delete")
+    async def _timed_delete(self, ctx: Context, timed_id: int):
         """
         deletes a timed message
         """

@@ -27,15 +27,15 @@ class Moderation(Cog):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
-        self._autokicker.start()
-        self._autodeleter.start()
+        self._autokicker_loop.start()
+        self._autodeleter_loop.start()
 
     def cog_unload(self):
-        self._autokicker.cancel()
-        self._autodeleter.cancel()
+        self._autokicker_loop.cancel()
+        self._autodeleter_loop.cancel()
 
     @tasks.loop(time=loop_run_time)
-    async def _autokicker(self):
+    async def _autokicker_loop(self):
         with self.bot.session_scope() as session:
             for guild in self.bot.guilds:
                 configuration = AutoKicker.get(guild.id, session)
@@ -63,7 +63,7 @@ class Moderation(Cog):
                                     )
 
     @tasks.loop(minutes=5)
-    async def _autodeleter(self):
+    async def _autodeleter_loop(self):
         with self.bot.session_scope() as session:
             for guild in self.bot.guilds:
                 configurations = AutoDelete.get(guild.id, session)
@@ -141,7 +141,7 @@ class Moderation(Cog):
 
     @autodeleter.command(name="create")
     @checks.has_permissions(manage_messages=True)
-    async def create_autodeleter(
+    async def _autodeleter_create(
         self,
         ctx: Context,
         *,
@@ -199,7 +199,7 @@ class Moderation(Cog):
 
     @autodeleter.command(name="delete")
     @checks.has_permissions(manage_messages=True)
-    async def delete_autodeleter(self, ctx: Context, *, channel: discord.TextChannel) -> None:
+    async def _autodeleter_delete(self, ctx: Context, *, channel: discord.TextChannel) -> None:
         """
         Delete AutoDelete configuration for a channel.
 
@@ -221,7 +221,7 @@ class Moderation(Cog):
 
     @autodeleter.command(name="list")
     @checks.has_permissions(manage_messages=True)
-    async def list_autodeleter(self, ctx: Context) -> None:
+    async def _autodeleter_list(self, ctx: Context) -> None:
         """
         Lists AutoDelete configuration.
 
@@ -248,7 +248,7 @@ class Moderation(Cog):
 
     @autodeleter.command(name="edit")
     @checks.has_permissions(manage_messages=True)
-    async def modify_autodeleter(
+    async def _autodeleter_modify(
         self,
         ctx: Context,
         *,
@@ -380,12 +380,12 @@ class Moderation(Cog):
                 return
         await ctx.send("No recent commands to display.")
 
-    @_autokicker.before_loop
+    @_autokicker_loop.before_loop
     async def _role_checker_before_loop(self):
         self.bot.log.info("Rolechecker: Waiting for Bot to be ready...")
         await self.bot.wait_until_ready()
 
-    @_autodeleter.before_loop
+    @_autodeleter_loop.before_loop
     async def _autodeleter_before_loop(self):
         self.bot.log.info("AutoDeleter: Waiting for Bot to be ready...")
         await self.bot.wait_until_ready()
