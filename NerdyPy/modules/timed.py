@@ -5,7 +5,7 @@ from typing import Optional
 
 import discord
 from discord.ext import tasks
-from discord.ext.commands import GroupCog, hybrid_command
+from discord.ext.commands import GroupCog, hybrid_command, Context
 
 from models.TimedMessage import TimedMessage
 from utils.format import pagify, box
@@ -44,7 +44,7 @@ class Timed(GroupCog, group_name="timed-message"):
             session.flush()
 
     @hybrid_command()
-    async def create(self, ctx, channel: Optional[discord.TextChannel], minutes: int, repeat: bool, message: str):
+    async def create(self, ctx: Context, channel: Optional[discord.TextChannel], minutes: int, repeat: bool, message: str):
         """
         creates a message which gets send after a certain time
         """
@@ -72,7 +72,7 @@ class Timed(GroupCog, group_name="timed-message"):
         await send_hidden_message(ctx, "Message created.")
 
     @hybrid_command()
-    async def list(self, ctx):
+    async def list(self, ctx: Context):
         """
         list all current timed messages
         """
@@ -88,7 +88,7 @@ class Timed(GroupCog, group_name="timed-message"):
                 await send_hidden_message(ctx, "No messages in queue.")
 
     @hybrid_command()
-    async def delete(self, ctx, timed_id: int):
+    async def delete(self, ctx: Context, timed_id: int):
         """
         deletes a timed message
         """

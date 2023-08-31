@@ -23,7 +23,7 @@ from discord.ext.commands import (
     ExtensionFailed,
     CommandNotFound,
     CommandError,
-    context,
+    Context,
 )
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -146,7 +146,7 @@ class NerpyBot(Bot):
         """calls when successfully logged in"""
         self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
 
-    async def on_command_completion(self, ctx: context.Context) -> None:
+    async def on_command_completion(self, ctx: Context) -> None:
         """
         Deleting msg on cmd completion (this is only true if no slash command was used)
 
@@ -162,7 +162,7 @@ class NerpyBot(Bot):
 
             await ctx.message.delete()
 
-    async def on_command_error(self, ctx: context.Context, error) -> None:
+    async def on_command_error(self, ctx: Context, error) -> None:
         """
         Sends an error message to the command invoker
 

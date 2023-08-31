@@ -6,7 +6,7 @@ from typing import Literal
 import aiohttp
 import discord
 from discord.app_commands import rename
-from discord.ext.commands import GroupCog, hybrid_command
+from discord.ext.commands import GroupCog, hybrid_command, Context
 
 from utils.errors import NerpyException
 
@@ -43,7 +43,7 @@ class League(GroupCog):
 
     @hybrid_command()
     @rename(summoner_name="name")
-    async def summoner(self, ctx, region: Literal["EUW1", "NA1"], summoner_name: str):
+    async def summoner(self, ctx: Context, region: Literal["EUW1", "NA1"], summoner_name: str):
         """get information about the summoner"""
         rank = tier = lp = wins = losses = ""
 

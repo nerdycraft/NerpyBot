@@ -4,7 +4,7 @@
 from enum import Enum
 from random import randint
 
-from discord.ext.commands import Converter
+from discord.ext.commands import Converter, Context
 from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc
 from sqlalchemy.orm import relationship
 
@@ -90,7 +90,7 @@ class TagType(Enum):
 
 
 class TagTypeConverter(Converter):
-    async def convert(self, ctx, argument):
+    async def convert(self, ctx: Context, argument):
         low = argument.lower()
         try:
             return TagType[low].value

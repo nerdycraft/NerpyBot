@@ -5,14 +5,14 @@ from datetime import datetime as dt, timedelta as td
 import discord
 import requests
 from blizzardapi import BlizzardApi
-from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions
+from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions, Context
 
 from utils.errors import NerpyException
 from utils.helpers import send_hidden_message
 
 
 @bot_has_permissions(send_messages=True, embed_links=True)
-class WorldofWarcraft(GroupCog, name="wow"):
+class WorldofWarcraft(GroupCog, group_name="wow"):
     """WOW API"""
 
     def __init__(self, bot):
@@ -89,7 +89,7 @@ class WorldofWarcraft(GroupCog, name="wow"):
             return keys
 
     @hybrid_command(aliases=["search", "char"])
-    async def armory(self, ctx, name: str, realm: str, region: str = "eu"):
+    async def armory(self, ctx: Context, name: str, realm: str, region: str = "eu"):
         """
         search for character
 

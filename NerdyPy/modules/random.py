@@ -5,7 +5,7 @@ from random import randint, choice
 
 import aiohttp
 import discord
-from discord.ext.commands import Cog, hybrid_command, bot_has_permissions
+from discord.ext.commands import Cog, hybrid_command, bot_has_permissions, Context
 
 import utils.format as fmt
 from utils.errors import NerpyException
@@ -32,13 +32,13 @@ class Random(Cog):
         ]
 
     @hybrid_command()
-    async def lenny(self, ctx):
+    async def lenny(self, ctx: Context):
         """Displays a random lenny face."""
         await ctx.send(choice(self.lennys))
 
     # Webserver Error 500 (maybe gone forever)
     # @hybrid_command()
-    # async def chuck(self, ctx):
+    # async def chuck(self, ctx: Context):
     #     """random chuck norris joke."""
     #     url = "http://api.icndb.com/jokes/random"
     #
@@ -52,7 +52,7 @@ class Random(Cog):
 
     # Same here, error 500
     # @hybrid_command()
-    # async def yomomma(self, ctx):
+    # async def yomomma(self, ctx: Context):
     #     """random yomomma joke"""
     #     url = "http://api.yomomma.info"
     #
@@ -65,7 +65,7 @@ class Random(Cog):
     #             await ctx.send(data.get("joke"))
 
     @hybrid_command()
-    async def quote(self, ctx):
+    async def quote(self, ctx: Context):
         """random quote"""
         url = "https://quotesondesign.com/wp-json/wp/v2/posts/?orderby=rand"
 
@@ -81,7 +81,7 @@ class Random(Cog):
                 )
 
     @hybrid_command()
-    async def trump(self, ctx):
+    async def trump(self, ctx: Context):
         """random trump tweet"""
         url = "https://api.whatdoestrumpthink.com/api/v1/quotes/random"
         trump_pic = "https://www.tolonews.com/sites/default/files/styles/principal_article_image/public/Trumpppp.jpg"
@@ -98,7 +98,7 @@ class Random(Cog):
         await ctx.send(embed=emb)
 
     @hybrid_command()
-    async def xkcd(self, ctx):
+    async def xkcd(self, ctx: Context):
         """random xkcd comic"""
         url = "https://xkcd.com/"
         urlend = "info.0.json"
@@ -118,7 +118,7 @@ class Random(Cog):
         await ctx.send(data.get("img"))
 
     @hybrid_command()
-    async def bunny(self, ctx):
+    async def bunny(self, ctx: Context):
         """Why do I have a random bunny gif command???"""
         url = "https://api.bunnies.io/v2/loop/random/?media=gif"
 
@@ -132,7 +132,7 @@ class Random(Cog):
 
     # Seems down for the moment, but may be coming back
     # @hybrid_command()
-    # async def cat(self, ctx):
+    # async def cat(self, ctx: Context):
     #     """random cat command are legit"""
     #     url = "http://aws.random.cat/meow"
     #
@@ -145,7 +145,7 @@ class Random(Cog):
     #     await ctx.send(data.get("file"))
 
     @hybrid_command()
-    async def catfact(self, ctx):
+    async def catfact(self, ctx: Context):
         """random cat command are legit"""
         url = "https://catfact.ninja/fact"
 

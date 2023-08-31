@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 
 from discord.ext import tasks
-from discord.ext.commands import Cog, hybrid_command, bot_has_permissions
+from discord.ext.commands import Cog, hybrid_command, bot_has_permissions, Context
 
 from utils.helpers import send_hidden_message
 
@@ -37,7 +37,7 @@ class Reminder(Cog):
         self.reminders.append({"author": author, "channel": channel, "time": time, "message": message})
 
     @hybrid_command()
-    async def remindme(self, ctx, mins: int, *, text: str):
+    async def remindme(self, ctx: Context, mins: int, *, text: str):
         """
         sets a reminder
 

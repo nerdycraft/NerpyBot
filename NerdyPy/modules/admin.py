@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from discord.app_commands import checks
-from discord.ext.commands import Cog, group
+from discord.ext.commands import Cog, group, Context
 
 from models.GuildPrefix import GuildPrefix
 
@@ -18,13 +18,13 @@ class Admin(Cog):
         self.bot = bot
 
     @group()
-    async def prefix(self, ctx):
+    async def prefix(self, ctx: Context):
         """Manage the prefix for the bot [bot-moderator]"""
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
     @prefix.command(name="get")
-    async def _prefix_get(self, ctx):
+    async def _prefix_get(self, ctx: Context):
         """Get the prefix currently used. [bot-moderator]"""
         with self.bot.session_scope() as session:
             pref = GuildPrefix.get(ctx.guild.id, session)
@@ -36,7 +36,7 @@ class Admin(Cog):
                 )
 
     @prefix.command(name="set")
-    async def _prefix_set(self, ctx, *, new_pref):
+    async def _prefix_set(self, ctx: Context, *, new_pref):
         """Set the prefix to use. [bot-moderator]"""
         if " " in new_pref:
             await ctx.send("Spaces not allowed in prefixes")
@@ -53,7 +53,7 @@ class Admin(Cog):
         await ctx.send(f"new prefix is now set to '{new_pref}'.")
 
     @prefix.command(name="delete", aliases=["remove", "rm", "del"])
-    async def _prefix_del(self, ctx):
+    async def _prefix_del(self, ctx: Context):
         """Delete the current prefix. [bot-moderator]"""
         with self.bot.session_scope() as session:
             GuildPrefix.delete(ctx.guild.id, session)
