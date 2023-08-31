@@ -106,7 +106,9 @@ class Music(GroupCog):
         playlist_infos = fetch_yt_infos(playlist_url)
 
         if "_type" not in playlist_infos:
-            await send_hidden_message(ctx, "This is not a playlist. Please add a single video directly with the play command.")
+            await send_hidden_message(
+                ctx, "This is not a playlist. Please add a single video directly with the play command."
+            )
         else:
             playlist_entries = playlist_infos["entries"]
             for entry in playlist_entries:
