@@ -52,7 +52,6 @@ class NerpyBot(Bot):
         self.client_id = config.get("bot", "client_id")
         self.token = config.get("bot", "token")
         self.ops = config.get("bot", "ops")
-        self.moderator_role = config.get("bot", "moderator_role_name")
         self.modules = json.loads(config.get("bot", "modules"))
         self.restart = True
         self.log = logging.get_logger("nerpybot")
