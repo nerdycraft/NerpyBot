@@ -244,7 +244,7 @@ class Moderation(Cog):
                     )
                 await send_hidden_message(ctx, fmt.box(msg))
             else:
-                await send_hidden_message(ctx, f"No configuration found!")
+                await send_hidden_message(ctx, "No configuration found!")
 
     @autodeleter.command(name="edit")
     @checks.has_permissions(manage_messages=True)
