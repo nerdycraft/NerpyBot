@@ -7,9 +7,10 @@ import logging
 import os
 import uuid
 
+import ffmpeg
 import requests
 import youtube_dl
-from discord import FFmpegPCMAudio
+from discord import FFmpegOpusAudio
 
 from utils.errors import NerpyException
 
@@ -23,7 +24,13 @@ FFMPEG_OPTIONS = {"options": "-vn"}
 YTDL_ARGS = {
     "format": "bestaudio/best",
     "outtmpl": os.path.join(DL_DIR, "%(id)s"),
-    "quiet": True,
+    'restrictfilenames': True,
+    'noplaylist': True,
+    'nocheckcertificate': True,
+    'ignoreerrors': False,
+    'logtostderr': False,
+    'quiet': True,
+    'no_warnings': True,
     "extractaudio": True,
     "audioformat": "mp3",
     "default_search": "auto",
@@ -33,10 +40,20 @@ YTDL_ARGS = {
 YTDL = youtube_dl.YoutubeDL(YTDL_ARGS)
 
 
-def convert(source, is_stream=False):
+def convert(source, tag=False, is_stream=False):
     """Convert downloaded file to playable ByteStream"""
     LOG.info("Converting File...")
-    return FFmpegPCMAudio(source, **FFMPEG_OPTIONS, pipe=is_stream)
+    if tag:
+        stream, _ = (
+            ffmpeg.input(source)
+            .filter("loudnorm")
+            .output("pipe:", format="mp3", ac=2, ar="48000")
+            .overwrite_output()
+            .run(capture_stdout=True)
+        )
+        return stream
+    else:
+        return FFmpegOpusAudio(source, **FFMPEG_OPTIONS, pipe=is_stream)
 
 
 def lookup_file(file_name):
@@ -50,7 +67,7 @@ def fetch_yt_infos(url: str):
     return YTDL.extract_info(url, download=False)
 
 
-def download(url: str):
+def download(url: str, tag=False):
     """download audio content (maybe transform?)"""
     req_headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
@@ -78,7 +95,7 @@ def download(url: str):
     if dlfile is None:
         raise NerpyException(f"could not find a download in: {url}")
 
-    return convert(dlfile)
+    return convert(dlfile, tag)
 
 
 class Song:

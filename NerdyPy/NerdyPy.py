@@ -132,6 +132,9 @@ class NerpyBot(Bot):
         # create database/tables and such stuff
         self.create_all()
 
+        # set-up audio loops
+        await self.audio.setup_loops()
+
         # sync commands
         try:
             self.log.info("Syncing commands...")
