@@ -30,6 +30,7 @@ YTDL_ARGS = {
     "ignoreerrors": False,
     "logtostderr": False,
     "quiet": True,
+    "verbose": False,
     "no_warnings": True,
     "extractaudio": True,
     "audioformat": "mp3",
