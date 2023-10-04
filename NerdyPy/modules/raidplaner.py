@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 
 from discord import Embed
-from discord.ext.commands import Cog, command
+from discord.ext.commands import Cog, command, Context
 
 from models.RaidEncounter import RaidEncounter
 from models.RaidEncounterRole import RaidEncounterRole
@@ -22,7 +22,7 @@ class RaidPlaner(Cog):
         self.bot = bot
 
     @command()
-    async def raidplaner(self, ctx):
+    async def raidplaner(self, ctx: Context):
         """sound and text tags"""
         conv = RaidConversation(self.bot, ctx.author, self.bot.get_guild(606539392311361794))
         await self.bot.convMan.init_conversation(conv)

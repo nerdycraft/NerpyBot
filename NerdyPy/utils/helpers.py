@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
-
+from discord.ext.commands import Context
 from googleapiclient.discovery import build
+
+
+def send_hidden_message(ctx: Context, msg: str):
+    return ctx.send(msg, ephemeral=True)
 
 
 def youtube(yt_key, return_type, query):

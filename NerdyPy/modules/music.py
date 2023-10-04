@@ -1,24 +1,27 @@
 # -*- coding: utf-8 -*-
 
 from discord import Embed, Color
-from discord.app_commands import command
+from discord.app_commands import command, guild_only
 from discord.ext.commands import (
     GroupCog,
     hybrid_group,
     check,
     hybrid_command,
     bot_has_permissions,
+    has_permissions,
+    Context,
 )
 
 import utils.format as fmt
 from utils.audio import QueuedSong
-from utils.checks import is_botmod, is_connected_to_voice
+from utils.checks import is_connected_to_voice
 from utils.download import download, fetch_yt_infos
 from utils.errors import NerpyException
-from utils.helpers import youtube
+from utils.helpers import youtube, send_hidden_message
 
 
-@bot_has_permissions(send_messages=True)
+@guild_only()
+@bot_has_permissions(send_messages=True, speak=True)
 class Music(GroupCog):
     """Command group for sound and text tags"""
 
@@ -30,30 +33,25 @@ class Music(GroupCog):
         self.queue = {}
         self.audio = self.bot.audio
 
-    def cog_unload(self):
-        self._queue_manager.cancel()
-        self._timeout_manager.cancel()
-
     @hybrid_command(name="skip")
-    async def _skip_audio(self, ctx):
+    async def _skip_audio(self, ctx: Context):
         """skip current track"""
         self.bot.log.info(f"{ctx.guild.name} requesting skip!")
         self.audio.stop(ctx.guild.id)
 
-    @check(is_botmod)
     @command(name="stop")
-    async def _stop_playing_audio(self, ctx):
+    async def _stop_playing_audio(self, ctx: Context):
         """bot stops playing audio [bot-moderator]"""
         await self.audio.leave(ctx.guild.id)
 
     @hybrid_group(name="queue")
-    async def _queue(self, ctx):
+    async def _queue(self, ctx: Context):
         """Manage the Playlist Queue"""
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
     @_queue.command(name="list")
-    async def _list_queue(self, ctx):
+    async def _list_queue(self, ctx: Context):
         """list current items in queue"""
         queue = self.audio.list_queue(ctx.guild.id)
         msg = ""
@@ -69,11 +67,11 @@ class Music(GroupCog):
             if page:
                 await ctx.send(fmt.box(page, "md"))
             else:
-                await ctx.send("Queue is empty.", ephemeral=True)
+                await send_hidden_message(ctx, "Queue is empty.")
 
     @_queue.command(name="drop")
-    @check(is_botmod)
-    async def _drop_queue(self, ctx):
+    @has_permissions(mute_members=True)
+    async def _drop_queue(self, ctx: Context):
         """drop the playlist entirely"""
         self.audio.stop(ctx.guild.id)
         self.audio.clear_buffer(ctx.guild.id)
@@ -81,7 +79,7 @@ class Music(GroupCog):
 
     @hybrid_group(name="play")
     @check(is_connected_to_voice)
-    async def _play_music(self, ctx):
+    async def _play_music(self, ctx: Context):
         """Play your favorite Music from YouTube and many more!"""
         if ctx.invoked_subcommand is None:
             args = str(ctx.message.clean_content).split(" ")
@@ -95,7 +93,7 @@ class Music(GroupCog):
 
     @_play_music.command(name="song", hidden=True)
     @check(is_connected_to_voice)
-    async def _play_song(self, ctx, song_url):
+    async def _play_song(self, ctx: Context, song_url):
         """Play a Song from URL"""
         await ctx.defer()
         followup = ctx.interaction.followup
@@ -103,15 +101,16 @@ class Music(GroupCog):
 
     @_play_music.command(name="playlist")
     @check(is_connected_to_voice)
-    async def _add_playlist(self, ctx, playlist_url):
+    async def _add_playlist(self, ctx: Context, playlist_url):
         """Add an entire playlist to the Queue. Currently only YouTube is supported."""
         await ctx.message.add_reaction("🤓")
         await ctx.send("Please bear with me. This can take a while.")
         playlist_infos = fetch_yt_infos(playlist_url)
 
         if "_type" not in playlist_infos:
-            await ctx.send("This is not a playlist. Please add a single video directly with the play command.")
-            await ctx.send_help(ctx.command)
+            await send_hidden_message(
+                ctx, "This is not a playlist. Please add a single video directly with the play command."
+            )
         else:
             playlist_entries = playlist_infos["entries"]
             for entry in playlist_entries:
@@ -119,15 +118,15 @@ class Music(GroupCog):
 
     @_play_music.command(name="search", aliases=["find", "lookup"])
     @check(is_connected_to_voice)
-    async def _search_music(self, ctx, *, query):
+    async def _search_music(self, ctx: Context, *, query):
         """Search for music. Currently only YouTube is supported"""
         video_url = youtube(self.config["ytkey"], "url", query)
         if video_url is not None:
             await self._send_to_queue(ctx, video_url)
         else:
-            await ctx.send("Your search did not yield any results.", ephemeral=True)
+            await send_hidden_message(ctx, "Your search did not yield any results.")
 
-    async def _send_to_queue(self, ctx, video_url, followup=None):
+    async def _send_to_queue(self, ctx: Context, video_url, followup=None):
         video_infos = fetch_yt_infos(video_url)
 
         if "_type" in video_infos and video_infos.get("_type") == "playlist":

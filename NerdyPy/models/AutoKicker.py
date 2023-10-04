@@ -6,11 +6,11 @@ from sqlalchemy import BigInteger, Column, Boolean, Index, Text
 from utils import database as db
 
 
-class RoleChecker(db.BASE):
+class AutoKicker(db.BASE):
     """database entity model for General"""
 
-    __tablename__ = "RoleChecker"
-    __table_args__ = (Index("RoleChecker_GuildId", "GuildId"),)
+    __tablename__ = "AutoKicker"
+    __table_args__ = (Index("AutoKicker_GuildId", "GuildId"),)
 
     GuildId = Column(BigInteger, primary_key=True)
     KickAfter = Column(BigInteger, default=0)
@@ -20,9 +20,9 @@ class RoleChecker(db.BASE):
     @classmethod
     def get(cls, guild_id: int, session):
         """get all"""
-        return session.query(RoleChecker).filter(RoleChecker.GuildId == guild_id).first()
+        return session.query(AutoKicker).filter(AutoKicker.GuildId == guild_id).first()
 
     @classmethod
     def delete(cls, guild_id: int, session):
         """deletes an entry with given name for given guild"""
-        session.delete(RoleChecker.get(guild_id, session))
+        session.delete(AutoKicker.get(guild_id, session))

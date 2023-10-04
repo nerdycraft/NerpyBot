@@ -7,8 +7,7 @@ client_id =
 token =
 ops = []
 error_spam_threshold = 5
-moderator_role_name =
-modules = ["admin", "fun", "league", "random", "search", "tagging", "utility", "wow", "moderation"]
+modules = ["admin", "fun", "league", "moderation", "random", "reminder", "search", "tagging", "timed", "utility", "wow"]
 
 [database]
 ;db_type can be any of mysql, sqlite, postgresql, oracle or even mssql
