@@ -20,7 +20,7 @@ jobs:
         id: docker_meta
         uses: docker/metadata-action@v4
         with:
-          images: ghcr.io/ethernerd-net/nerpybot
+          images: ghcr.io/ethernerd-net/humanmusic
           tags: |
             type=ref,event=branch
             type=ref,event=tag

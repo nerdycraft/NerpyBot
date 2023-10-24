@@ -3,7 +3,7 @@ FROM python:3.11
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 
 COPY pyproject.toml poetry.lock README.md /app/
-COPY NerdyPy /app/NerdyPy
+COPY HumanMusic /app/NerdyPy
 
 WORKDIR /app/NerdyPy
 RUN apt update && apt install -qqy --no-install-recommends \

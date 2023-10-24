@@ -1,0 +1,22 @@
+###################################
+# API Keys and LogIn Information  #
+###################################
+
+[bot]
+client_id =
+token =
+ops = []
+error_spam_threshold = 5
+modules = ["admin", "music"]
+
+[database]
+;db_type can be any of mysql, sqlite, postgresql, oracle or even mssql
+db_type = sqlite
+db_name = db.db
+db_username =
+db_password =
+db_host =
+db_port =
+
+[audio]
+buffer_limit = 5

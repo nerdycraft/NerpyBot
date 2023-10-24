@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "NerpyBot"
+name = "HumanMusic"
 version = "0.0.0"
 description = ""
-repository = "https://github.com/nerdycraft/NerpyBot"
+repository = "https://github.com/nerdycraft/HumanMusic"
 authors = [
     "Rico Wesenberg <r.wesenberg@gmail.com>",
     "Dennis Bernardy <bernardyd@gmail.com>"
@@ -10,7 +10,7 @@ authors = [
 license = "GPL-3.0-or-later"
 readme = "README.md"
 packages = [
-    { include = "NerdyPy" }
+    { include = "HumanMusic" }
 ]
 
 [tool.poetry.dependencies]

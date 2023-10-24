@@ -18,7 +18,7 @@ db_type = postgresql+psycopg2
 ```
 For anything else the engine name is enough.
 
-Also, do not forget to install the neccessary python packages for your helper.
+Also, do not forget to install the necessary python packages for your helper.
 
 Username and password are optional but highly recommended.
 
@@ -38,7 +38,5 @@ db_host = mysql_host
 db_port = 3306
 ```
 
-# Join NerdyBot
-https://discord.com/api/oauth2/authorize?client_id=246941850223640576&permissions=1539950767318&scope=applications.commands+bot
 # Join HumanMusic
 https://discord.com/api/oauth2/authorize?client_id=883656077357510697&permissions=1539950767318&scope=applications.commands+bot

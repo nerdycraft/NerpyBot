@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Main Class of the NerpyBot
+Main Class of the HumanMusic
 """
 
 import argparse
@@ -29,7 +29,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
-import utils.logging as logging
+import utils.log as log
 from models.GuildPrefix import GuildPrefix
 from utils.audio import Audio
 from utils.conversation import ConversationManager, AnswerType
@@ -38,7 +38,7 @@ from utils.errors import NerpyException
 from utils.helpers import send_hidden_message
 
 
-class NerpyBot(Bot):
+class HumanMusic(Bot):
     """Discord Bot"""
 
     def __init__(self, config: configparser.ConfigParser, intents: discord.Intents, debug: bool):
@@ -54,7 +54,7 @@ class NerpyBot(Bot):
         self.ops = config.get("bot", "ops")
         self.modules = json.loads(config.get("bot", "modules"))
         self.restart = True
-        self.log = logging.get_logger("nerpybot")
+        self.log = log.get_logger("humanmusic")
         self.uptime = datetime.utcnow()
 
         self.audio = Audio(self)
@@ -280,7 +280,7 @@ def determine_prefix(bot, message) -> List[str]:
     Gets the current prefix if any and set's it for the bot.
     Defaults to '!'
 
-    :param bot: NerpyBot
+    :param bot: HumanMusic
     :param message: discord.message.Message
     :return: List[str]
     """
@@ -300,9 +300,9 @@ def parse_arguments() -> argparse.Namespace:
 
     currently only supports auto restart
     """
-    parser = argparse.ArgumentParser(description="-> NerpyBot <-")
-    parser.add_argument("-r", "--auto-restart", help="Autorestarts NerdyPy in case of issues", action="store_true")
-    parser.add_argument("-c", "--config", help="Specify config file for NerdyPy", nargs=1)
+    parser = argparse.ArgumentParser(description="-> HumanMusic <-")
+    parser.add_argument("-r", "--auto-restart", help="Autorestarts HumanMusic in case of issues", action="store_true")
+    parser.add_argument("-c", "--config", help="Specify config file for HumanMusic", nargs=1)
     parser.add_argument("-v", "--verbose", action="count", required=False, dest="verbosity", default=0)
     parser.add_argument("-l", "--loglevel", action="store", required=False, dest="loglevel", default="INFO")
 
@@ -342,15 +342,15 @@ if __name__ == "__main__":
     INTENTS = get_intents()
     if str(ARGS.loglevel).upper() == "DEBUG" or ARGS.verbosity > 0:
         DEBUG = True
-        loggers = ["nerpybot", "sqlalchemy.engine"]
+        loggers = ["humanmusic", "sqlalchemy.engine"]
     else:
         DEBUG = False
-        loggers = ["nerpybot"]
+        loggers = ["humanmusic"]
 
     if "bot" in CONFIG:
         for logger_name in loggers:
-            logging.create_logger(ARGS.verbosity, ARGS.loglevel, logger_name)
-        BOT = NerpyBot(CONFIG, INTENTS, DEBUG)
+            log.create_logger(ARGS.verbosity, ARGS.loglevel, logger_name)
+        BOT = HumanMusic(CONFIG, INTENTS, DEBUG)
 
         try:
             asyncio.run(BOT.start())

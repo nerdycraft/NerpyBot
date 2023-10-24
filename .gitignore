@@ -6,12 +6,12 @@ __pycache__/
 *.dll
 .idea/
 .ptvs
-/NerdyPy/audio
+/HumanMusic/audio
 /NerdyPy/*.db
 .vscode
 venv/
 tmp/
-/NerdyPy/config.ini
-/NerdyPy/config_humanmusic.ini
+/HumanMusic/config.ini
+/HumanMusic/config_humanmusic.ini
 NerpyBot.code-workspace
 .env
