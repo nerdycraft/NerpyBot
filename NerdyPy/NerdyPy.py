@@ -125,15 +125,15 @@ class NerpyBot(Bot):
         for module in self.modules:
             try:
                 await self.load_extension(f"modules.{module}")
+                if module == "tagging":
+                    # set-up audio loops
+                    await self.audio.setup_loops()
             except (ImportError, ExtensionFailed, discord.ClientException) as e:
                 self.log.error(f"failed to load extension {module}. {e}")
                 self.log.debug(traceback.print_exc())
 
         # create database/tables and such stuff
         self.create_all()
-
-        # set-up audio loops
-        await self.audio.setup_loops()
 
         # sync commands
         try:
