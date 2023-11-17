@@ -19,7 +19,7 @@ RUN apt update && apt install -qqy --no-install-recommends \
     && apt clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN poetry install --no-interaction --no-ansi --without dev \
+RUN poetry install --no-interaction --no-ansi --only main \
     && rm -rf ~/.cache/pypoetry ~/.local/share/virtualenv
 
 CMD ["poetry", "run", "python", "/app/NerdyPy/NerdyPy.py"]

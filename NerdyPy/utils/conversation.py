@@ -36,7 +36,10 @@ class Conversation:
         """
         Overwrite needed!!!
         all send methods with expected reaction or message answers will refer to this dictionary and call the method.
-        :returns a dictionary of [uniqueKey/method()] to call methods on state changes
+
+        Returns
+        -------
+        dictionary of [uniqueKey/method()] to call methods on state changes
         """
         return {}
 

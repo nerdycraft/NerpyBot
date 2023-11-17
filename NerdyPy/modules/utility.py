@@ -5,10 +5,11 @@ import datetime
 import aiohttp
 import discord
 from discord import app_commands
-from discord.ext.commands import Cog, hybrid_command, bot_has_permissions
+from discord.ext.commands import Cog, hybrid_command, bot_has_permissions, Context
 
 import utils.format as fmt
 from utils.errors import NerpyException
+from utils.helpers import send_hidden_message
 
 
 @bot_has_permissions(send_messages=True)
@@ -21,12 +22,12 @@ class Utility(Cog):
 
     @hybrid_command()
     @bot_has_permissions(send_messages=True)
-    async def ping(self, ctx):
+    async def ping(self, ctx: Context):
         """Pong."""
         await ctx.send("Pong.")
 
     @hybrid_command(hidden=True)
-    async def uptime(self, ctx):
+    async def uptime(self, ctx: Context):
         """shows bot uptime"""
         td = datetime.datetime.utcnow() - self.bot.uptime
         await ctx.send(
@@ -36,13 +37,13 @@ class Utility(Cog):
     @hybrid_command()
     @app_commands.rename(query="city")
     @bot_has_permissions(embed_links=True)
-    async def weather(self, ctx, *, query: str):
+    async def weather(self, ctx: Context, *, query: str):
         """outputs weather information"""
         location_url = f"http://api.openweathermap.org/geo/1.0/direct?q={query}&appid={self.weather_api_key}"
 
         for umlaut in ["ä", "ö", "ü"]:
             if umlaut in query:
-                ctx.send("Please use english names only!")
+                await send_hidden_message(ctx, "Please use english names only!")
                 return
 
         async with aiohttp.ClientSession() as session:

@@ -1,19 +1,14 @@
 # -*- coding: utf-8 -*-
 
 from enum import Enum
+from typing import Literal
 
 import aiohttp
 import discord
-from discord.ext.commands import Cog, command, Converter
+from discord.app_commands import rename
+from discord.ext.commands import GroupCog, hybrid_command, Context
 
 from utils.errors import NerpyException
-
-
-class Region(Enum):
-    """league regions"""
-
-    EUW = "EUW1"
-    NA = "NA1"
 
 
 class LeagueCommand(Enum):
@@ -23,16 +18,7 @@ class LeagueCommand(Enum):
     RANK_POSITIONS = "league/v4/entries/by-summoner/"
 
 
-class RegionConverter(Converter):
-    async def convert(self, ctx, argument):
-        up = argument.upper()
-        try:
-            return Region[up].value
-        except KeyError:
-            raise NerpyException(f"Region {argument} was not found.")
-
-
-class League(Cog):
+class League(GroupCog):
     """league of legends related stuff"""
 
     def __init__(self, bot):
@@ -55,8 +41,9 @@ class League(Cog):
         base_url = f"https://{region}.api.riotgames.com/lol/"
         return f"{base_url}{cmd.value}{arg}"
 
-    @command()
-    async def summoner(self, ctx, region: RegionConverter, *, summoner_name: str):
+    @hybrid_command()
+    @rename(summoner_name="name")
+    async def summoner(self, ctx: Context, region: Literal["EUW1", "NA1"], summoner_name: str):
         """get information about the summoner"""
         rank = tier = lp = wins = losses = ""
 
@@ -67,6 +54,7 @@ class League(Cog):
             async with summoner_session.get(summoner_url) as summoner_response:
                 data = await summoner_response.json()
                 if "status" in data:  # if query is successfull there is no status key
+                    self.bot.log.error(data["status"])
                     raise NerpyException("Could not get data from API. Please report to Bot author.")
                 else:
                     summoner_id = data.get("id")
@@ -99,12 +87,12 @@ class League(Cog):
                         emb.add_field(name="wins", value=wins)
                         emb.add_field(name="losses", value=losses)
 
-        await self.bot.sendc(ctx, "", emb=emb)
+        await ctx.send(embed=emb)
 
 
-def setup(bot):
+async def setup(bot):
     """adds this module to the bot"""
     if "league" in bot.config:
-        bot.add_cog(League(bot))
+        await bot.add_cog(League(bot))
     else:
         raise NerpyException("Config not found.")

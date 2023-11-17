@@ -40,5 +40,3 @@ db_port = 3306
 
 # Join NerdyBot
 https://discord.com/api/oauth2/authorize?client_id=246941850223640576&permissions=1539950767318&scope=applications.commands+bot
-# Join HumanMusic
-https://discord.com/api/oauth2/authorize?client_id=883656077357510697&permissions=1539950767318&scope=applications.commands+bot

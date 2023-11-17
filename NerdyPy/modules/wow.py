@@ -5,13 +5,14 @@ from datetime import datetime as dt, timedelta as td
 import discord
 import requests
 from blizzardapi import BlizzardApi
-from discord.ext.commands import Cog, hybrid_group, bot_has_permissions
+from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions, Context
 
 from utils.errors import NerpyException
+from utils.helpers import send_hidden_message
 
 
-@bot_has_permissions(send_messages=True)
-class WorldofWarcraft(Cog):
+@bot_has_permissions(send_messages=True, embed_links=True)
+class WorldofWarcraft(GroupCog, group_name="wow"):
     """WOW API"""
 
     def __init__(self, bot):
@@ -87,15 +88,8 @@ class WorldofWarcraft(Cog):
 
             return keys
 
-    @hybrid_group()
-    async def wow(self, ctx):
-        """Get ALL the Infos about WoW"""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
-
-    @bot_has_permissions(send_messages=True, embed_links=True)
-    @wow.command(aliases=["search", "char"])
-    async def armory(self, ctx, name: str, realm: str, region: str = "eu"):
+    @hybrid_command(name="armory", aliases=["search", "char"])
+    async def _wow_armory(self, ctx: Context, name: str, realm: str, region: str = "eu"):
         """
         search for character
 
@@ -152,7 +146,7 @@ class WorldofWarcraft(Cog):
 
             await ctx.send(embed=emb)
         except NerpyException:
-            await ctx.send("No Character with this name found.")
+            await send_hidden_message(ctx, "No Character with this name found.")
 
 
 async def setup(bot):
