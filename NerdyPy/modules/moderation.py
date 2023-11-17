@@ -91,8 +91,9 @@ class Moderation(Cog):
                 if not configuration.DeletePinnedMessage and message.pinned:
                     self.bot.log.debug("Skip pinned message")
                     continue
-                self.bot.log.info(f"Delete message from channel {message.channel.name}, created at"
-                                  f" {message.created_at}.")
+                self.bot.log.info(
+                    f"Delete message from channel {message.channel.name}, created at {message.created_at}."
+                )
                 await message.delete()
         self.bot.log.info("Finish Autodeleter Loop!")
 
