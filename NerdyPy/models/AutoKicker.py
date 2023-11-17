@@ -18,7 +18,12 @@ class AutoKicker(db.BASE):
     ReminderMessage = Column(Text)
 
     @classmethod
-    def get(cls, guild_id: int, session):
+    def get_all(cls, session):
+        """get all"""
+        return session.query(AutoKicker).all()
+
+    @classmethod
+    def get_by_guild(cls, guild_id: int, session):
         """get all"""
         return session.query(AutoKicker).filter(AutoKicker.GuildId == guild_id).first()
 

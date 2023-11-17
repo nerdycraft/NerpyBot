@@ -23,8 +23,13 @@ class AutoDelete(db.BASE):
     DeletePinnedMessage = Column(Boolean, default=False)
 
     @classmethod
-    def get(cls, guild_id: int, session):
-        """returns a channel with given guild | session needed!"""
+    def get_all(cls, session):
+        """returns configurations for all guilds | session needed!"""
+        return session.query(AutoDelete).all()
+
+    @classmethod
+    def get_by_guild(cls, guild_id: int, session):
+        """returns a configuration for a given guild | session needed!"""
         return session.query(AutoDelete).filter(AutoDelete.GuildId == guild_id).all()
 
     @classmethod
