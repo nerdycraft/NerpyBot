@@ -36,53 +36,65 @@ class Moderation(Cog):
 
     @tasks.loop(time=loop_run_time)
     async def _autokicker_loop(self):
+        self.bot.log.info("Start Autokicker Loop!")
         with self.bot.session_scope() as session:
-            for guild in self.bot.guilds:
-                configuration = AutoKicker.get(guild.id, session)
-                if configuration is None:
-                    continue
-                if configuration.Enabled and configuration.KickAfter > 0:
-                    self.bot.log.info(f"Checking for member without role in {guild.name}.")
-                    for member in guild.members:
-                        if len(member.roles) == 1:
-                            kick_reminder = datetime.utcnow() - timedelta(seconds=(configuration.KickAfter / 2))
-                            kick_reminder = kick_reminder.replace(tzinfo=timezone.utc)
-                            kick_after = datetime.utcnow() - timedelta(seconds=configuration.KickAfter)
-                            kick_after = kick_after.replace(tzinfo=timezone.utc)
+            configurations = AutoKicker.get_all(session)
 
-                            if member.joined_at < kick_after:
-                                self.bot.log.debug(f"Kick member {member.display_name}!")
-                                await member.kick()
-                            elif member.joined_at < kick_reminder:
-                                if configuration.ReminderMessage is not None:
-                                    await member.send(configuration.ReminderMessage)
-                                else:
-                                    await member.send(
-                                        f"You have not selected a role on {guild.name}. "
-                                        f"Please choose a role until {humanize.naturaldate(kick_after)}."
-                                    )
+        for configuration in configurations:
+            if configuration is None:
+                continue
+            if configuration.Enabled and configuration.KickAfter > 0:
+                guild = self.bot.get_guild(configuration.GuildId)
+                self.bot.log.info(f"Checking for member without role in {guild.name}.")
+                for member in guild.members:
+                    if len(member.roles) == 1:
+                        self.bot.log.debug(f"Found member without role: {member.display_name}")
+                        kick_reminder = datetime.utcnow() - timedelta(seconds=(configuration.KickAfter / 2))
+                        kick_reminder = kick_reminder.replace(tzinfo=timezone.utc)
+                        kick_after = datetime.utcnow() - timedelta(seconds=configuration.KickAfter)
+                        kick_after = kick_after.replace(tzinfo=timezone.utc)
+
+                        if member.joined_at < kick_after:
+                            self.bot.log.debug(f"Kick member {member.display_name}!")
+                            await member.kick()
+                        elif member.joined_at < kick_reminder:
+                            self.bot.log.debug("Send reminder message to member")
+                            if configuration.ReminderMessage is not None:
+                                await member.send(configuration.ReminderMessage)
+                            else:
+                                await member.send(
+                                    f"You have not selected a role on {guild.name}. "
+                                    f"Please choose a role until {humanize.naturaldate(kick_after)}."
+                                )
+        self.bot.log.info("Finish Autokicker Loop!")
 
     @tasks.loop(minutes=5)
     async def _autodeleter_loop(self):
+        self.bot.log.info("Start Autodeleter Loop!")
         with self.bot.session_scope() as session:
-            for guild in self.bot.guilds:
-                configurations = AutoDelete.get(guild.id, session)
+            self.bot.log.debug("Fetching configurations")
+            configurations = AutoDelete.get_all(session)
 
-                for configuration in configurations:
-                    if configuration.DeleteOlderThan is None:
-                        list_before = None
-                    else:
-                        list_before = datetime.utcnow() - timedelta(seconds=configuration.DeleteOlderThan)
-                        list_before = list_before.replace(tzinfo=timezone.utc)
-                    channel = guild.get_channel(configuration.ChannelId)
-                    messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
+        for configuration in configurations:
+            guild = self.bot.get_guild(configuration.GuildId)
+            if configuration.DeleteOlderThan is None:
+                list_before = None
+            else:
+                list_before = datetime.utcnow() - timedelta(seconds=configuration.DeleteOlderThan)
+                list_before = list_before.replace(tzinfo=timezone.utc)
+            channel = guild.get_channel(configuration.ChannelId)
+            messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
 
-                    while len(messages) > configuration.KeepMessages:
-                        message = messages.pop(0)
-                        if not configuration.DeletePinnedMessage and message.pinned:
-                            continue
-                        self.bot.log.info(f"Delete message {message.id}, created at {message.created_at}.")
-                        await message.delete()
+            while len(messages) > configuration.KeepMessages:
+                message = messages.pop(0)
+                self.bot.log.debug(f"Check message: {message}")
+                if not configuration.DeletePinnedMessage and message.pinned:
+                    self.bot.log.debug("Skip pinned message")
+                    continue
+                self.bot.log.info(f"Delete message from channel {message.channel.name}, created at"
+                                  f" {message.created_at}.")
+                await message.delete()
+        self.bot.log.info("Finish Autodeleter Loop!")
 
     @hybrid_command()
     @rename(kick_reminder_message="reminder_message")
@@ -100,7 +112,7 @@ class Moderation(Cog):
         kick_reminder_message: Optional[str]
         """
         with self.bot.session_scope() as session:
-            configuration = AutoKicker.get(ctx.guild.id, session)
+            configuration = AutoKicker.get_by_guild(ctx.guild.id, session)
             if kick_after is not None:
                 kick_time = pytimeparse.parse(kick_after)
                 if kick_time is None:
@@ -231,7 +243,7 @@ class Moderation(Cog):
         """
 
         with self.bot.session_scope() as session:
-            configurations = AutoDelete.get(ctx.guild.id, session)
+            configurations = AutoDelete.get_by_guild(ctx.guild.id, session)
             if configurations is not None:
                 msg = "==== AutoDeleter Configuration ====\n"
                 for configuration in configurations:
@@ -240,7 +252,7 @@ class Moderation(Cog):
                         f"Channel: {channel_name.name}, "
                         f"DeleteOlderThan: {configuration.DeleteOlderThan}, "
                         f"DeletePinnedMessages: {configuration.DeletePinnedMessage}, "
-                        f"KeepMessages: {configuration.KeepMessages}"
+                        f"KeepMessages: {configuration.KeepMessages}\n"
                     )
                 await send_hidden_message(ctx, fmt.box(msg))
             else:
@@ -381,8 +393,8 @@ class Moderation(Cog):
         await ctx.send("No recent commands to display.")
 
     @_autokicker_loop.before_loop
-    async def _role_checker_before_loop(self):
-        self.bot.log.info("Rolechecker: Waiting for Bot to be ready...")
+    async def _autokicker_before_loop(self):
+        self.bot.log.info("AutoKicker: Waiting for Bot to be ready...")
         await self.bot.wait_until_ready()
 
     @_autodeleter_loop.before_loop
