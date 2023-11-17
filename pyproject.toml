@@ -27,6 +27,10 @@ pytimeparse = "^1.1.8"
 humanize = "^4.8.0"
 igdb-api-v4 = "^0.2.0"
 
+[tool.poetry.group.migrations.dependencies]
+SQLAlchemy = "^2.0.17"
+alembic = "^1.11.3"
+
 [tool.poetry.group.dev.dependencies]
 flake8 = "^6.0.0"
 black = {extras = ["d"], version = "^23.7.0"}
