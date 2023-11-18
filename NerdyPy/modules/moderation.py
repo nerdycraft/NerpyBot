@@ -87,7 +87,7 @@ class Moderation(Cog):
                 messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
 
                 while len(messages) > configuration.KeepMessages:
-                    self.bot.log.debug(len(messages))
+                    self.bot.log.debug(f"Messages in List: {len(messages)}")
                     message = messages.pop(0)
                     self.bot.log.debug(f"Check message: {message}")
                     if not configuration.DeletePinnedMessage and message.pinned:
