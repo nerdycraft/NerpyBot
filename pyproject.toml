@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "NerpyBot"
-version = "0.0.0"
+version = "${version}"
 description = ""
 repository = "https://github.com/nerdycraft/NerpyBot"
 authors = [
