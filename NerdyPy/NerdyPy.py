@@ -125,7 +125,7 @@ class NerpyBot(Bot):
         for module in self.modules:
             try:
                 await self.load_extension(f"modules.{module}")
-                if module == "tagging":
+                if module == "tagging" or module == "music":
                     # set-up audio loops
                     await self.audio.setup_loops()
             except (ImportError, ExtensionFailed, discord.ClientException) as e:
