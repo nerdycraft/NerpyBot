@@ -17,10 +17,21 @@ jobs:
           fetch-depth: 0
 
       - name: Docker Container Meta
-        id: docker_meta
+        id: docker_meta_nerpybot
         uses: docker/metadata-action@v4
         with:
           images: ghcr.io/ethernerd-net/nerpybot
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Docker Container Meta
+        id: docker_meta_database-migrations
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/ethernerd-net/nerpybot-database-migrations
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -40,11 +51,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
-        uses: docker/build-push-action@v4
+      - name: Build and push Nerpybot
+        id: build_nerdybot
+        uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.docker_meta.outputs.tags }}
-          labels: ${{ steps.docker_meta.outputs.labels }}
+          tags: ${{ steps.docker_meta_nerpybot.outputs.tags }}
+          labels: ${{ steps.docker_meta_nerpybot.outputs.labels }}
+
+      - name: Build and push Database Migrations
+        id: build_database-migrations
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          file: {context}/database_migrations.Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.docker_meta_database-migrations.outputs.tags }}
+          labels: ${{ steps.docker_meta_database-migrations.outputs.labels }}
