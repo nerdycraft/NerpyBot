@@ -86,7 +86,11 @@ class Moderation(Cog):
                 channel = guild.get_channel(configuration.ChannelId)
                 messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
 
-                while len(messages) > configuration.KeepMessages:
+                message_limit = 0
+                if configuration.KeepMessages is not None:
+                    message_limit = configuration.KeepMessages
+
+                while len(messages) > message_limit:
                     self.bot.log.debug(f"Messages in List: {len(messages)}")
                     message = messages.pop(0)
                     self.bot.log.debug(f"Check message: {message}")
@@ -299,7 +303,7 @@ class Moderation(Cog):
                 else:
                     delete_in_seconds = pytimeparse.parse(delete_older_than)
                     configuration.DeleteOlderThan = delete_in_seconds
-                configuration.KeepMessages = keep_messages
+                configuration.KeepMessages = keep_messages if keep_messages is not None else 0
                 configuration.DeletePinnedMessage = delete_pinned_message
 
                 await send_hidden_message(ctx, f'Updated configuration for channel "{channel_name}".')
