@@ -37,35 +37,38 @@ class Moderation(Cog):
     @tasks.loop(time=loop_run_time)
     async def _autokicker_loop(self):
         self.bot.log.info("Start Autokicker Loop!")
-        with self.bot.session_scope() as session:
-            configurations = AutoKicker.get_all(session)
+        try:
+            with self.bot.session_scope() as session:
+                configurations = AutoKicker.get_all(session)
 
-        for configuration in configurations:
-            if configuration is None:
-                continue
-            if configuration.Enabled and configuration.KickAfter > 0:
-                guild = self.bot.get_guild(configuration.GuildId)
-                self.bot.log.info(f"Checking for member without role in {guild.name}.")
-                for member in guild.members:
-                    if len(member.roles) == 1:
-                        self.bot.log.debug(f"Found member without role: {member.display_name}")
-                        kick_reminder = datetime.utcnow() - timedelta(seconds=(configuration.KickAfter / 2))
-                        kick_reminder = kick_reminder.replace(tzinfo=timezone.utc)
-                        kick_after = datetime.utcnow() - timedelta(seconds=configuration.KickAfter)
-                        kick_after = kick_after.replace(tzinfo=timezone.utc)
+            for configuration in configurations:
+                if configuration is None:
+                    continue
+                if configuration.Enabled and configuration.KickAfter > 0:
+                    guild = self.bot.get_guild(configuration.GuildId)
+                    self.bot.log.info(f"Checking for member without role in {guild.name}.")
+                    for member in guild.members:
+                        if len(member.roles) == 1:
+                            self.bot.log.debug(f"Found member without role: {member.display_name}")
+                            kick_reminder = datetime.utcnow() - timedelta(seconds=(configuration.KickAfter / 2))
+                            kick_reminder = kick_reminder.replace(tzinfo=timezone.utc)
+                            kick_after = datetime.utcnow() - timedelta(seconds=configuration.KickAfter)
+                            kick_after = kick_after.replace(tzinfo=timezone.utc)
 
-                        if member.joined_at < kick_after:
-                            self.bot.log.debug(f"Kick member {member.display_name}!")
-                            await member.kick()
-                        elif member.joined_at < kick_reminder:
-                            self.bot.log.debug("Send reminder message to member")
-                            if configuration.ReminderMessage is not None:
-                                await member.send(configuration.ReminderMessage)
-                            else:
-                                await member.send(
-                                    f"You have not selected a role on {guild.name}. "
-                                    f"Please choose a role until {humanize.naturaldate(kick_after)}."
-                                )
+                            if member.joined_at < kick_after:
+                                self.bot.log.debug(f"Kick member {member.display_name}!")
+                                await member.kick()
+                            elif member.joined_at < kick_reminder:
+                                self.bot.log.debug("Send reminder message to member")
+                                if configuration.ReminderMessage is not None:
+                                    await member.send(configuration.ReminderMessage)
+                                else:
+                                    await member.send(
+                                        f"You have not selected a role on {guild.name}. "
+                                        f"Please choose a role until {humanize.naturaldate(kick_after)}."
+                                    )
+        except Exception as ex:
+            self.bot.log.error(f"Error ocurred: {ex}")
         self.bot.log.info("Finish Autokicker Loop!")
 
     @tasks.loop(minutes=5)
