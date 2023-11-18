@@ -67,7 +67,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          file: {context}/database_migrations.Dockerfile
+          file: ./database_migrations.Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta_database-migrations.outputs.tags }}
           labels: ${{ steps.docker_meta_database-migrations.outputs.labels }}
