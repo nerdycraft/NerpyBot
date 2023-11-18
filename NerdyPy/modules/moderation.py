@@ -71,30 +71,34 @@ class Moderation(Cog):
     @tasks.loop(minutes=5)
     async def _autodeleter_loop(self):
         self.bot.log.info("Start Autodeleter Loop!")
-        with self.bot.session_scope() as session:
-            self.bot.log.debug("Fetching configurations")
-            configurations = AutoDelete.get_all(session)
+        try:
+            with self.bot.session_scope() as session:
+                self.bot.log.debug("Fetching configurations")
+                configurations = AutoDelete.get_all(session)
 
-        for configuration in configurations:
-            guild = self.bot.get_guild(configuration.GuildId)
-            if configuration.DeleteOlderThan is None:
-                list_before = None
-            else:
-                list_before = datetime.utcnow() - timedelta(seconds=configuration.DeleteOlderThan)
-                list_before = list_before.replace(tzinfo=timezone.utc)
-            channel = guild.get_channel(configuration.ChannelId)
-            messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
+            for configuration in configurations:
+                guild = self.bot.get_guild(configuration.GuildId)
+                if configuration.DeleteOlderThan is None:
+                    list_before = None
+                else:
+                    list_before = datetime.utcnow() - timedelta(seconds=configuration.DeleteOlderThan)
+                    list_before = list_before.replace(tzinfo=timezone.utc)
+                channel = guild.get_channel(configuration.ChannelId)
+                messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
 
-            while len(messages) > configuration.KeepMessages:
-                message = messages.pop(0)
-                self.bot.log.debug(f"Check message: {message}")
-                if not configuration.DeletePinnedMessage and message.pinned:
-                    self.bot.log.debug("Skip pinned message")
-                    continue
-                self.bot.log.info(
-                    f"Delete message from channel {message.channel.name}, created at {message.created_at}."
-                )
-                await message.delete()
+                while len(messages) > configuration.KeepMessages:
+                    self.bot.log.debug(f"Messages in List: {len(messages)}")
+                    message = messages.pop(0)
+                    self.bot.log.debug(f"Check message: {message}")
+                    if not configuration.DeletePinnedMessage and message.pinned:
+                        self.bot.log.debug("Skip pinned message")
+                        continue
+                    self.bot.log.info(
+                        f"Delete message from channel {message.channel.name}, created at {message.created_at}."
+                    )
+                    await message.delete()
+        except Exception as ex:
+            self.bot.log.error(f"Error ocurred: {ex}")
         self.bot.log.info("Finish Autodeleter Loop!")
 
     @hybrid_command()
