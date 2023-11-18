@@ -8,13 +8,13 @@ from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc
 from utils import database as db
 
 
-class TimedMessage(db.BASE):
+class ReminderMessage(db.BASE):
     """database entity model for timed message"""
 
-    __tablename__ = "TimedMessage"
+    __tablename__ = "ReminderMessage"
     __table_args__ = (
-        Index("TimedMessage_GuildId", "GuildId"),
-        Index("TimedMessage_Id_GuildId", "Id", "GuildId", unique=True),
+        Index("ReminderMessage_GuildId", "GuildId"),
+        Index("ReminderMessage_Id_GuildId", "Id", "GuildId", unique=True),
     )
 
     Id = Column(Integer, primary_key=True)
@@ -32,21 +32,26 @@ class TimedMessage(db.BASE):
     def get(cls, timed_id, guild_id, session):
         """returns a tag with given name for given guild | session needed!"""
         return (
-            session.query(TimedMessage)
-            .filter(TimedMessage.Id == timed_id)
-            .filter(TimedMessage.GuildId == guild_id)
+            session.query(ReminderMessage)
+            .filter(ReminderMessage.Id == timed_id)
+            .filter(ReminderMessage.GuildId == guild_id)
             .first()
         )
 
     @classmethod
-    def get_all_from_guild(cls, guild_id: int, session):
+    def get_all(cls, session):
         """returns all tags for given guild | session needed!"""
-        return session.query(TimedMessage).filter(TimedMessage.GuildId == guild_id).order_by(asc("Id")).all()
+        return session.query(ReminderMessage).order_by(asc("Id")).all()
+
+    @classmethod
+    def get_all_by_guild(cls, guild_id: int, session):
+        """returns all tags for given guild | session needed!"""
+        return session.query(ReminderMessage).filter(ReminderMessage.GuildId == guild_id).all()
 
     @classmethod
     def delete(cls, timed_id, guild_id: int, session):
         """deletes a tag with given name for given guild"""
-        session.delete(TimedMessage.get(timed_id, guild_id, session))
+        session.delete(ReminderMessage.get(timed_id, guild_id, session))
 
     def __str__(self):
         msg = f"==== {self.Id} ====\n\n"

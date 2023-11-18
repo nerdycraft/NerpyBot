@@ -1,52 +1,109 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime, timedelta
+from typing import Optional
 
+import discord
 from discord.ext import tasks
-from discord.ext.commands import Cog, hybrid_command, bot_has_permissions, Context
+from discord.ext.commands import GroupCog, hybrid_command, Context
 
+from models.Reminder import ReminderMessage
+from utils.format import pagify, box
 from utils.helpers import send_hidden_message
 
 
-@bot_has_permissions(send_messages=True)
-class Reminder(Cog):
+class Reminder(GroupCog, group_name="reminder"):
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
         self.reminders = []
-        self._reminder.start()
+        self._reminder_loop.start()
 
     def cog_unload(self):
-        self._reminder.cancel()
+        self._reminder_loop.cancel()
 
-    @tasks.loop(seconds=5)
-    async def _reminder(self):
-        removals = []
-        for rem in self.reminders:
-            if rem["time"] <= datetime.now():
-                mention = rem["author"].mention
-                message = rem["message"]
-                await rem["author"].send(f"Hello {mention}, you asked me to remind you of: {message}")
-                removals.append(rem)
+    @tasks.loop(seconds=30)
+    async def _reminder_loop(self):
+        self.bot.log.debug("Start Reminder Loop!")
+        try:
+            with self.bot.session_scope() as session:
+                for guild in self.bot.guilds:
+                    msgs = ReminderMessage.get_all_by_guild(guild.id, session)
+                    for msg in msgs:
+                        if msg.LastSend + timedelta(minutes=msg.Minutes) < datetime.utcnow():
+                            chan = guild.get_channel(msg.ChannelId)
+                            if chan is None:
+                                ReminderMessage.delete(msg.Id, guild.id, session)
+                            else:
+                                await chan.send(msg.Message)
+                                if msg.Repeat < 1:
+                                    ReminderMessage.delete(msg.Id, guild.id, session)
+                                else:
+                                    msg.LastSend = datetime.utcnow()
+                                    msg.Count += 1
+                session.flush()
+        except Exception as ex:
+            self.bot.log.error(f"Error ocurred: {ex}")
+        self.bot.log.debug("Stop Reminder Loop!")
 
-        for r in removals:
-            self.reminders.remove(r)
-
-    def add(self, author, channel, time, message):
-        self.reminders.append({"author": author, "channel": channel, "time": time, "message": message})
-
-    @hybrid_command()
-    async def remindme(self, ctx: Context, mins: int, *, text: str):
+    @hybrid_command(name="create")
+    async def _reminder_create(
+        self, ctx: Context, channel: Optional[discord.TextChannel], minutes: int, repeat: bool, message: str
+    ):
         """
-        sets a reminder
-
-        bot will answer in a DM
+        creates a message which gets send after a certain time
         """
-        self.add(ctx.author, ctx.message.channel, datetime.now() + timedelta(minutes=mins), text)
-        await send_hidden_message(ctx, f"Got it, {ctx.author.mention}. I will remind you in {mins} minute(s).")
+        with self.bot.session_scope() as session:
+            if channel:
+                channel_id = channel.id
+            else:
+                channel_id = ctx.channel.id
 
-    @_reminder.before_loop
+            msg = ReminderMessage(
+                GuildId=ctx.guild.id,
+                ChannelId=channel_id,
+                Author=str(ctx.author),
+                CreateDate=datetime.utcnow(),
+                LastSend=datetime.utcnow(),
+                Minutes=minutes,
+                Message=message,
+                Repeat=repeat,
+                Count=0,
+            )
+
+            session.add(msg)
+            session.flush()
+
+        await send_hidden_message(ctx, "Message created.")
+
+    @hybrid_command(name="list")
+    async def _reminder_list(self, ctx: Context):
+        """
+        list all current reminder messages
+        """
+        to_send = ""
+        with self.bot.session_scope() as session:
+            msgs = ReminderMessage.get_all_from_guild(ctx.guild.id, session)
+            if len(msgs) > 0:
+                for msg in msgs:
+                    to_send += f"{str(msg)}\n\n"
+                for page in pagify(to_send, delims=["\n#"], page_length=1990):
+                    await ctx.send(box(page, "md"))
+            else:
+                await send_hidden_message(ctx, "No messages in queue.")
+
+    @hybrid_command(name="delete")
+    async def _reminder_delete(self, ctx: Context, reminder_id: int):
+        """
+        deletes a reminder message
+        """
+        with self.bot.session_scope() as session:
+            ReminderMessage.delete(reminder_id, ctx.guild.id, session)
+
+        await send_hidden_message(ctx, "Message deleted.")
+
+    @_reminder_loop.before_loop
     async def _before_loop(self):
         self.bot.log.info("Reminder: Waiting for Bot to be ready...")
         await self.bot.wait_until_ready()
