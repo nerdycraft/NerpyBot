@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "NerpyBot"
-version = "${version}"
-description = ""
-repository = "https://github.com/nerdycraft/NerpyBot"
+version = "0.0.0"
+description = "The nerdiest Bot on Discord"
+repository = "https://github.com/ethernerd-net/NerpyBot"
 authors = [
     "Rico Wesenberg <r.wesenberg@gmail.com>",
     "Dennis Bernardy <bernardyd@gmail.com>"
