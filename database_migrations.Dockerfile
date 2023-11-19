@@ -3,8 +3,8 @@ FROM python:3.11
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 
 COPY pyproject.toml poetry.lock README.md alembic.ini /app/
-COPY NerdyPy /app/
-COPY database-migrations /app/
+COPY NerdyPy /app/NerdyPy
+COPY database-migrations /app/database-migrations
 
 WORKDIR /app/
 RUN apt update && apt install -qqy --no-install-recommends \
