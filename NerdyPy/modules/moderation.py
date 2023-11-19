@@ -36,7 +36,7 @@ class Moderation(Cog):
 
     @tasks.loop(time=loop_run_time)
     async def _autokicker_loop(self):
-        self.bot.log.info("Start Autokicker Loop!")
+        self.bot.log.debug("Start Autokicker Loop!")
         with self.bot.session_scope() as session:
             configurations = AutoKicker.get_all(session)
 
@@ -66,11 +66,11 @@ class Moderation(Cog):
                                     f"You have not selected a role on {guild.name}. "
                                     f"Please choose a role until {humanize.naturaldate(kick_after)}."
                                 )
-        self.bot.log.info("Finish Autokicker Loop!")
+        self.bot.log.debug("Finish Autokicker Loop!")
 
     @tasks.loop(minutes=5)
     async def _autodeleter_loop(self):
-        self.bot.log.info("Start Autodeleter Loop!")
+        self.bot.log.debug("Start Autodeleter Loop!")
         try:
             with self.bot.session_scope() as session:
                 self.bot.log.debug("Fetching configurations")
@@ -103,7 +103,7 @@ class Moderation(Cog):
                     await message.delete()
         except Exception as ex:
             self.bot.log.error(f"Error ocurred: {ex}")
-        self.bot.log.info("Finish Autodeleter Loop!")
+        self.bot.log.debug("Finish Autodeleter Loop!")
 
     @hybrid_command()
     @rename(kick_reminder_message="reminder_message")
