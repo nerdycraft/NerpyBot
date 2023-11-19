@@ -3,6 +3,7 @@ FROM python:3.11
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 
 COPY pyproject.toml poetry.lock README.md alembic.ini /app/
+COPY NerdyPy /app/
 COPY database-migrations /app/
 
 WORKDIR /app/
