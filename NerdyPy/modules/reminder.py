@@ -17,7 +17,6 @@ class Reminder(GroupCog, group_name="reminder"):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
-        self.reminders = []
         self._reminder_loop.start()
 
     def cog_unload(self):
@@ -34,15 +33,14 @@ class Reminder(GroupCog, group_name="reminder"):
                         if msg.LastSend + timedelta(minutes=msg.Minutes) < datetime.utcnow():
                             chan = guild.get_channel(msg.ChannelId)
                             if chan is None:
-                                ReminderMessage.delete(msg.Id, guild.id, session)
+                                session.delete(msg)
                             else:
                                 await chan.send(msg.Message)
                                 if msg.Repeat < 1:
-                                    ReminderMessage.delete(msg.Id, guild.id, session)
+                                    session.delete(msg)
                                 else:
                                     msg.LastSend = datetime.utcnow()
                                     msg.Count += 1
-                session.flush()
         except Exception as ex:
             self.bot.log.error(f"Error ocurred: {ex}")
         self.bot.log.debug("Stop Reminder Loop!")
@@ -54,15 +52,18 @@ class Reminder(GroupCog, group_name="reminder"):
         """
         creates a message which gets send after a certain time
         """
-        with self.bot.session_scope() as session:
-            if channel:
-                channel_id = channel.id
-            else:
-                channel_id = ctx.channel.id
+        channel_id = ctx.channel.id
+        channel_name = ctx.channel.name
 
+        if channel:
+            channel_id = channel.id
+            channel_name = channel.name
+
+        with self.bot.session_scope() as session:
             msg = ReminderMessage(
                 GuildId=ctx.guild.id,
                 ChannelId=channel_id,
+                ChannelName=channel_name,
                 Author=str(ctx.author),
                 CreateDate=datetime.utcnow(),
                 LastSend=datetime.utcnow(),
@@ -71,10 +72,7 @@ class Reminder(GroupCog, group_name="reminder"):
                 Repeat=repeat,
                 Count=0,
             )
-
             session.add(msg)
-            session.flush()
-
         await send_hidden_message(ctx, "Message created.")
 
     @hybrid_command(name="list")
@@ -84,12 +82,12 @@ class Reminder(GroupCog, group_name="reminder"):
         """
         to_send = ""
         with self.bot.session_scope() as session:
-            msgs = ReminderMessage.get_all_from_guild(ctx.guild.id, session)
+            msgs = ReminderMessage.get_all_by_guild(ctx.guild.id, session)
             if len(msgs) > 0:
                 for msg in msgs:
                     to_send += f"{str(msg)}\n\n"
                 for page in pagify(to_send, delims=["\n#"], page_length=1990):
-                    await ctx.send(box(page, "md"))
+                    await send_hidden_message(ctx, box(page, "md"))
             else:
                 await send_hidden_message(ctx, "No messages in queue.")
 
@@ -100,7 +98,6 @@ class Reminder(GroupCog, group_name="reminder"):
         """
         with self.bot.session_scope() as session:
             ReminderMessage.delete(reminder_id, ctx.guild.id, session)
-
         await send_hidden_message(ctx, "Message deleted.")
 
     @_reminder_loop.before_loop
@@ -110,4 +107,5 @@ class Reminder(GroupCog, group_name="reminder"):
 
 
 async def setup(bot):
+    """adds this module to the bot"""
     await bot.add_cog(Reminder(bot))
