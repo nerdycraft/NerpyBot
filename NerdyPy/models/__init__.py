@@ -5,6 +5,6 @@ import models.GuildPrefix
 import models.RaidEncounter
 import models.RaidEncounterRole
 import models.RaidTemplate
+import models.Reminder
 import models.Tag
 import models.TagEntry
-import models.TimedMessage
