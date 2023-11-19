@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 from sqlalchemy import Column, Text
+from sqlalchemy.exc import OperationalError
 
 # revision identifiers, used by Alembic.
 revision: str = "443fdce72be4"
@@ -18,10 +19,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.rename_table("TimedMessage", "ReminderMessage")
-    op.add_column("ReminderMessage", Column("ChannelName", Text))
+    try:
+        op.rename_table("TimedMessage", "ReminderMessage")
+        op.add_column("ReminderMessage", Column("ChannelName", Text))
+    except OperationalError as ex:
+        print(ex)
 
 
 def downgrade() -> None:
-    op.drop_column("ReminderMessage", "ChannelName")
-    op.rename_table("ReminderMessage", "TimedMessage")
+    try:
+        op.drop_column("ReminderMessage", "ChannelName")
+        op.rename_table("ReminderMessage", "TimedMessage")
+    except OperationalError as ex:
+        print(ex)
