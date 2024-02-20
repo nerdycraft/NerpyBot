@@ -16,13 +16,13 @@ pytimeparse2 = ">=1.7,<1.8"
 humanize = ">=4,<5"
 igdb-api-v4 = ">=0.3,<0.4"
 
-[migration-packages]
-SQLAlchemy = "*"
-alembic = "*"
-
 [dev-packages]
 flake8 = "*"
 black = {extras = ["d"], version = "*"}
+
+[migration]
+SQLAlchemy = "*"
+alembic = "*"
 
 [requires]
 python_version = "3.12"

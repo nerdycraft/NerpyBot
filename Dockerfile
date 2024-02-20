@@ -22,18 +22,18 @@ RUN PIPENV_VENV_IN_PROJECT=1 pipenv install --deploy
 
 FROM base as runtime
 
-COPY --from=builder /tmp/.venv /app/NerdyPy/.venv
-ENV PATH="/app/NerdyPy/.venv/bin:$PATH"
+COPY --from=builder /tmp/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 
-COPY NerdyPy /app/NerdyPy
+COPY NerdyPy /app
 RUN apt update && apt install -qqy --no-install-recommends \
       ffmpeg \
       libopus0 \
     && apt clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -d /app/NerdyPy NerdyBot
+RUN useradd -m -d /app NerdyBot
 USER NerdyBot
 
-WORKDIR /app/NerdyPy
+WORKDIR /app
 CMD ["python", "NerdyPy.py"]

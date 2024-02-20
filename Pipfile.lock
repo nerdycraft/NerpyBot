@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "24b4dd29d749c1fa46fe94e67e250fa2d94d0ef386272462d6975a9eb7697633"
+            "sha256": "37b7c646cbe911face5152f0c64195a30a5456b2817f857d68445168abfd481e"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -1330,7 +1330,7 @@
             "version": "==1.9.4"
         }
     },
-    "migration-packages": {
+    "migration": {
         "alembic": {
             "hashes": [
                 "sha256:2edcc97bed0bd3272611ce3a98d98279e9c209e7186e43e75bbb1b2bdfdbcc43",
