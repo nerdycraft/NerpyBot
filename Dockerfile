@@ -1,25 +1,39 @@
-FROM python:3.11
+FROM python:3.12-slim as base
 
-ENV POETRY_VIRTUALENVS_IN_PROJECT=true
+# Setup env
+ENV LANG C.UTF-8
+ENV LC_ALL C.UTF-8
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONFAULTHANDLER 1
 
-COPY pyproject.toml poetry.lock README.md /app/
-COPY NerdyPy /app/NerdyPy
 
-WORKDIR /app/NerdyPy
+FROM base AS builder
+
+# Install pipenv and compilation dependencies
+RUN pip install pipenv
 RUN apt update && apt install -qqy --no-install-recommends \
-      build-essential \
-      libffi-dev \
+      git
+
+ADD Pipfile.lock Pipfile /tmp/
+
+WORKDIR /tmp
+RUN PIPENV_VENV_IN_PROJECT=1 pipenv install --deploy
+
+
+FROM base as runtime
+
+COPY --from=builder /tmp/.venv /app/NerdyPy/.venv
+ENV PATH="/app/NerdyPy/.venv/bin:$PATH"
+
+COPY NerdyPy /app/NerdyPy
+RUN apt update && apt install -qqy --no-install-recommends \
       ffmpeg \
       libopus0 \
-    && pip install \
-      --no-cache-dir \
-      --trusted-host pypi.python.org \
-      poetry \
-    && apt purge -qqy --autoremove build-essential libffi-dev \
     && apt clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN poetry install --no-interaction --no-ansi --only main \
-    && rm -rf ~/.cache/pypoetry ~/.local/share/virtualenv
+RUN useradd -m -d /app/NerdyPy NerdyBot
+USER NerdyBot
 
-CMD ["poetry", "run", "python", "/app/NerdyPy/NerdyPy.py"]
+WORKDIR /app/NerdyPy
+CMD ["python", "NerdyPy.py"]
