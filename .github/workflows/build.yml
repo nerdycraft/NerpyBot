@@ -6,6 +6,9 @@ on:
       - main
     tags:
       - 'v*'
+  pull_request:
+    branches:
+      - 'main'
 
 jobs:
   build_image:
@@ -57,9 +60,12 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
+          target: bot
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta_nerpybot.outputs.tags }}
           labels: ${{ steps.docker_meta_nerpybot.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/ethernerd-net/nerpybot:buildcache
+          cache-to: type=registry,ref=ghcr.io/ethernerd-net/nerpybot:buildcache,mode=max
 
       - name: Build and push Database Migrations
         id: build_database-migrations
@@ -67,7 +73,10 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          file: ./database_migrations.Dockerfile
+          target: migrations
+          build-args: categories=migration
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta_database-migrations.outputs.tags }}
           labels: ${{ steps.docker_meta_database-migrations.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/ethernerd-net/nerpybot-database-migrations:buildcache
+          cache-to: type=registry,ref=ghcr.io/ethernerd-net/nerpybot-database-migrations:buildcache,mode=max

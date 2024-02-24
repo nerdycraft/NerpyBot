@@ -4,7 +4,7 @@ from typing import Optional, Union
 
 import discord
 import humanize
-import pytimeparse
+import pytimeparse2
 from discord.app_commands import checks, rename
 from discord.ext import tasks
 from discord.ext.commands import Cog, hybrid_command, hybrid_group, command, Context
@@ -133,7 +133,7 @@ class Moderation(Cog):
         with self.bot.session_scope() as session:
             configuration = AutoKicker.get_by_guild(ctx.guild.id, session)
             if kick_after is not None:
-                kick_time = pytimeparse.parse(kick_after)
+                kick_time = pytimeparse2.parse(kick_after)
                 if kick_time is None:
                     await send_hidden_message(
                         ctx, "Only timespans up until weeks are allowed. Do not use months or years."
@@ -210,7 +210,7 @@ class Moderation(Cog):
                     if delete_older_than is None:
                         delete = delete_older_than
                     else:
-                        delete = pytimeparse.parse(delete_older_than)
+                        delete = pytimeparse2.parse(delete_older_than)
                         if delete is None:
                             await send_hidden_message(
                                 ctx, "Only timespans up until weeks are allowed. Do not use months or years."
@@ -311,7 +311,7 @@ class Moderation(Cog):
                 if delete_older_than is None:
                     configuration.DeleteOlderThan = delete_older_than
                 else:
-                    delete_in_seconds = pytimeparse.parse(delete_older_than)
+                    delete_in_seconds = pytimeparse2.parse(delete_older_than)
                     configuration.DeleteOlderThan = delete_in_seconds
                 configuration.KeepMessages = keep_messages if keep_messages is not None else 0
                 configuration.DeletePinnedMessage = delete_pinned_message
