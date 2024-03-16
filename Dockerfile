@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG PYTHON_VERSION=3.12
-FROM python:${PYTHON_VERSION}-alpine as base
+FROM python:${PYTHON_VERSION} as base
 
 # Setup env
 ENV LANG=C.UTF-8
