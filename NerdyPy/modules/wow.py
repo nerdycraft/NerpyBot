@@ -4,7 +4,7 @@ from datetime import datetime as dt, timedelta as td
 
 import discord
 import requests
-from blizzardapi import BlizzardApi
+from BlizzardWarcraftAPI import BlizzardAuthToken, BlizzardWarcraftAPI
 from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions, Context
 
 from utils.errors import NerpyException
@@ -20,7 +20,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
         self.bot = bot
         self.config = bot.config
-        self.api = BlizzardApi(self.config.get("wow", "wow_id"), self.config.get("wow", "wow_secret"))
+        self.api_token = BlizzardAuthToken(self.config.get("wow", "wow_id"), self.config.get("wow", "wow_secret")).get()
         self.regions = ["eu", "us"]
 
     @staticmethod
@@ -39,11 +39,12 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         return f"{url}/{profile}"
 
     async def _get_character(self, realm, region, name):
-        locale = "en-US"
+        api = BlizzardWarcraftAPI(self.api_token, region, "en_GB")
+        profile = api.Profile()
 
-        self.api.wow.profile.get_character_profile_status(region, locale, realm, name)
-        character = self.api.wow.profile.get_character_profile_summary(region, locale, realm, name)
-        assets = self.api.wow.profile.get_character_media_summary(region, locale, realm, name).get("assets", list())
+        profile.get_CharacterProfileStatus(realm, name)
+        character = profile.get_CharacterProfileSummary(realm, name)
+        assets = profile.get_CharacterMediaSummary(realm, name).get("assets", list())
         profile_picture = "".join(asset.get("value") for asset in assets if asset.get("key") == "avatar")
 
         return character, profile_picture
@@ -116,14 +117,14 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 wowprogress = self._get_link("wowprogress", profile)
 
                 emb = discord.Embed(
-                    title=f'{character["name"]} | {realm.capitalize()} | {region.upper()} | {character["active_spec"]["name"]["en_US"]} {character["character_class"]["name"]["en_US"]} | {character["equipped_item_level"]} ilvl',
+                    title=f'{character["name"]} | {realm.capitalize()} | {region.upper()} | {character["active_spec"]["name"]} {character["character_class"]["name"]} | {character["equipped_item_level"]} ilvl',
                     url=armory,
                     color=discord.Color(value=int("0099ff", 16)),
-                    description=f'{character["gender"]["name"]["en_US"]} {character["race"]["name"]["en_US"]}',
+                    description=f'{character["gender"]["name"]} {character["race"]["name"]}',
                 )
                 emb.set_thumbnail(url=profile_picture)
                 emb.add_field(name="Level", value=character["level"], inline=True)
-                emb.add_field(name="Faction", value=character["faction"]["name"]["en_US"], inline=True)
+                emb.add_field(name="Faction", value=character["faction"]["name"], inline=True)
                 if "guild" in character:
                     emb.add_field(name="Guild", value=character["guild"]["name"], inline=True)
                 emb.add_field(name="\u200b", value="\u200b", inline=False)

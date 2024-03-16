@@ -9,7 +9,7 @@ import configparser
 import json
 import traceback
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import List
 
@@ -55,7 +55,7 @@ class NerpyBot(Bot):
         self.modules = json.loads(config.get("bot", "modules"))
         self.restart = True
         self.log = logging.get_logger("nerpybot")
-        self.uptime = datetime.utcnow()
+        self.uptime = datetime.now(UTC)
 
         self.audio = Audio(self)
         self.last_cmd_cache = {}
