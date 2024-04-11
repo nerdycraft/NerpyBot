@@ -11,6 +11,9 @@ ENV PYTHONFAULTHANDLER=1
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/app/.venv/bin:$PATH"
 
+RUN useradd -m -u 1000 -d /app NerdyBot
+RUN chown -R NerdyBot /app
+
 WORKDIR /app
 
 
@@ -30,8 +33,8 @@ RUN PIPENV_VENV_IN_PROJECT=1 pipenv install --deploy --categories ${categories}
 
 FROM base as bot
 
-COPY --from=venv /app/.venv /app/.venv
-COPY NerdyPy /app
+COPY --from=venv --chown=1000 /app/.venv /app/.venv
+COPY --chown=1000 NerdyPy /app
 
 RUN apt update && apt install -qqy --no-install-recommends \
       ffmpeg \
@@ -39,19 +42,23 @@ RUN apt update && apt install -qqy --no-install-recommends \
     && apt clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -d /app NerdyBot
 USER NerdyBot
 
 CMD ["python", "NerdyPy.py"]
 
+LABEL org.opencontainers.image.source=https://github.com/ethernerd-net/NerpyBot
+LABEL org.opencontainers.image.description="NerpyBot, the nerdiest Python Bot"
+
 
 FROM base as migrations
 
-COPY --from=venv /app/.venv /app/.venv
-COPY alembic.ini /app/
-COPY database-migrations /app/database-migrations/
+COPY --from=venv --chown=1000 /app/.venv /app/.venv
+COPY --chown=1000 alembic.ini /app/
+COPY --chown=1000 database-migrations /app/database-migrations/
 
-RUN useradd -m -d /app NerdyBot
 USER NerdyBot
 
 CMD ["python", "-m", "alembic", "upgrade", "head"]
+
+LABEL org.opencontainers.image.source=https://github.com/ethernerd-net/NerpyBot
+LABEL org.opencontainers.image.description="Database migrations for the nerdiest Python Bot"
