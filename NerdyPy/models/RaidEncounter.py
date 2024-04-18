@@ -15,8 +15,8 @@ class RaidEncounter(db.BASE):
     GuildId = Column(BigInteger, primary_key=True)
     TemplateId = Column(BigInteger, primary_key=True)
     EncounterId = Column(BigInteger, primary_key=True)
-    Name = Column(String)
-    Description = Column(String)
+    Name = Column(String(30))
+    Description = Column(String(255))
 
     __table_args__ = (
         Index("RaidEncounter_GuildId_TemplateId", "GuildId", "TemplateId"),
