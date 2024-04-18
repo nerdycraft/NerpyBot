@@ -15,14 +15,14 @@ class RaidEvent(db.BASE):
 
     GuildId = Column(BigInteger, primary_key=True)
     RaidId = Column(BigInteger, primary_key=True)
-    Name = Column(String)
-    Description = Column(String)
+    Name = Column(String(30))
+    Description = Column(String(255))
     StartDate = Column(DateTime)
     EndDate = Column(DateTime)
-    Organizer = Column(String)
+    Organizer = Column(String(30))
     PlayerCount = Column(Integer)
     CreateDate = Column(DateTime)
-    MessageRef = Column(String)
+    MessageRef = Column(String(255))
 
     @classmethod
     def get_from_guild(cls, guild_id: int, session):
