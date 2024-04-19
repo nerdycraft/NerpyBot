@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import datetime
+from datetime import datetime, UTC
 
 import aiohttp
 import discord
@@ -29,7 +29,7 @@ class Utility(Cog):
     @hybrid_command(hidden=True)
     async def uptime(self, ctx: Context):
         """shows bot uptime"""
-        td = datetime.datetime.utcnow() - self.bot.uptime
+        td = datetime.now(UTC) - self.bot.uptime
         await ctx.send(
             fmt.inline(f"Uptime: {td.days} Days, {td.seconds // 3600} Hours and {(td.seconds // 60) % 60} Minutes"),
         )
@@ -71,14 +71,14 @@ class Utility(Cog):
         for w in weather.get("weather", dict()):
             conditions.append(w.get("main"))
 
-        sunrise = datetime.datetime.fromtimestamp(int(weather.get("sys", dict()).get("sunrise"))).strftime("%H:%M")
-        sunset = datetime.datetime.fromtimestamp(int(weather.get("sys", dict()).get("sunset"))).strftime("%H:%M")
+        sunrise = datetime.fromtimestamp(int(weather.get("sys", dict()).get("sunrise"))).strftime("%H:%M")
+        sunset = datetime.fromtimestamp(int(weather.get("sys", dict()).get("sunset"))).strftime("%H:%M")
 
         emb = discord.Embed()
         emb.add_field(
             name=f':earth_africa: {fmt.bold("location")}',
             value=f"""[{weather.get("name")},
-                            {weather.get("sys", dict()).get("country")}](https://openweathermap.org/city/{weather.get("id")})""",
+            {weather.get("sys", dict()).get("country")}](https://openweathermap.org/city/{weather.get("id")})""",
         )
         emb.add_field(
             name=f':thermometer: {fmt.bold("temperature")}',

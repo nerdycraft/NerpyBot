@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Optional
 
 import discord
@@ -30,7 +30,7 @@ class Reminder(GroupCog, group_name="reminder"):
                 for guild in self.bot.guilds:
                     msgs = ReminderMessage.get_all_by_guild(guild.id, session)
                     for msg in msgs:
-                        if msg.LastSend + timedelta(minutes=msg.Minutes) < datetime.utcnow():
+                        if msg.LastSend + timedelta(minutes=msg.Minutes) < datetime.now(UTC):
                             chan = guild.get_channel(msg.ChannelId)
                             if chan is None:
                                 session.delete(msg)
@@ -39,7 +39,7 @@ class Reminder(GroupCog, group_name="reminder"):
                                 if msg.Repeat < 1:
                                     session.delete(msg)
                                 else:
-                                    msg.LastSend = datetime.utcnow()
+                                    msg.LastSend = datetime.now(UTC)
                                     msg.Count += 1
         except Exception as ex:
             self.bot.log.error(f"Error ocurred: {ex}")
@@ -65,8 +65,8 @@ class Reminder(GroupCog, group_name="reminder"):
                 ChannelId=channel_id,
                 ChannelName=channel_name,
                 Author=str(ctx.author),
-                CreateDate=datetime.utcnow(),
-                LastSend=datetime.utcnow(),
+                CreateDate=datetime.now(UTC),
+                LastSend=datetime.now(UTC),
                 Minutes=minutes,
                 Message=message,
                 Repeat=repeat,

@@ -1,7 +1,7 @@
 # -- coding: utf-8 --
 """ Search Modul """
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Literal
 
 import aiohttp
@@ -174,7 +174,7 @@ class Search(GroupCog):
                     "Something really bad happend. If this issue persists, please report to bot " "author."
                 )
             result = oauth_response.json()
-            result["expire_time"] = datetime.utcnow() + timedelta(seconds=result.get("expires_in"))
+            result["expire_time"] = datetime.now(UTC) + timedelta(seconds=result.get("expires_in"))
 
             return result
 
@@ -187,7 +187,7 @@ class Search(GroupCog):
             "fields name,first_release_date,aggregated_rating,summary,genres.name,url,cover.url;"
             "limit 6;"
         )
-        if "expire_time" not in self.igdb_token or self.igdb_token["expire_time"] < datetime.utcnow():
+        if "expire_time" not in self.igdb_token or self.igdb_token["expire_time"] < datetime.now(UTC):
             self.igdb_token = self._get_igdb_access_token()
 
         wrapper = IGDBWrapper(self.config["igdb_client_id"], self.igdb_token.get("access_token"))
@@ -205,7 +205,7 @@ class Search(GroupCog):
                 emb.set_thumbnail(url=f'https:{data.get("cover", dict()).get("url")}')
 
             if "first_release_date" in data:
-                dt = datetime.utcfromtimestamp(int(data.get("first_release_date"))).strftime("%Y-%m-%d")
+                dt = datetime.fromtimestamp(int(data.get("first_release_date")), UTC).strftime("%Y-%m-%d")
                 emb.add_field(name=fmt.bold("Release Date"), value=dt)
             else:
                 emb.add_field(name=fmt.bold("Release Date"), value="no info")

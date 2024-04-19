@@ -95,7 +95,8 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         search for character
 
         name and realm are required parameters.
-        region is optional, but if you want to search on another realm than your discord server runs on, you need to set it.
+        region is optional, but if you want to search on another realm than your discord server runs on,
+            you need to set it.
         """
         try:
             async with ctx.typing():

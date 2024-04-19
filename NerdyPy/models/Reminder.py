@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """ timed message database model """
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, UTC
 
 import humanize
 from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Text, Index, asc
@@ -61,7 +61,7 @@ class ReminderMessage(db.BASE):
         msg += f"Created: {self.CreateDate.strftime('%Y-%m-%d %H:%M')}\n"
         msg += (
             f"Next Message: "
-            f"{humanize.naturaltime(self.LastSend + timedelta(minutes=float(self.Minutes)), when=datetime.utcnow())}\n"
+            f"{humanize.naturaltime(self.LastSend + timedelta(minutes=float(self.Minutes)), when=datetime.now(UTC))}\n"
         )
         msg += f"Message: {self.Message}\n"
         msg += f"Hits: {self.Count}\n"

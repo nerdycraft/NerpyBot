@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import io
-from datetime import datetime
+from datetime import datetime, UTC
 
 from discord.app_commands import command, guild_only
 from discord.ext.commands import (
@@ -100,7 +100,7 @@ class Tagging(Cog):
                     Name=name,
                     Author=str(ctx.author),
                     Type=tag_type,
-                    CreateDate=datetime.utcnow(),
+                    CreateDate=datetime.now(UTC),
                     Count=0,
                     Volume=100,
                     GuildId=ctx.guild.id,

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from datetime import datetime
+from datetime import datetime, UTC
 from enum import Enum
 
 from discord import Embed
@@ -236,7 +236,7 @@ class RaidConversation(Conversation):
             TemplateId=len(self.templates) + 1,
             Name=f"RaidTemplate {len(self.templates) + 1}",
             PlayerCount=10,
-            CreateDate=datetime.utcnow(),
+            CreateDate=datetime.now(UTC),
         )
         await self.conv_template_menu()
 

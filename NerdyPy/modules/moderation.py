@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from datetime import timezone, time, datetime, timedelta
+from datetime import timezone, time, datetime, timedelta, UTC
 from typing import Optional, Union
 
 import discord
@@ -50,9 +50,9 @@ class Moderation(Cog):
                     for member in guild.members:
                         if len(member.roles) == 1:
                             self.bot.log.debug(f"Found member without role: {member.display_name}")
-                            kick_reminder = datetime.utcnow() - timedelta(seconds=(configuration.KickAfter / 2))
+                            kick_reminder = datetime.now(UTC) - timedelta(seconds=(configuration.KickAfter / 2))
                             kick_reminder = kick_reminder.replace(tzinfo=timezone.utc)
-                            kick_after = datetime.utcnow() - timedelta(seconds=configuration.KickAfter)
+                            kick_after = datetime.now(UTC) - timedelta(seconds=configuration.KickAfter)
                             kick_after = kick_after.replace(tzinfo=timezone.utc)
 
                             if member.joined_at < kick_after:
@@ -86,7 +86,7 @@ class Moderation(Cog):
                 if configuration.DeleteOlderThan is None:
                     list_before = None
                 else:
-                    list_before = datetime.utcnow() - timedelta(seconds=configuration.DeleteOlderThan)
+                    list_before = datetime.now(UTC) - timedelta(seconds=configuration.DeleteOlderThan)
                     list_before = list_before.replace(tzinfo=timezone.utc)
                 channel = guild.get_channel(configuration.ChannelId)
                 messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
@@ -203,7 +203,8 @@ class Moderation(Cog):
             if configuration is not None:
                 await send_hidden_message(
                     ctx,
-                    "This Channel is already configured for AutoDelete. Please edit or delete the existing configuration.",
+                    "This Channel is already configured for AutoDelete."
+                    "Please edit or delete the existing configuration.",
                 )
             else:
                 if ctx.guild.get_channel(channel_id) is not None:
