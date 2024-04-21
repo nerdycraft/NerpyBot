@@ -3,11 +3,11 @@
 from datetime import datetime, timedelta, UTC
 from typing import Optional
 
-import discord
+from discord import TextChannel
 from discord.ext import tasks
 from discord.ext.commands import GroupCog, hybrid_command, Context
 
-from models.Reminder import ReminderMessage
+from models.reminder import ReminderMessage
 from utils.format import pagify, box
 from utils.helpers import send_hidden_message
 
@@ -30,7 +30,7 @@ class Reminder(GroupCog, group_name="reminder"):
                 for guild in self.bot.guilds:
                     msgs = ReminderMessage.get_all_by_guild(guild.id, session)
                     for msg in msgs:
-                        if msg.LastSend + timedelta(minutes=msg.Minutes) < datetime.now(UTC):
+                        if msg.LastSend.astimezone(UTC) + timedelta(minutes=msg.Minutes) < datetime.now(UTC):
                             chan = guild.get_channel(msg.ChannelId)
                             if chan is None:
                                 session.delete(msg)
@@ -39,7 +39,7 @@ class Reminder(GroupCog, group_name="reminder"):
                                 if msg.Repeat < 1:
                                     session.delete(msg)
                                 else:
-                                    msg.LastSend = datetime.now(UTC)
+                                    msg.LastSend = datetime.now()
                                     msg.Count += 1
         except Exception as ex:
             self.bot.log.error(f"Error ocurred: {ex}")
@@ -47,7 +47,7 @@ class Reminder(GroupCog, group_name="reminder"):
 
     @hybrid_command(name="create")
     async def _reminder_create(
-        self, ctx: Context, channel: Optional[discord.TextChannel], minutes: int, repeat: bool, message: str
+        self, ctx: Context, channel: Optional[TextChannel], minutes: int, repeat: bool, message: str
     ):
         """
         creates a message which gets send after a certain time

@@ -5,7 +5,7 @@ from datetime import datetime, UTC
 from discord.app_commands import checks
 from discord.ext.commands import Cog, group, Context
 
-from models.GuildPrefix import GuildPrefix
+from models.admin import GuildPrefix
 
 
 @checks.has_permissions(administrator=True)

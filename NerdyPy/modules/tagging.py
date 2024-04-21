@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-import io
 from datetime import datetime, UTC
+from io import BytesIO
 
 from discord.app_commands import command, guild_only
 from discord.ext.commands import (
@@ -14,8 +14,8 @@ from discord.ext.commands import (
     Context,
 )
 
-import utils.format as fmt
-from models.Tag import Tag, TagType, TagTypeConverter
+from models.tagging import Tag, TagType, TagTypeConverter
+from utils import format as fmt
 from utils.audio import QueuedSong
 from utils.checks import is_connected_to_voice
 from utils.download import download
@@ -220,7 +220,7 @@ class Tagging(Cog):
             _tag = Tag.get(song.fetch_data, song.channel.guild.id, session)
             random_entry = _tag.get_random_entry()
 
-            song.stream = io.BytesIO(random_entry.ByteContent)
+            song.stream = BytesIO(random_entry.ByteContent)
             song.volume = _tag.Volume
 
     @staticmethod

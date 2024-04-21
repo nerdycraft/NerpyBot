@@ -6,10 +6,7 @@ from enum import Enum
 from discord import Embed
 from discord.ext.commands import Cog, command, Context
 
-from models.RaidEncounter import RaidEncounter
-from models.RaidEncounterRole import RaidEncounterRole
-from models.RaidEvent import RaidEvent
-from models.RaidTemplate import RaidTemplate
+from models.raidplaner import RaidTemplate, RaidEncounter, RaidEncounterRole, RaidEvent
 from utils.conversation import Conversation
 
 
