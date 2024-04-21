@@ -3,7 +3,7 @@
 from random import randint, choice
 from typing import Optional
 
-import discord
+from discord import Member
 from discord.ext.commands import Cog, hybrid_command, bot_has_permissions, Context
 
 from utils.errors import NerpyException
@@ -169,14 +169,14 @@ class Fun(Cog):
         await ctx.send(f"{mention} asked me: {question}\n\n{choice(self.ball)}`")
 
     @hybrid_command(no_pm=True)
-    async def hug(self, ctx: Context, user: discord.Member, intensity: Optional[int] = None):
+    async def hug(self, ctx: Context, user: Member, intensity: Optional[int] = None):
         """
         Because everyone likes hugs!
 
         Parameters
         ----------
         ctx
-        user: discord.Member
+        user: Member
              has to be a valid @user
         intensity: Optional[int]
             The intensity of your hug. 0 to 4 levels, default is random

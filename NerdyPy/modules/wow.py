@@ -2,9 +2,9 @@
 
 from datetime import datetime as dt, timedelta as td
 
-import discord
 import requests
 from BlizzardWarcraftAPI import BlizzardAuthToken, BlizzardWarcraftAPI
+from discord import Embed, Color
 from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions, Context
 
 from utils.errors import NerpyException
@@ -117,10 +117,10 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 warcraftlogs = self._get_link("warcraftlogs", profile)
                 wowprogress = self._get_link("wowprogress", profile)
 
-                emb = discord.Embed(
+                emb = Embed(
                     title=f'{character["name"]} | {realm.capitalize()} | {region.upper()} | {character["active_spec"]["name"]} {character["character_class"]["name"]} | {character["equipped_item_level"]} ilvl',
                     url=armory,
-                    color=discord.Color(value=int("0099ff", 16)),
+                    color=Color(value=int("0099ff", 16)),
                     description=f'{character["gender"]["name"]} {character["race"]["name"]}',
                 )
                 emb.set_thumbnail(url=profile_picture)
