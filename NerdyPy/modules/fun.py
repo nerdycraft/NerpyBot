@@ -166,7 +166,7 @@ class Fun(Cog):
             await ctx.send("That doesn't look like a question.")
 
         mention = ctx.message.author.mention
-        await ctx.send(f"{mention} asked me: {question}\n\n{choice(self.ball)}`")
+        await ctx.send(f"{mention} asked me: {question}\n\n{choice(self.ball)}")
 
     @hybrid_command(no_pm=True)
     async def hug(self, ctx: Context, user: Member, intensity: Optional[int] = None):

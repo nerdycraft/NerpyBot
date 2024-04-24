@@ -14,8 +14,18 @@ from pathlib import Path
 from traceback import print_exc, print_tb, format_exc
 from typing import List
 
-from discord import HTTPException, LoginFailure, app_commands, Forbidden, Intents, ClientException, \
-    RawReactionActionEvent, Message, DMChannel, Game
+from discord import (
+    HTTPException,
+    LoginFailure,
+    app_commands,
+    Forbidden,
+    Intents,
+    ClientException,
+    RawReactionActionEvent,
+    Message,
+    DMChannel,
+    Game,
+)
 from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError
 from discord.ext import commands
 from discord.ext.commands import (

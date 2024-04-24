@@ -3,7 +3,7 @@
 from datetime import datetime, UTC
 from io import BytesIO
 
-from discord.app_commands import command, guild_only
+from discord.app_commands import command, guild_only, rename
 from discord.ext.commands import (
     Cog,
     check,
@@ -87,8 +87,21 @@ class Tagging(Cog):
         await send_hidden_message(ctx, "Queue dropped.")
 
     @_tag.command(name="create")
-    async def _tag_create(self, ctx: Context, name: str, tag_type: TagTypeConverter, content: clean_content):
-        """create tag content"""
+    @rename(tag_type="type")
+    async def _tag_create(self, ctx: Context, name: str, tag_type: TagTypeConverter, content: clean_content) -> None:
+        """
+        Create Tags.
+
+        Parameters
+        ----------
+        ctx
+        name: str
+            The name of your Tag.
+        tag_type: Literal["sound", "text", "url"]
+            One of sound, text or url.
+        content: clean_content
+            The content of your Tag. (Allowed is text or a URL for sound tags)
+        """
         with self.bot.session_scope() as session:
             if Tag.exists(name, ctx.guild.id, session):
                 await send_hidden_message(ctx, f'tag "{name}" already exists!')
