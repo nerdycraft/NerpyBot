@@ -30,11 +30,21 @@ class TwitchNotifications(db.BASE):
 
     @classmethod
     def get_all_by_streamer(cls, guild_id: int, streamer_id: str, session):
-        return session.query(TwitchNotifications).filter(TwitchNotifications.GuildId == guild_id).filter(TwitchNotifications.StreamerId == streamer_id).all()
+        return (
+            session.query(TwitchNotifications)
+            .filter(TwitchNotifications.GuildId == guild_id)
+            .filter(TwitchNotifications.StreamerId == streamer_id)
+            .all()
+        )
 
     @classmethod
     def get_all_by_channel(cls, guild_id: int, channel_id: int, session):
-        return session.query(TwitchNotifications).filter(TwitchNotifications.GuildId == guild_id).filter(TwitchNotifications.ChannelId == channel_id).all()
+        return (
+            session.query(TwitchNotifications)
+            .filter(TwitchNotifications.GuildId == guild_id)
+            .filter(TwitchNotifications.ChannelId == channel_id)
+            .all()
+        )
 
     @classmethod
     def get_by_channel_and_streamer(cls, guild_id: int, channel_id: int, streamer_id: str, session):
