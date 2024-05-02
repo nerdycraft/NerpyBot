@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """ Twitch Modul """
 
-from sqlalchemy import Integer, BigInteger, Column, Index, Text
+from sqlalchemy import Integer, BigInteger, Column, Index, Text, String
 
 from utils import database as db
 
@@ -15,7 +15,7 @@ class TwitchNotifications(db.BASE):
     Id = Column(Integer, primary_key=True)
     GuildId = Column(BigInteger)
     ChannelId = Column(BigInteger)
-    StreamerId = Column(BigInteger)
+    StreamerId = Column(String(30))
     Message = Column(Text)
 
     @classmethod
