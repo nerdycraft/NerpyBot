@@ -28,8 +28,7 @@ class Reminder(GroupCog, group_name="reminder"):
         try:
             with self.bot.session_scope() as session:
                 for guild in self.bot.guilds:
-                    msgs = ReminderMessage.get_all_by_guild(guild.id, session)
-                    for msg in msgs:
+                    for msg in ReminderMessage.get_all_by_guild(guild.id, session):
                         if msg.LastSend.astimezone(UTC) + timedelta(minutes=msg.Minutes) < datetime.now(UTC):
                             chan = guild.get_channel(msg.ChannelId)
                             if chan is None:
