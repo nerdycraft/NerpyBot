@@ -1,3 +1,12 @@
+### Custom
+NerdyPy/audio
+NerdyPy/*.db
+NerdyPy/*.dll
+NerdyPy/tmp/
+NerdyPy/config.ini
+NerdyPy/config_humanmusic.ini
+NerpyBot.code-workspace
+
 ### macOS template
 # General
 .DS_Store
@@ -202,10 +211,41 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
-### Custom
-NerdyPy/audio
-NerdyPy/*.db
-NerdyPy/tmp/
-NerdyPy/config.ini
-NerdyPy/config_humanmusic.ini
-NerpyBot.code-workspace
+### Windows template
+# Windows thumbnail cache files
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+
+# Dump file
+*.stackdump
+
+# Folder config file
+[Dd]esktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Windows Installer files
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+# Windows shortcuts
+*.lnk
+
+### Executable template
+*.app
+*.bat
+*.cgi
+*.com
+*.exe
+*.gadget
+*.jar
+*.pif
+*.vb
+*.wsf
+
