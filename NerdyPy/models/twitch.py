@@ -29,6 +29,16 @@ class TwitchNotifications(db.BASE):
         return session.query(TwitchNotifications).filter(TwitchNotifications.GuildId == guild_id).all()
 
     @classmethod
+    def get_by_id(cls, guild_id: int, config_id: int, session):
+        """returns a configuration for a given guild | session needed!"""
+        return (
+            session.query(TwitchNotifications)
+            .filter(TwitchNotifications.GuildId == guild_id)
+            .filter(TwitchNotifications.Id == config_id)
+            .all()
+        )
+
+    @classmethod
     def get_all_by_streamer(cls, guild_id: int, streamer_id: str, session):
         return (
             session.query(TwitchNotifications)
