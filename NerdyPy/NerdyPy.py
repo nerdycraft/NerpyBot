@@ -152,11 +152,8 @@ class NerpyBot(Bot):
 
         # sync commands
         try:
-            guild = None
             self.log.info("Syncing commands...")
-            if DEBUG:
-                guild = self.get_guild(606539392311361794)
-            synced_cmds = await self.tree.sync(guild=guild)
+            synced_cmds = await self.tree.sync()
         except (HTTPException, CommandSyncFailure, Forbidden, MissingApplicationID, TranslationError) as ex:
             self.log.debug(ex)
             raise NerpyException("Could not sync commands to Discord API.")

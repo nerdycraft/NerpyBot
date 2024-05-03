@@ -3,15 +3,15 @@
 from typing import Optional, Union
 
 from discord import TextChannel
+from discord.app_commands import guild_only
 from discord.ext.commands import bot_has_permissions, Context, hybrid_group, GroupCog
-from discord.app_commands import guild_only, Group
 from twitchAPI.object.api import TwitchUser
 from twitchAPI.twitch import Twitch as TwitchAPI
 
 from models.twitch import TwitchNotifications
 from utils import format as fmt
 from utils.errors import NerpyException
-from utils.helpers import send_hidden_message
+from utils.helpers import send_hidden_message, empty_subcommand
 
 
 @bot_has_permissions(send_messages=True)
@@ -25,9 +25,10 @@ class Twitch(GroupCog):
         self.bot = bot
         self.config = self.bot.config["twitch"]
 
-    async def _get_twitch_user(self, _streamer: Union[str | int]) -> TwitchUser:
+    async def _get_twitch_user(self, _streamer: Union[str | int]) -> Union[TwitchUser | None]:
         _ids = None
         _names = None
+        _users = None
         _api = await self._get_twitch_api()
 
         try:
@@ -37,7 +38,8 @@ class Twitch(GroupCog):
         else:
             _ids = [_streamer]
         async for _user in _api.get_users(user_ids=_ids, logins=_names):
-            return _user
+            _users = _user
+        return _users
 
     async def _get_twitch_api(self):
         return await TwitchAPI(
@@ -45,19 +47,13 @@ class Twitch(GroupCog):
             self.config.get("client_secret"),
         )
 
-    @hybrid_group(name="notifications", invoke_without_command=True, aliases=["twitch_notifications"])
-    async def twitch_notifications(self, ctx: Context) -> None:
+    @hybrid_group(aliases=["twitch_notifications"])
+    @guild_only()
+    async def notifications(self, ctx: Context) -> None:
         """Manages Twitch notifications on a per-channel/per-streamer basis."""
-        if ctx.invoked_subcommand is None:
-            args = str(ctx.message.clean_content).split(" ")
-            if len(args) > 2:
-                raise NerpyException("Command not found!")
-            elif len(args) <= 1:
-                await ctx.send_help(ctx.command)
-            else:
-                await ctx.send(args[1])
+        await empty_subcommand(ctx)
 
-    @twitch_notifications.command(name="list")
+    @notifications.command(name="list")
     async def _twitch_notifications_list(
             self,
             ctx: Context,
@@ -85,7 +81,21 @@ class Twitch(GroupCog):
                 twitch = TwitchNotifications.get_all_by_streamer(ctx.guild.id, streamer, session)
             if channel and streamer:
                 twitch = TwitchNotifications.get_by_channel_and_streamer(ctx.guild.id, channel.id, streamer, session)
-            if twitch:
+            if len(twitch) > 1:
+                msg_list = []
+                msg = "==== Twitch Configuration ====\n"
+                for twitch in TwitchNotifications.get_all_by_guild(ctx.guild.id, session):
+                    channel_name = ctx.guild.get_channel(twitch.ChannelId).name
+                    user = await self._get_twitch_user(twitch.StreamerId)
+                    msg_list.append(
+                        f"Id: {twitch.Id}, "
+                        f"Channel: {channel_name}, "
+                        f"Streamer: {user.display_name}, "
+                        f"Message: {twitch.Message}\n"
+                    )
+                await send_hidden_message(ctx, fmt.box(msg.join(msg_list)))
+                return
+            if len(twitch) > 0:
                 channel_name = ctx.guild.get_channel(twitch.ChannelId).name
                 user = await self._get_twitch_user(twitch.StreamerId)
                 await send_hidden_message(
@@ -101,28 +111,15 @@ class Twitch(GroupCog):
                     ),
                 )
                 return
-            if not channel and not streamer:
-                msg = "==== Twitch Configuration ====\n"
-                for twitch in TwitchNotifications.get_all_by_guild(ctx.guild.id, session):
-                    channel_name = ctx.guild.get_channel(twitch.ChannelId).name
-                    user = await self._get_twitch_user(twitch.StreamerId)
-                    msg += (
-                        f"Id: {twitch.Id}, "
-                        f"Channel: {channel_name}, "
-                        f"Streamer: {user.display_name}, "
-                        f"Message: {twitch.Message}\n"
-                    )
-                    await send_hidden_message(ctx, fmt.box(msg))
-                    return
             await send_hidden_message(ctx, "No configuration found.")
 
-    @twitch_notifications.command(name="create")
+    @notifications.command(name="create")
     async def _twitch_notifications_create(
-            self,
-            ctx: Context,
-            streamer: str,
-            channel: Optional[TextChannel],
-            message: Optional[str],
+        self,
+        ctx: Context,
+        streamer: str,
+        channel: Optional[TextChannel],
+        message: Optional[str],
     ) -> None:
         """
         Creates Twitch notifications.
@@ -156,11 +153,11 @@ class Twitch(GroupCog):
             session.add(twitch)
         await send_hidden_message(ctx, "Configuration created.")
 
-    @twitch_notifications.command(name="delete")
+    @notifications.command(name="delete")
     async def _twitch_notifications_delete(
-            self,
-            ctx: Context,
-            config_id: int,
+        self,
+        ctx: Context,
+        config_id: int,
     ) -> None:
         """
         Creates Twitch notifications.

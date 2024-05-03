@@ -13,7 +13,7 @@ from utils import format as fmt
 from models.moderation import AutoDelete
 from models.moderation import AutoKicker
 from utils.errors import NerpyException
-from utils.helpers import send_hidden_message
+from utils.helpers import send_hidden_message, empty_subcommand
 
 utc = timezone.utc
 # If no tzinfo is given then UTC is assumed.
@@ -329,14 +329,7 @@ class Moderation(Cog):
     @checks.has_permissions(moderate_members=True)
     async def user(self, ctx: Context):
         """user moderation [bot-moderator]"""
-        if ctx.invoked_subcommand is None:
-            args = str(ctx.message.clean_content).split(" ")
-            if len(args) > 2:
-                raise NerpyException("Command not found!")
-            elif len(args) <= 1:
-                await ctx.send_help(ctx.command)
-            else:
-                await ctx.send(args[1])
+        await empty_subcommand(ctx)
 
     @user.command(name="info")
     @checks.has_permissions(moderate_members=True)

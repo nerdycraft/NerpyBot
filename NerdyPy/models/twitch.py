@@ -10,7 +10,10 @@ class TwitchNotifications(db.BASE):
     """database entity model for TwitchNotifications"""
 
     __tablename__ = "TwitchNotifications"
-    __table_args__ = (Index("TwitchNotifications_GuildId", "GuildId", unique=True),)
+    __table_args__ = (
+        Index("TwitchNotifications_GuildId", "GuildId"),
+        Index("TwitchNotifications_GuildId_ChannelId_StreamerId", "GuildId", "ChannelId", "StreamerId", unique=True),
+    )
 
     Id = Column(Integer, primary_key=True)
     GuildId = Column(BigInteger)
@@ -65,8 +68,3 @@ class TwitchNotifications(db.BASE):
             .filter(TwitchNotifications.StreamerId == streamer_id)
             .all()
         )
-
-    @classmethod
-    def delete(cls, guild_id: int, channel_id: int, session):
-        """deletes a channel with given guild"""
-        session.delete(TwitchNotifications.get_by_channel(guild_id, channel_id, session))
