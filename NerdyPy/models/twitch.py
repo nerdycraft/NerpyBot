@@ -12,19 +12,14 @@ class TwitchNotifications(db.BASE):
     __tablename__ = "TwitchNotifications"
     __table_args__ = (
         Index("TwitchNotifications_GuildId", "GuildId"),
-        Index("TwitchNotifications_GuildId_ChannelId_StreamerId", "GuildId", "ChannelId", "StreamerId", unique=True),
+        Index("TwitchNotifications_GuildId_ChannelId_Streamer", "GuildId", "ChannelId", "Streamer", unique=True),
     )
 
     Id = Column(Integer, primary_key=True)
     GuildId = Column(BigInteger)
     ChannelId = Column(BigInteger)
-    StreamerId = Column(String(30))
+    Streamer = Column(String(30))
     Message = Column(Text)
-
-    @classmethod
-    def get_all(cls, session):
-        """returns configurations for all guilds | session needed!"""
-        return session.query(TwitchNotifications).all()
 
     @classmethod
     def get_all_by_guild(cls, guild_id: int, session):
@@ -38,15 +33,15 @@ class TwitchNotifications(db.BASE):
             session.query(TwitchNotifications)
             .filter(TwitchNotifications.GuildId == guild_id)
             .filter(TwitchNotifications.Id == config_id)
-            .all()
+            .first()
         )
 
     @classmethod
-    def get_all_by_streamer(cls, guild_id: int, streamer_id: str, session):
+    def get_all_by_streamer(cls, guild_id: int, streamer: str, session):
         return (
             session.query(TwitchNotifications)
             .filter(TwitchNotifications.GuildId == guild_id)
-            .filter(TwitchNotifications.StreamerId == streamer_id)
+            .filter(TwitchNotifications.Streamer == streamer)
             .all()
         )
 
@@ -60,11 +55,11 @@ class TwitchNotifications(db.BASE):
         )
 
     @classmethod
-    def get_by_channel_and_streamer(cls, guild_id: int, channel_id: int, streamer_id: str, session):
+    def get_by_channel_and_streamer(cls, guild_id: int, channel_id: int, streamer: str, session):
         return (
             session.query(TwitchNotifications)
             .filter(TwitchNotifications.GuildId == guild_id)
             .filter(TwitchNotifications.ChannelId == channel_id)
-            .filter(TwitchNotifications.StreamerId == streamer_id)
+            .filter(TwitchNotifications.Streamer == streamer)
             .all()
         )
