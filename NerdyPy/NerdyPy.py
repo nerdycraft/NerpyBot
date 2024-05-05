@@ -3,19 +3,29 @@
 Main Class of the NerpyBot
 """
 
-import argparse
-import asyncio
-import configparser
 import json
-import traceback
+from argparse import Namespace, ArgumentParser
+from asyncio import run
+from configparser import ConfigParser
 from contextlib import contextmanager
 from datetime import datetime, UTC
 from pathlib import Path
+from traceback import print_exc, print_tb, format_exc
 from typing import List
 
-import discord
-from discord import HTTPException, LoginFailure, app_commands
-from discord.app_commands import CommandSyncFailure
+from discord import (
+    HTTPException,
+    LoginFailure,
+    app_commands,
+    Forbidden,
+    Intents,
+    ClientException,
+    RawReactionActionEvent,
+    Message,
+    DMChannel,
+    Game,
+)
+from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError
 from discord.ext import commands
 from discord.ext.commands import (
     Bot,
@@ -29,8 +39,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
-import utils.logging as logging
-from models.GuildPrefix import GuildPrefix
+from models.admin import GuildPrefix
+from utils import logging
 from utils.audio import Audio
 from utils.conversation import ConversationManager, AnswerType
 from utils.database import BASE
@@ -41,7 +51,7 @@ from utils.helpers import send_hidden_message
 class NerpyBot(Bot):
     """Discord Bot"""
 
-    def __init__(self, config: configparser.ConfigParser, intents: discord.Intents, debug: bool):
+    def __init__(self, config: ConfigParser, intents: Intents, debug: bool):
         # noinspection PyTypeChecker
         super().__init__(
             command_prefix=determine_prefix, description="NerdyBot - Always one step ahead!", intents=intents
@@ -128,9 +138,9 @@ class NerpyBot(Bot):
                 if module == "tagging" or module == "music":
                     # set-up audio loops
                     await self.audio.setup_loops()
-            except (ImportError, ExtensionFailed, discord.ClientException) as e:
+            except (ImportError, ExtensionFailed, ClientException) as e:
                 self.log.error(f"failed to load extension {module}. {e}")
-                self.log.debug(traceback.print_exc())
+                self.log.debug(print_exc())
 
         # create database/tables and such stuff
         self.create_all()
@@ -139,7 +149,8 @@ class NerpyBot(Bot):
         try:
             self.log.info("Syncing commands...")
             synced_cmds = await self.tree.sync()
-        except (HTTPException, CommandSyncFailure):
+        except (HTTPException, CommandSyncFailure, Forbidden, MissingApplicationID, TranslationError) as ex:
+            self.log.debug(ex)
             raise NerpyException("Could not sync commands to Discord API.")
         else:
             self.log.info(f"Synced commands: {', '.join(cmds.name for cmds in synced_cmds)}")
@@ -154,7 +165,7 @@ class NerpyBot(Bot):
 
         Also adds legacy commands to the command cache, which can then be queried by the 'history' command
         """
-        if self.restart is True and not isinstance(ctx.channel, discord.DMChannel):
+        if self.restart is True and not isinstance(ctx.channel, DMChannel):
             if ctx.guild.id not in self.last_cmd_cache:
                 self.last_cmd_cache[ctx.guild.id] = []
             elif len(self.last_cmd_cache[ctx.guild.id]) >= 10:
@@ -186,7 +197,7 @@ class NerpyBot(Bot):
             if isinstance(error, CommandError):
                 if isinstance(error, commands.CommandInvokeError) and not isinstance(error.original, NerpyException):
                     self.log.error(f"In {ctx.command.qualified_name}:")
-                    traceback.print_tb(error.original.__traceback__)
+                    print_tb(error.original.__traceback__)
                     self.log.error(f"{error.original.__class__.__name__}: {error.original}")
                     await ctx.author.send("Unhandled error occurred. Please report to bot author!")
                 if isinstance(error.original, app_commands.CommandInvokeError) and isinstance(
@@ -201,17 +212,17 @@ class NerpyBot(Bot):
                 self.log.error(error)
             else:
                 self.log.error(f"In {ctx.command.qualified_name}:")
-                traceback.print_tb(error.original.__traceback__)
+                print_tb(error.original.__traceback__)
                 self.log.error(f"{error.original.__class__.__name__}: {error.original}")
                 if ctx.interaction is None:
                     await ctx.author.send("Unhandled error occurred. Please report to bot author!")
                 else:
                     await send_hidden_message(ctx, "Unhandled error occurred. Please report to bot author!")
 
-        if not isinstance(ctx.channel, discord.DMChannel) and ctx.interaction is None:
+        if not isinstance(ctx.channel, DMChannel) and ctx.interaction is None:
             await ctx.message.delete()
 
-    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
+    async def on_raw_reaction_add(self, payload: RawReactionActionEvent) -> None:
         """
         Handles reactions to messages
 
@@ -226,7 +237,7 @@ class NerpyBot(Bot):
         if conv is not None and conv.is_conv_message(payload.message_id) and conv.is_answer_type(AnswerType.REACTION):
             await conv.on_react(payload.emoji)
 
-    async def on_message(self, message: discord.message.Message) -> None:
+    async def on_message(self, message: Message) -> None:
         """
         Handles chats in DMs to the bot
 
@@ -237,7 +248,7 @@ class NerpyBot(Bot):
             return
 
         invoke = True
-        if isinstance(message.channel, discord.DMChannel):
+        if isinstance(message.channel, DMChannel):
             conv = self.convMan.get_user_conversation(message.author)
             if conv is not None and conv.is_answer_type(AnswerType.TEXT):
                 await conv.on_message(message.content)
@@ -255,7 +266,7 @@ class NerpyBot(Bot):
         """
         self.log.info("Logging into Discord...")
         if self.token:
-            self.activity = discord.Game(name="!help for help")
+            self.activity = Game(name="!help for help")
             await self.login(self.token)
         else:
             self.log.critical("No credentials available to login.")
@@ -271,8 +282,8 @@ class NerpyBot(Bot):
         await self.close()
 
 
-def get_intents() -> discord.Intents:
-    return discord.Intents.all()
+def get_intents() -> Intents:
+    return Intents.all()
 
 
 def determine_prefix(bot, message) -> List[str]:
@@ -294,13 +305,13 @@ def determine_prefix(bot, message) -> List[str]:
     return ["!"]  # default prefix
 
 
-def parse_arguments() -> argparse.Namespace:
+def parse_arguments() -> Namespace:
     """
     parser for starting arguments
 
     currently only supports auto restart
     """
-    parser = argparse.ArgumentParser(description="-> NerpyBot <-")
+    parser = ArgumentParser(description="-> NerpyBot <-")
     parser.add_argument("-r", "--auto-restart", help="Autorestarts NerdyPy in case of issues", action="store_true")
     parser.add_argument("-c", "--config", help="Specify config file for NerdyPy", nargs=1)
     parser.add_argument("-v", "--verbose", action="count", required=False, dest="verbosity", default=0)
@@ -309,8 +320,8 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def parse_config(config_file=None) -> configparser.ConfigParser:
-    config = configparser.ConfigParser(interpolation=None)
+def parse_config(config_file=None) -> ConfigParser:
+    config = ConfigParser(interpolation=None)
 
     if config_file is None:
         config_file = Path("./config.ini")
@@ -353,9 +364,9 @@ if __name__ == "__main__":
         BOT = NerpyBot(CONFIG, INTENTS, DEBUG)
 
         try:
-            asyncio.run(BOT.start())
+            run(BOT.start())
         except LoginFailure:
-            BOT.log.error(traceback.format_exc())
+            BOT.log.error(format_exc())
             BOT.log.error("Failed to login")
         except KeyboardInterrupt:
             pass

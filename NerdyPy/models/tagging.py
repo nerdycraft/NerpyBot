@@ -5,12 +5,28 @@ from enum import Enum
 from random import randint
 
 from discord.ext.commands import Converter, Context
-from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc
+from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc, ForeignKey, LargeBinary
 from sqlalchemy.orm import relationship
 
-from models.TagEntry import TagEntry
 from utils import database as db
 from utils.errors import NerpyException
+
+
+class TagType(Enum):
+    """enum to define tags type"""
+
+    sound = 0
+    text = 1
+    url = 2
+
+
+class TagTypeConverter(Converter):
+    async def convert(self, ctx: Context, argument):
+        low = argument.lower()
+        try:
+            return TagType[low].value
+        except KeyError:
+            raise NerpyException(f"TagType {argument} was not found.")
 
 
 class Tag(db.BASE):
@@ -81,18 +97,15 @@ class Tag(db.BASE):
         return msg
 
 
-class TagType(Enum):
-    """enum to define tags type"""
+class TagEntry(db.BASE):
+    """Database Entity Model for tag entries"""
 
-    sound = 0
-    text = 1
-    url = 2
+    __tablename__ = "TagEntry"
+    __table_args__ = (Index("TagEntry_TagId", "TagId"),)
 
+    Id = Column(Integer, primary_key=True)
+    TagId = Column(Integer, ForeignKey("Tag.Id"))
+    TextContent = Column(String(255))
+    ByteContent = Column(LargeBinary(16777215))
 
-class TagTypeConverter(Converter):
-    async def convert(self, ctx: Context, argument):
-        low = argument.lower()
-        try:
-            return TagType[low].value
-        except KeyError:
-            raise NerpyException(f"TagType {argument} was not found.")
+    tag = relationship("Tag", back_populates="entries")

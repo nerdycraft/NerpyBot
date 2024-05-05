@@ -23,7 +23,7 @@ jobs:
         id: docker_meta_nerpybot
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/ethernerd-net/nerpybot
+          images: ghcr.io/nerdycraft/nerpybot
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -34,7 +34,7 @@ jobs:
         id: docker_meta_database-migrations
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/ethernerd-net/nerpybot-database-migrations
+          images: ghcr.io/nerdycraft/nerpybot-database-migrations
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -64,8 +64,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta_nerpybot.outputs.tags }}
           labels: ${{ steps.docker_meta_nerpybot.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/ethernerd-net/nerpybot:buildcache
-          cache-to: type=registry,ref=ghcr.io/ethernerd-net/nerpybot:buildcache,mode=max
+          cache-from: type=registry,ref=ghcr.io/nerdycraft/nerpybot:buildcache
+          cache-to: type=registry,ref=ghcr.io/nerdycraft/nerpybot:buildcache,mode=max
 
       - name: Build and push Database Migrations
         id: build_database-migrations
@@ -78,5 +78,5 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta_database-migrations.outputs.tags }}
           labels: ${{ steps.docker_meta_database-migrations.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/ethernerd-net/nerpybot-database-migrations:buildcache
-          cache-to: type=registry,ref=ghcr.io/ethernerd-net/nerpybot-database-migrations:buildcache,mode=max
+          cache-from: type=registry,ref=ghcr.io/nerdycraft/nerpybot-database-migrations:buildcache
+          cache-to: type=registry,ref=ghcr.io/nerdycraft/nerpybot-database-migrations:buildcache,mode=max

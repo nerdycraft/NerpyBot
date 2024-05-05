@@ -12,7 +12,7 @@ from discord.ext.commands import (
     Context,
 )
 
-import utils.format as fmt
+from utils import format as fmt
 from utils.audio import QueuedSong
 from utils.checks import is_connected_to_voice
 from utils.download import download, fetch_yt_infos

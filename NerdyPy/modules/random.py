@@ -3,11 +3,11 @@
 
 from random import randint, choice
 
-import aiohttp
-import discord
+from aiohttp import ClientSession
+from discord import Embed
 from discord.ext.commands import Cog, hybrid_command, bot_has_permissions, Context
 
-import utils.format as fmt
+from utils import format as fmt
 from utils.errors import NerpyException
 
 
@@ -69,7 +69,7 @@ class Random(Cog):
         """random quote"""
         url = "https://quotesondesign.com/wp-json/wp/v2/posts/?orderby=rand"
 
-        async with aiohttp.ClientSession() as session:
+        async with ClientSession() as session:
             async with session.get(url) as response:
                 if response.status != 200:
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
@@ -86,13 +86,13 @@ class Random(Cog):
         url = "https://api.whatdoestrumpthink.com/api/v1/quotes/random"
         trump_pic = "https://www.tolonews.com/sites/default/files/styles/principal_article_image/public/Trumpppp.jpg"
 
-        async with aiohttp.ClientSession() as session:
+        async with ClientSession() as session:
             async with session.get(url) as response:
                 if response.status != 200:
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                emb = discord.Embed(title="Donald Trump")
+                emb = Embed(title="Donald Trump")
                 emb.description = data.get("message")
                 emb.set_thumbnail(url=trump_pic)
         await ctx.send(embed=emb)
@@ -103,7 +103,7 @@ class Random(Cog):
         url = "https://xkcd.com/"
         urlend = "info.0.json"
 
-        async with aiohttp.ClientSession() as session:
+        async with ClientSession() as session:
             async with session.get(url + urlend) as xkcd_id:
                 if xkcd_id.status != 200:
                     err = f"The api-webserver responded with a code: {xkcd_id.status} - {xkcd_id.reason}"
@@ -122,7 +122,7 @@ class Random(Cog):
         """Why do I have a random bunny gif command???"""
         url = "https://api.bunnies.io/v2/loop/random/?media=gif"
 
-        async with aiohttp.ClientSession() as session:
+        async with ClientSession() as session:
             async with session.get(url) as response:
                 if response.status != 200:
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
@@ -149,7 +149,7 @@ class Random(Cog):
         """random cat command are legit"""
         url = "https://catfact.ninja/fact"
 
-        async with aiohttp.ClientSession() as session:
+        async with ClientSession() as session:
             async with session.get(url) as response:
                 if response.status != 200:
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"

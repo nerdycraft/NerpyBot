@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 
-from datetime import datetime
+from datetime import datetime, UTC
 
 from discord.app_commands import checks
 from discord.ext.commands import Cog, group, Context
 
-from models.GuildPrefix import GuildPrefix
+from models.admin import GuildPrefix
 
 
 @checks.has_permissions(administrator=True)
@@ -44,10 +44,10 @@ class Admin(Cog):
         with self.bot.session_scope() as session:
             pref = GuildPrefix.get(ctx.guild.id, session)
             if pref is None:
-                pref = GuildPrefix(GuildId=ctx.guild.id, CreateDate=datetime.utcnow(), Author=ctx.author.name)
+                pref = GuildPrefix(GuildId=ctx.guild.id, CreateDate=datetime.now(UTC), Author=ctx.author.name)
                 session.add(pref)
 
-            pref.ModifiedDate = datetime.utcnow()
+            pref.ModifiedDate = datetime.now(UTC)
             pref.Prefix = new_pref
 
         await ctx.send(f"new prefix is now set to '{new_pref}'.")

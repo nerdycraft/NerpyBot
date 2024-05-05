@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Optional
 
-import discord
+from discord import TextChannel
 from discord.ext import tasks
 from discord.ext.commands import GroupCog, hybrid_command, Context
 
-from models.Reminder import ReminderMessage
+from models.reminder import ReminderMessage
 from utils.format import pagify, box
 from utils.helpers import send_hidden_message
 
@@ -28,9 +28,8 @@ class Reminder(GroupCog, group_name="reminder"):
         try:
             with self.bot.session_scope() as session:
                 for guild in self.bot.guilds:
-                    msgs = ReminderMessage.get_all_by_guild(guild.id, session)
-                    for msg in msgs:
-                        if msg.LastSend + timedelta(minutes=msg.Minutes) < datetime.utcnow():
+                    for msg in ReminderMessage.get_all_by_guild(guild.id, session):
+                        if msg.LastSend.astimezone(UTC) + timedelta(minutes=msg.Minutes) < datetime.now(UTC):
                             chan = guild.get_channel(msg.ChannelId)
                             if chan is None:
                                 session.delete(msg)
@@ -39,7 +38,7 @@ class Reminder(GroupCog, group_name="reminder"):
                                 if msg.Repeat < 1:
                                     session.delete(msg)
                                 else:
-                                    msg.LastSend = datetime.utcnow()
+                                    msg.LastSend = datetime.now()
                                     msg.Count += 1
         except Exception as ex:
             self.bot.log.error(f"Error ocurred: {ex}")
@@ -47,7 +46,7 @@ class Reminder(GroupCog, group_name="reminder"):
 
     @hybrid_command(name="create")
     async def _reminder_create(
-        self, ctx: Context, channel: Optional[discord.TextChannel], minutes: int, repeat: bool, message: str
+        self, ctx: Context, channel: Optional[TextChannel], minutes: int, repeat: bool, message: str
     ):
         """
         creates a message which gets send after a certain time
@@ -65,8 +64,8 @@ class Reminder(GroupCog, group_name="reminder"):
                 ChannelId=channel_id,
                 ChannelName=channel_name,
                 Author=str(ctx.author),
-                CreateDate=datetime.utcnow(),
-                LastSend=datetime.utcnow(),
+                CreateDate=datetime.now(UTC),
+                LastSend=datetime.now(UTC),
                 Minutes=minutes,
                 Message=message,
                 Repeat=repeat,
@@ -101,7 +100,7 @@ class Reminder(GroupCog, group_name="reminder"):
         await send_hidden_message(ctx, "Message deleted.")
 
     @_reminder_loop.before_loop
-    async def _before_loop(self):
+    async def _reminder_before_loop(self):
         self.bot.log.info("Reminder: Waiting for Bot to be ready...")
         await self.bot.wait_until_ready()
 

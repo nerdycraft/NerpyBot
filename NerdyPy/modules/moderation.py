@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
-from datetime import timezone, time, datetime, timedelta
+from datetime import timezone, time, datetime, timedelta, UTC
 from typing import Optional, Union
 
-import discord
-import humanize
-import pytimeparse2
+from discord import TextChannel, Member, Embed
 from discord.app_commands import checks, rename
 from discord.ext import tasks
 from discord.ext.commands import Cog, hybrid_command, hybrid_group, command, Context
+from humanize import naturaldate
+from pytimeparse2 import parse
 
-import utils.format as fmt
-from models.AutoDelete import AutoDelete
-from models.AutoKicker import AutoKicker
+from utils import format as fmt
+from models.moderation import AutoDelete
+from models.moderation import AutoKicker
 from utils.errors import NerpyException
-from utils.helpers import send_hidden_message
+from utils.helpers import send_hidden_message, empty_subcommand
 
 utc = timezone.utc
 # If no tzinfo is given then UTC is assumed.
@@ -50,9 +50,9 @@ class Moderation(Cog):
                     for member in guild.members:
                         if len(member.roles) == 1:
                             self.bot.log.debug(f"Found member without role: {member.display_name}")
-                            kick_reminder = datetime.utcnow() - timedelta(seconds=(configuration.KickAfter / 2))
+                            kick_reminder = datetime.now(UTC) - timedelta(seconds=(configuration.KickAfter / 2))
                             kick_reminder = kick_reminder.replace(tzinfo=timezone.utc)
-                            kick_after = datetime.utcnow() - timedelta(seconds=configuration.KickAfter)
+                            kick_after = datetime.now(UTC) - timedelta(seconds=configuration.KickAfter)
                             kick_after = kick_after.replace(tzinfo=timezone.utc)
 
                             if member.joined_at < kick_after:
@@ -65,7 +65,7 @@ class Moderation(Cog):
                                 else:
                                     await member.send(
                                         f"You have not selected a role on {guild.name}. "
-                                        f"Please choose a role until {humanize.naturaldate(kick_after)}."
+                                        f"Please choose a role until {naturaldate(kick_after)}."
                                     )
         except Exception as ex:
             self.bot.log.error(f"Error ocurred: {ex}")
@@ -86,7 +86,7 @@ class Moderation(Cog):
                 if configuration.DeleteOlderThan is None:
                     list_before = None
                 else:
-                    list_before = datetime.utcnow() - timedelta(seconds=configuration.DeleteOlderThan)
+                    list_before = datetime.now(UTC) - timedelta(seconds=configuration.DeleteOlderThan)
                     list_before = list_before.replace(tzinfo=timezone.utc)
                 channel = guild.get_channel(configuration.ChannelId)
                 messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
@@ -118,7 +118,9 @@ class Moderation(Cog):
     @hybrid_command()
     @rename(kick_reminder_message="reminder_message")
     @checks.has_permissions(kick_members=True)
-    async def autokicker(self, ctx: Context, enable: bool, kick_after: str, kick_reminder_message: Optional[str]):
+    async def autokicker(
+        self, ctx: Context, enable: bool, kick_after: Optional[str], kick_reminder_message: Optional[str]
+    ):
         """Activates the AutoKicker. [bot-moderator]
 
         Parameters
@@ -133,7 +135,7 @@ class Moderation(Cog):
         with self.bot.session_scope() as session:
             configuration = AutoKicker.get_by_guild(ctx.guild.id, session)
             if kick_after is not None:
-                kick_time = pytimeparse2.parse(kick_after)
+                kick_time = parse(kick_after)
                 if kick_time is None:
                     await send_hidden_message(
                         ctx, "Only timespans up until weeks are allowed. Do not use months or years."
@@ -176,7 +178,7 @@ class Moderation(Cog):
         self,
         ctx: Context,
         *,
-        channel: discord.TextChannel,
+        channel: TextChannel,
         delete_older_than: Optional[Union[str | None]],
         keep_messages: Optional[Union[int | None]],
         delete_pinned_message: bool,
@@ -203,14 +205,15 @@ class Moderation(Cog):
             if configuration is not None:
                 await send_hidden_message(
                     ctx,
-                    "This Channel is already configured for AutoDelete. Please edit or delete the existing configuration.",
+                    "This Channel is already configured for AutoDelete."
+                    "Please edit or delete the existing configuration.",
                 )
             else:
                 if ctx.guild.get_channel(channel_id) is not None:
                     if delete_older_than is None:
                         delete = delete_older_than
                     else:
-                        delete = pytimeparse2.parse(delete_older_than)
+                        delete = parse(delete_older_than)
                         if delete is None:
                             await send_hidden_message(
                                 ctx, "Only timespans up until weeks are allowed. Do not use months or years."
@@ -230,7 +233,7 @@ class Moderation(Cog):
 
     @autodeleter.command(name="delete")
     @checks.has_permissions(manage_messages=True)
-    async def _autodeleter_delete(self, ctx: Context, *, channel: discord.TextChannel) -> None:
+    async def _autodeleter_delete(self, ctx: Context, *, channel: TextChannel) -> None:
         """
         Delete AutoDelete configuration for a channel.
 
@@ -266,9 +269,9 @@ class Moderation(Cog):
             if configurations is not None:
                 msg = "==== AutoDeleter Configuration ====\n"
                 for configuration in configurations:
-                    channel_name = ctx.guild.get_channel(configuration.ChannelId)
+                    channel_name = ctx.guild.get_channel(configuration.ChannelId).name
                     msg += (
-                        f"Channel: {channel_name.name}, "
+                        f"Channel: {channel_name}, "
                         f"DeleteOlderThan: {configuration.DeleteOlderThan}, "
                         f"DeletePinnedMessages: {configuration.DeletePinnedMessage}, "
                         f"KeepMessages: {configuration.KeepMessages}\n"
@@ -283,7 +286,7 @@ class Moderation(Cog):
         self,
         ctx: Context,
         *,
-        channel: discord.TextChannel,
+        channel: TextChannel,
         delete_older_than: Optional[Union[str | None]],
         keep_messages: Optional[Union[int | None]],
         delete_pinned_message: bool,
@@ -311,7 +314,7 @@ class Moderation(Cog):
                 if delete_older_than is None:
                     configuration.DeleteOlderThan = delete_older_than
                 else:
-                    delete_in_seconds = pytimeparse2.parse(delete_older_than)
+                    delete_in_seconds = parse(delete_older_than)
                     configuration.DeleteOlderThan = delete_in_seconds
                 configuration.KeepMessages = keep_messages if keep_messages is not None else 0
                 configuration.DeletePinnedMessage = delete_pinned_message
@@ -326,25 +329,18 @@ class Moderation(Cog):
     @checks.has_permissions(moderate_members=True)
     async def user(self, ctx: Context):
         """user moderation [bot-moderator]"""
-        if ctx.invoked_subcommand is None:
-            args = str(ctx.message.clean_content).split(" ")
-            if len(args) > 2:
-                raise NerpyException("Command not found!")
-            elif len(args) <= 1:
-                await ctx.send_help(ctx.command)
-            else:
-                await ctx.send(args[1])
+        await empty_subcommand(ctx)
 
     @user.command(name="info")
     @checks.has_permissions(moderate_members=True)
-    async def _get_user_info(self, ctx: Context, member: Optional[discord.Member]):
+    async def _get_user_info(self, ctx: Context, member: Optional[Member]):
         """displays information about given user [bot-moderator]"""
 
         member = member or ctx.author
         created = member.created_at.strftime("%d. %B %Y - %H:%M")
         joined = member.joined_at.strftime("%d. %B %Y - %H:%M")
 
-        emb = discord.Embed(title=member.display_name)
+        emb = Embed(title=member.display_name)
         emb.description = f"original name: {member.name}"
         emb.set_thumbnail(url=member.avatar.url)
         emb.add_field(name="created", value=created)

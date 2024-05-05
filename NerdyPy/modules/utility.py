@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 
-import datetime
+from datetime import datetime, UTC
 
-import aiohttp
-import discord
-from discord import app_commands
+from aiohttp import ClientSession
+from discord import app_commands, Embed
 from discord.ext.commands import Cog, hybrid_command, bot_has_permissions, Context
 
-import utils.format as fmt
+from utils import format as fmt
 from utils.errors import NerpyException
 from utils.helpers import send_hidden_message
 
@@ -20,24 +19,24 @@ class Utility(Cog):
         self.bot = bot
         self.weather_api_key = self.bot.config.get("utility", "openweather")
 
-    @hybrid_command()
+    @hybrid_command(name="ping", hidden=True)
     @bot_has_permissions(send_messages=True)
-    async def ping(self, ctx: Context):
+    async def _ping(self, ctx: Context):
         """Pong."""
         await ctx.send("Pong.")
 
-    @hybrid_command(hidden=True)
-    async def uptime(self, ctx: Context):
+    @hybrid_command(name="uptime", hidden=True)
+    async def _uptime(self, ctx: Context):
         """shows bot uptime"""
-        td = datetime.datetime.utcnow() - self.bot.uptime
+        td = datetime.now(UTC) - self.bot.uptime
         await ctx.send(
             fmt.inline(f"Uptime: {td.days} Days, {td.seconds // 3600} Hours and {(td.seconds // 60) % 60} Minutes"),
         )
 
-    @hybrid_command()
+    @hybrid_command(name="weather")
     @app_commands.rename(query="city")
     @bot_has_permissions(embed_links=True)
-    async def weather(self, ctx: Context, *, query: str):
+    async def _get_weather(self, ctx: Context, *, query: str):
         """outputs weather information"""
         location_url = f"http://api.openweathermap.org/geo/1.0/direct?q={query}&appid={self.weather_api_key}"
 
@@ -46,7 +45,7 @@ class Utility(Cog):
                 await send_hidden_message(ctx, "Please use english names only!")
                 return
 
-        async with aiohttp.ClientSession() as session:
+        async with ClientSession() as session:
             async with session.get(location_url) as response:
                 if response.status != 200:
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
@@ -60,7 +59,7 @@ class Utility(Cog):
         lon = location[0].get("lon")
         weather_url = f"http://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={self.weather_api_key}&units=metric"
 
-        async with aiohttp.ClientSession() as session:
+        async with ClientSession() as session:
             async with session.get(weather_url) as response:
                 if response.status != 200:
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
@@ -71,14 +70,14 @@ class Utility(Cog):
         for w in weather.get("weather", dict()):
             conditions.append(w.get("main"))
 
-        sunrise = datetime.datetime.fromtimestamp(int(weather.get("sys", dict()).get("sunrise"))).strftime("%H:%M")
-        sunset = datetime.datetime.fromtimestamp(int(weather.get("sys", dict()).get("sunset"))).strftime("%H:%M")
+        sunrise = datetime.fromtimestamp(int(weather.get("sys", dict()).get("sunrise"))).strftime("%H:%M")
+        sunset = datetime.fromtimestamp(int(weather.get("sys", dict()).get("sunset"))).strftime("%H:%M")
 
-        emb = discord.Embed()
+        emb = Embed()
         emb.add_field(
             name=f':earth_africa: {fmt.bold("location")}',
             value=f"""[{weather.get("name")},
-                            {weather.get("sys", dict()).get("country")}](https://openweathermap.org/city/{weather.get("id")})""",
+            {weather.get("sys", dict()).get("country")}](https://openweathermap.org/city/{weather.get("id")})""",
         )
         emb.add_field(
             name=f':thermometer: {fmt.bold("temperature")}',
