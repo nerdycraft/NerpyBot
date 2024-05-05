@@ -146,10 +146,6 @@ class NerpyBot(Bot):
         # create database/tables and such stuff
         self.create_all()
 
-    async def on_ready(self) -> None:
-        """calls when successfully logged in"""
-        self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
-
         # sync commands
         try:
             self.log.info("Syncing commands...")
@@ -159,6 +155,10 @@ class NerpyBot(Bot):
             raise NerpyException("Could not sync commands to Discord API.")
         else:
             self.log.info(f"Synced commands: {', '.join(cmds.name for cmds in synced_cmds)}")
+
+    async def on_ready(self) -> None:
+        """calls when successfully logged in"""
+        self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
 
     async def on_command_completion(self, ctx: Context) -> None:
         """

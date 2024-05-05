@@ -100,7 +100,7 @@ class Reminder(GroupCog, group_name="reminder"):
         await send_hidden_message(ctx, "Message deleted.")
 
     @_reminder_loop.before_loop
-    async def _before_loop(self):
+    async def _reminder_before_loop(self):
         self.bot.log.info("Reminder: Waiting for Bot to be ready...")
         await self.bot.wait_until_ready()
 
