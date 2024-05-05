@@ -9,7 +9,7 @@ from discord.ext import tasks
 from discord.ext.commands import bot_has_permissions, Context, hybrid_group, GroupCog
 from twitchAPI.helper import first
 from twitchAPI.object.api import TwitchUser
-from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent
+from twitchAPI.object.eventsub import StreamOnlineEvent
 from twitchAPI.twitch import Twitch as TwitchAPI
 from twitchAPI.eventsub.webhook import EventSubWebhook, EventSubSubscriptionTimeout
 
