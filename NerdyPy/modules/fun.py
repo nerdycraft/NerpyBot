@@ -4,6 +4,7 @@ from random import randint, choice
 from typing import Optional
 
 import discord
+from discord.app_commands import choices, Choice
 from discord.ext.commands import Cog, hybrid_command, bot_has_permissions, Context
 
 from utils.errors import NerpyException
@@ -77,7 +78,6 @@ class Fun(Cog):
             "y": "¥",
             "z": "2",
         }
-
         self.rotis = {
             1: "Do not talk about /b/",
             2: "Do NOT talk about /b/",
@@ -127,6 +127,10 @@ class Fun(Cog):
             46: "There is always furry porn of it.",
             47: "The pool is always closed.",
             63: "For every given male character, there is a female version of that character; conversely",
+        }
+        self.slaps = {
+            "de": {},
+            "en": {}
         }
 
     @hybrid_command()
@@ -192,6 +196,37 @@ class Fun(Cog):
             await ctx.send(f"{author} {self.hugs[intensity]} {name}")
         else:
             await ctx.send(f"{author} {choice(self.hugs)} {name}")
+
+    @hybrid_command(no_pm=True)
+    @choices(choices=[
+        Choice(name="German", value="de"),
+        Choice(name="English", value="en"),
+    ])
+    async def slap(self, ctx: Context, user: discord.Member, language: Optional[Choice[str]]):
+        """
+        Because everyone likes hugs!
+
+        Parameters
+        ----------
+        ctx
+        user: discord.Member
+             has to be a valid @user
+        language: Optional[str]
+            The language you want to slap in
+        """
+        name = user.mention
+        author = ctx.message.author.mention
+
+        _lang = language.value
+        if not _lang:
+            _lang = "de"
+
+        _random = choice(list(self.slaps.get(_lang).keys()))
+
+        if _lang == "de":
+            await ctx.send(f'{author} ohrfeigt {name} mit {self.slaps.get("de")[_random]}')
+        elif _lang == "en":
+            await ctx.send(f'{author} slaps {name} with {self.slaps.get("en")[_random]}')
 
     @hybrid_command()
     async def leet(self, ctx: Context, intensity: int, text: str):
