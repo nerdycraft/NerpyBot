@@ -1,6 +1,6 @@
 [project]
 name = "NerpyBot"
-version = "0.0.0"
+version = "x.x.x"
 description = "The nerdiest Bot on Discord"
 repository = "https://github.com/ethernerd-net/NerpyBot"
 authors = [

@@ -64,8 +64,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta_nerpybot.outputs.tags }}
           labels: ${{ steps.docker_meta_nerpybot.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/nerdycraft/nerpybot:buildcache
-          cache-to: type=registry,ref=ghcr.io/nerdycraft/nerpybot:buildcache,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Build and push Database Migrations
         id: build_database-migrations
@@ -78,5 +78,5 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta_database-migrations.outputs.tags }}
           labels: ${{ steps.docker_meta_database-migrations.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/nerdycraft/nerpybot-database-migrations:buildcache
-          cache-to: type=registry,ref=ghcr.io/nerdycraft/nerpybot-database-migrations:buildcache,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
