@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
-""" Tag DB Model """
+"""Tag DB Model"""
 
 from enum import Enum
 from random import randint
 
-from discord.ext.commands import Converter, Context
-from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc, ForeignKey, LargeBinary
+from discord.ext.commands import Context, Converter
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Index, Integer, LargeBinary, String, asc
 from sqlalchemy.orm import relationship
-
 from utils import database as db
 from utils.errors import NerpyException
 
@@ -91,7 +90,7 @@ class Tag(db.BASE):
         msg = f"==== {self.Name} ====\n\n"
         msg += f"Author: {self.Author}\n"
         msg += f"Type: {TagType(self.Type).name}\n"
-        msg += f'Created: {self.CreateDate.strftime("%Y-%m-%d %H:%M")}\n'
+        msg += f"Created: {self.CreateDate.strftime('%Y-%m-%d %H:%M')}\n"
         msg += f"Hits: {self.Count}\n"
         msg += f"Entries: {self.entries.count()}"
         return msg

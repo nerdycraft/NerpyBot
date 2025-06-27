@@ -1,64 +1,63 @@
 # syntax=docker/dockerfile:1
-
-ARG PYTHON_VERSION=3.12
-FROM python:${PYTHON_VERSION} as base
+FROM ghcr.io/astral-sh/uv:latest AS uv
+FROM python:3.12-alpine AS base
 
 # Setup env
-ENV LANG=C.UTF-8
-ENV LC_ALL=C.UTF-8
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONFAULTHANDLER=1
-ENV PYTHONUNBUFFERED=1
-ENV PATH="/app/.venv/bin:$PATH"
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONFAULTHANDLER=1 \
+    PYTHONUNBUFFERED=1 \
+    UID=10001 \
+    PATH="/app/.venv/bin:$PATH"
 
-RUN useradd -m -u 1000 -d /app NerdyBot
-RUN chown -R NerdyBot /app
+RUN adduser -D -H -h /app -u "${UID}" NerdyBot
 
-WORKDIR /app
-
-
-FROM base AS venv
-
-ARG categories="packages"
-
-# Install pipenv and compilation dependencies
-RUN pip install pipenv
-RUN apt update && apt install -qqy --no-install-recommends \
-      git
-
-ADD Pipfile.lock Pipfile /app/
-
-RUN PIPENV_VENV_IN_PROJECT=1 pipenv install --deploy --categories ${categories}
-
-
-FROM base as bot
-
-COPY --from=venv --chown=1000 /app/.venv /app/.venv
-COPY --chown=1000 NerdyPy /app
-
-RUN apt update && apt install -qqy --no-install-recommends \
-      ffmpeg \
-      libopus0 \
-    && apt clean \
-    && rm -rf /var/lib/apt/lists/*
+# Install uv
+COPY --from=uv /uv /usr/local/bin/uv
 
 USER NerdyBot
+WORKDIR /app
+
+COPY --chown=${UID} pyproject.toml uv.lock ./
+
+
+FROM base as builder
+
+USER root
+RUN apk add --no-cache \
+        git \
+        libffi-dev
+
+RUN uv sync --frozen --no-managed-python --only-group bot
+
+
+FROM base AS bot
+
+USER root
+RUN apk add --no-cache \
+        ffmpeg \
+        opus
+
+USER NerdyBot
+
+COPY --chown=${UID} --from=builder /app/.venv /app/.venv
+COPY --chown=${UID} NerdyPy /app
 
 CMD ["python", "NerdyPy.py"]
 
-LABEL org.opencontainers.image.source=https://github.com/ethernerd-net/NerpyBot
+LABEL org.opencontainers.image.source=https://github.com/nerdycraft/NerpyBot
 LABEL org.opencontainers.image.description="NerpyBot, the nerdiest Python Bot"
 
 
-FROM base as migrations
+FROM base AS migrations
 
-COPY --from=venv --chown=1000 /app/.venv /app/.venv
-COPY --chown=1000 alembic.ini /app/
-COPY --chown=1000 database-migrations /app/database-migrations/
+RUN uv sync --frozen --no-managed-python --only-group migrations
 
-USER NerdyBot
+COPY --chown=${UID} alembic.ini /app/
+COPY --chown=${UID} database-migrations /app/database-migrations/
 
-CMD ["python", "-m", "alembic", "upgrade", "head"]
+CMD ["uv", "run", "alembic", "upgrade", "head"]
 
-LABEL org.opencontainers.image.source=https://github.com/ethernerd-net/NerpyBot
+LABEL org.opencontainers.image.source=https://github.com/nerdycraft/NerpyBot
 LABEL org.opencontainers.image.description="Database migrations for the nerdiest Python Bot"

@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
-""" default channel dbmodel """
+"""default channel dbmodel"""
 
-from sqlalchemy import BigInteger, Column, DateTime, String, Index
-
+from sqlalchemy import BigInteger, Column, DateTime, Index, String
 from utils import database as db
 
 
 class GuildPrefix(db.BASE):
-    """database entity model for tags"""
+    """Database entity model for Guild Prefix"""
 
     __tablename__ = "GuildPrefix"
     __table_args__ = (Index("GuildPrefix_GuildId", "GuildId"),)
@@ -20,10 +19,10 @@ class GuildPrefix(db.BASE):
 
     @classmethod
     def get(cls, guild_id, session):
-        """returns a channel with given guild | session needed!"""
+        """Returns the GuildPrefix entry for the given guild_id"""
         return session.query(GuildPrefix).filter(GuildPrefix.GuildId == guild_id).first()
 
     @classmethod
     def delete(cls, guild_id: int, session):
-        """deletes a channel with given guild"""
+        """Deletes the GuildPrefix entry for the given guild_id."""
         session.delete(GuildPrefix.get(guild_id, session))

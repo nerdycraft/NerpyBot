@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 
 from discord import Embed
-from sqlalchemy import BigInteger, Column, String, Index, ForeignKeyConstraint, Integer, DateTime, asc
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKeyConstraint, Index, Integer, String, asc
 from sqlalchemy.orm import relationship
-
 from utils import database as db
 
 
@@ -38,7 +37,7 @@ class RaidTemplate(db.BASE):
         return len(self.Encounters)
 
     def create_info_embed(self):
-        emb = Embed(title=self.Name, description=f"{self.Description}\n" f"🧑‍🤝‍🧑 {self.PlayerCount}\n\n")
+        emb = Embed(title=self.Name, description=f"{self.Description}\n🧑‍🤝‍🧑 {self.PlayerCount}\n\n")
 
         for enc in self.Encounters:
             emb.description += str(enc)
@@ -152,7 +151,7 @@ class RaidEvent(db.BASE):
         return len(self.Encounters)
 
     def create_info_embed(self):
-        emb = Embed(title=self.Name, description=f"{self.Description}\n" f"🧑‍🤝‍🧑 {self.PlayerCount}\n\n")
+        emb = Embed(title=self.Name, description=f"{self.Description}\n🧑‍🤝‍🧑 {self.PlayerCount}\n\n")
 
         for enc in self.Encounters:
             emb.description += str(enc)

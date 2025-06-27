@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from discord.ext.commands import Context
 from googleapiclient.discovery import build
-
 from utils.errors import NerpyException
 
 
@@ -25,7 +24,7 @@ def youtube(yt_key, return_type, query):
 
     if len(items) > 0:
         if return_type == "url":
-            ret = f'https://www.youtube.com/watch?v={items[0]["id"]["videoId"]}'
+            ret = f"https://www.youtube.com/watch?v={items[0]['id']['videoId']}"
         else:
             ret = items[0]["id"]["videoId"]
     else:

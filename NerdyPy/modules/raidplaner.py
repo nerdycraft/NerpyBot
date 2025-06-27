@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from enum import Enum
 
 from discord import Embed
-from discord.ext.commands import Cog, command, Context
-
-from models.raidplaner import RaidTemplate, RaidEncounter, RaidEncounterRole, RaidEvent
+from discord.ext.commands import Cog, Context, command
+from models.raidplaner import RaidEncounter, RaidEncounterRole, RaidEvent, RaidTemplate
 from utils.conversation import Conversation
 
 
@@ -242,7 +241,7 @@ class RaidConversation(Conversation):
         if template_count == 0:
             return await self.conv_main_menu()
 
-        emb = Embed(title="RaidPlaner", description="Type in the number referencing a template below:" "\n\n")
+        emb = Embed(title="RaidPlaner", description="Type in the number referencing a template below:\n\n")
 
         for i in range(template_count):
             emb.description += f"**{i + 1}:** {self.templates[i].Name}\n"
@@ -257,7 +256,7 @@ class RaidConversation(Conversation):
         if template_count == 0:
             return await self.conv_template_menu()
 
-        emb = Embed(title="RaidPlaner", description="Type in the number referencing a template below:" "\n\n")
+        emb = Embed(title="RaidPlaner", description="Type in the number referencing a template below:\n\n")
 
         for i in range(template_count):
             emb.description += f"**{i}:** {self.templates[i].Name}\n"
@@ -389,7 +388,7 @@ class RaidConversation(Conversation):
         if encounter_count == 0:
             return await self.conv_encounter_menu()
 
-        emb = Embed(title="RaidPlaner", description="Type in the number referencing an encounter below:" "\n\n")
+        emb = Embed(title="RaidPlaner", description="Type in the number referencing an encounter below:\n\n")
 
         for i in range(encounter_count):
             emb.description += f"**{i + 1}:** {self.tmpTemplate.Encounters[i].Name}\n"
@@ -404,7 +403,7 @@ class RaidConversation(Conversation):
         if encounter_count == 0:
             return await self.conv_template_menu()
 
-        emb = Embed(title="RaidPlaner", description="Type in the number referencing an encounter below:" "\n\n")
+        emb = Embed(title="RaidPlaner", description="Type in the number referencing an encounter below:\n\n")
 
         for i in range(encounter_count):
             emb.description += f"**{i + 1}:** {self.tmpTemplate.Encounters[i].Name}\n"
@@ -540,7 +539,7 @@ class RaidConversation(Conversation):
         if role_count == 0:
             return await self.conv_encounter_menu()
 
-        emb = Embed(title="RaidPlaner", description="Type in the number referencing a role below:" "\n\n")
+        emb = Embed(title="RaidPlaner", description="Type in the number referencing a role below:\n\n")
 
         for i in range(role_count):
             emb.description += f"**{i + 1}:** {self.tmpEncounter.Roles[i]}\n"
@@ -553,8 +552,7 @@ class RaidConversation(Conversation):
     async def conv_role_edit_name(self):
         emb = Embed(
             title="RaidPlaner",
-            description=f"Give your role '{self.tmpRole.Name}' a new name. Remember: First character must be "
-            f"an emoji!",
+            description=f"Give your role '{self.tmpRole.Name}' a new name. Remember: First character must be an emoji!",
         )
         reactions = {
             "⏩": RaidPlanerState.TEMPLATE_ENCOUNTER_ROLE_ADD_DESC,
@@ -566,9 +564,7 @@ class RaidConversation(Conversation):
     async def conv_role_edit_desc(self):
         emb = Embed(
             title="RaidPlaner",
-            description="Give your role a new description. Your current description:"
-            "\n\n"
-            f"*{self.tmpRole.Description}*",
+            description=f"Give your role a new description. Your current description:\n\n*{self.tmpRole.Description}*",
         )
 
         reactions = {
@@ -613,7 +609,7 @@ class RaidConversation(Conversation):
         if role_count == 0:
             return await self.conv_encounter_menu()
 
-        emb = Embed(title="RaidPlaner", description="Type in the number referencing a role below:" "\n\n")
+        emb = Embed(title="RaidPlaner", description="Type in the number referencing a role below:\n\n")
 
         for i in range(role_count):
             emb.description += f"**{i}:** {self.tmpEncounter.Roles[i]}\n"

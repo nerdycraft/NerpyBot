@@ -1,14 +1,25 @@
 # -*- coding: utf-8 -*-
 
-from datetime import datetime as dt, timedelta as td
+from datetime import datetime as dt
+from datetime import timedelta as td
+from enum import Enum
+from typing import Dict, Literal, LiteralString, Optional, Tuple
 
 import requests
-from BlizzardWarcraftAPI import BlizzardAuthToken, BlizzardWarcraftAPI
-from discord import Embed, Color
-from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions, Context
-
+from blizzapi import Language, Region, RetailClient
+from discord import Color, Embed
+from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_command, hybrid_group
+from models.wow import WoW
 from utils.errors import NerpyException
 from utils.helpers import send_hidden_message
+
+
+class WowApiLanguage(Enum):
+    """Language Enum for WoW API"""
+
+    DE = "de_DE"
+    EN = "en_US"
+    EN_GB = "en_GB"
 
 
 @bot_has_permissions(send_messages=True, embed_links=True)
@@ -20,7 +31,8 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
         self.bot = bot
         self.config = bot.config
-        self.api_token = BlizzardAuthToken(self.config.get("wow", "wow_id"), self.config.get("wow", "wow_secret")).get()
+        self.client_id = self.config["wow"]["wow_id"]
+        self.client_secret = self.config["wow"]["wow_secret"]
         self.regions = ["eu", "us"]
 
     @staticmethod
@@ -38,13 +50,33 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
         return f"{url}/{profile}"
 
-    async def _get_character(self, realm, region, name):
-        api = BlizzardWarcraftAPI(self.api_token, region, "en_GB")
-        profile = api.Profile()
+    async def _get_retailclient(self, region: str, guild_id: int):
+        if region not in self.regions:
+            raise NerpyException(f"Invalid region: {region}. Valid regions are: {', '.join(self.regions)}")
 
-        profile.get_CharacterProfileStatus(realm, name)
-        character = profile.get_CharacterProfileSummary(realm, name)
-        assets = profile.get_CharacterMediaSummary(realm, name).get("assets", list())
+        language = WowApiLanguage.EN.value if region != "eu" else WowApiLanguage.EN_GB.value
+        try:
+            with self.bot.session_scope() as session:
+                lang = WoW.get(guild_id, session).Language
+            if lang:
+                language = WowApiLanguage[lang].value
+
+            # noinspection PyTypeChecker
+            return RetailClient(
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+                region=Region(region),
+                language=Language(language),
+            )
+        except ValueError as ex:
+            raise NerpyException from ex
+
+    async def _get_character(self, realm: str, region: str, name: str, guild_id: int) -> Tuple[Dict, LiteralString]:
+        """Get character profile and media from the WoW API."""
+        api = await self._get_retailclient(region, guild_id)
+
+        character = api.character_profile_summary(realmSlug=realm, characterName=name)
+        assets = api.character_media(realmSlug=realm, characterName=name).get("assets", list())
         profile_picture = "".join(asset.get("value") for asset in assets if asset.get("key") == "avatar")
 
         return character, profile_picture
@@ -63,6 +95,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 return resp["mythic_plus_scores_by_season"][0]["scores"]["all"]
             else:
                 return None
+        return None
 
     @staticmethod
     def _get_best_mythic_keys(region, realm, name):
@@ -88,9 +121,46 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 )
 
             return keys
+        return None
+
+    @hybrid_group(name="language", aliases=["lang", "locale"])
+    async def _wow_language(self, ctx: Context):
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
+
+    @_wow_language.command(name="get")
+    async def _wow_language_get(self, ctx: Context):
+        """Get the current language setting for the WoW API."""
+        with self.bot.session_scope() as session:
+            entry = WoW.get(ctx.guild.id, session)
+            if entry is None:
+                await ctx.send("No language set for this guild. Defaulting to English.")
+            else:
+                await ctx.send(f"Current language for this guild is: {entry.Language.upper()}")
+
+    @_wow_language.command(name="set")
+    async def _wow_language_set(self, ctx: Context, lang: Literal["de", "en"]):
+        """Set the language for the WoW API."""
+        with self.bot.session_scope() as session:
+            entry = WoW.get(ctx.guild.id, session)
+            if entry is None:
+                entry = WoW(GuildId=ctx.guild.id, CreateDate=dt.now(), Author=ctx.author.name)
+                session.add(entry)
+
+            entry.ModifiedDate = dt.now()
+            entry.Language = lang.upper()
+
+        await ctx.send(f"Language set to {lang.upper()} for this guild.")
+
+    @_wow_language.command(name="delete", aliases=["remove", "rm", "del"])
+    async def _wow_language_delete(self, ctx: Context):
+        """Delete the current language setting for the WoW API."""
+        with self.bot.session_scope() as session:
+            WoW.delete(ctx.guild.id, session)
+        await ctx.send("Language setting removed. Defaulting to English for this guild.")
 
     @hybrid_command(name="armory", aliases=["search", "char"])
-    async def _wow_armory(self, ctx: Context, name: str, realm: str, region: str = "eu"):
+    async def _wow_armory(self, ctx: Context, name: str, realm: str, region: Optional[Literal["eu", "us"]] = "eu"):
         """
         search for character
 
@@ -104,10 +174,11 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 name = name.lower()
                 profile = f"{region}/{realm}/{name}"
 
-                character, profile_picture = await self._get_character(realm, region, name)
+                # noinspection PyTypeChecker
+                character, profile_picture = await self._get_character(realm, region, name, ctx.guild.id)
 
                 if character.get("code") == 404:
-                    raise NerpyException
+                    raise NerpyException("No Character with this name found.")
 
                 best_keys = self._get_best_mythic_keys(region, realm, name)
                 rio_score = self._get_raiderio_score(region, realm, name)
@@ -118,10 +189,10 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 wowprogress = self._get_link("wowprogress", profile)
 
                 emb = Embed(
-                    title=f'{character["name"]} | {realm.capitalize()} | {region.upper()} | {character["active_spec"]["name"]} {character["character_class"]["name"]} | {character["equipped_item_level"]} ilvl',
+                    title=f"{character['name']} | {realm.capitalize()} | {region.upper()} | {character['active_spec']['name']} {character['character_class']['name']} | {character['equipped_item_level']} ilvl",
                     url=armory,
                     color=Color(value=int("0099ff", 16)),
-                    description=f'{character["gender"]["name"]} {character["race"]["name"]}',
+                    description=f"{character['gender']['name']} {character['race']['name']}",
                 )
                 emb.set_thumbnail(url=profile_picture)
                 emb.add_field(name="Level", value=character["level"], inline=True)
@@ -133,7 +204,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 if len(best_keys) > 0:
                     keys = ""
                     for key in best_keys:
-                        keys += f'+{key["level"]} - {key["dungeon"]} - {key["clear_time"]}\n'
+                        keys += f"+{key['level']} - {key['dungeon']} - {key['clear_time']}\n"
 
                     emb.add_field(name="Best M+ Keys", value=keys, inline=True)
                 if rio_score is not None:
@@ -147,8 +218,8 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 )
 
             await ctx.send(embed=emb)
-        except NerpyException:
-            await send_hidden_message(ctx, "No Character with this name found.")
+        except NerpyException as ex:
+            await send_hidden_message(ctx, str(ex))
 
 
 async def setup(bot):

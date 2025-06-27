@@ -1,16 +1,16 @@
 # -- coding: utf-8 --
-""" Search Modul """
+"""Search Modul"""
+
 import json
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from aiohttp import ClientSession
 from discord import Embed
 from discord.app_commands import rename
-from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions, Context
+from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_command
 from igdb.wrapper import IGDBWrapper
 from requests import post
-
 from utils import format as fmt
 from utils.errors import NerpyException
 from utils.helpers import youtube
@@ -168,10 +168,10 @@ class Search(GroupCog):
         with post(twitch_oauth_url) as oauth_response:
             if oauth_response.status_code != 200:
                 self.bot.log.error(
-                    f"Server responded with code: {oauth_response.status_code} - " f"{oauth_response.reason}"
+                    f"Server responded with code: {oauth_response.status_code} - {oauth_response.reason}"
                 )
                 raise NerpyException(
-                    "Something really bad happend. If this issue persists, please report to bot " "author."
+                    "Something really bad happend. If this issue persists, please report to bot author."
                 )
             result = oauth_response.json()
             result["expire_time"] = datetime.now(UTC) + timedelta(seconds=result.get("expires_in"))
@@ -202,7 +202,7 @@ class Search(GroupCog):
                 emb.description = "Lorem ipsum dolor sit amet, consectetur adipisici elit."
 
             if "cover" in data:
-                emb.set_thumbnail(url=f'https:{data.get("cover", dict()).get("url")}')
+                emb.set_thumbnail(url=f"https:{data.get('cover', dict()).get('url')}")
 
             if "first_release_date" in data:
                 dt = datetime.fromtimestamp(int(data.get("first_release_date")), UTC).strftime("%Y-%m-%d")
@@ -233,7 +233,7 @@ class Search(GroupCog):
                 next(i)
                 emb.add_field(
                     name=fmt.bold("wrong answer? try:"),
-                    value="\n".join(f' - {r.get("name")}' for r in i),
+                    value="\n".join(f" - {r.get('name')}" for r in i),
                 )
 
             emb.set_footer(text=data.get("url"))

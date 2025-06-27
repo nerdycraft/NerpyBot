@@ -3,46 +3,41 @@
 Main Class of the NerpyBot
 """
 
-import json
-from argparse import Namespace, ArgumentParser
+from argparse import ArgumentParser, Namespace
 from asyncio import run
-from configparser import ConfigParser
 from contextlib import contextmanager
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
-from traceback import print_exc, print_tb, format_exc
-from typing import List
+from traceback import format_exc, print_exc, print_tb
+from typing import Any, Generator, List
 
+import yaml
 from discord import (
-    HTTPException,
-    LoginFailure,
-    app_commands,
-    Forbidden,
-    Intents,
     ClientException,
-    RawReactionActionEvent,
-    Message,
     DMChannel,
     Game,
+    Intents,
+    LoginFailure,
+    Message,
+    RawReactionActionEvent,
+    app_commands,
 )
-from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError
 from discord.ext import commands
 from discord.ext.commands import (
     Bot,
     CheckFailure,
-    ExtensionFailed,
-    CommandNotFound,
     CommandError,
+    CommandNotFound,
     Context,
+    ExtensionFailed,
 )
+from models.admin import GuildPrefix
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import sessionmaker
-
-from models.admin import GuildPrefix
+from sqlalchemy.orm import Session, sessionmaker
 from utils import logging
 from utils.audio import Audio
-from utils.conversation import ConversationManager, AnswerType
+from utils.conversation import AnswerType, ConversationManager
 from utils.database import BASE
 from utils.errors import NerpyException
 from utils.helpers import send_hidden_message
@@ -51,7 +46,7 @@ from utils.helpers import send_hidden_message
 class NerpyBot(Bot):
     """Discord Bot"""
 
-    def __init__(self, config: ConfigParser, intents: Intents, debug: bool):
+    def __init__(self, config: dict, intents: Intents, debug: bool):
         # noinspection PyTypeChecker
         super().__init__(
             command_prefix=determine_prefix, description="NerdyBot - Always one step ahead!", intents=intents
@@ -59,10 +54,10 @@ class NerpyBot(Bot):
 
         self.config = config
         self.debug = debug
-        self.client_id = config.get("bot", "client_id")
-        self.token = config.get("bot", "token")
-        self.ops = config.get("bot", "ops")
-        self.modules = json.loads(config.get("bot", "modules"))
+        self.client_id = config["bot"]["client_id"]
+        self.token = config["bot"]["token"]
+        self.ops = config["bot"]["ops"]
+        self.modules = config["bot"]["modules"]
         self.restart = True
         self.log = logging.get_logger("nerpybot")
         self.uptime = datetime.now(UTC)
@@ -70,13 +65,14 @@ class NerpyBot(Bot):
         self.audio = Audio(self)
         self.last_cmd_cache = {}
         self.usr_cmd_err_spam = {}
-        self.usr_cmd__err_spam_threshold = config.getint("bot", "error_spam_threshold")
+        self.usr_cmd__err_spam_threshold = config["bot"]["error_spam_threshold"]
         self.convMan = ConversationManager(self)
 
         # database variables
         if "database" not in config:
             self.log.warning("No Database specified! Fallback to local SQLite Database!")
             db_connection_string = "sqlite:///db.db"
+            db_type = "sqlite"
         else:
             database_config = config["database"]
             db_type = database_config["db_type"]
@@ -87,15 +83,15 @@ class NerpyBot(Bot):
             db_port = ""
 
             if any(s in db_type for s in ("mysql", "mariadb")):
-                db_type = f'{database_config["db_type"]}+pymysql'
+                db_type = f"{db_type}+pymysql"
             if "db_password" in database_config and database_config["db_password"]:
-                db_password = f':{database_config["db_password"]}'
+                db_password = f":{database_config['db_password']}"
             if "db_username" in database_config and database_config["db_username"]:
                 db_username = database_config["db_username"]
             if "db_host" in database_config and database_config["db_host"]:
-                db_host = f'@{database_config["db_host"]}'
+                db_host = f"@{database_config['db_host']}"
             if "db_port" in database_config and database_config["db_port"]:
-                db_port = f':{database_config["db_port"]}'
+                db_port = f":{database_config['db_port']}"
 
             db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
             db_connection_string = f"{db_type}://{db_authentication}/{db_name}"
@@ -108,7 +104,7 @@ class NerpyBot(Bot):
         BASE.metadata.create_all(self.ENGINE)
 
     @contextmanager
-    def session_scope(self) -> object:
+    def session_scope(self) -> Generator[Session, Any, None]:
         """Provide a transactional scope around a series of operations.
 
         :rtype: object
@@ -128,8 +124,6 @@ class NerpyBot(Bot):
         """
         Discord Bot setup_hook
         Loads Modules and creates Databases
-
-        Also syncs Slash Commands to the discord api
         """
         # load modules
         for module in self.modules:
@@ -144,16 +138,6 @@ class NerpyBot(Bot):
 
         # create database/tables and such stuff
         self.create_all()
-
-        # sync commands
-        try:
-            self.log.info("Syncing commands...")
-            synced_cmds = await self.tree.sync()
-        except (HTTPException, CommandSyncFailure, Forbidden, MissingApplicationID, TranslationError) as ex:
-            self.log.debug(ex)
-            raise NerpyException("Could not sync commands to Discord API.")
-        else:
-            self.log.info(f"Synced commands: {', '.join(cmds.name for cmds in synced_cmds)}")
 
     async def on_ready(self) -> None:
         """calls when successfully logged in"""
@@ -320,16 +304,20 @@ def parse_arguments() -> Namespace:
     return parser.parse_args()
 
 
-def parse_config(config_file=None) -> ConfigParser:
-    config = ConfigParser(interpolation=None)
+def parse_config(config_file=None) -> dict:
+    config = {}
 
     if config_file is None:
-        config_file = Path("./config.ini")
+        config_file = Path("./config.yaml")
     else:
         config_file = Path(config_file[0])
 
     if config_file.exists():
-        config.read(config_file)
+        with open(config_file, "r") as stream:
+            try:
+                config = yaml.safe_load(stream)
+            except yaml.YAMLError as exc:
+                print(f"Error in configuration file: {exc}")
 
     return config
 

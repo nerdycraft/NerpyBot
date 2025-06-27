@@ -1,19 +1,17 @@
 # -*- coding: utf-8 -*-
-from datetime import timezone, time, datetime, timedelta, UTC
+from datetime import UTC, datetime, time, timedelta, timezone
 from typing import Optional, Union
 
-from discord import TextChannel, Member, Embed
+from discord import Embed, Member, TextChannel
 from discord.app_commands import checks, rename
 from discord.ext import tasks
-from discord.ext.commands import Cog, hybrid_command, hybrid_group, command, Context
+from discord.ext.commands import Cog, Context, command, hybrid_command, hybrid_group
 from humanize import naturaldate
+from models.moderation import AutoDelete, AutoKicker
 from pytimeparse2 import parse
-
 from utils import format as fmt
-from models.moderation import AutoDelete
-from models.moderation import AutoKicker
 from utils.errors import NerpyException
-from utils.helpers import send_hidden_message, empty_subcommand
+from utils.helpers import empty_subcommand, send_hidden_message
 
 utc = timezone.utc
 # If no tzinfo is given then UTC is assumed.
@@ -89,7 +87,10 @@ class Moderation(Cog):
                     list_before = datetime.now(UTC) - timedelta(seconds=configuration.DeleteOlderThan)
                     list_before = list_before.replace(tzinfo=timezone.utc)
                 channel = guild.get_channel(configuration.ChannelId)
-                messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
+
+                messages = []
+                if channel is not None:
+                    messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
 
                 message_limit = 0
                 if configuration.KeepMessages is not None:
@@ -128,7 +129,7 @@ class Moderation(Cog):
         ctx
         enable: bool
         kick_after: str
-            Time after someone get's kicked, like "1 day", "1 week" or "5 minutes".
+            Time after someone gets kicked, like "1 day", "1 week" or "5 minutes".
             Supports also abbreviations like "min" and "h".
         kick_reminder_message: Optional[str]
         """

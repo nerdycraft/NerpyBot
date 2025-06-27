@@ -1,23 +1,22 @@
 # -*- coding: utf-8 -*-
 
-from discord import Embed, Color
+from discord import Color, Embed, Interaction
 from discord.app_commands import command, guild_only
 from discord.ext.commands import (
-    GroupCog,
-    hybrid_group,
-    check,
-    hybrid_command,
-    bot_has_permissions,
-    has_permissions,
     Context,
+    GroupCog,
+    bot_has_permissions,
+    check,
+    has_permissions,
+    hybrid_command,
+    hybrid_group,
 )
-
 from utils import format as fmt
 from utils.audio import QueuedSong
 from utils.checks import is_connected_to_voice
 from utils.download import download, fetch_yt_infos
 from utils.errors import NerpyException
-from utils.helpers import youtube, send_hidden_message
+from utils.helpers import send_hidden_message, youtube
 
 
 @guild_only()
@@ -38,11 +37,16 @@ class Music(GroupCog):
         """skip current track"""
         self.bot.log.info(f"{ctx.guild.name} requesting skip!")
         self.audio.stop(ctx.guild.id)
+        if isinstance(ctx, Interaction):
+            await ctx.followup.send("Skipped current track.")
 
     @command(name="stop")
     async def _stop_playing_audio(self, ctx: Context):
-        """bot stops playing audio [bot-moderator]"""
-        await self.audio.leave(ctx.guild.id)
+        """bot stops playing audio"""
+        self.audio.stop(ctx.guild.id)
+        self._clear_queue(ctx.guild.id)
+        if isinstance(ctx, Interaction):
+            await ctx.followup.send("Stopped playing audio.")
 
     @hybrid_group(name="queue")
     async def _queue(self, ctx: Context):
@@ -74,8 +78,9 @@ class Music(GroupCog):
     async def _drop_queue(self, ctx: Context):
         """drop the playlist entirely"""
         self.audio.stop(ctx.guild.id)
-        self.audio.clear_buffer(ctx.guild.id)
         self._clear_queue(ctx.guild.id)
+        if isinstance(ctx, Interaction):
+            await ctx.followup.send("Cleared the queue and stopped playing audio.")
 
     @hybrid_group(name="play")
     @check(is_connected_to_voice)
@@ -134,6 +139,7 @@ class Music(GroupCog):
             await ctx.send_help(ctx.command)
         else:
             video_title = video_infos["title"]
+            video_idn = video_infos["id"]
             video_thumbnail = video_infos.get("thumbnails", [dict()])[0].get("url")
             self.bot.log.info(f'"{ctx.guild.name}" requesting "{video_title}" to play')
             emb = Embed(
@@ -144,25 +150,25 @@ class Music(GroupCog):
             if video_thumbnail is not None:
                 emb.set_thumbnail(url=video_thumbnail)
 
-            song = QueuedSong(ctx.author.voice.channel, self._fetch, video_url, video_title)
-            await self.audio.play(ctx.guild.id, song)
+            song = QueuedSong(ctx.author.voice.channel, self._fetch, video_url, video_title, video_idn)
             if ctx.interaction is not None:
                 await followup.send(embed=emb)
             else:
                 await ctx.send(embed=emb)
+            await self.audio.play(ctx.guild.id, song)
 
     def _has_queue(self, guild_id):
         return guild_id in self.queue
 
     def _clear_queue(self, guild_id):
         """Clears the Audio Queue"""
+        self.audio.clear_buffer(guild_id)
         if self._has_queue(guild_id):
             self.queue[guild_id].clear()
 
     @staticmethod
     def _fetch(song: QueuedSong):
-        sound_data = download(song.fetch_data)
-        song.stream = sound_data
+        song.stream = download(song.fetch_data, video_id=song.idn)
 
 
 async def setup(bot):

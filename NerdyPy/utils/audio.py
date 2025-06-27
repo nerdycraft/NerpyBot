@@ -5,13 +5,12 @@ Handling Audio Transmission to discord api
 
 import asyncio
 import enum
-import io
+import logging
 import queue
 from datetime import datetime
 
-from discord import PCMVolumeTransformer, FFmpegOpusAudio, VoiceChannel, PCMAudio
+from discord import VoiceChannel
 from discord.ext import tasks
-from pydub import AudioSegment
 
 
 class BufferKey(enum.Enum):
@@ -25,31 +24,18 @@ class BufferKey(enum.Enum):
 class QueuedSong:
     """Models Class for Queued Songs"""
 
-    def __init__(self, channel: VoiceChannel, fetcher, fetch_data, title=None):
+    def __init__(self, channel: VoiceChannel, fetcher, fetch_data, title: str = None, idn: str = None):
         self.stream = None
         self.title = title
+        self.idn = idn
         self.channel = channel
-        self.volume = 100
         self._fetcher = fetcher
         self.fetch_data = fetch_data
+        self.log = logging.getLogger("nerpybot")
 
-    def fetch_buffer(self):
+    async def fetch_buffer(self):
+        """Fetches the buffer for the song"""
         self._fetcher(self)
-        if isinstance(self.stream, io.BytesIO):
-            self.convert_audio()
-            return
-        if not isinstance(self.stream, FFmpegOpusAudio):
-            sound = self.stream
-            self.stream = FFmpegOpusAudio(sound)
-            return
-
-    def convert_audio(self):
-        sound = AudioSegment.from_file(self.stream)
-        if sound.channels != 2:
-            sound = sound.set_channels(2)
-        if sound.frame_rate != 48000:
-            sound = sound.set_frame_rate(48000)
-        self.stream = io.BytesIO(sound.raw_data)
 
 
 class Audio:
@@ -59,7 +45,7 @@ class Audio:
         self.bot = bot
         self.buffer = {}
         self.lastPlayed = {}
-        self.buffer_limit = self.bot.config.getint("audio", "buffer_limit")
+        self.buffer_limit = self.bot.config["audio"]["buffer_limit"]
 
     @tasks.loop(seconds=10)
     async def _timeout_manager(self):
@@ -74,14 +60,14 @@ class Audio:
                     else:
                         self.lastPlayed[guild_id] = datetime.now()
 
-    @tasks.loop(seconds=5)
+    @tasks.loop(seconds=1)
     async def _queue_manager(self):
         last = dict(self.lastPlayed)
         for guild_id in last:
             if self._has_buffer(guild_id) and self._has_item_in_buffer(guild_id) and not self._is_playing(guild_id):
                 queued_song = self.buffer[guild_id][BufferKey.QUEUE].get()
                 await self._play(queued_song)
-                self._update_buffer(guild_id)
+                await self._update_buffer(guild_id)
 
     async def setup_loops(self):
         self._queue_manager.start()
@@ -89,50 +75,68 @@ class Audio:
 
     async def _play(self, song):
         if song.stream is None:
-            song.fetch_buffer()
+            self.bot.log.debug(
+                f"Fetching song buffer for {song.title} in channel {song.channel.name} ({song.channel.id})"
+            )
+            await song.fetch_buffer()
         await self._join_channel(song.channel)
-        await asyncio.sleep(2)
-        if isinstance(song.stream, FFmpegOpusAudio) and song.stream.is_opus():
-            source = song.stream
-        else:
-            source = PCMVolumeTransformer(PCMAudio(song.stream))
-            source.volume = song.volume / 100
-        self.bot.log.debug(f"Playing Song {song.title}")
+
+        if not song.channel.guild.voice_client or not song.channel.guild.voice_client.is_connected():
+            self.bot.log.error(f"Failed to connect to voice channel {song.channel.name} ({song.channel.id})")
+            return
+
+        self.bot.log.debug(f"Playing Song {song.title} in channel {song.channel.name} ({song.channel.id})")
         song.channel.guild.voice_client.play(
-            source,
+            song.stream,
             after=lambda e: self.bot.log.error(f"Player error: {e}") if e else None,
         )
 
         self.lastPlayed[song.channel.guild.id] = datetime.now()
 
     async def _join_channel(self, channel: VoiceChannel):
-        if channel.guild.voice_client is not None and channel.guild.voice_client.is_connected():
-            if self.buffer[channel.guild.id][BufferKey.CHANNEL].id != channel.id:
-                self.bot.log.debug(f"Moving to channel {channel}")
-                await channel.guild.voice_client.move_to(channel)
-        else:
-            self.bot.log.debug(f"Connecting to channel {channel}")
-            vc = await channel.connect()
-            self.buffer[channel.guild.id][BufferKey.VOICE_CLIENT] = vc
-
-        self.buffer[channel.guild.id][BufferKey.CHANNEL] = channel
+        try:
+            if channel.guild.voice_client is not None and channel.guild.voice_client.is_connected():
+                if self.buffer[channel.guild.id][BufferKey.CHANNEL].id != channel.id:
+                    self.bot.log.debug(f"Moving to channel {channel}")
+                    await channel.guild.voice_client.move_to(channel)
+            else:
+                self.bot.log.debug(f"Connecting to channel {channel}")
+                try:
+                    vc = await channel.connect(self_deaf=True, self_mute=True, timeout=5)
+                except asyncio.TimeoutError as e:
+                    self.bot.log.error(f"Failed to connect to voice channel {channel}: {e}")
+                    return
+                else:
+                    self.buffer[channel.guild.id][BufferKey.VOICE_CLIENT] = vc
+        finally:
+            self.buffer[channel.guild.id][BufferKey.CHANNEL] = channel
 
     def _setup_buffer(self, guild_id):
         self.lastPlayed[guild_id] = datetime.now()
+        if guild_id in self.buffer:
+            channel = self.buffer[guild_id][BufferKey.CHANNEL]
+            voice_client = self.buffer[guild_id][BufferKey.VOICE_CLIENT]
+        else:
+            channel = None
+            voice_client = None
         self.buffer[guild_id] = {
-            BufferKey.CHANNEL: None,
+            BufferKey.CHANNEL: channel,
             BufferKey.QUEUE: queue.Queue(),
-            BufferKey.VOICE_CLIENT: None,
+            BufferKey.VOICE_CLIENT: voice_client,
         }
 
-    def _update_buffer(self, guild_id):
+    async def _update_buffer(self, guild_id):
         _index = 0
-        for s in self.list_queue(guild_id):
+        _tasks = []
+        for s in self.list_queue(guild_id)[: self.buffer_limit]:
             if _index >= self.buffer_limit:
                 break
             if s.stream is None:
-                s.fetch_buffer()
+                _tasks.append(s.fetch_buffer())
             _index = _index + 1
+
+        if _tasks:
+            await asyncio.gather(*_tasks)
 
     def _add_to_buffer(self, guild_id, song):
         self.buffer[guild_id][BufferKey.QUEUE].put(song)
@@ -153,7 +157,7 @@ class Audio:
         """Plays a file from the local filesystem"""
         if guild_id in self.buffer and BufferKey.QUEUE in self.buffer[guild_id]:
             self._add_to_buffer(guild_id, song)
-            self._update_buffer(guild_id)
+            await self._update_buffer(guild_id)
         else:
             self._setup_buffer(guild_id)
             await self._play(song)
@@ -169,6 +173,7 @@ class Audio:
         if self._has_buffer(guild_id):
             if self.buffer[guild_id].get(BufferKey.QUEUE) is not None:
                 return list(self.buffer[guild_id].get(BufferKey.QUEUE).queue)
+        return None
 
     def stop(self, guild_id):
         """Stops current audio from playing"""

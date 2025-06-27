@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from io import BytesIO
 
+from discord import FFmpegOpusAudio
 from discord.app_commands import command, guild_only, rename
 from discord.ext.commands import (
     Cog,
-    check,
-    hybrid_group,
-    clean_content,
-    bot_has_permissions,
-    has_permissions,
     Context,
+    bot_has_permissions,
+    check,
+    clean_content,
+    has_permissions,
+    hybrid_group,
 )
-
 from models.tagging import Tag, TagType, TagTypeConverter
 from utils import format as fmt
 from utils.audio import QueuedSong
@@ -35,7 +35,7 @@ class Tagging(Cog):
         self.queue = {}
         self.audio = self.bot.audio
 
-    @hybrid_group(name="tag", fallback="get")
+    @hybrid_group(name="tag", fallback="get", aliases=["t"])
     @check(is_connected_to_voice)
     async def _tag(self, ctx: Context, name: str):
         """sound and text tags"""
@@ -233,15 +233,18 @@ class Tagging(Cog):
             _tag = Tag.get(song.fetch_data, song.channel.guild.id, session)
             random_entry = _tag.get_random_entry()
 
-            song.stream = BytesIO(random_entry.ByteContent)
-            song.volume = _tag.Volume
+            volume_multiplier = _tag.Volume / 100
+
+            # Create FFmpegOpusAudio with volume adjustment
+            data = BytesIO(random_entry.ByteContent)
+            song.stream = FFmpegOpusAudio(data, pipe=True, options=f"-filter:a volume={volume_multiplier}")
 
     @staticmethod
     def _add_tag_entries(session, _tag, entry):
         if _tag.Type == TagType.text.value or _tag.Type == TagType.url.value:
             _tag.add_entry(entry, session)
         elif _tag.Type is TagType.sound.value:
-            _tag.add_entry(entry, session, byt=download(entry, True))
+            _tag.add_entry(entry, session, byt=download(entry, tag=True))
 
 
 async def setup(bot):
