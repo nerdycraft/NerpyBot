@@ -20,7 +20,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
         self.bot = bot
         self.config = bot.config
-        self.api_token = BlizzardAuthToken(self.config.get("wow", "wow_id"), self.config.get("wow", "wow_secret")).get()
+        self.api_token = BlizzardAuthToken(self.config["wow"]["wow_id"], self.config["wow"]["wow_secret"]).get()
         self.regions = ["eu", "us"]
 
     @staticmethod
@@ -63,6 +63,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 return resp["mythic_plus_scores_by_season"][0]["scores"]["all"]
             else:
                 return None
+        return None
 
     @staticmethod
     def _get_best_mythic_keys(region, realm, name):
@@ -88,6 +89,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 )
 
             return keys
+        return None
 
     @hybrid_command(name="armory", aliases=["search", "char"])
     async def _wow_armory(self, ctx: Context, name: str, realm: str, region: str = "eu"):
