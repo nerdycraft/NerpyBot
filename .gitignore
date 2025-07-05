@@ -3,8 +3,8 @@ NerdyPy/audio
 NerdyPy/*.db
 NerdyPy/*.dll
 NerdyPy/tmp/
-NerdyPy/config.ini
-NerdyPy/config_humanmusic.ini
+NerdyPy/config.yaml
+NerdyPy/config_humanmusic.yaml
 NerpyBot.code-workspace
 
 ### macOS template
@@ -248,4 +248,3 @@ $RECYCLE.BIN/
 *.pif
 *.vb
 *.wsf
-

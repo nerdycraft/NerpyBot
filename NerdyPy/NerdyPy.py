@@ -3,15 +3,14 @@
 Main Class of the NerpyBot
 """
 
-import json
 from argparse import Namespace, ArgumentParser
 from asyncio import run
-from configparser import ConfigParser
 from contextlib import contextmanager
 from datetime import datetime, UTC
 from pathlib import Path
 from traceback import print_exc, print_tb, format_exc
 from typing import List
+import yaml
 
 from discord import (
     HTTPException,
@@ -51,7 +50,7 @@ from utils.helpers import send_hidden_message
 class NerpyBot(Bot):
     """Discord Bot"""
 
-    def __init__(self, config: ConfigParser, intents: Intents, debug: bool):
+    def __init__(self, config: dict, intents: Intents, debug: bool):
         # noinspection PyTypeChecker
         super().__init__(
             command_prefix=determine_prefix, description="NerdyBot - Always one step ahead!", intents=intents
@@ -59,10 +58,10 @@ class NerpyBot(Bot):
 
         self.config = config
         self.debug = debug
-        self.client_id = config.get("bot", "client_id")
-        self.token = config.get("bot", "token")
-        self.ops = config.get("bot", "ops")
-        self.modules = json.loads(config.get("bot", "modules"))
+        self.client_id = config["bot"]["client_id"]
+        self.token = config["bot"]["token"]
+        self.ops = config["bot"]["ops"]
+        self.modules = config["bot"]["modules"]
         self.restart = True
         self.log = logging.get_logger("nerpybot")
         self.uptime = datetime.now(UTC)
@@ -70,7 +69,7 @@ class NerpyBot(Bot):
         self.audio = Audio(self)
         self.last_cmd_cache = {}
         self.usr_cmd_err_spam = {}
-        self.usr_cmd__err_spam_threshold = config.getint("bot", "error_spam_threshold")
+        self.usr_cmd__err_spam_threshold = config["bot"]["error_spam_threshold"]
         self.convMan = ConversationManager(self)
 
         # database variables
@@ -87,7 +86,7 @@ class NerpyBot(Bot):
             db_port = ""
 
             if any(s in db_type for s in ("mysql", "mariadb")):
-                db_type = f'{database_config["db_type"]}+pymysql'
+                db_type = f"{db_type}+pymysql"
             if "db_password" in database_config and database_config["db_password"]:
                 db_password = f':{database_config["db_password"]}'
             if "db_username" in database_config and database_config["db_username"]:
@@ -320,16 +319,20 @@ def parse_arguments() -> Namespace:
     return parser.parse_args()
 
 
-def parse_config(config_file=None) -> ConfigParser:
-    config = ConfigParser(interpolation=None)
+def parse_config(config_file=None) -> dict:
+    config = {}
 
     if config_file is None:
-        config_file = Path("./config.ini")
+        config_file = Path("./config.yaml")
     else:
         config_file = Path(config_file[0])
 
     if config_file.exists():
-        config.read(config_file)
+        with open(config_file, "r") as stream:
+            try:
+                config = yaml.safe_load(stream)
+            except yaml.YAMLError as exc:
+                print(f"Error in configuration file: {exc}")
 
     return config
 

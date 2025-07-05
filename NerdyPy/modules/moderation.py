@@ -89,7 +89,10 @@ class Moderation(Cog):
                     list_before = datetime.now(UTC) - timedelta(seconds=configuration.DeleteOlderThan)
                     list_before = list_before.replace(tzinfo=timezone.utc)
                 channel = guild.get_channel(configuration.ChannelId)
-                messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
+
+                messages = []
+                if channel is not None:
+                    messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
 
                 message_limit = 0
                 if configuration.KeepMessages is not None:
@@ -128,7 +131,7 @@ class Moderation(Cog):
         ctx
         enable: bool
         kick_after: str
-            Time after someone get's kicked, like "1 day", "1 week" or "5 minutes".
+            Time after someone gets kicked, like "1 day", "1 week" or "5 minutes".
             Supports also abbreviations like "min" and "h".
         kick_reminder_message: Optional[str]
         """
