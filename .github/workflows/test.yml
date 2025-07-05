@@ -1,24 +1,47 @@
 name: Lint
 
 on:
-  - pull_request
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  lint:
+  lint_flake8:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
 
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-python@v4
+    - uses: actions/checkout@v4
       with:
-        python-version: "3.x"
-    - name: Install linters
-      run: |
-        python -m pip install --upgrade pip
-        pip install flake8 black
+        fetch-depth: 0
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
     - name: Lint with flake8
-      run: |
-        flake8 --count --max-line-length=127 --statistics NerdyPy
+      uses: py-actions/flake8@v2
+      with:
+        path: "./NerdyPy"
+
+  lint_black:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
     - name: Lint with black
-      run: |
-        black -t py311 -l 120 --check --diff NerdyPy
+      uses: psf/black@stable
+      with:
+        src: "./NerdyPy"

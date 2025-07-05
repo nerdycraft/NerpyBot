@@ -2,16 +2,17 @@
 
 from datetime import datetime as dt, timedelta as td
 
-import discord
 import requests
-from blizzardapi import BlizzardApi
-from discord.ext.commands import Cog, hybrid_group, bot_has_permissions
+from BlizzardWarcraftAPI import BlizzardAuthToken, BlizzardWarcraftAPI
+from discord import Embed, Color
+from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions, Context
 
 from utils.errors import NerpyException
+from utils.helpers import send_hidden_message
 
 
-@bot_has_permissions(send_messages=True)
-class WorldofWarcraft(Cog):
+@bot_has_permissions(send_messages=True, embed_links=True)
+class WorldofWarcraft(GroupCog, group_name="wow"):
     """WOW API"""
 
     def __init__(self, bot):
@@ -19,7 +20,7 @@ class WorldofWarcraft(Cog):
 
         self.bot = bot
         self.config = bot.config
-        self.api = BlizzardApi(self.config.get("wow", "wow_id"), self.config.get("wow", "wow_secret"))
+        self.api_token = BlizzardAuthToken(self.config["wow"]["wow_id"], self.config["wow"]["wow_secret"]).get()
         self.regions = ["eu", "us"]
 
     @staticmethod
@@ -38,11 +39,12 @@ class WorldofWarcraft(Cog):
         return f"{url}/{profile}"
 
     async def _get_character(self, realm, region, name):
-        locale = "en-US"
+        api = BlizzardWarcraftAPI(self.api_token, region, "en_GB")
+        profile = api.Profile()
 
-        self.api.wow.profile.get_character_profile_status(region, locale, realm, name)
-        character = self.api.wow.profile.get_character_profile_summary(region, locale, realm, name)
-        assets = self.api.wow.profile.get_character_media_summary(region, locale, realm, name).get("assets", list())
+        profile.get_CharacterProfileStatus(realm, name)
+        character = profile.get_CharacterProfileSummary(realm, name)
+        assets = profile.get_CharacterMediaSummary(realm, name).get("assets", list())
         profile_picture = "".join(asset.get("value") for asset in assets if asset.get("key") == "avatar")
 
         return character, profile_picture
@@ -61,6 +63,7 @@ class WorldofWarcraft(Cog):
                 return resp["mythic_plus_scores_by_season"][0]["scores"]["all"]
             else:
                 return None
+        return None
 
     @staticmethod
     def _get_best_mythic_keys(region, realm, name):
@@ -86,21 +89,16 @@ class WorldofWarcraft(Cog):
                 )
 
             return keys
+        return None
 
-    @hybrid_group()
-    async def wow(self, ctx):
-        """Get ALL the Infos about WoW"""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
-
-    @bot_has_permissions(send_messages=True, embed_links=True)
-    @wow.command(aliases=["search", "char"])
-    async def armory(self, ctx, name: str, realm: str, region: str = "eu"):
+    @hybrid_command(name="armory", aliases=["search", "char"])
+    async def _wow_armory(self, ctx: Context, name: str, realm: str, region: str = "eu"):
         """
         search for character
 
         name and realm are required parameters.
-        region is optional, but if you want to search on another realm than your discord server runs on, you need to set it.
+        region is optional, but if you want to search on another realm than your discord server runs on,
+            you need to set it.
         """
         try:
             async with ctx.typing():
@@ -121,15 +119,15 @@ class WorldofWarcraft(Cog):
                 warcraftlogs = self._get_link("warcraftlogs", profile)
                 wowprogress = self._get_link("wowprogress", profile)
 
-                emb = discord.Embed(
-                    title=f'{character["name"]} | {realm.capitalize()} | {region.upper()} | {character["active_spec"]["name"]["en_US"]} {character["character_class"]["name"]["en_US"]} | {character["equipped_item_level"]} ilvl',
+                emb = Embed(
+                    title=f'{character["name"]} | {realm.capitalize()} | {region.upper()} | {character["active_spec"]["name"]} {character["character_class"]["name"]} | {character["equipped_item_level"]} ilvl',
                     url=armory,
-                    color=discord.Color(value=int("0099ff", 16)),
-                    description=f'{character["gender"]["name"]["en_US"]} {character["race"]["name"]["en_US"]}',
+                    color=Color(value=int("0099ff", 16)),
+                    description=f'{character["gender"]["name"]} {character["race"]["name"]}',
                 )
                 emb.set_thumbnail(url=profile_picture)
                 emb.add_field(name="Level", value=character["level"], inline=True)
-                emb.add_field(name="Faction", value=character["faction"]["name"]["en_US"], inline=True)
+                emb.add_field(name="Faction", value=character["faction"]["name"], inline=True)
                 if "guild" in character:
                     emb.add_field(name="Guild", value=character["guild"]["name"], inline=True)
                 emb.add_field(name="\u200b", value="\u200b", inline=False)
@@ -152,7 +150,7 @@ class WorldofWarcraft(Cog):
 
             await ctx.send(embed=emb)
         except NerpyException:
-            await ctx.send("No Character with this name found.")
+            await send_hidden_message(ctx, "No Character with this name found.")
 
 
 async def setup(bot):

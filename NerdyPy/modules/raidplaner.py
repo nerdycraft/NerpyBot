@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from datetime import datetime
+from datetime import datetime, UTC
 from enum import Enum
 
 from discord import Embed
-from discord.ext.commands import Cog, command
+from discord.ext.commands import Cog, command, Context
 
-from models.RaidEncounter import RaidEncounter
-from models.RaidEncounterRole import RaidEncounterRole
-from models.RaidEvent import RaidEvent
-from models.RaidTemplate import RaidTemplate
+from models.raidplaner import RaidTemplate, RaidEncounter, RaidEncounterRole, RaidEvent
 from utils.conversation import Conversation
 
 
@@ -22,7 +19,7 @@ class RaidPlaner(Cog):
         self.bot = bot
 
     @command()
-    async def raidplaner(self, ctx):
+    async def raidplaner(self, ctx: Context):
         """sound and text tags"""
         conv = RaidConversation(self.bot, ctx.author, self.bot.get_guild(606539392311361794))
         await self.bot.convMan.init_conversation(conv)
@@ -236,7 +233,7 @@ class RaidConversation(Conversation):
             TemplateId=len(self.templates) + 1,
             Name=f"RaidTemplate {len(self.templates) + 1}",
             PlayerCount=10,
-            CreateDate=datetime.utcnow(),
+            CreateDate=datetime.now(UTC),
         )
         await self.conv_template_menu()
 

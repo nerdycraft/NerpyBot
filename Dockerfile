@@ -1,26 +1,54 @@
-FROM python:3.11
+# syntax=docker/dockerfile:1
+FROM ghcr.io/astral-sh/uv:latest AS uv
+FROM alpine AS base
 
-ENV POETRY_VIRTUALENVS_IN_PROJECT=true
+# Setup env
+ENV LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONFAULTHANDLER=1 \
+    PYTHONUNBUFFERED=1 \
+    UID=10001 \
+    PATH="/app/.venv/bin:$PATH"
 
-WORKDIR /app/NerdyPy
+RUN adduser -D -H -h /app -u "${UID}" NerdyBot
 
-COPY pyproject.toml poetry.lock README.md /app/
-COPY NerdyPy /app/NerdyPy
+# Install uv
+COPY --from=uv /uv /usr/local/bin/uv
 
-RUN apt update && apt install -qqy --no-install-recommends \
-      build-essential \
-      libffi-dev \
-      ffmpeg \
-      libopus0 \
-    && pip install \
-      --no-cache-dir \
-      --trusted-host pypi.python.org \
-      poetry \
-    && apt purge -qqy --autoremove build-essential libffi-dev \
-    && apt clean \
-    && rm -rf /var/lib/apt/lists/*
+USER NerdyBot
+WORKDIR /app
 
-RUN poetry install \
-    && rm -rf ~/.cache/pypoetry ~/.local/share/virtualenv
+COPY --chown=${UID} pyproject.toml uv.lock ./
 
-CMD ["poetry", "run", "python", "/app/NerdyPy/NerdyPy.py"]
+
+FROM base AS bot
+
+USER root
+RUN apk add --no-cache \
+        ffmpeg \
+        opus \
+        git
+
+USER NerdyBot
+RUN uv sync --only-group bot
+
+COPY --chown=${UID} NerdyPy /app
+
+CMD ["python", "NerdyPy.py"]
+
+LABEL org.opencontainers.image.source=https://github.com/nerdycraft/NerpyBot
+LABEL org.opencontainers.image.description="NerpyBot, the nerdiest Python Bot"
+
+
+FROM base AS migrations
+
+RUN uv sync --only-group migrations
+
+COPY --chown=${UID} alembic.ini /app/
+COPY --chown=${UID} database-migrations /app/database-migrations/
+
+CMD ["uv", "run", "alembic", "upgrade", "head"]
+
+LABEL org.opencontainers.image.source=https://github.com/nerdycraft/NerpyBot
+LABEL org.opencontainers.image.description="Database migrations for the nerdiest Python Bot"

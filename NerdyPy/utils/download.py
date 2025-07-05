@@ -7,9 +7,10 @@ import logging
 import os
 import uuid
 
+import ffmpeg
 import requests
 import youtube_dl
-from discord import FFmpegPCMAudio
+from discord import FFmpegOpusAudio
 
 from utils.errors import NerpyException
 
@@ -23,7 +24,14 @@ FFMPEG_OPTIONS = {"options": "-vn"}
 YTDL_ARGS = {
     "format": "bestaudio/best",
     "outtmpl": os.path.join(DL_DIR, "%(id)s"),
+    "restrictfilenames": True,
+    "noplaylist": True,
+    "nocheckcertificate": True,
+    "ignoreerrors": False,
+    "logtostderr": False,
     "quiet": True,
+    "verbose": False,
+    "no_warnings": True,
     "extractaudio": True,
     "audioformat": "mp3",
     "default_search": "auto",
@@ -33,16 +41,27 @@ YTDL_ARGS = {
 YTDL = youtube_dl.YoutubeDL(YTDL_ARGS)
 
 
-def convert(source, is_stream=False):
+def convert(source, tag=False, is_stream=False):
     """Convert downloaded file to playable ByteStream"""
     LOG.info("Converting File...")
-    return FFmpegPCMAudio(source, **FFMPEG_OPTIONS, pipe=is_stream)
+    if tag:
+        stream, _ = (
+            ffmpeg.input(source)
+            .filter("loudnorm")
+            .output("pipe:", format="mp3", ac=2, ar="48000")
+            .overwrite_output()
+            .run(capture_stdout=True)
+        )
+        return stream
+    else:
+        return FFmpegOpusAudio(source, **FFMPEG_OPTIONS, pipe=is_stream)
 
 
 def lookup_file(file_name):
     for file in os.listdir(f"{DL_DIR}"):
         if file.startswith(file_name):
             return os.path.join(DL_DIR, file)
+    return None
 
 
 def fetch_yt_infos(url: str):
@@ -50,35 +69,59 @@ def fetch_yt_infos(url: str):
     return YTDL.extract_info(url, download=False)
 
 
-def download(url: str):
+def cleanup(file_path: str):
+    """Clean up downloaded file after processing"""
+    try:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            LOG.debug(f"Cleaned up file: {file_path}")
+    except OSError as e:
+        LOG.error(f"Error cleaning up file {file_path}: {e}")
+
+
+def download(url: str, tag=False, cleanup_downloaded_file=True):
     """download audio content (maybe transform?)"""
     req_headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
 
     split = os.path.splitext(url)
+    dlfile = None
 
-    if split[1] is not None and split[1] != "":
-        dlfile = os.path.join(DL_DIR, f"{str(uuid.uuid4())}{split[1]}")
-        with requests.get(url, headers=req_headers) as response:
-            response.raise_for_status()
-            with open(dlfile, "wb") as out_file:
-                LOG.info("Downloading file")
-                for chunk in response.iter_content():
-                    out_file.write(chunk)
-    else:
-        video = fetch_yt_infos(url)
-        song = Song(**video)
-        dlfile = lookup_file(song.idn)
-
-        if dlfile is None:
-            _ = YTDL.download([song.webpage_url])
+    try:
+        if split[1] is not None and split[1] != "":
+            dlfile = os.path.join(DL_DIR, f"{str(uuid.uuid4())}{split[1]}")
+            with requests.get(url, headers=req_headers) as response:
+                response.raise_for_status()
+                with open(dlfile, "wb") as out_file:
+                    LOG.info("Downloading file")
+                    for chunk in response.iter_content():
+                        out_file.write(chunk)
+        else:
+            video = fetch_yt_infos(url)
+            song = Song(**video)
             dlfile = lookup_file(song.idn)
 
-    if dlfile is None:
-        raise NerpyException(f"could not find a download in: {url}")
+            if dlfile is None:
+                _ = YTDL.download([song.webpage_url])
+                dlfile = lookup_file(song.idn)
 
-    return convert(dlfile)
+        if dlfile is None:
+            raise NerpyException(f"could not find a download in: {url}")
+
+        converted = convert(dlfile, tag)
+
+        # Clean up the downloaded file after conversion
+        if cleanup_downloaded_file:
+            LOG.debug(f"Cleaning up downloaded file: {dlfile}")
+            cleanup(dlfile)
+
+        return converted
+    except Exception as e:
+        # Clean up in case of error
+        if dlfile:
+            cleanup(dlfile)
+        raise e
 
 
 class Song:

@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 
-from datetime import datetime
+from datetime import datetime, UTC
 
 from discord.app_commands import checks
-from discord.ext.commands import GroupCog, hybrid_command, group
+from discord.ext.commands import Cog, group, Context
 
-from models.guild_prefix import GuildPrefix
+from models.admin import GuildPrefix
 
 
 @checks.has_permissions(administrator=True)
-class Admin(GroupCog):
+class Admin(Cog):
     """cog for administrative usage"""
 
     def __init__(self, bot):
@@ -18,13 +18,13 @@ class Admin(GroupCog):
         self.bot = bot
 
     @group()
-    async def prefix(self, ctx):
+    async def prefix(self, ctx: Context):
         """Manage the prefix for the bot [bot-moderator]"""
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
     @prefix.command(name="get")
-    async def _prefix_get(self, ctx):
+    async def _prefix_get(self, ctx: Context):
         """Get the prefix currently used. [bot-moderator]"""
         with self.bot.session_scope() as session:
             pref = GuildPrefix.get(ctx.guild.id, session)
@@ -36,7 +36,7 @@ class Admin(GroupCog):
                 )
 
     @prefix.command(name="set")
-    async def _prefix_set(self, ctx, *, new_pref):
+    async def _prefix_set(self, ctx: Context, *, new_pref):
         """Set the prefix to use. [bot-moderator]"""
         if " " in new_pref:
             await ctx.send("Spaces not allowed in prefixes")
@@ -44,25 +44,20 @@ class Admin(GroupCog):
         with self.bot.session_scope() as session:
             pref = GuildPrefix.get(ctx.guild.id, session)
             if pref is None:
-                pref = GuildPrefix(GuildId=ctx.guild.id, CreateDate=datetime.utcnow(), Author=ctx.author.name)
+                pref = GuildPrefix(GuildId=ctx.guild.id, CreateDate=datetime.now(UTC), Author=ctx.author.name)
                 session.add(pref)
 
-            pref.ModifiedDate = datetime.utcnow()
+            pref.ModifiedDate = datetime.now(UTC)
             pref.Prefix = new_pref
 
         await ctx.send(f"new prefix is now set to '{new_pref}'.")
 
     @prefix.command(name="delete", aliases=["remove", "rm", "del"])
-    async def _prefix_del(self, ctx):
+    async def _prefix_del(self, ctx: Context):
         """Delete the current prefix. [bot-moderator]"""
         with self.bot.session_scope() as session:
             GuildPrefix.delete(ctx.guild.id, session)
         await ctx.send("Prefix removed.")
-
-    @hybrid_command(name="leave", aliases=["stop"])
-    async def _bot_leave_channel(self, ctx):
-        """bot leaves the channel [bot-moderator]"""
-        await self.bot.audio.leave(ctx.guild.id)
 
 
 async def setup(bot):
