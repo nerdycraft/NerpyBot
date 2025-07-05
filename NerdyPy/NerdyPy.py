@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from datetime import datetime, UTC
 from pathlib import Path
 from traceback import print_exc, print_tb, format_exc
-from typing import List
+from typing import List, Any, Generator
 import yaml
 
 from discord import (
@@ -37,7 +37,7 @@ from discord.ext.commands import (
 )
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 
 from models.admin import GuildPrefix
 from utils import logging
@@ -108,7 +108,7 @@ class NerpyBot(Bot):
         BASE.metadata.create_all(self.ENGINE)
 
     @contextmanager
-    def session_scope(self) -> object:
+    def session_scope(self) -> Generator[Session, Any, None]:
         """Provide a transactional scope around a series of operations.
 
         :rtype: object
@@ -125,20 +125,41 @@ class NerpyBot(Bot):
             session.close()
 
     async def commands_need_sync(self):
-        def _filter_command(_global_cmd, _app_cmd):
-            if type(_app_cmd) is HybridAppCommand and _app_cmd.root_parent is not None:
-                if _global_cmd.name == _app_cmd.root_parent.name:
-                    return next((_cmd for _cmd in _global_cmd.options if _filter_command(_cmd, _global_cmd)), None)
-                return False
-            else:
-                return _global_cmd.name == _app_cmd.name
-
+        # Get currently registered commands from Discord
         global_app_commands = await self.tree.fetch_commands()
-        for command in self.tree.walk_commands():
-            root_cmd = next((cmd for cmd in global_app_commands if _filter_command(cmd, command)), None)
-            if not root_cmd:
+
+        # Get local commands
+        local_commands = [cmd for cmd in self.tree.get_commands()]
+
+        # If the count differs, we need to synchronize
+        if len(global_app_commands) != len(local_commands):
+            return True
+
+        # Compare each command
+        for local_cmd in local_commands:
+            # Find the corresponding global command
+            matching_global_cmd = next(
+                (cmd for cmd in global_app_commands if cmd.name == local_cmd.name),
+                None,
+            )
+
+            # If no corresponding command was found or
+            # properties differ, we need to synchronize
+            if not matching_global_cmd or (local_cmd.description != matching_global_cmd.description):
                 return True
 
+            # Check command options
+            for local_opt, global_opt in zip(
+                getattr(local_cmd, "options", []), getattr(matching_global_cmd, "options", [])
+            ):
+                if (
+                    local_opt.name != global_opt.name
+                    or local_opt.description != global_opt.description
+                    or str(local_opt.type) != str(global_opt.type)
+                ):
+                    return True
+
+        # No changes found
         return False
 
     async def setup_hook(self) -> None:
@@ -165,12 +186,27 @@ class NerpyBot(Bot):
         # sync commands
         if await self.commands_need_sync():
             try:
+                # Get existing commands before sync
+                existing_commands = {cmd.name: cmd for cmd in await self.tree.fetch_commands()}
+
                 self.log.info("Syncing commands...")
                 synced_cmds = await self.tree.sync()
+
+                # Compare commands after sync
+                new_commands = {cmd.name for cmd in synced_cmds}
+                removed_commands = set(existing_commands.keys()) - new_commands
+
+                if synced_cmds:
+                    self.log.info(f"Added/Updated commands: {', '.join(cmd.name for cmd in synced_cmds)}")
+                if removed_commands:
+                    self.log.info(f"Removed commands: {', '.join(removed_commands)}")
+                if not synced_cmds and not removed_commands:
+                    self.log.info("No commands were changed")
+
             except (HTTPException, CommandSyncFailure, Forbidden, MissingApplicationID, TranslationError) as ex:
                 raise NerpyException("Could not sync commands to Discord API.")
-            else:
-                self.log.info(f"Synced commands: {', '.join(cmds.name for cmds in synced_cmds)}")
+        else:
+            self.log.info("No commands need to be synced.")
 
     async def on_ready(self):
         """calls when successfully logged in"""
