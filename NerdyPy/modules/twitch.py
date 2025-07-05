@@ -6,17 +6,18 @@ from typing import Optional, Union
 from discord import TextChannel
 from discord.app_commands import guild_only
 from discord.ext import tasks
-from discord.ext.commands import bot_has_permissions, Context, hybrid_group, GroupCog
+from discord.ext.commands import bot_has_permissions, Context, GroupCog, group
 from twitchAPI.helper import first
 from twitchAPI.object.api import TwitchUser
 from twitchAPI.object.eventsub import StreamOnlineEvent
 from twitchAPI.twitch import Twitch as TwitchAPI
 from twitchAPI.eventsub.webhook import EventSubWebhook, EventSubSubscriptionTimeout
+from twitchAPI.object.eventsub import StreamOfflineEvent
 
 from models.twitch import TwitchNotifications
 from utils import format as fmt
 from utils.errors import NerpyException
-from utils.helpers import send_hidden_message, empty_subcommand
+from utils.helpers import send_hidden_message
 
 
 @bot_has_permissions(send_messages=True)
@@ -103,20 +104,29 @@ class Twitch(GroupCog, group_name="twitch"):
                         return
                     await _channel.send(f"{broadcaster} is now live at https://twitch.tv/{broadcaster}")
 
+    async def _on_stream_offline(self, data: StreamOfflineEvent):
+        broadcaster = data.event.broadcaster_user_name
+        with self.bot.session_scope() as session:
+            _configs = TwitchNotifications.get_all_by_streamer(self.bot.guild.id, broadcaster, session)
+            for _config in _configs:
+                _channel = self.bot.guild.get_channel(_config.ChannelId)
+                if _channel:
+                    await _channel.send(f"{broadcaster} is now offline.")
+
     async def _stream_webhook(self, _eventsub, _streamer: str):
         _user = await self._get_twitch_user(_streamer)
         try:
             await _eventsub.listen_stream_online(_user.id, self._on_stream_online)
+            await _eventsub.listen_stream_offline(_user.id, self._on_stream_offline)
         except EventSubSubscriptionTimeout as ex:
             self.bot.log.error(f"Timeout waiting for Subscription: {ex}")
         else:
             self.stream_webhooks[_streamer] = _user.id
 
-    @hybrid_group(aliases=["twitch_notifications"])
-    @guild_only()
-    async def notifications(self, ctx: Context) -> None:
-        """Manages Twitch notifications on a per-channel/per-streamer basis."""
-        await empty_subcommand(ctx)
+    @group(name="notifications", invoke_without_command=True)
+    async def notifications(self, ctx: Context):
+        """Base command for Twitch notifications."""
+        await ctx.send("Available subcommands: list, create, delete")
 
     @notifications.command(name="list")
     async def _twitch_notifications_list(
