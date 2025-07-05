@@ -15,7 +15,6 @@ bot = [
     "google-api-python-client>=2,<3",
     "SQLAlchemy>=2.0,<2.1",
     "pymysql>=1.1,<1.2",
-    "pydub",
     "ffmpeg-python>=0.2,<0.3",
     "BlizzardWarcraftAPI>=0.2.7.2,<0.3",
     "pytimeparse2>=1.7,<1.8",

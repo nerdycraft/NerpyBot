@@ -163,6 +163,7 @@ class Music(GroupCog):
     def _fetch(song: QueuedSong):
         sound_data = download(song.fetch_data)
         song.stream = sound_data
+        song.volume = 100
 
 
 async def setup(bot):
