@@ -35,7 +35,7 @@ class Tagging(Cog):
         self.queue = {}
         self.audio = self.bot.audio
 
-    @hybrid_group(name="tag", fallback="get")
+    @hybrid_group(name="tag", fallback="get", aliases=["t"])
     @check(is_connected_to_voice)
     async def _tag(self, ctx: Context, name: str):
         """sound and text tags"""
