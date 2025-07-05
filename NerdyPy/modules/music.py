@@ -161,8 +161,7 @@ class Music(GroupCog):
 
     @staticmethod
     def _fetch(song: QueuedSong):
-        sound_data = download(song.fetch_data)
-        song.stream = sound_data
+        song.stream = download(song.fetch_data, cleanup_downloaded_file=False)
         song.volume = 100
 
 

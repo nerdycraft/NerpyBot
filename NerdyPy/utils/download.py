@@ -79,7 +79,7 @@ def cleanup(file_path: str):
         LOG.error(f"Error cleaning up file {file_path}: {e}")
 
 
-def download(url: str, tag=False):
+def download(url: str, tag=False, cleanup_downloaded_file=True):
     """download audio content (maybe transform?)"""
     req_headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
@@ -112,7 +112,9 @@ def download(url: str, tag=False):
         converted = convert(dlfile, tag)
 
         # Clean up the downloaded file after conversion
-        cleanup(dlfile)
+        if cleanup_downloaded_file:
+            LOG.debug(f"Cleaning up downloaded file: {dlfile}")
+            cleanup(dlfile)
 
         return converted
     except Exception as e:

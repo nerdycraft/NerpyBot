@@ -9,6 +9,7 @@ import queue
 from datetime import datetime
 import logging
 from io import BytesIO
+from typing import Union
 
 from discord import FFmpegOpusAudio, VoiceChannel
 from discord.ext import tasks
@@ -43,15 +44,7 @@ class QueuedSong:
             # Create FFmpegOpusAudio with volume adjustment
             # Wrap the bytes in a new BytesIO since we need a fresh cursor position
             data = BytesIO(self.stream.getvalue())
-            self.stream = FFmpegOpusAudio(
-                data,
-                pipe=True,
-                options=f'-filter:a volume={volume_multiplier}'
-            )
-            return
-        elif not isinstance(self.stream, FFmpegOpusAudio):
-            sound = self.stream
-            self.stream = await FFmpegOpusAudio.from_probe(sound)
+            self.stream = FFmpegOpusAudio(data, pipe=True, options=f"-filter:a volume={volume_multiplier}")
             return
 
 
