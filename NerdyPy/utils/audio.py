@@ -9,7 +9,6 @@ import queue
 from datetime import datetime
 import logging
 from io import BytesIO
-from typing import Union
 
 from discord import FFmpegOpusAudio, VoiceChannel
 from discord.ext import tasks
