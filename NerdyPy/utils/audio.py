@@ -103,8 +103,13 @@ class Audio:
                 await channel.guild.voice_client.move_to(channel)
         else:
             self.bot.log.debug(f"Connecting to channel {channel}")
-            vc = await channel.connect()
-            self.buffer[channel.guild.id][BufferKey.VOICE_CLIENT] = vc
+            try:
+                vc = await channel.connect(self_deaf=True, self_mute=True)
+            except Exception as e:
+                self.bot.log.error(f"Failed to connect to voice channel {channel}: {e}")
+                return
+            else:
+                self.buffer[channel.guild.id][BufferKey.VOICE_CLIENT] = vc
 
         self.buffer[channel.guild.id][BufferKey.CHANNEL] = channel
 
