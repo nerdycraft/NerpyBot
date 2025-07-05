@@ -11,7 +11,6 @@ from datetime import datetime
 
 from discord import PCMVolumeTransformer, FFmpegOpusAudio, VoiceChannel, PCMAudio
 from discord.ext import tasks
-from pydub import AudioSegment
 
 
 class BufferKey(enum.Enum):
@@ -59,7 +58,7 @@ class Audio:
         self.bot = bot
         self.buffer = {}
         self.lastPlayed = {}
-        self.buffer_limit = self.bot.config.getint("audio", "buffer_limit")
+        self.buffer_limit = self.bot.config["audio"]["buffer_limit"]
 
     @tasks.loop(seconds=10)
     async def _timeout_manager(self):
