@@ -55,6 +55,7 @@ bot:
     - fun
     - league
     - moderation
+    - music
     - random
     - reminder
     - search
