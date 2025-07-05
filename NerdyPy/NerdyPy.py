@@ -86,7 +86,7 @@ class NerpyBot(Bot):
             db_port = ""
 
             if any(s in db_type for s in ("mysql", "mariadb")):
-                db_type = f'{db_type}+pymysql'
+                db_type = f"{db_type}+pymysql"
             if "db_password" in database_config and database_config["db_password"]:
                 db_password = f':{database_config["db_password"]}'
             if "db_username" in database_config and database_config["db_username"]:
@@ -328,7 +328,7 @@ def parse_config(config_file=None) -> dict:
         config_file = Path(config_file[0])
 
     if config_file.exists():
-        with open(config_file, 'r') as stream:
+        with open(config_file, "r") as stream:
             try:
                 config = yaml.safe_load(stream)
             except yaml.YAMLError as exc:
