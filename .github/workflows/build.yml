@@ -31,9 +31,6 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -48,7 +45,6 @@ jobs:
         id: build_database-migrations
         uses: docker/build-push-action@v5
         with:
-          platforms: linux/amd64,linux/arm64
           target: migrations
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta_database-migrations.outputs.tags }}
@@ -76,9 +72,6 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -93,7 +86,6 @@ jobs:
         id: build_nerdybot
         uses: docker/build-push-action@v5
         with:
-          platforms: linux/amd64,linux/arm64
           target: bot
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta_nerpybot.outputs.tags }}
