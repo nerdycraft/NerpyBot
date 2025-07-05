@@ -1,5 +1,5 @@
 # -- coding: utf-8 --
-""" Search Modul """
+"""Search Modul"""
 import json
 from datetime import datetime, timedelta, UTC
 from typing import Literal

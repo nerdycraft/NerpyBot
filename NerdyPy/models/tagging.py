@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-""" Tag DB Model """
+"""Tag DB Model"""
 
 from enum import Enum
 from random import randint

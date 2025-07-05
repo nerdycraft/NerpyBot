@@ -31,7 +31,7 @@ test = [
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
     "flake8>=6.0.0",
-    "black[d]>=24.4.2",
+    "black[d]>=25.1.0",
 ]
 migrations = [
     "SQLAlchemy>=2.0",

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-""" AutoDelete Messages """
+"""AutoDelete Messages"""
 
 from sqlalchemy import Integer, BigInteger, Column, Index, Boolean, Text
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-""" Random Memes """
+"""Random Memes"""
 
 from random import randint, choice
 

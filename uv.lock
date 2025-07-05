@@ -608,7 +608,7 @@ migrations = [
     { name = "sqlalchemy", specifier = ">=2.0" },
 ]
 test = [
-    { name = "black", extras = ["d"], specifier = ">=24.4.2" },
+    { name = "black", extras = ["d"], specifier = ">=25.1.0" },
     { name = "flake8", specifier = ">=6.0.0" },
     { name = "pytest", specifier = ">=8.4.1" },
     { name = "pytest-cov", specifier = ">=6.2.1" },

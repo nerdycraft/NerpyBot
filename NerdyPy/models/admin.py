@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-""" default channel dbmodel """
+"""default channel dbmodel"""
 
 from sqlalchemy import BigInteger, Column, DateTime, String, Index
 
