@@ -111,10 +111,16 @@ class Audio:
 
     def _setup_buffer(self, guild_id):
         self.lastPlayed[guild_id] = datetime.now()
+        if guild_id in self.buffer:
+            channel = self.buffer[guild_id][BufferKey.CHANNEL]
+            voice_client = self.buffer[guild_id][BufferKey.VOICE_CLIENT]
+        else:
+            channel = None
+            voice_client = None
         self.buffer[guild_id] = {
-            BufferKey.CHANNEL: None,
+            BufferKey.CHANNEL: channel,
             BufferKey.QUEUE: queue.Queue(),
-            BufferKey.VOICE_CLIENT: None,
+            BufferKey.VOICE_CLIENT: voice_client,
         }
 
     async def _update_buffer(self, guild_id):
