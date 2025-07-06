@@ -2,7 +2,9 @@
 
 from datetime import datetime, UTC
 from io import BytesIO
+from random import randint
 
+from discord import FFmpegOpusAudio
 from discord.app_commands import command, guild_only, rename
 from discord.ext.commands import (
     Cog,
@@ -233,15 +235,18 @@ class Tagging(Cog):
             _tag = Tag.get(song.fetch_data, song.channel.guild.id, session)
             random_entry = _tag.get_random_entry()
 
-            song.stream = BytesIO(random_entry.ByteContent)
-            song.volume = _tag.Volume
+            volume_multiplier = _tag.Volume / 100
+
+            # Create FFmpegOpusAudio with volume adjustment
+            data = BytesIO(random_entry.ByteContent)
+            song.stream = FFmpegOpusAudio(data, pipe=True, options=f"-filter:a volume={volume_multiplier}")
 
     @staticmethod
     def _add_tag_entries(session, _tag, entry):
         if _tag.Type == TagType.text.value or _tag.Type == TagType.url.value:
             _tag.add_entry(entry, session)
         elif _tag.Type is TagType.sound.value:
-            _tag.add_entry(entry, session, byt=download(entry, True))
+            _tag.add_entry(entry, session, byt=download(entry, tag=True))
 
 
 async def setup(bot):
