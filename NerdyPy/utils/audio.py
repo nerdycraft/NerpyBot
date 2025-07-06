@@ -74,10 +74,10 @@ class Audio:
         self._timeout_manager.start()
 
     async def _play(self, song):
-        await self._join_channel(song.channel)
         if song.stream is None:
             self.bot.log.debug(f"Fetching song buffer for {song.title} in channel {song.channel.name} ({song.channel.id})")
             await song.fetch_buffer()
+        await self._join_channel(song.channel)
 
         if not song.channel.guild.voice_client or not song.channel.guild.voice_client.is_connected():
             self.bot.log.error(f"Failed to connect to voice channel {song.channel.name} ({song.channel.id})")

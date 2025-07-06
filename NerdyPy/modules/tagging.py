@@ -2,7 +2,6 @@
 
 from datetime import datetime, UTC
 from io import BytesIO
-from random import randint
 
 from discord import FFmpegOpusAudio
 from discord.app_commands import command, guild_only, rename
