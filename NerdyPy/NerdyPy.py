@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from datetime import datetime, UTC
 from pathlib import Path
 from traceback import print_exc, print_tb, format_exc
-from typing import List
+from typing import List, Any, Generator
 import yaml
 
 from discord import (
@@ -34,9 +34,9 @@ from discord.ext.commands import (
     CommandError,
     Context,
 )
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, QueuePool
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 
 from models.admin import GuildPrefix
 from utils import logging
@@ -76,6 +76,7 @@ class NerpyBot(Bot):
         if "database" not in config:
             self.log.warning("No Database specified! Fallback to local SQLite Database!")
             db_connection_string = "sqlite:///db.db"
+            db_type = "sqlite"
         else:
             database_config = config["database"]
             db_type = database_config["db_type"]
@@ -99,7 +100,12 @@ class NerpyBot(Bot):
             db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
             db_connection_string = f"{db_type}://{db_authentication}/{db_name}"
 
-        self.ENGINE = create_engine(db_connection_string)
+        self.ENGINE = create_engine(
+            db_connection_string,
+            poolclass=QueuePool,
+            pool_size=10,
+            max_overflow=20 if db_type.startswith("sqlite") else 0,  # SQLite does not support overflow
+        )
         self.SESSION = sessionmaker(bind=self.ENGINE, expire_on_commit=False)
 
     def create_all(self) -> None:
@@ -107,7 +113,7 @@ class NerpyBot(Bot):
         BASE.metadata.create_all(self.ENGINE)
 
     @contextmanager
-    def session_scope(self) -> object:
+    def session_scope(self) -> Generator[Session, Any, None]:
         """Provide a transactional scope around a series of operations.
 
         :rtype: object
