@@ -75,7 +75,9 @@ class Audio:
 
     async def _play(self, song):
         if song.stream is None:
-            self.bot.log.debug(f"Fetching song buffer for {song.title} in channel {song.channel.name} ({song.channel.id})")
+            self.bot.log.debug(
+                f"Fetching song buffer for {song.title} in channel {song.channel.name} ({song.channel.id})"
+            )
             await song.fetch_buffer()
         await self._join_channel(song.channel)
 
