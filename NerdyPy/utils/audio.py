@@ -9,7 +9,6 @@ import queue
 from datetime import datetime
 import logging
 
-import discord
 from discord import VoiceChannel
 from discord.ext import tasks
 
@@ -25,9 +24,10 @@ class BufferKey(enum.Enum):
 class QueuedSong:
     """Models Class for Queued Songs"""
 
-    def __init__(self, channel: VoiceChannel, fetcher, fetch_data, title=None):
+    def __init__(self, channel: VoiceChannel, fetcher, fetch_data, title: str = None, idn: str = None):
         self.stream = None
         self.title = title
+        self.idn = idn
         self.channel = channel
         self._fetcher = fetcher
         self.fetch_data = fetch_data

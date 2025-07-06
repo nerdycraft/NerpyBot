@@ -140,8 +140,8 @@ class Music(GroupCog):
             await ctx.send_help(ctx.command)
         else:
             video_title = video_infos["title"]
+            video_idn = video_infos["id"]
             video_thumbnail = video_infos.get("thumbnails", [dict()])[0].get("url")
-            stream_url = video_infos.get("url", video_infos.get("webpage_url"))
             self.bot.log.info(f'"{ctx.guild.name}" requesting "{video_title}" to play')
             emb = Embed(
                 title="Added Song to Queue!",
@@ -151,7 +151,7 @@ class Music(GroupCog):
             if video_thumbnail is not None:
                 emb.set_thumbnail(url=video_thumbnail)
 
-            song = QueuedSong(ctx.author.voice.channel, self._fetch, stream_url, video_title)
+            song = QueuedSong(ctx.author.voice.channel, self._fetch, video_url, video_title, video_idn)
             if ctx.interaction is not None:
                 await followup.send(embed=emb)
             else:
@@ -169,7 +169,7 @@ class Music(GroupCog):
 
     @staticmethod
     def _fetch(song: QueuedSong):
-        song.stream = download(song.fetch_data, song.title)
+        song.stream = download(song.fetch_data, video_id=song.idn)
 
 
 async def setup(bot):
