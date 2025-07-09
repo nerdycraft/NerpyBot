@@ -25,6 +25,7 @@ from discord import (
     Game,
 )
 from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError
+from discord.ext.commands.hybrid import HybridAppCommand
 from discord.ext import commands
 from discord.ext.commands import (
     Bot,
@@ -129,6 +130,44 @@ class NerpyBot(Bot):
         finally:
             session.close()
 
+    async def commands_need_sync(self):
+        # Get currently registered commands from Discord
+        global_app_commands = await self.tree.fetch_commands()
+
+        # Get local commands
+        local_commands = [cmd for cmd in self.tree.get_commands()]
+
+        # If the count differs, we need to synchronize
+        if len(global_app_commands) != len(local_commands):
+            return True
+
+        # Compare each command
+        for local_cmd in local_commands:
+            # Find the corresponding global command
+            matching_global_cmd = next(
+                (cmd for cmd in global_app_commands if cmd.name == local_cmd.name),
+                None,
+            )
+
+            # If no corresponding command was found or
+            # properties differ, we need to synchronize
+            if not matching_global_cmd or (local_cmd.description != matching_global_cmd.description):
+                return True
+
+            # Check command options
+            for local_opt, global_opt in zip(
+                getattr(local_cmd, "options", []), getattr(matching_global_cmd, "options", [])
+            ):
+                if (
+                    local_opt.name != global_opt.name
+                    or local_opt.description != global_opt.description
+                    or str(local_opt.type) != str(global_opt.type)
+                ):
+                    return True
+
+        # No changes found
+        return False
+
     async def setup_hook(self) -> None:
         """
         Discord Bot setup_hook
@@ -151,16 +190,31 @@ class NerpyBot(Bot):
         self.create_all()
 
         # sync commands
-        try:
-            self.log.info("Syncing commands...")
-            synced_cmds = await self.tree.sync()
-        except (HTTPException, CommandSyncFailure, Forbidden, MissingApplicationID, TranslationError) as ex:
-            self.log.debug(ex)
-            raise NerpyException("Could not sync commands to Discord API.")
-        else:
-            self.log.info(f"Synced commands: {', '.join(cmds.name for cmds in synced_cmds)}")
+        if await self.commands_need_sync():
+            try:
+                # Get existing commands before sync
+                existing_commands = {cmd.name: cmd for cmd in await self.tree.fetch_commands()}
 
-    async def on_ready(self) -> None:
+                self.log.info("Syncing commands...")
+                synced_cmds = await self.tree.sync()
+
+                # Compare commands after sync
+                new_commands = {cmd.name for cmd in synced_cmds}
+                removed_commands = set(existing_commands.keys()) - new_commands
+
+                if synced_cmds:
+                    self.log.info(f"Added/Updated commands: {', '.join(cmd.name for cmd in synced_cmds)}")
+                if removed_commands:
+                    self.log.info(f"Removed commands: {', '.join(removed_commands)}")
+                if not synced_cmds and not removed_commands:
+                    self.log.info("No commands were changed")
+
+            except (HTTPException, CommandSyncFailure, Forbidden, MissingApplicationID, TranslationError) as ex:
+                raise NerpyException("Could not sync commands to Discord API.")
+        else:
+            self.log.info("No commands need to be synced.")
+
+    async def on_ready(self):
         """calls when successfully logged in"""
         self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
 
@@ -357,6 +411,7 @@ if __name__ == "__main__":
 """
     )
 
+    RUNNING = True
     ARGS = parse_arguments()
     CONFIG = parse_config(ARGS.config)
     INTENTS = get_intents()
