@@ -16,7 +16,6 @@ bot = [
     "SQLAlchemy>=2.0,<2.1",
     "pymysql>=1.1,<1.2",
     "ffmpeg-python>=0.2,<0.3",
-    "BlizzardWarcraftAPI>=0.2.7.2,<0.3",
     "pytimeparse2>=1.7,<1.8",
     "humanize>=4,<5",
     "igdb-api-v4>=0.3,<0.4",
@@ -27,6 +26,7 @@ bot = [
     "youtube-dl",
     "pynacl>=1.5.0",
     "pyyaml>=6.0.2",
+    "blizzapi>=1.0.2",
 ]
 test = [
     "pytest>=8.4.1",
