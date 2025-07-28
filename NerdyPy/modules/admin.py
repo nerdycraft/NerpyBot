@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime, UTC
+from typing import Optional, Literal
 
-from discord.app_commands import checks
-from discord.ext.commands import Cog, group, Context
+from discord import Object, HTTPException, Forbidden
+from discord.app_commands import checks, CommandSyncFailure, MissingApplicationID, TranslationError
+from discord.ext.commands import Cog, group, Context, command, guild_only, Greedy
 
 from models.admin import GuildPrefix
+from utils.errors import NerpyException
 
 
 @checks.has_permissions(administrator=True)
@@ -58,6 +61,41 @@ class Admin(Cog):
         with self.bot.session_scope() as session:
             GuildPrefix.delete(ctx.guild.id, session)
         await ctx.send("Prefix removed.")
+
+    @command(name="sync")
+    @guild_only()
+    async def sync(
+        self, ctx: Context, guilds: Greedy[Object], spec: Optional[Literal["local", "copy", "clear"]] = None
+    ) -> None:
+        if not guilds:
+            if spec == "local":
+                synced = await self.bot.tree.sync(guild=ctx.guild)
+            elif spec == "copy":
+                self.bot.tree.copy_global_to(guild=ctx.guild)
+                synced = await self.bot.tree.sync(guild=ctx.guild)
+            elif spec == "clear":
+                self.bot.tree.clear_commands(guild=ctx.guild)
+                await self.bot.tree.sync(guild=ctx.guild)
+                synced = []
+            else:
+                synced = await self.bot.tree.sync()
+
+            await ctx.send(f"Synced {len(synced)} commands {'globally' if spec is None else 'to the current guild.'}")
+            return
+
+        ret = 0
+        for guild in guilds:
+            try:
+                await self.bot.tree.sync(guild=guild)
+            except HTTPException:
+                pass
+            except (CommandSyncFailure, Forbidden, MissingApplicationID, TranslationError) as ex:
+                self.bot.log.debug(ex)
+                raise NerpyException("Could not sync commands to Discord API.")
+            else:
+                ret += 1
+
+        await ctx.send(f"Synced the tree to {ret}/{len(guilds)}.")
 
 
 async def setup(bot):
