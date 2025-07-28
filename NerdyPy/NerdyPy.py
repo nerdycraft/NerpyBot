@@ -3,20 +3,16 @@
 Main Class of the NerpyBot
 """
 
-from argparse import Namespace, ArgumentParser
-from asyncio import run
+import json
+import traceback
 from contextlib import contextmanager
-from datetime import datetime, UTC
+from datetime import datetime
 from pathlib import Path
-from traceback import print_exc, print_tb, format_exc
-from typing import List, Any, Generator
-import yaml
+from typing import List
 
 from discord import (
-    HTTPException,
     LoginFailure,
     app_commands,
-    Forbidden,
     Intents,
     ClientException,
     RawReactionActionEvent,
@@ -24,7 +20,6 @@ from discord import (
     DMChannel,
     Game,
 )
-from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError
 from discord.ext import commands
 from discord.ext.commands import (
     Bot,
@@ -134,7 +129,12 @@ class NerpyBot(Bot):
         Discord Bot setup_hook
         Loads Modules and creates Databases
 
-        Also syncs Slash Commands to the discord api
+        return False
+
+    async def setup_hook(self) -> None:
+        """
+        Discord Bot setup_hook
+        Loads Modules and creates Databases
         """
         # load modules
         for module in self.modules:
@@ -149,16 +149,6 @@ class NerpyBot(Bot):
 
         # create database/tables and such stuff
         self.create_all()
-
-        # sync commands
-        try:
-            self.log.info("Syncing commands...")
-            synced_cmds = await self.tree.sync()
-        except (HTTPException, CommandSyncFailure, Forbidden, MissingApplicationID, TranslationError) as ex:
-            self.log.debug(ex)
-            raise NerpyException("Could not sync commands to Discord API.")
-        else:
-            self.log.info(f"Synced commands: {', '.join(cmds.name for cmds in synced_cmds)}")
 
     async def on_ready(self) -> None:
         """calls when successfully logged in"""
