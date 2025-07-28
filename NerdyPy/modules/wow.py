@@ -3,7 +3,7 @@
 from datetime import datetime as dt, timedelta as td
 
 import requests
-from BlizzardWarcraftAPI import BlizzardAuthToken, BlizzardWarcraftAPI
+from blizzapi import RetailClient, Region
 from discord import Embed, Color
 from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions, Context
 
@@ -20,7 +20,8 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
         self.bot = bot
         self.config = bot.config
-        self.api_token = BlizzardAuthToken(self.config["wow"]["wow_id"], self.config["wow"]["wow_secret"]).get()
+        self.client_id = self.config["wow"]["wow_id"]
+        self.client_secret = self.config["wow"]["wow_secret"]
         self.regions = ["eu", "us"]
 
     @staticmethod
@@ -39,12 +40,19 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         return f"{url}/{profile}"
 
     async def _get_character(self, realm, region, name):
-        api = BlizzardWarcraftAPI(self.api_token, region, "en_GB")
-        profile = api.Profile()
+        if region not in self.regions:
+            raise NerpyException(f"Invalid region: {region}. Valid regions are: {', '.join(self.regions)}")
+        try:
+            api = RetailClient(
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+                region=Region(region),
+            )
+        except ValueError as ex:
+            raise NerpyException(f"Invalid region: {region}") from ex
 
-        profile.get_CharacterProfileStatus(realm, name)
-        character = profile.get_CharacterProfileSummary(realm, name)
-        assets = profile.get_CharacterMediaSummary(realm, name).get("assets", list())
+        character = api.character_profile_summary(realmSlug=realm, characterName=name)
+        assets = api.character_media(realmSlug=realm, characterName=name).get("assets", list())
         profile_picture = "".join(asset.get("value") for asset in assets if asset.get("key") == "avatar")
 
         return character, profile_picture
@@ -109,7 +117,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 character, profile_picture = await self._get_character(realm, region, name)
 
                 if character.get("code") == 404:
-                    raise NerpyException
+                    raise NerpyException("No Character with this name found.")
 
                 best_keys = self._get_best_mythic_keys(region, realm, name)
                 rio_score = self._get_raiderio_score(region, realm, name)
@@ -149,8 +157,8 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 )
 
             await ctx.send(embed=emb)
-        except NerpyException:
-            await send_hidden_message(ctx, "No Character with this name found.")
+        except NerpyException as ex:
+            await send_hidden_message(ctx, str(ex))
 
 
 async def setup(bot):
