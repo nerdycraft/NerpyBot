@@ -10,6 +10,8 @@ from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions, 
 from utils.errors import NerpyException
 from utils.helpers import send_hidden_message
 
+from models.wow import WoW
+
 
 @bot_has_permissions(send_messages=True, embed_links=True)
 class WorldofWarcraft(GroupCog, group_name="wow"):
