@@ -72,6 +72,11 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         except ValueError as ex:
             raise NerpyException from ex
 
+    async def _get_guild_activity(self, realm: str, region: str, name: str, guild_id: int) -> Dict:
+        """ Get guild activity from the WoW API. """
+        api = await self._get_retailclient(region, guild_id)
+        return api.guild_activity(realmSlug=realm, nameSlug=name)
+
     async def _get_character(self, realm: str, region: str, name: str, guild_id: int) -> Tuple[Dict, LiteralString]:
         """Get character profile and media from the WoW API."""
         api = await self._get_retailclient(region, guild_id)
@@ -221,6 +226,83 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             await ctx.send(embed=emb)
         except NerpyException as ex:
             await send_hidden_message(ctx, str(ex))
+
+    @hybrid_group(name="guildnews", aliases=["guild", "gn", "gnews"])
+    async def _guild_news(self, ctx: Context):
+        if ctx.invoked_subcommand is None:
+            args = str(ctx.message.clean_content).split(" ")
+            if len(args) > 2:
+                raise NerpyException("Command not found!")
+            elif len(args) <= 1:
+                await ctx.send_help(ctx.command)
+            else:
+                await ctx.send(args[1])
+
+    @_guild_news.command(name="add")
+    async def _guild_news_add(self, ctx: Context, name: str, realm: str, region: Optional[Literal["eu", "us"]] = "eu"):
+        """ Display guild activity with focus on item loots """
+        try:
+            async with ctx.typing():
+                realm = realm.lower()
+                name = name.replace(" ", "-").lower()
+
+                # noinspection PyTypeChecker
+                guild_activity = await self._get_guild_activity(realm, region, name, ctx.guild.id)
+
+                if guild_activity.get("code") == 404:
+                    raise NerpyException("No Guild with this name found.")
+
+                # Create embed for guild activity
+                embed = Embed(
+                    title=f"Guild Activity for {guild_activity["guild"]["name"]} - {realm.capitalize()}",
+                    color=Color.blue()
+                )
+
+                # Process activities focusing on item loots
+                if "activities" in guild_activity:
+                    loot_activities = []
+                    for activity in guild_activity["activities"]:
+                        if activity.get("type") == "LOOT":
+                            item = activity.get("item", {})
+                            character = activity.get("character", {})
+                            timestamp = activity.get("timestamp", "")
+
+                            if item and character:
+                                loot_activities.append({
+                                    "item_name": item.get("name", "Unknown Item"),
+                                    "item_quality": item.get("quality", {}).get("type", "COMMON"),
+                                    "character_name": character.get("name", "Unknown"),
+                                    "timestamp": dt.fromtimestamp(int(timestamp)/1000) if timestamp else None
+                                })
+
+                    if loot_activities:
+                        # Sort by most recent first
+                        loot_activities.sort(key=lambda x: x["timestamp"] if x["timestamp"] else dt.min, reverse=True)
+
+                        # Format loot entries
+                        loot_text = ""
+                        for loot in loot_activities:
+                            time_str = loot["timestamp"].strftime("%Y-%m-%d %H:%M") if loot["timestamp"] else "Unknown time"
+                            loot_text += f"{time_str} - {loot['character_name']} obtained {loot['item_name']} ({loot['item_quality']})\n"
+
+                        embed.add_field(
+                            name="Recent Loot Activity",
+                            value=loot_text[:1024] if len(loot_text) > 1024 else loot_text or "No recent loot activity",
+                            inline=False
+                        )
+                    else:
+                        embed.add_field(
+                            name="Recent Loot Activity",
+                            value="No loot activity found",
+                            inline=False
+                        )
+
+                await ctx.send(embed=embed)
+
+        except NerpyException as ex:
+            await send_hidden_message(ctx, str(ex))
+        except Exception as ex:
+            await send_hidden_message(ctx, f"Error fetching guild activity: {str(ex)}")
 
 
 async def setup(bot):
