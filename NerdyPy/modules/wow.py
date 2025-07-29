@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime as dt, timedelta as td
+from typing import Literal, Optional, Dict, LiteralString, Tuple
 
 import requests
 from blizzapi import RetailClient, Region
 from discord import Embed, Color
-from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions, Context
+from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions, Context, hybrid_group
 
 from utils.errors import NerpyException
 from utils.helpers import send_hidden_message
@@ -41,17 +42,23 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
         return f"{url}/{profile}"
 
-    async def _get_character(self, realm, region, name):
+    async def _get_retailclient(self, region: str, guild_id: int):
         if region not in self.regions:
             raise NerpyException(f"Invalid region: {region}. Valid regions are: {', '.join(self.regions)}")
+
         try:
-            api = RetailClient(
+            # noinspection PyTypeChecker
+            return RetailClient(
                 client_id=self.client_id,
                 client_secret=self.client_secret,
                 region=Region(region),
             )
         except ValueError as ex:
             raise NerpyException(f"Invalid region: {region}") from ex
+
+    async def _get_character(self, realm: str, region: str, name: str, guild_id: int) -> Tuple[Dict, LiteralString]:
+        """Get character profile and media from the WoW API."""
+        api = await self._get_retailclient(region, guild_id)
 
         character = api.character_profile_summary(realmSlug=realm, characterName=name)
         assets = api.character_media(realmSlug=realm, characterName=name).get("assets", list())
@@ -102,7 +109,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         return None
 
     @hybrid_command(name="armory", aliases=["search", "char"])
-    async def _wow_armory(self, ctx: Context, name: str, realm: str, region: str = "eu"):
+    async def _wow_armory(self, ctx: Context, name: str, realm: str, region: Optional[Literal["eu", "us"]] = "eu"):
         """
         search for character
 
@@ -116,7 +123,8 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 name = name.lower()
                 profile = f"{region}/{realm}/{name}"
 
-                character, profile_picture = await self._get_character(realm, region, name)
+                # noinspection PyTypeChecker
+                character, profile_picture = await self._get_character(realm, region, name, ctx.guild.id)
 
                 if character.get("code") == 404:
                     raise NerpyException("No Character with this name found.")
