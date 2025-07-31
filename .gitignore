@@ -5,6 +5,7 @@ NerdyPy/*.dll
 NerdyPy/tmp/
 NerdyPy/config.yaml
 NerdyPy/config_humanmusic.yaml
+NerdyPy/weather_cache.sqlite
 NerpyBot.code-workspace
 
 ### macOS template

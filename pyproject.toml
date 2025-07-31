@@ -27,6 +27,9 @@ bot = [
     "pynacl>=1.5.0",
     "pyyaml>=6.0.2",
     "blizzapi>=1.0.2",
+    "openweather-wrapper>=0.1.1",
+    "requests-cache>=1.2.1",
+    "matplotlib>=3.10.3",
 ]
 test = [
     "pytest>=8.4.1",
