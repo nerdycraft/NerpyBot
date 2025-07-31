@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - 'main'
+
+jobs:
+  bump-and-release:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # for pushing commits, tags & creating releases
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Determine bump level
+        id: bump
+        run: |
+          echo "COMMIT_MSG<<EOF" >> $GITHUB_OUTPUT
+          echo "${{ github.event.head_commit.message }}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          LEVEL=$(echo "${{ steps.bump.outputs.COMMIT_MSG }}" \
+            | grep -Eio 'bump: (patch|minor|major)' \
+            | awk '{print $2}' || echo patch)
+          echo "level=$LEVEL" >> $GITHUB_OUTPUT
+
+      - name: Bump version with uv
+        id: version
+        run: |
+          uv version --bump ${{ steps.bump.outputs.level }}
+          NEW=$(uv version --short)
+          echo "new_version=$NEW" >> $GITHUB_OUTPUT
+
+      - name: Commit version bump
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: 'Bump version to v${{ steps.version.outputs.new_version }}'
+          file_pattern: 'pyproject.toml'
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ steps.version.outputs.new_version }}
+          name: v${{ steps.version.outputs.new_version }}
+          commit: ${{ github.ref_name }}
+          generate_release_notes: true
