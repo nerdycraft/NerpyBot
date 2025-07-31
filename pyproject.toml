@@ -39,9 +39,11 @@ migrations = [
     "alembic>=1.16.2",
 ]
 
-[tool.black]
-target-version = ["py312"]
-line-length = "120"
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+line-ending = "lf"
 
 [tool.uv]
 default-groups = ["bot"]
