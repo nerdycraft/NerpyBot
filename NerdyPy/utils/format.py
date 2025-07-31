@@ -7,22 +7,23 @@ from html.parser import HTMLParser
 class MLStripper(HTMLParser):
     """Markup Language Stripper"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.reset()
         self.strict = False
         self.convert_charrefs = True
-        self.fed = []
+        self.fed: list[str] = []
 
-    def handle_data(self, data):
+    def handle_data(self, data: str) -> None:
         """handle data"""
         self.fed.append(data)
 
-    def get_data(self):
+    def get_data(self) -> str:
         """return data"""
         return "".join(self.fed)
 
-    def error(self, message):
+    @staticmethod
+    def error(message):
         """had to do this cuz abstract"""
         return message
 

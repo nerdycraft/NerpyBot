@@ -14,7 +14,8 @@ def empty_subcommand(ctx: Context):
         if len(args) > 2:
             raise NerpyException("Command not found!")
         elif len(args) <= 1:
-            return ctx.send_help(ctx.command)
+            ctx.send_help(ctx.command)
+    return
 
 
 def youtube(yt_key, return_type, query):
