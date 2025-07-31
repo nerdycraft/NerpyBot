@@ -29,7 +29,7 @@ RUN apk add --no-cache \
         git \
         libffi-dev
 
-RUN uv sync --no-managed-python --only-group bot
+RUN uv sync --frozen --no-managed-python --only-group bot
 
 
 FROM base AS bot
@@ -52,7 +52,7 @@ LABEL org.opencontainers.image.description="NerpyBot, the nerdiest Python Bot"
 
 FROM base AS migrations
 
-RUN uv sync --no-managed-python --only-group migrations
+RUN uv sync --frozen --no-managed-python --only-group migrations
 
 COPY --chown=${UID} alembic.ini /app/
 COPY --chown=${UID} database-migrations /app/database-migrations/
