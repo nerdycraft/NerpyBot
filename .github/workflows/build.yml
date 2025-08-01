@@ -25,29 +25,29 @@ jobs:
       changed_docker: ${{ steps.changed_docker.outputs.any_changed }}
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Get all src files that have changed
-      id: changed_python
-      uses: tj-actions/changed-files@v46
-      with:
-        files_yaml: |
-          database-migrations:
-            - database_migrations/**
-            - alembic.ini
-          nerpybot:
-            - NerdyPy/**
-            - '!NerdyPy/**.template'
-            - pyproject.toml
-            - uv.lock
+      - name: Get all src files that have changed
+        id: changed_python
+        uses: tj-actions/changed-files@v46
+        with:
+          files_yaml: |
+            database-migrations:
+              - database_migrations/**
+              - alembic.ini
+            nerpybot:
+              - NerdyPy/**
+              - '!NerdyPy/**.template'
+              - pyproject.toml
+              - uv.lock
 
-    - name: Get all Docker related files that have changed
-      id: changed_docker
-      uses: tj-actions/changed-files@v46
-      with:
-        files: |
-          Dockerfile
-          .dockerignore
+      - name: Get all Docker related files that have changed
+        id: changed_docker
+        uses: tj-actions/changed-files@v46
+        with:
+          files: |
+            Dockerfile
+            .dockerignore
 
   build_db_migrations:
     needs:

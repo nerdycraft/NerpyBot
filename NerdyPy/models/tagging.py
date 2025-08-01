@@ -4,10 +4,9 @@
 from enum import Enum
 from random import randint
 
-from discord.ext.commands import Converter, Context
-from sqlalchemy import BigInteger, Column, DateTime, Integer, String, Index, asc, ForeignKey, LargeBinary
+from discord.ext.commands import Context, Converter
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Index, Integer, LargeBinary, String, asc
 from sqlalchemy.orm import relationship
-
 from utils import database as db
 from utils.errors import NerpyException
 

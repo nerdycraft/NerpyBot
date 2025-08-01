@@ -3,16 +3,15 @@
 download and conversion method for Audio Content
 """
 
-import os
 import logging
+import os
 from io import BytesIO
 
 import ffmpeg
 import requests
 import youtube_dl
-from discord import FFmpegOpusAudio
 from cachetools import TTLCache
-
+from discord import FFmpegOpusAudio
 from utils.errors import NerpyException
 
 LOG = logging.getLogger("nerpybot")

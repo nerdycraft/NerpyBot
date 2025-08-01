@@ -1,6 +1,7 @@
-#NerpyBot
+# NerpyBot
 
 ## Quickstart
+
 I recommend using a virtualenv or container to run.
 
 Rename or copy `config.yaml.template` to `config.yaml` and fill in your tokens before starting the bot.
@@ -10,6 +11,7 @@ Install dependencies first: `uv sync`
 Start Bot with: `python NerdyPy.py`
 
 ## Database
+
 Currently tested and support are only SQLite and MariaDB or MySQL.
 If you want to use any other database then the above, please specify database type and the connection helper, like so:
 
@@ -17,6 +19,7 @@ If you want to use any other database then the above, please specify database ty
 database:
   db_type: postgresql+psycopg2
 ```
+
 For anything else the engine name is enough.
 
 Also, do not forget to install the necessary python packages for your helper.
@@ -30,6 +33,7 @@ database:
 ```
 
 MySQL Example:
+
 ```yaml
 database:
   db_type: mysql
@@ -41,6 +45,7 @@ database:
 ```
 
 ## Configuration Example
+
 Here's a full example of the config.yaml structure:
 
 ```yaml
@@ -90,6 +95,9 @@ wow:
 ```
 
 # Join NerdyBot
+
 https://discord.com/api/oauth2/authorize?client_id=246941850223640576&permissions=582632143842386&scope=applications.commands+bot
+
 # Join HumanMusic
+
 https://discord.com/api/oauth2/authorize?client_id=883656077357510697&permissions=414467959360&scope=applications.commands+bot

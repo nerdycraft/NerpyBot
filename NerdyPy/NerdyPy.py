@@ -3,42 +3,41 @@
 Main Class of the NerpyBot
 """
 
-from argparse import Namespace, ArgumentParser
+from argparse import ArgumentParser, Namespace
 from asyncio import run
 from contextlib import contextmanager
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
-from traceback import print_exc, print_tb, format_exc
-from typing import List, Any, Generator
-import yaml
+from traceback import format_exc, print_exc, print_tb
+from typing import Any, Generator, List
 
+import yaml
 from discord import (
-    LoginFailure,
-    app_commands,
-    Intents,
     ClientException,
-    RawReactionActionEvent,
-    Message,
     DMChannel,
     Game,
+    Intents,
+    LoginFailure,
+    Message,
+    RawReactionActionEvent,
+    app_commands,
 )
 from discord.ext import commands
 from discord.ext.commands import (
     Bot,
     CheckFailure,
-    ExtensionFailed,
-    CommandNotFound,
     CommandError,
+    CommandNotFound,
     Context,
+    ExtensionFailed,
 )
+from models.admin import GuildPrefix
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import sessionmaker, Session
-
-from models.admin import GuildPrefix
+from sqlalchemy.orm import Session, sessionmaker
 from utils import logging
 from utils.audio import Audio
-from utils.conversation import ConversationManager, AnswerType
+from utils.conversation import AnswerType, ConversationManager
 from utils.database import BASE
 from utils.errors import NerpyException
 from utils.helpers import send_hidden_message

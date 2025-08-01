@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 
-from random import randint, choice
+from random import choice, randint
 from typing import Optional
 
 from discord import Member
-from discord.ext.commands import Cog, hybrid_command, bot_has_permissions, Context
-
+from discord.ext.commands import Cog, Context, bot_has_permissions, hybrid_command
 from utils.errors import NerpyException
 
 

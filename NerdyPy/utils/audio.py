@@ -5,9 +5,9 @@ Handling Audio Transmission to discord api
 
 import asyncio
 import enum
+import logging
 import queue
 from datetime import datetime
-import logging
 
 from discord import VoiceChannel
 from discord.ext import tasks

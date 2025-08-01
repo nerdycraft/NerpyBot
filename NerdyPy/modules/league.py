@@ -6,8 +6,7 @@ from typing import Literal
 from aiohttp import ClientSession
 from discord import Embed
 from discord.app_commands import rename
-from discord.ext.commands import GroupCog, hybrid_command, Context
-
+from discord.ext.commands import Context, GroupCog, hybrid_command
 from utils.errors import NerpyException
 
 

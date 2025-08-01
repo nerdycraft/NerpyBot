@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """default channel dbmodel"""
 
-from sqlalchemy import BigInteger, Column, DateTime, String, Index
-
+from sqlalchemy import BigInteger, Column, DateTime, Index, String
 from utils import database as db
 
 

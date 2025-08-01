@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 
 from discord import Embed
-from sqlalchemy import BigInteger, Column, String, Index, ForeignKeyConstraint, Integer, DateTime, asc
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKeyConstraint, Index, Integer, String, asc
 from sqlalchemy.orm import relationship
-
 from utils import database as db
 
 

@@ -2,16 +2,15 @@
 """Search Modul"""
 
 import json
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from aiohttp import ClientSession
 from discord import Embed
 from discord.app_commands import rename
-from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions, Context
+from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_command
 from igdb.wrapper import IGDBWrapper
 from requests import post
-
 from utils import format as fmt
 from utils.errors import NerpyException
 from utils.helpers import youtube

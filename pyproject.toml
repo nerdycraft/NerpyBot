@@ -3,7 +3,7 @@ name = "NerpyBot"
 description = "The nerdiest Bot on Discord!"
 version = "0.4.14"
 authors = [
-    { name="Rico Wesenberg", email="r.wesenberg@gmail.com" },
+    { name = "Rico Wesenberg", email = "r.wesenberg@gmail.com" },
     { name = "Dennis Bernardy", email = "bernardyd@gmail.com" }
 ]
 license = "GPL-3.0-or-later"

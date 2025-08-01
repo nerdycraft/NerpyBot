@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """AutoDelete Messages"""
 
-from sqlalchemy import Integer, BigInteger, Column, Index, Boolean, Text
-
+from sqlalchemy import BigInteger, Boolean, Column, Index, Integer, Text
 from utils import database as db
 
 

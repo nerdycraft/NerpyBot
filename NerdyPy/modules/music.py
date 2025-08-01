@@ -1,23 +1,22 @@
 # -*- coding: utf-8 -*-
 
-from discord import Embed, Color, Interaction
+from discord import Color, Embed, Interaction
 from discord.app_commands import command, guild_only
 from discord.ext.commands import (
-    GroupCog,
-    hybrid_group,
-    check,
-    hybrid_command,
-    bot_has_permissions,
-    has_permissions,
     Context,
+    GroupCog,
+    bot_has_permissions,
+    check,
+    has_permissions,
+    hybrid_command,
+    hybrid_group,
 )
-
 from utils import format as fmt
 from utils.audio import QueuedSong
 from utils.checks import is_connected_to_voice
 from utils.download import download, fetch_yt_infos
 from utils.errors import NerpyException
-from utils.helpers import youtube, send_hidden_message
+from utils.helpers import send_hidden_message, youtube
 
 
 @guild_only()
