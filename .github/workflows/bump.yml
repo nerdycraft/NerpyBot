@@ -22,12 +22,9 @@ jobs:
       - name: Determine bump level
         id: bump
         run: |
-          echo "COMMIT_MSG<<EOF" >> $GITHUB_OUTPUT
-          echo "${{ github.event.head_commit.message }}" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          LEVEL=$(echo "${{ steps.bump.outputs.COMMIT_MSG }}" \
+          LEVEL=$(echo "${{ github.event.head_commit.message }}" \
             | grep -Eio 'bump: (patch|minor|major)' \
-            | awk '{print $2}' || echo patch)
+            | awk '{print $2} END {if (NR==0) print "patch"}')
           echo "level=$LEVEL" >> $GITHUB_OUTPUT
 
       - name: Install the latest version of uv
