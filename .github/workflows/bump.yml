@@ -41,7 +41,8 @@ jobs:
       - name: Commit version bump
         uses: stefanzweifel/git-auto-commit-action@v6
         with:
-          commit_message: 'Bump version to v${{ steps.version.outputs.new_version }}'
+          commit_message: 'Bump version to v${{ steps.version.outputs.new_version }} - [ci skip]'
+          commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>'
           file_pattern: 'pyproject.toml'
           tagging_message: v${{ steps.version.outputs.new_version }}
 
@@ -50,4 +51,4 @@ jobs:
         with:
           tag: v${{ steps.version.outputs.new_version }}
           name: v${{ steps.version.outputs.new_version }}
-          generate_release_notes: true
+          generateReleaseNotes: true
