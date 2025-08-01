@@ -1,10 +1,11 @@
 """Added ReminderMessage to RoleChecker
 
 Revision ID: 121bb784c68a
-Revises: 
+Revises:
 Create Date: 2023-08-26 12:11:19.204787
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op

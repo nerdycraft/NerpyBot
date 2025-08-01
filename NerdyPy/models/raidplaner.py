@@ -38,7 +38,7 @@ class RaidTemplate(db.BASE):
         return len(self.Encounters)
 
     def create_info_embed(self):
-        emb = Embed(title=self.Name, description=f"{self.Description}\n" f"🧑‍🤝‍🧑 {self.PlayerCount}\n\n")
+        emb = Embed(title=self.Name, description=f"{self.Description}\n🧑‍🤝‍🧑 {self.PlayerCount}\n\n")
 
         for enc in self.Encounters:
             emb.description += str(enc)
@@ -152,7 +152,7 @@ class RaidEvent(db.BASE):
         return len(self.Encounters)
 
     def create_info_embed(self):
-        emb = Embed(title=self.Name, description=f"{self.Description}\n" f"🧑‍🤝‍🧑 {self.PlayerCount}\n\n")
+        emb = Embed(title=self.Name, description=f"{self.Description}\n🧑‍🤝‍🧑 {self.PlayerCount}\n\n")
 
         for enc in self.Encounters:
             emb.description += str(enc)

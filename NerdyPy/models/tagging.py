@@ -91,7 +91,7 @@ class Tag(db.BASE):
         msg = f"==== {self.Name} ====\n\n"
         msg += f"Author: {self.Author}\n"
         msg += f"Type: {TagType(self.Type).name}\n"
-        msg += f'Created: {self.CreateDate.strftime("%Y-%m-%d %H:%M")}\n'
+        msg += f"Created: {self.CreateDate.strftime('%Y-%m-%d %H:%M')}\n"
         msg += f"Hits: {self.Count}\n"
         msg += f"Entries: {self.entries.count()}"
         return msg

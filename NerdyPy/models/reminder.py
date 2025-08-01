@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """timed message database model"""
+
 from datetime import timedelta, datetime, UTC
 
 import humanize

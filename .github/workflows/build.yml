@@ -2,17 +2,60 @@ name: Build Docker Image
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v*'
   pull_request:
     branches:
       - 'main'
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
-  build_db_migrations:
+  changed_files:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    outputs:
+      changed_python: ${{ steps.changed_python.outputs.modified_keys }}
+      changed_docker: ${{ steps.changed_docker.outputs.any_changed }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Get all src files that have changed
+      id: changed_python
+      uses: tj-actions/changed-files@v46
+      with:
+        files_yaml: |
+          database-migrations:
+            - database_migrations/**
+            - alembic.ini
+          nerpybot:
+            - NerdyPy/**
+            - '!NerdyPy/**.template'
+            - pyproject.toml
+            - uv.lock
+
+    - name: Get all Docker related files that have changed
+      id: changed_docker
+      uses: tj-actions/changed-files@v46
+      with:
+        files: |
+          Dockerfile
+          .dockerignore
+
+  build_db_migrations:
+    needs:
+      - changed_files
+    if: contains(needs.changed_files.outputs.changed_python, 'database-migrations') || needs.changed_files.outputs.changed_docker == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,7 +66,7 @@ jobs:
         id: docker_meta_database-migrations
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/nerdycraft/nerpybot-database-migrations
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-database-migrations
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -37,7 +80,7 @@ jobs:
       - name: Login to Github Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -53,7 +96,14 @@ jobs:
           cache-to: type=gha,mode=max
 
   build_nerdybot:
+    needs:
+      - changed_files
+    if: contains(needs.changed_files.outputs.changed_python, 'nerpybot') || needs.changed_files.outputs.changed_docker == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,7 +114,7 @@ jobs:
         id: docker_meta_nerpybot
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/nerdycraft/nerpybot
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -78,12 +128,12 @@ jobs:
       - name: Login to Github Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Nerpybot
-        id: build_nerdybot
+        id: build_nerpybot
         uses: docker/build-push-action@v5
         with:
           target: bot

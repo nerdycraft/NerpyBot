@@ -75,35 +75,35 @@ class Utility(Cog):
 
         emb = Embed()
         emb.add_field(
-            name=f':earth_africa: {fmt.bold("location")}',
+            name=f":earth_africa: {fmt.bold('location')}",
             value=f"""[{weather.get("name")},
             {weather.get("sys", dict()).get("country")}](https://openweathermap.org/city/{weather.get("id")})""",
         )
         emb.add_field(
-            name=f':thermometer: {fmt.bold("temperature")}',
+            name=f":thermometer: {fmt.bold('temperature')}",
             value=f"{weather['main']['temp']}°C",
         )
         emb.add_field(
-            name=f':cloud: {fmt.bold("condition")}',
+            name=f":cloud: {fmt.bold('condition')}",
             value=str.join(", ", conditions),
         )
         emb.add_field(
-            name=f':sweat_drops: {fmt.bold("humidity")}',
+            name=f":sweat_drops: {fmt.bold('humidity')}",
             value=f"{weather['main']['humidity']}%",
         )
         emb.add_field(
-            name=f':wind_chime: {fmt.bold("wind")}',
+            name=f":wind_chime: {fmt.bold('wind')}",
             value=f"{weather['wind']['speed']} m/s",
         )
         emb.add_field(
-            name=f'🔆 {fmt.bold("min-max")}',
+            name=f"🔆 {fmt.bold('min-max')}",
             value=f"{weather['main']['temp_min']}°C - {weather['main']['temp_max']}°C",
         )
-        emb.add_field(name=f':city_sunrise: {fmt.bold("sunrise")}', value=f"{sunrise} UTC")
-        emb.add_field(name=f':city_sunset:  {fmt.bold("sunset")}', value=f"{sunset} UTC")
+        emb.add_field(name=f":city_sunrise: {fmt.bold('sunrise')}", value=f"{sunrise} UTC")
+        emb.add_field(name=f":city_sunset:  {fmt.bold('sunset')}", value=f"{sunset} UTC")
         emb.set_footer(
             text="Powered by openweathermap.org",
-            icon_url=f'http://openweathermap.org/img/w/{weather.get("weather", list())[0].get("icon")}.png',
+            icon_url=f"http://openweathermap.org/img/w/{weather.get('weather', list())[0].get('icon')}.png",
         )
 
         await ctx.send(embed=emb)
