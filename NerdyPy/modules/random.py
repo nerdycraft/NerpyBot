@@ -48,8 +48,7 @@ class Random(Cog):
                     raise NerpyException(err)
                 data = await response.json()
                 await ctx.send(
-                    f'{fmt.strip_tags(data[0].get("content").get("rendered"))} - '
-                    f'{data[0].get("title").get("rendered")}'
+                    f"{fmt.strip_tags(data[0].get('content').get('rendered'))} - {data[0].get('title').get('rendered')}"
                 )
 
     @hybrid_command()

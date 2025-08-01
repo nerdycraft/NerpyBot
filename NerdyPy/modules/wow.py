@@ -190,10 +190,10 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 wowprogress = self._get_link("wowprogress", profile)
 
                 emb = Embed(
-                    title=f'{character["name"]} | {realm.capitalize()} | {region.upper()} | {character["active_spec"]["name"]} {character["character_class"]["name"]} | {character["equipped_item_level"]} ilvl',
+                    title=f"{character['name']} | {realm.capitalize()} | {region.upper()} | {character['active_spec']['name']} {character['character_class']['name']} | {character['equipped_item_level']} ilvl",
                     url=armory,
                     color=Color(value=int("0099ff", 16)),
-                    description=f'{character["gender"]["name"]} {character["race"]["name"]}',
+                    description=f"{character['gender']['name']} {character['race']['name']}",
                 )
                 emb.set_thumbnail(url=profile_picture)
                 emb.add_field(name="Level", value=character["level"], inline=True)
@@ -205,7 +205,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 if len(best_keys) > 0:
                     keys = ""
                     for key in best_keys:
-                        keys += f'+{key["level"]} - {key["dungeon"]} - {key["clear_time"]}\n'
+                        keys += f"+{key['level']} - {key['dungeon']} - {key['clear_time']}\n"
 
                     emb.add_field(name="Best M+ Keys", value=keys, inline=True)
                 if rio_score is not None:
