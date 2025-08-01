@@ -6,8 +6,42 @@ on:
       - 'main'
 
 jobs:
+  changed_files:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    outputs:
+      changed_python: ${{ steps.changed_python.outputs.any_changed }}
+      changed_docker: ${{ steps.changed_docker.outputs.any_changed }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Get all src files that have changed
+      id: changed_python
+      uses: tj-actions/changed-files@v46
+      with:
+        files: |
+          database_migrations/**
+          NerdyPy/**
+          '!NerdyPy/**.template'
+          alembic.ini
+          pyproject.toml
+          uv.lock
+
+    - name: Get all Docker related files that have changed
+      id: changed_docker
+      uses: tj-actions/changed-files@v46
+      with:
+        files: |
+          Dockerfile
+          .dockerignore
+
   bump-and-release:
-    if: github.actor != 'github-actions[bot]'
+    needs:
+      - changed_files
+    if: needs.changed_files.outputs.changed_python == 'true' || needs.changed_files.outputs.changed_docker == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write   # for pushing commits, tags & creating releases
