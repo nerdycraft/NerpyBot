@@ -18,6 +18,7 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
 
       - name: Determine bump level
         id: bump
@@ -33,7 +34,7 @@ jobs:
       - name: Bump version with uv
         id: version
         run: |
-          uv version --bump ${{ steps.bump.outputs.level }}
+          uv version --frozen --bump ${{ steps.bump.outputs.level }}
           NEW=$(uv version --short)
           echo "new_version=$NEW" >> $GITHUB_OUTPUT
 
@@ -42,11 +43,11 @@ jobs:
         with:
           commit_message: 'Bump version to v${{ steps.version.outputs.new_version }}'
           file_pattern: 'pyproject.toml'
+          tagging_message: v${{ steps.version.outputs.new_version }}
 
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
           tag: v${{ steps.version.outputs.new_version }}
           name: v${{ steps.version.outputs.new_version }}
-          commit: ${{ github.ref_name }}
           generate_release_notes: true
