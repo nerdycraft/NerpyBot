@@ -30,6 +30,9 @@ jobs:
             | awk '{print $2}' || echo patch)
           echo "level=$LEVEL" >> $GITHUB_OUTPUT
 
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+
       - name: Bump version with uv
         id: version
         run: |
