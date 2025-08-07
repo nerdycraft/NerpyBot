@@ -6,10 +6,12 @@ from enum import Enum
 from typing import Dict, Literal, LiteralString, Optional, Tuple
 
 import requests
-from blizzapi import Language, Region, RetailClient
-from discord import Color, Embed
-from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_command, hybrid_group
+from blizzapi import RetailClient, Region, Language
+from discord import Embed, Color
+from discord.ext.commands import GroupCog, hybrid_command, bot_has_permissions, Context, hybrid_group
+
 from models.wow import WoW
+
 from utils.errors import NerpyException
 from utils.helpers import send_hidden_message, empty_subcommand
 

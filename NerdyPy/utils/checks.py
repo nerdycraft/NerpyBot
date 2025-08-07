@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 from utils.helpers import send_hidden_message
 
 

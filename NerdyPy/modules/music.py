@@ -11,7 +11,8 @@ from discord.ext.commands import (
     hybrid_command,
     hybrid_group,
 )
-from utils import format as fmt
+
+import utils.format as fmt
 from utils.audio import QueuedSong
 from utils.checks import is_connected_to_voice
 from utils.download import download, fetch_yt_infos

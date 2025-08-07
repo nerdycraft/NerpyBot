@@ -6,7 +6,7 @@ from discord import app_commands, Embed
 from discord.ext.commands import Cog, hybrid_command, bot_has_permissions, Context
 from openweather.weather import OpenWeather
 
-from utils import format as fmt
+import utils.format as fmt
 from utils.errors import NerpyException
 from utils.helpers import send_hidden_message
 

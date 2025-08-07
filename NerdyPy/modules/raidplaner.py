@@ -4,8 +4,10 @@ from datetime import UTC, datetime
 from enum import Enum
 
 from discord import Embed
-from discord.ext.commands import Cog, Context, command
-from models.raidplaner import RaidEncounter, RaidEncounterRole, RaidEvent, RaidTemplate
+from discord.ext.commands import Cog, command, Context
+
+from models.raidplaner import RaidTemplate, RaidEncounter, RaidEncounterRole, RaidEvent
+
 from utils.conversation import Conversation
 
 
