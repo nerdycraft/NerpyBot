@@ -8,7 +8,6 @@ from discord.app_commands import checks, rename
 from discord.ext import tasks
 from discord.ext.commands import Cog, Context, command, hybrid_command, hybrid_group
 from humanize import naturaldate
-from models.moderation import AutoDelete, AutoKicker
 from pytimeparse2 import parse
 
 from models.moderation import AutoDelete

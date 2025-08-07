@@ -51,9 +51,7 @@ def convert(source, tag=False, is_stream=True):
             ffmpeg.input("pipe:")
             .filter("loudnorm")
             .output(filename="pipe:", format="mp3", ac=2, ar="48000")
-            .run_async(
-                pipe_stdin=True, pipe_stdout=True, quiet=True, overwrite_output=True
-            )
+            .run_async(pipe_stdin=True, pipe_stdout=True, quiet=True, overwrite_output=True)
         )
         stream, _ = process.communicate(input=source.read())
         return stream
