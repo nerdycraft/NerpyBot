@@ -2,8 +2,8 @@
 
 from datetime import UTC, datetime
 
-from discord import app_commands, Embed
-from discord.ext.commands import Cog, hybrid_command, bot_has_permissions, Context
+from discord import Embed, app_commands
+from discord.ext.commands import Cog, Context, bot_has_permissions, hybrid_command
 from openweather.weather import OpenWeather
 
 import utils.format as fmt
