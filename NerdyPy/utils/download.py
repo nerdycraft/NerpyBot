@@ -9,9 +9,10 @@ from io import BytesIO
 
 import ffmpeg
 import requests
-import youtube_dl
 from discord import FFmpegOpusAudio
 from cachetools import TTLCache
+from yt_dlp import YoutubeDL
+from yt_dlp.utils import DownloadError
 
 from utils.errors import NerpyException
 
@@ -39,7 +40,7 @@ YTDL_ARGS = {
     "default_search": "auto",
     "source_address": "0.0.0.0",  # bind to ipv4 since ipv6 addresses cause issues sometimes
 }
-YTDL = youtube_dl.YoutubeDL(YTDL_ARGS)
+YTDL = YoutubeDL(YTDL_ARGS)
 
 
 def convert(source, tag=False, is_stream=True):
@@ -50,7 +51,9 @@ def convert(source, tag=False, is_stream=True):
             ffmpeg.input("pipe:")
             .filter("loudnorm")
             .output(filename="pipe:", format="mp3", ac=2, ar="48000")
-            .run_async(pipe_stdin=True, pipe_stdout=True, quiet=True, overwrite_output=True)
+            .run_async(
+                pipe_stdin=True, pipe_stdout=True, quiet=True, overwrite_output=True
+            )
         )
         stream, _ = process.communicate(input=source.read())
         return stream
@@ -66,7 +69,7 @@ def lookup_file(file_name):
 
 
 def fetch_yt_infos(url: str):
-    """Fetches information about a youtube video"""
+    """Fetches information about a YouTube video"""
     if url in CACHE:
         LOG.info("Using cached information for URL: %s", url)
         return CACHE[url]
@@ -75,7 +78,7 @@ def fetch_yt_infos(url: str):
     data = None
     try:
         data = YTDL.extract_info(url, download=False)
-    except youtube_dl.utils.DownloadError as e:
+    except DownloadError as e:
         if "Sign in to confirm you’re not a bot" in str(e):
             data = YTDL.extract_info(url, download=False)
 
@@ -96,14 +99,14 @@ def download(url: str, tag: bool = False, video_id: str = None):
             audio_bytes = BytesIO(response.content)
 
         if audio_bytes is None:
-            raise NerpyException(f"could not find a valid source in: {url}")
+            raise NerpyException(f"Could not find a valid source in: {url}")
 
         return convert(audio_bytes, tag)
     else:
-        dlfile = lookup_file(video_id)
+        dl_file = lookup_file(video_id)
 
-        if dlfile is None:
+        if dl_file is None:
             _ = YTDL.download([url])
-            dlfile = lookup_file(video_id)
+            dl_file = lookup_file(video_id)
 
-        return convert(dlfile, is_stream=False)
+        return convert(dl_file, is_stream=False)
