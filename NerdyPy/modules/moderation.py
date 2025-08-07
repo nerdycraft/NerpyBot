@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from datetime import timezone, time, datetime, timedelta, UTC
+from datetime import time, datetime, timedelta, UTC
 from typing import Optional, Union
 
 from discord import Embed, Member, TextChannel
@@ -17,9 +17,8 @@ import utils.format as fmt
 from utils.errors import NerpyException
 from utils.helpers import empty_subcommand, send_hidden_message
 
-utc = timezone.utc
 # If no tzinfo is given then UTC is assumed.
-loop_run_time = time(hour=12, minute=30, tzinfo=utc)
+LOOP_RUN_TIME = time(hour=12, minute=30, tzinfo=UTC)
 
 
 class Moderation(Cog):
@@ -36,7 +35,7 @@ class Moderation(Cog):
         self._autokicker_loop.cancel()
         self._autodeleter_loop.cancel()
 
-    @tasks.loop(time=loop_run_time)
+    @tasks.loop(time=LOOP_RUN_TIME)
     async def _autokicker_loop(self):
         self.bot.log.debug("Start Autokicker Loop!")
         try:
@@ -53,9 +52,9 @@ class Moderation(Cog):
                         if len(member.roles) == 1:
                             self.bot.log.debug(f"Found member without role: {member.display_name}")
                             kick_reminder = datetime.now(UTC) - timedelta(seconds=(configuration.KickAfter / 2))
-                            kick_reminder = kick_reminder.replace(tzinfo=timezone.utc)
+                            kick_reminder = kick_reminder.replace(tzinfo=UTC)
                             kick_after = datetime.now(UTC) - timedelta(seconds=configuration.KickAfter)
-                            kick_after = kick_after.replace(tzinfo=timezone.utc)
+                            kick_after = kick_after.replace(tzinfo=UTC)
 
                             if member.joined_at < kick_after:
                                 self.bot.log.debug(f"Kick member {member.display_name}!")
@@ -89,7 +88,7 @@ class Moderation(Cog):
                     list_before = None
                 else:
                     list_before = datetime.now(UTC) - timedelta(seconds=configuration.DeleteOlderThan)
-                    list_before = list_before.replace(tzinfo=timezone.utc)
+                    list_before = list_before.replace(tzinfo=UTC)
                 channel = guild.get_channel(configuration.ChannelId)
 
                 messages = []
