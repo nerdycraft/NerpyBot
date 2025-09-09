@@ -23,10 +23,13 @@ bot = [
     "aiohttp>=3.10.11",
     "idna>=3.7",
     "discord-py[voice]==2.5.2",
-    "youtube-dl",
     "pynacl>=1.5.0",
     "pyyaml>=6.0.2",
     "blizzapi>=1.0.2",
+    "openweather-wrapper>=0.1.1",
+    "requests-cache>=1.2.1",
+    "matplotlib>=3.10.3",
+    "yt-dlp>=2025.7.21",
 ]
 test = [
     "pytest>=8.4.1",
@@ -47,6 +50,3 @@ line-ending = "lf"
 
 [tool.uv]
 default-groups = ["bot"]
-
-[tool.uv.sources]
-youtube-dl = { git = "https://github.com/ytdl-org/youtube-dl.git", branch = "master" }

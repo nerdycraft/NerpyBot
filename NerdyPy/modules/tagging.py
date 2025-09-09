@@ -15,7 +15,8 @@ from discord.ext.commands import (
     hybrid_group,
 )
 from models.tagging import Tag, TagType, TagTypeConverter
-from utils import format as fmt
+
+import utils.format as fmt
 from utils.audio import QueuedSong
 from utils.checks import is_connected_to_voice
 from utils.download import download

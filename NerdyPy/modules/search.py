@@ -11,7 +11,8 @@ from discord.app_commands import rename
 from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_command
 from igdb.wrapper import IGDBWrapper
 from requests import post
-from utils import format as fmt
+
+import utils.format as fmt
 from utils.errors import NerpyException
 from utils.helpers import youtube
 
