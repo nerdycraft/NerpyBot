@@ -29,7 +29,7 @@ jobs:
 
       - name: Get all src files that have changed
         id: changed_python
-        uses: tj-actions/changed-files@v46
+        uses: tj-actions/changed-files@v47
         with:
           files_yaml: |
             database-migrations:
@@ -43,7 +43,7 @@ jobs:
 
       - name: Get all Docker related files that have changed
         id: changed_docker
-        uses: tj-actions/changed-files@v46
+        uses: tj-actions/changed-files@v47
         with:
           files: |
             Dockerfile
