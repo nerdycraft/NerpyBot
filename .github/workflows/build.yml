@@ -88,7 +88,7 @@ jobs:
 
       - name: Build and push Database Migrations
         id: build_database-migrations
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           target: migrations
           push: ${{ github.event_name != 'pull_request' }}
@@ -136,7 +136,7 @@ jobs:
 
       - name: Build and push Nerpybot
         id: build_nerpybot
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           target: bot
           push: ${{ github.event_name != 'pull_request' }}
