@@ -124,6 +124,9 @@ class TestGuildPrefixCreate:
 
     def test_guild_id_is_primary_key(self, db_session):
         """GuildId should be unique - duplicate insert should fail."""
+        from sqlalchemy import text
+        from sqlalchemy.exc import IntegrityError
+
         prefix1 = GuildPrefix(
             GuildId=123456789,
             Prefix="!",
@@ -133,14 +136,19 @@ class TestGuildPrefixCreate:
         db_session.add(prefix1)
         db_session.commit()
 
-        # Attempt duplicate
-        prefix2 = GuildPrefix(
-            GuildId=123456789,
-            Prefix="?",
-            CreateDate=datetime.now(UTC),
-            Author="User2",
-        )
-        db_session.add(prefix2)
-
-        with pytest.raises(Exception):  # IntegrityError
+        # Use raw SQL to bypass SQLAlchemy's identity map and test actual DB constraint
+        # Format datetime as ISO string to avoid Python 3.12+ sqlite3 deprecation warning
+        with pytest.raises(IntegrityError):
+            db_session.execute(
+                text(
+                    "INSERT INTO GuildPrefix (GuildId, Prefix, CreateDate, Author) "
+                    "VALUES (:guild_id, :prefix, :create_date, :author)"
+                ),
+                {
+                    "guild_id": 123456789,
+                    "prefix": "?",
+                    "create_date": datetime.now(UTC).isoformat(),
+                    "author": "User2",
+                },
+            )
             db_session.commit()

@@ -27,7 +27,8 @@ def db_engine():
     from models.tagging import Tag, TagEntry  # noqa: F401
 
     BASE.metadata.create_all(engine)
-    return engine
+    yield engine
+    engine.dispose()
 
 
 @pytest.fixture
@@ -35,9 +36,11 @@ def db_session(db_engine):
     """Create a new database session for testing."""
     Session = sessionmaker(bind=db_engine)
     session = Session()
-    yield session
-    session.rollback()
-    session.close()
+    try:
+        yield session
+    finally:
+        session.rollback()
+        session.close()
 
 
 @pytest.fixture
