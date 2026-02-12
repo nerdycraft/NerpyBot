@@ -234,6 +234,7 @@ class Fun(Cog):
         if num:
             if num not in self.rotis:
                 await ctx.send("Sorry 4chan pleb, no rules found with this number")
+                return
             rule = num
         else:
             rule = choice(list(self.rotis.keys()))

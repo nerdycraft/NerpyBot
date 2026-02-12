@@ -208,17 +208,11 @@ class TestRotiCommand:
 
     @pytest.mark.asyncio
     async def test_roti_invalid_number(self, fun_cog, mock_context):
-        """Invalid rule number raises KeyError after sending message.
+        """Invalid rule number should return not found message and exit early."""
+        await fun_cog.roti.callback(fun_cog, mock_context, num=999)
 
-        Note: This documents current buggy behavior - the function sends
-        'no rules found' but then continues and raises KeyError.
-        Missing a return statement after the error message.
-        TODO: Fix bug in fun.py:236-237 by adding return after error message.
-        """
-        with pytest.raises(KeyError):
-            await fun_cog.roti.callback(fun_cog, mock_context, num=999)
-
-        # Verify the error message was sent before the exception
+        # Should only send the error message, then return
+        mock_context.send.assert_called_once()
         call_args = mock_context.send.call_args[0][0]
         assert "no rules found" in call_args
 

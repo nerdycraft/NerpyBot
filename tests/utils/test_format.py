@@ -141,8 +141,6 @@ class TestPagify:
 
     def test_respects_custom_delimiters(self):
         """Custom delimiters should be used for splitting."""
-        # Note: pagify has a known edge case where delimiter at position 0
-        # causes infinite loop. Using space delimiter that won't end up at pos 0.
         text = "Word1 Word2 Word3 Word4 Word5"
         pages = list(pagify(text, delims=[" "], page_length=12))
         # Should split at space delimiter
@@ -150,6 +148,23 @@ class TestPagify:
         # Verify we're splitting at spaces
         for page in pages[:-1]:  # All but last page
             assert len(page) <= 12
+
+    def test_delimiter_at_position_zero_doesnt_hang(self):
+        """Delimiter at position 0 should not cause infinite loop.
+
+        When rfind returns 0 (delimiter at start of remaining text),
+        the function should fall back to page_length to make progress.
+        """
+        # Delimiter "---" will end up at position 0 after first split
+        text = "Part1---Part2---Part3"
+        pages = list(pagify(text, delims=["---"], page_length=10))
+        # Should complete without hanging
+        assert len(pages) > 1
+        # All content should be present
+        combined = "".join(pages)
+        assert "Part1" in combined
+        assert "Part2" in combined
+        assert "Part3" in combined
 
     def test_splits_at_page_length_without_delimiter(self):
         """If no delimiter found, should split at page_length."""
