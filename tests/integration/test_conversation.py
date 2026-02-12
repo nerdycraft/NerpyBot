@@ -4,7 +4,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from utils.conversation import AnswerType, Conversation, ConversationManager, PreConversation, PrevConvState
 
 
@@ -145,7 +144,7 @@ class TestConversation:
     async def test_on_message_handler_can_reject(self, conversation):
         """answer handler returning False should prevent state change."""
 
-        async def rejecting_handler(msg):
+        async def rejecting_handler():
             return False
 
         conversation.answerHandler = rejecting_handler

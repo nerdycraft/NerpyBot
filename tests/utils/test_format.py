@@ -18,7 +18,7 @@ class TestStripTags:
 
     def test_removes_tags_with_attributes(self):
         """Tags with attributes should be stripped."""
-        assert strip_tags('<a href="http://example.com">Link</a>') == "Link"
+        assert strip_tags('<a href="https://example.com">Link</a>') == "Link"
         assert strip_tags('<div class="container" id="main">Content</div>') == "Content"
 
     def test_handles_empty_string(self):

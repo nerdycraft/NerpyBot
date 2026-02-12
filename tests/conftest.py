@@ -34,8 +34,8 @@ def db_engine():
 @pytest.fixture
 def db_session(db_engine):
     """Create a new database session for testing."""
-    Session = sessionmaker(bind=db_engine)
-    session = Session()
+    _session = sessionmaker(bind=db_engine)
+    session = _session()
     try:
         yield session
     finally:

@@ -77,7 +77,9 @@ class League(GroupCog):
                     ver = await self._get_latest_version()
 
                     emb = Embed(title=name)
-                    emb.set_thumbnail(url=f"http://ddragon.leagueoflegends.com/cdn/{ver}/img/profileicon/{icon_id}.png")
+                    emb.set_thumbnail(
+                        url=f"https://ddragon.leagueoflegends.com/cdn/{ver}/img/profileicon/{icon_id}.png"
+                    )
                     emb.description = f"Summoner Level: {level}"
 
                     if played_ranked:

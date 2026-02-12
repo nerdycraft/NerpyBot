@@ -11,10 +11,9 @@ import ffmpeg
 import requests
 from cachetools import TTLCache
 from discord import FFmpegOpusAudio
+from utils.errors import NerpyException
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError
-
-from utils.errors import NerpyException
 
 LOG = logging.getLogger("nerpybot")
 FFMPEG_OPTIONS = {"options": "-vn"}
@@ -104,7 +103,7 @@ def download(url: str, tag: bool = False, video_id: str = None):
         dl_file = lookup_file(video_id)
 
         if dl_file is None:
-            _ = YTDL.download([url])
+            YTDL.download([url])
             dl_file = lookup_file(video_id)
 
         return convert(dl_file, is_stream=False)

@@ -9,9 +9,7 @@ import requests
 from blizzapi import Language, Region, RetailClient
 from discord import Color, Embed
 from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_command, hybrid_group
-
 from models.wow import WoW
-
 from utils.errors import NerpyException
 from utils.helpers import empty_subcommand, send_hidden_message
 
@@ -127,7 +125,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
     @hybrid_group(name="language", aliases=["lang", "locale"])
     async def _wow_language(self, ctx: Context):
-        empty_subcommand(ctx)
+        await empty_subcommand(ctx)
 
     @_wow_language.command(name="get")
     async def _wow_language_get(self, ctx: Context):

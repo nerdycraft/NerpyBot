@@ -6,14 +6,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal
 from urllib.parse import quote
 
+import utils.format as fmt
 from aiohttp import ClientSession
 from discord import Embed
 from discord.app_commands import rename
 from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_command
 from igdb.wrapper import IGDBWrapper
 from requests import post
-
-import utils.format as fmt
 from utils.errors import NerpyException
 from utils.helpers import youtube
 
@@ -57,7 +56,7 @@ class Search(GroupCog):
     @hybrid_command()
     async def urban(self, ctx: Context, query: str):
         """urban legend"""
-        url = f"http://api.urbandictionary.com/v0/define?term={quote(query)}"
+        url = f"https://api.urbandictionary.com/v0/define?term={quote(query)}"
 
         async with ClientSession() as session:
             async with session.get(url) as response:
@@ -108,7 +107,7 @@ class Search(GroupCog):
     async def _imdb_search(self, query_type: str, query: str):
         emb = None
         rip = ""
-        search_url = f"http://www.omdbapi.com/?apikey={self.config['omdb']}&type={quote(query_type)}&s={quote(query)}"
+        search_url = f"https://www.omdbapi.com/?apikey={self.config['omdb']}&type={quote(query_type)}&s={quote(query)}"
 
         async with ClientSession() as session:
             async with session.get(search_url) as search_response:
@@ -118,9 +117,7 @@ class Search(GroupCog):
                 search_result = await search_response.json()
 
                 if search_result["Response"] == "True":
-                    id_url = (
-                        f"http://www.omdbapi.com/?apikey={self.config['omdb']}&i={search_result['Search'][0]['imdbID']}"
-                    )
+                    id_url = f"https://www.omdbapi.com/?apikey={self.config['omdb']}&i={search_result['Search'][0]['imdbID']}"
 
                     async with session.get(id_url) as id_response:
                         if id_response.status != 200:

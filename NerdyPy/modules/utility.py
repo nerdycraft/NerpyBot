@@ -2,11 +2,10 @@
 
 from datetime import UTC, datetime
 
+import utils.format as fmt
 from discord import Embed, app_commands
 from discord.ext.commands import Cog, Context, bot_has_permissions, hybrid_command
 from openweather.weather import OpenWeather
-
-import utils.format as fmt
 from utils.errors import NerpyException
 from utils.helpers import send_hidden_message
 
@@ -87,7 +86,7 @@ class Utility(Cog):
                 emb.add_field(name=f":city_sunset:  {fmt.bold('sunset')}", value=f"{sunset} UTC")
                 emb.set_footer(
                     text="Powered by openweathermap.org",
-                    icon_url=f"http://openweathermap.org/img/w/{weather.get('weather', list())[0].get('icon')}.png",
+                    icon_url=f"https://openweathermap.org/img/w/{weather.get('weather', list())[0].get('icon')}.png",
                 )
 
                 await ctx.send(embed=emb)
