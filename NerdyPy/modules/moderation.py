@@ -46,6 +46,8 @@ class Moderation(Cog):
                     continue
                 if configuration.Enabled and configuration.KickAfter > 0:
                     guild = self.bot.get_guild(configuration.GuildId)
+                    if guild is None:
+                        continue
                     self.bot.log.info(f"Checking for member without role in {guild.name}.")
                     for member in guild.members:
                         if len(member.roles) == 1:
@@ -68,7 +70,7 @@ class Moderation(Cog):
                                         f"Please choose a role until {naturaldate(kick_after)}."
                                     )
         except Exception as ex:
-            self.bot.log.error(f"Error ocurred: {ex}")
+            self.bot.log.error(f"Error occurred: {ex}")
         self.bot.log.debug("Finish Autokicker Loop!")
 
     @tasks.loop(minutes=5)
@@ -110,7 +112,7 @@ class Moderation(Cog):
                     )
                     await message.delete()
         except Exception as ex:
-            self.bot.log.error(f"Error ocurred: {ex}")
+            self.bot.log.error(f"Error occurred: {ex}")
             if channel is not None:
                 self.bot.log.debug(f"Channel: {channel}")
             if message is not None:
@@ -272,7 +274,8 @@ class Moderation(Cog):
             if configurations is not None:
                 msg = "==== AutoDeleter Configuration ====\n"
                 for configuration in configurations:
-                    channel_name = ctx.guild.get_channel(configuration.ChannelId).name
+                    channel = ctx.guild.get_channel(configuration.ChannelId)
+                    channel_name = channel.name if channel else f"Unknown ({configuration.ChannelId})"
                     msg += (
                         f"Channel: {channel_name}, "
                         f"DeleteOlderThan: {configuration.DeleteOlderThan}, "

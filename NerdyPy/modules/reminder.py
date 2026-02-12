@@ -42,7 +42,7 @@ class Reminder(GroupCog, group_name="reminder"):
                                     msg.LastSend = datetime.now()
                                     msg.Count += 1
         except Exception as ex:
-            self.bot.log.error(f"Error ocurred: {ex}")
+            self.bot.log.error(f"Error occurred: {ex}")
         self.bot.log.debug("Stop Reminder Loop!")
 
     @hybrid_command(name="create")
