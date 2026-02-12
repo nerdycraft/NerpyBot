@@ -9,13 +9,13 @@ def send_hidden_message(ctx: Context, msg: str):
     return ctx.send(msg, ephemeral=True)
 
 
-def empty_subcommand(ctx: Context):
+async def empty_subcommand(ctx: Context):
     if ctx.invoked_subcommand is None:
         args = str(ctx.message.clean_content).split(" ")
         if len(args) > 2:
             raise NerpyException("Command not found!")
         elif len(args) <= 1:
-            ctx.send_help(ctx.command)
+            await ctx.send_help(ctx.command)
     return
 
 
