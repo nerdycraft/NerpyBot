@@ -22,7 +22,7 @@ WORKDIR /app
 COPY --chown=${UID} pyproject.toml uv.lock ./
 
 
-FROM base as builder
+FROM base AS builder
 
 USER root
 RUN apk add --no-cache \

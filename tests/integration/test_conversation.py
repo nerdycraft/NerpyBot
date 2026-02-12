@@ -144,7 +144,7 @@ class TestConversation:
     async def test_on_message_handler_can_reject(self, conversation):
         """answer handler returning False should prevent state change."""
 
-        async def rejecting_handler():
+        async def rejecting_handler(msg):
             return False
 
         conversation.answerHandler = rejecting_handler

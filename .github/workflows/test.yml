@@ -1,4 +1,4 @@
-name: Check Code Formatting
+name: Check Code Formatting and Tests
 
 on:
   pull_request:
@@ -6,18 +6,36 @@ on:
       - 'main'
 
 jobs:
-  format-check:
+  lint:
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
       - uses: astral-sh/ruff-action@v3
         with:
           args: "--version"
       - run: ruff check --diff
       - run: ruff format --check --diff
+
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Install dependencies
+        run: uv sync --group test
+      - name: Run tests
+        run: uv run pytest --cov=NerdyPy --cov-report=xml
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.xml

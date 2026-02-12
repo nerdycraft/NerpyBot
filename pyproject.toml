@@ -47,6 +47,8 @@ migrations = [
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
 filterwarnings = [
     # discord.py uses deprecated asyncio.iscoroutinefunction (will be fixed when discord.py updates)
     "ignore::DeprecationWarning:discord.ext.commands.core",
@@ -60,3 +62,7 @@ line-ending = "lf"
 
 [tool.uv]
 default-groups = ["bot"]
+
+[tool.coverage.run]
+source = ["NerdyPy"]
+omit = ["*/tests/*"]
