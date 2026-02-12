@@ -21,6 +21,19 @@ class BufferKey(enum.Enum):
     VOICE_CLIENT = 3
 
 
+class QueueMixin:
+    """Mixin providing queue management methods."""
+
+    queue: dict
+
+    def _has_queue(self, guild_id: int) -> bool:
+        return guild_id in self.queue
+
+    def _clear_queue(self, guild_id: int) -> None:
+        if self._has_queue(guild_id):
+            self.queue[guild_id].clear()
+
+
 class QueuedSong:
     """Models Class for Queued Songs"""
 

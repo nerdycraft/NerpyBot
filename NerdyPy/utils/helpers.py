@@ -19,6 +19,12 @@ async def empty_subcommand(ctx: Context):
     return
 
 
+async def check_api_response(response, service_name: str = "API") -> None:
+    """Validate API response status and raise NerpyException on error."""
+    if response.status != 200:
+        raise NerpyException(f"The {service_name} responded with code: {response.status} - {response.reason}")
+
+
 def youtube(yt_key, return_type, query):
     yt = build("youtube", "v3", developerKey=yt_key)
     search_response = yt.search().list(q=query, part="id,snippet", type="video", maxResults=1).execute()

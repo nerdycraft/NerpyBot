@@ -17,7 +17,7 @@ from discord.ext.commands import (
 from models.tagging import Tag, TagType, TagTypeConverter
 
 import utils.format as fmt
-from utils.audio import QueuedSong
+from utils.audio import QueuedSong, QueueMixin
 from utils.checks import is_connected_to_voice
 from utils.download import download
 from utils.errors import NerpyException
@@ -26,7 +26,7 @@ from utils.helpers import send_hidden_message
 
 @guild_only()
 @bot_has_permissions(send_messages=True)
-class Tagging(Cog):
+class Tagging(QueueMixin, Cog):
     """Command group for sound and text tags"""
 
     def __init__(self, bot):
@@ -223,14 +223,6 @@ class Tagging(Cog):
             else:
                 random_entry = _tag.get_random_entry()
                 await ctx.send(random_entry.TextContent)
-
-    def _has_queue(self, guild_id):
-        return guild_id in self.queue
-
-    def _clear_queue(self, guild_id):
-        """Clears the Audio Queue"""
-        if self._has_queue(guild_id):
-            self.queue[guild_id].clear()
 
     def _fetch(self, song: QueuedSong):
         with self.bot.session_scope() as session:
