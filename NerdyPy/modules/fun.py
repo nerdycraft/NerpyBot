@@ -167,7 +167,7 @@ class Fun(Cog):
         mention = ctx.message.author.mention
         await ctx.send(f"{mention} asked me: {question}\n\n{choice(self.ball)}")
 
-    @hybrid_command(no_pm=True)
+    @hybrid_command()
     async def hug(self, ctx: Context, user: Member, intensity: Optional[int] = None):
         """
         Because everyone likes hugs!

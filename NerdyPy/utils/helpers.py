@@ -5,8 +5,8 @@ from googleapiclient.discovery import build
 from utils.errors import NerpyException
 
 
-def send_hidden_message(ctx: Context, msg: str):
-    return ctx.send(msg, ephemeral=True)
+async def send_hidden_message(ctx: Context, msg: str):
+    return await ctx.send(msg, ephemeral=True)
 
 
 async def empty_subcommand(ctx: Context):

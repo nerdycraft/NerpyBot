@@ -5,9 +5,7 @@ from enum import Enum
 
 from discord import Embed
 from discord.ext.commands import Cog, Context, command
-
 from models.raidplaner import RaidEncounter, RaidEncounterRole, RaidEvent, RaidTemplate
-
 from utils.conversation import Conversation
 
 
@@ -457,7 +455,7 @@ class RaidConversation(Conversation):
             await self.send_ns(emb)
             await self.conv_encounter_menu()
         else:
-            if self.tmpEncounter.isNew is True:
+            if self.tmpEncounter.isNew:
                 self.tmpTemplate.Encounters.append(self.tmpEncounter)
                 self.tmpEncounter.isNew = False
             await self.conv_template_menu()
@@ -600,7 +598,7 @@ class RaidConversation(Conversation):
         await self.send_both(emb, RaidPlanerState.TEMPLATE_ENCOUNTER_ROLE_SAVE, self.set_role_sort, reactions)
 
     async def conv_role_save(self):
-        if self.tmpRole.isNew is True:
+        if self.tmpRole.isNew:
             self.tmpEncounter.Roles.append(self.tmpRole)
             self.tmpRole.isNew = False
         self.tmpEncounter.Roles.sort(key=lambda r: r.SortIndex)

@@ -4,15 +4,15 @@
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Literal
+from urllib.parse import quote
 
+import utils.format as fmt
 from aiohttp import ClientSession
 from discord import Embed
 from discord.app_commands import rename
 from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_command
 from igdb.wrapper import IGDBWrapper
 from requests import post
-
-import utils.format as fmt
 from utils.errors import NerpyException
 from utils.helpers import youtube
 
@@ -39,7 +39,7 @@ class Search(GroupCog):
         query: str
             Meme/Picture/Gif to search for.
         """
-        url = f"https://api.imgur.com/3/gallery/search/viral?q={query}"
+        url = f"https://api.imgur.com/3/gallery/search/viral?q={quote(query)}"
 
         async with ClientSession(headers={"Authorization": f"Client-ID {self.config['imgur']}"}) as session:
             async with session.get(url) as response:
@@ -56,7 +56,7 @@ class Search(GroupCog):
     @hybrid_command()
     async def urban(self, ctx: Context, query: str):
         """urban legend"""
-        url = f"http://api.urbandictionary.com/v0/define?term={query}"
+        url = f"https://api.urbandictionary.com/v0/define?term={quote(query)}"
 
         async with ClientSession() as session:
             async with session.get(url) as response:
@@ -77,9 +77,9 @@ class Search(GroupCog):
     @hybrid_command()
     async def lyrics(self, ctx: Context, query: str):
         """genius lyrics"""
-        url = f"http://api.genius.com/search?q={query}&access_token={self.config['genius']}"
+        url = f"https://api.genius.com/search?q={quote(query)}"
 
-        async with ClientSession() as session:
+        async with ClientSession(headers={"Authorization": f"Bearer {self.config['genius']}"}) as session:
             async with session.get(url) as response:
                 if response.status != 200:
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
@@ -107,7 +107,7 @@ class Search(GroupCog):
     async def _imdb_search(self, query_type: str, query: str):
         emb = None
         rip = ""
-        search_url = f"http://www.omdbapi.com/?apikey={self.config['omdb']}&type={query_type}&s={query}"
+        search_url = f"https://www.omdbapi.com/?apikey={self.config['omdb']}&type={quote(query_type)}&s={quote(query)}"
 
         async with ClientSession() as session:
             async with session.get(search_url) as search_response:
@@ -117,9 +117,7 @@ class Search(GroupCog):
                 search_result = await search_response.json()
 
                 if search_result["Response"] == "True":
-                    id_url = (
-                        f"http://www.omdbapi.com/?apikey={self.config['omdb']}&i={search_result['Search'][0]['imdbID']}"
-                    )
+                    id_url = f"https://www.omdbapi.com/?apikey={self.config['omdb']}&i={search_result['Search'][0]['imdbID']}"
 
                     async with session.get(id_url) as id_response:
                         if id_response.status != 200:
@@ -161,12 +159,12 @@ class Search(GroupCog):
     def _get_igdb_access_token(self):
         client_id = self.config["igdb_client_id"]
         client_secret = self.config["igdb_client_secret"]
-        twitch_oauth_url = (
-            f"https://id.twitch.tv/oauth2/token?client_id={client_id}&client_secret={client_secret}"
-            "&grant_type=client_credentials"
-        )
+        twitch_oauth_url = "https://id.twitch.tv/oauth2/token"
 
-        with post(twitch_oauth_url) as oauth_response:
+        with post(
+            twitch_oauth_url,
+            data={"client_id": client_id, "client_secret": client_secret, "grant_type": "client_credentials"},
+        ) as oauth_response:
             if oauth_response.status_code != 200:
                 self.bot.log.error(
                     f"Server responded with code: {oauth_response.status_code} - {oauth_response.reason}"

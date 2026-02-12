@@ -72,7 +72,6 @@ class NerpyBot(Bot):
         if "database" not in config:
             self.log.warning("No Database specified! Fallback to local SQLite Database!")
             db_connection_string = "sqlite:///db.db"
-            db_type = "sqlite"
         else:
             database_config = config["database"]
             db_type = database_config["db_type"]

@@ -145,8 +145,11 @@ class Tagging(Cog):
         await send_hidden_message(ctx, f'Entry added to tag "{name}"!')
 
     @_tag.command(name="volume")
-    async def _tag_volume(self, ctx: Context, name: clean_content, vol):
+    async def _tag_volume(self, ctx: Context, name: clean_content, vol: int):
         """adjust the volume of a sound tag"""
+        if not 0 <= vol <= 200:
+            await send_hidden_message(ctx, "Volume must be between 0 and 200.")
+            return
         self.bot.log.info(f'set volume of "{name}" to {vol} from {ctx.guild.id}')
         with self.bot.session_scope() as session:
             if not Tag.exists(name, ctx.guild.id, session):
