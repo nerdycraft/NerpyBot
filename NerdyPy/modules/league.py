@@ -27,7 +27,7 @@ class League(GroupCog):
         self.version = None
         self.config = self.bot.config["league"]
 
-    async def _get_latest_version(self):
+    async def _get_latest_version(self) -> str:
         if self.version is None:
             async with ClientSession() as session:
                 async with session.get("https://ddragon.leagueoflegends.com/api/versions.json") as response:
@@ -36,13 +36,13 @@ class League(GroupCog):
         return self.version
 
     # noinspection PyMethodMayBeStatic
-    def _get_url(self, region, cmd: LeagueCommand, arg: str):
+    def _get_url(self, region: str, cmd: LeagueCommand, arg: str) -> str:
         base_url = f"https://{region}.api.riotgames.com/lol/"
         return f"{base_url}{cmd.value}{arg}"
 
     @hybrid_command()
     @rename(summoner_name="name")
-    async def summoner(self, ctx: Context, region: Literal["EUW1", "NA1"], summoner_name: str):
+    async def summoner(self, ctx: Context, region: Literal["EUW1", "NA1"], summoner_name: str) -> None:
         """get information about the summoner"""
         rank = tier = lp = wins = losses = ""
 

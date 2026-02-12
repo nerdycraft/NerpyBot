@@ -32,12 +32,12 @@ class Random(Cog):
         ]
 
     @hybrid_command()
-    async def lenny(self, ctx: Context):
+    async def lenny(self, ctx: Context) -> None:
         """Displays a random lenny face."""
         await ctx.send(choice(self.lennys))
 
     @hybrid_command()
-    async def quote(self, ctx: Context):
+    async def quote(self, ctx: Context) -> None:
         """random quote"""
         url = "https://quotesondesign.com/wp-json/wp/v2/posts/?orderby=rand"
 
@@ -52,7 +52,7 @@ class Random(Cog):
                 )
 
     @hybrid_command()
-    async def trump(self, ctx: Context):
+    async def trump(self, ctx: Context) -> None:
         """random trump tweet"""
         url = "https://api.whatdoestrumpthink.com/api/v1/quotes/random"
         trump_pic = "https://www.tolonews.com/sites/default/files/styles/principal_article_image/public/Trumpppp.jpg"
@@ -69,7 +69,7 @@ class Random(Cog):
         await ctx.send(embed=emb)
 
     @hybrid_command()
-    async def xkcd(self, ctx: Context):
+    async def xkcd(self, ctx: Context) -> None:
         """random xkcd comic"""
         url = "https://xkcd.com/"
         urlend = "info.0.json"
@@ -89,7 +89,7 @@ class Random(Cog):
         await ctx.send(data.get("img"))
 
     @hybrid_command()
-    async def bunny(self, ctx: Context):
+    async def bunny(self, ctx: Context) -> None:
         """Why do I have a random bunny gif command???"""
         url = "https://api.bunnies.io/v2/loop/random/?media=gif"
 
