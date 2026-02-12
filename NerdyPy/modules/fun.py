@@ -129,7 +129,7 @@ class Fun(Cog):
         }
 
     @hybrid_command()
-    async def roll(self, ctx: Context, dice: int = 6):
+    async def roll(self, ctx: Context, dice: int = 6) -> None:
         """
         Rolls random number (between 1 and user choice)
 
@@ -143,7 +143,7 @@ class Fun(Cog):
             await ctx.send(f"{mention} rolled a 'AmIRetarded'-dice\n\n:game_die: yes :game_die:")
 
     @hybrid_command()
-    async def choose(self, ctx: Context, choices: str):
+    async def choose(self, ctx: Context, choices: str) -> None:
         """
         Makes a choice for you.
         Choices need to be seperated by "," and sentences also need to be encased by "".
@@ -156,7 +156,7 @@ class Fun(Cog):
         await ctx.send(f"{mention} asked me to choose between: {choices}\n\nI choose {choice(choices_list)}")
 
     @hybrid_command(name="8ball", aliases=["8b"])
-    async def eightball(self, ctx: Context, question: str):
+    async def eightball(self, ctx: Context, question: str) -> None:
         """
         Ask 8-Ball a question.
         Question must end with a question mark.
@@ -168,7 +168,7 @@ class Fun(Cog):
         await ctx.send(f"{mention} asked me: {question}\n\n{choice(self.ball)}")
 
     @hybrid_command()
-    async def hug(self, ctx: Context, user: Member, intensity: Optional[int] = None):
+    async def hug(self, ctx: Context, user: Member, intensity: Optional[int] = None) -> None:
         """
         Because everyone likes hugs!
 
@@ -193,7 +193,7 @@ class Fun(Cog):
             await ctx.send(f"{author} {choice(self.hugs)} {name}")
 
     @hybrid_command()
-    async def leet(self, ctx: Context, intensity: int, text: str):
+    async def leet(self, ctx: Context, intensity: int, text: str) -> None:
         """
         convert text into 1337speak
 
@@ -225,7 +225,7 @@ class Fun(Cog):
         await ctx.send(text)
 
     @hybrid_command()
-    async def roti(self, ctx: Context, num: int = None):
+    async def roti(self, ctx: Context, num: int = None) -> None:
         """
         rules of the internet
 
@@ -241,7 +241,7 @@ class Fun(Cog):
         await ctx.send(f"Rule {rule}: {self.rotis[rule]}")
 
     @hybrid_command()
-    async def say(self, ctx: Context, text: str):
+    async def say(self, ctx: Context, text: str) -> None:
         """
         makes the bot say what you want :O
         """
