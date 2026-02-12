@@ -34,12 +34,22 @@ bot = [
 ]
 test = [
     "pytest",
+    "pytest-asyncio",
     "pytest-cov",
     "ruff",
 ]
 migrations = [
     "SQLAlchemy",
     "alembic",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+filterwarnings = [
+    # discord.py uses deprecated asyncio.iscoroutinefunction (will be fixed when discord.py updates)
+    "ignore::DeprecationWarning:discord.ext.commands.core",
 ]
 
 [tool.ruff]

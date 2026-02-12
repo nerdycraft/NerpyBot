@@ -73,7 +73,9 @@ def pagify(text, delims=None, page_length=2000):
 
     while len(in_text) > page_length:
         closest_delim = max([in_text.rfind(d, 0, page_length) for d in delims])
-        closest_delim = closest_delim if closest_delim != -1 else page_length
+        # Use page_length if no delimiter found OR if delimiter is at position 0
+        # (position 0 would cause infinite loop as in_text[0:] == in_text)
+        closest_delim = closest_delim if closest_delim > 0 else page_length
 
         to_send = in_text[:closest_delim]
         yield str(to_send)
