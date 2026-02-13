@@ -1,0 +1,4 @@
+name: "NerpyBot CodeQL Config"
+
+paths-ignore:
+  - database-migrations/versions
