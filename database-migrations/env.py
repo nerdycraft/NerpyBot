@@ -1,5 +1,8 @@
+import os
 from logging.config import fileConfig
+from pathlib import Path
 
+import yaml
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
@@ -12,16 +15,67 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+
+def _build_url_from_bot_config(bot_config: dict) -> str | None:
+    """Build a SQLAlchemy URL from the bot's config.yaml database section.
+
+    Mirrors the URL construction logic in NerdyPy.py.
+    """
+    database_config = bot_config.get("database")
+    if not database_config:
+        return None
+
+    db_type = database_config["db_type"]
+    db_name = database_config["db_name"]
+    db_username = ""
+    db_password = ""
+    db_host = ""
+    db_port = ""
+
+    if any(s in db_type for s in ("mysql", "mariadb")):
+        db_type = f"{db_type}+pymysql"
+    if database_config.get("db_password"):
+        db_password = f":{database_config['db_password']}"
+    if database_config.get("db_username"):
+        db_username = database_config["db_username"]
+    if database_config.get("db_host"):
+        db_host = f"@{database_config['db_host']}"
+    if database_config.get("db_port"):
+        db_port = f":{database_config['db_port']}"
+
+    db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
+    return f"{db_type}://{db_authentication}/{db_name}"
+
+
+def _resolve_database_url() -> str | None:
+    """Resolve the database URL with priority: DATABASE_URL env > bot config.yaml > alembic.ini default."""
+    # 1. Explicit env var override
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        return database_url
+
+    # 2. Bot config.yaml (works in Docker where config is mounted)
+    config_path = Path(os.environ.get("BOT_CONFIG", "config.yaml"))
+    if config_path.exists():
+        with open(config_path) as f:
+            bot_config = yaml.safe_load(f)
+        if bot_config:
+            return _build_url_from_bot_config(bot_config)
+
+    # 3. Fall back to alembic.ini default
+    return None
+
+
+# Override sqlalchemy.url if we resolved one from env/config
+resolved_url = _resolve_database_url()
+if resolved_url:
+    config.set_main_option("sqlalchemy.url", resolved_url)
+
 # add your model's MetaData object here
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 target_metadata = None
-
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
 
 
 def run_migrations_offline() -> None:

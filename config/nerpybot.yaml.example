@@ -1,0 +1,44 @@
+bot:
+  client_id: your_client_id_here
+  token: your_bot_token_here
+  ops:
+    - your_discord_id_here
+  error_spam_threshold: 5
+  modules:
+    - admin
+    - fun
+    - league
+    - leavemsg
+    - moderation
+    - music
+    - random
+    - reminder
+    - search
+    - tagging
+    - utility
+    - wow
+
+database:
+  db_type: sqlite
+  db_name: /data/nerpybot.db
+
+audio:
+  buffer_limit: 5
+
+search:
+  imgur: your_imgur_key
+  genius: your_genius_key
+  omdb: your_omdb_key
+  igdb_client_id: your_igdb_client_id
+  igdb_client_secret: your_igdb_client_secret
+  ytkey: your_youtube_key
+
+utility:
+  openweather: your_openweather_key
+
+league:
+  riot: your_riot_api_key
+
+wow:
+  wow_id: your_wow_client_id
+  wow_secret: your_wow_client_secret

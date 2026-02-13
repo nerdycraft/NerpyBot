@@ -1,0 +1,20 @@
+services:
+  nerpybot-migrations:
+    build:
+      context: .
+      target: migrations
+
+  nerpybot:
+    build:
+      context: .
+      target: bot
+
+  humanmusic-migrations:
+    build:
+      context: .
+      target: migrations
+
+  humanmusic:
+    build:
+      context: .
+      target: bot
