@@ -8,6 +8,7 @@ bot:
     - admin
     - fun
     - league
+    - leavemsg
     - moderation
     - random
     - reminder
