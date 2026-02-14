@@ -45,6 +45,9 @@ docker buildx build --target migrations -t nerpybot-migrations .
 
 ## Architecture
 
+### Documentation
+`docs/` contains per-module markdown files documenting commands, database models, background tasks, and data flows. When adding a new module or changing an existing one, update or create the corresponding `docs/<module>.md` file.
+
 ### Entry Point
 `NerdyPy/NerdyPy.py` - Contains `NerpyBot` class extending discord.py's `Bot`. Handles module loading, database initialization, and event routing.
 
@@ -54,10 +57,12 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **admin** - Server management, prefix config, command sync
 - **fun** - Entertainment commands
 - **league** - Riot API integration
+- **leavemsg** - Custom leave messages when members depart
 - **moderation** - Server moderation tools
 - **music** - Voice channel audio playback
 - **raidplaner** - Guild raid scheduling (largest module)
 - **random** - Random generators
+- **reactionrole** - Reaction-based role assignment
 - **reminder** - Timed user reminders
 - **search** - Multi-source search (Imgur, Genius, OMDB, IGDB, YouTube)
 - **tagging** - Audio tag management
@@ -78,9 +83,13 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - `errors.py` - `NerpyException` for bot-specific errors
 - `format.py` - Text formatting helpers
 - `helpers.py` - General utilities (incl. `send_hidden_message` for ephemeral/DM responses)
+- `download.py` - Audio downloading and ffmpeg conversion (yt-dlp)
+- `logging.py` - Dual-handler log setup (stdout for INFO/DEBUG, stderr for WARNING+)
 
 ### Gotchas
 
+- **SQLite strips timezone info from DateTime columns** — Values read back are naive. Normalize with `.replace(tzinfo=UTC)` before comparing against aware datetimes.
+- **`blizzapi` does NOT auto-retry on 429** — It returns `{"code": 429}` as a dict. Check every response and handle rate limits manually.
 - **`app_commands.checks` only gates slash commands** — Cog-level `@checks.has_permissions()` from `discord.app_commands` does NOT apply to prefix commands. A global `guild_only` check in `setup_hook` protects prefix commands from DM invocation.
 - **`ephemeral=True` is silently ignored on prefix commands** — Always use `send_hidden_message()` from `utils/helpers.py` which falls back to DMs for prefix contexts.
 - **Check functions must be side-effect-free during help** — `DefaultHelpCommand` calls `can_run()` on every command. Check functions in `checks.py` guard against this with `ctx.invoked_with == "help"`.
