@@ -47,6 +47,16 @@ def _check_rate_limit(response):
         raise _RateLimited()
 
 
+def _get_asset_url(response, key="icon"):
+    """Extract an asset URL from a Blizzard media response."""
+    if not isinstance(response, dict):
+        return None
+    for asset in response.get("assets", []):
+        if asset.get("key") == key:
+            return asset.get("value")
+    return None
+
+
 @bot_has_permissions(send_messages=True, embed_links=True)
 class WorldofWarcraft(GroupCog, group_name="wow"):
     """World of Warcraft API"""
@@ -352,9 +362,10 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         await send_hidden_message(ctx, f"Resumed tracking for config #{config_id}.")
 
     @_guildnews.command(name="check")
-    @checks.has_permissions(manage_channels=True)
     async def _guildnews_check(self, ctx: Context, config_id: int):
-        """trigger an immediate poll for testing [manage_channels]"""
+        """trigger an immediate poll for testing [operator]"""
+        if ctx.author.id not in self.bot.ops:
+            raise NerpyException("This command is restricted to bot operators.")
         with self.bot.session_scope() as session:
             config = WowGuildNewsConfig.get_by_id(config_id, ctx.guild.id, session)
             if not config:
@@ -365,7 +376,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 return
 
         await send_hidden_message(ctx, f"Running manual poll for config #{config_id}...")
-        await self._poll_single_config(config_id)
+        await self._poll_single_config(config_id, ignore_baseline=True)
 
     # ── Background task ─────────────────────────────────────────────────
 
@@ -391,7 +402,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         self.bot.log.info("Guild News: Waiting for Bot to be ready...")
         await self.bot.wait_until_ready()
 
-    async def _poll_single_config(self, config_id: int):
+    async def _poll_single_config(self, config_id: int, *, ignore_baseline: bool = False):
         """Poll a single guild news config for activity and mounts."""
         self.bot.log.debug(f"Guild news #{config_id}: starting poll")
 
@@ -415,6 +426,10 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             if last_activity_ts and last_activity_ts.tzinfo is None:
                 last_activity_ts = last_activity_ts.replace(tzinfo=UTC)
             cfg_id = config.Id
+
+        if ignore_baseline:
+            last_activity_ts = None
+            self.bot.log.debug(f"Guild news #{cfg_id}: baseline ignored (manual check)")
 
         self.bot.log.debug(
             f"Guild news #{cfg_id}: polling {wow_guild} on {realm}-{region} (last_activity={last_activity_ts})"
@@ -472,25 +487,43 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 new_timestamp = activity_time
 
             activity_type = activity.get("activity", {}).get("type", "")
-            character = activity.get("character", {})
-            char_name = character.get("name", "Unknown")
-            char_realm = character.get("realm", {}).get("name", realm)
 
             if activity_type == "CHARACTER_ACHIEVEMENT":
-                achievement = activity.get("activity", {}).get("achievement", {})
+                ach_data = activity.get("character_achievement", {})
+                character = ach_data.get("character", {})
+                char_name = character.get("name", "Unknown")
+                char_realm = character.get("realm", {}).get("name", realm)
+                achievement = ach_data.get("achievement", {})
                 ach_name = achievement.get("name", "Unknown Achievement")
+                ach_id = achievement.get("id")
                 emb = Embed(
                     title="Achievement Unlocked!",
                     description=f"**{char_name}** ({char_realm}) earned **{ach_name}**",
                     color=COLOR_ACHIEVEMENT,
                     timestamp=activity_time,
                 )
+                if ach_id:
+                    try:
+                        media = await asyncio.to_thread(api.achievement_media, achievementId=ach_id)
+                        _check_rate_limit(media)
+                        icon_url = _get_asset_url(media, "icon")
+                        if icon_url:
+                            emb.set_thumbnail(url=icon_url)
+                    except _RateLimited:
+                        self.bot.log.warning(f"Guild news #{config_id}: rate limited fetching achievement media")
+                    except Exception as ex:
+                        self.bot.log.debug(f"Guild news #{config_id}: failed to fetch achievement icon: {ex}")
                 embeds_to_send.append(emb)
 
             elif activity_type == "ENCOUNTER":
-                encounter = activity.get("activity", {}).get("encounter", {})
+                enc_data = activity.get("encounter_completed", activity.get("character_achievement", {}))
+                character = enc_data.get("character", {})
+                char_name = character.get("name", "Unknown")
+                char_realm = character.get("realm", {}).get("name", realm)
+                encounter = enc_data.get("encounter", {})
                 enc_name = encounter.get("name", "Unknown Encounter")
-                mode = activity.get("activity", {}).get("mode", {}).get("name", "")
+                enc_id = encounter.get("id")
+                mode = enc_data.get("mode", {}).get("name", "")
                 desc = f"**{char_name}** ({char_realm}) defeated **{enc_name}**"
                 if mode:
                     desc += f" ({mode})"
@@ -500,7 +533,31 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                     color=COLOR_ENCOUNTER,
                     timestamp=activity_time,
                 )
+                if enc_id:
+                    try:
+                        journal = await asyncio.to_thread(api.journal_encounter, journalEncounterId=enc_id)
+                        _check_rate_limit(journal)
+                        creatures = journal.get("creatures", [])
+                        if creatures:
+                            display_id = creatures[0].get("creature_display", {}).get("id")
+                            if display_id:
+                                display_media = await asyncio.to_thread(
+                                    api.creature_display_media, creatureDisplayId=display_id
+                                )
+                                _check_rate_limit(display_media)
+                                boss_url = _get_asset_url(display_media, "zoom")
+                                if boss_url:
+                                    emb.set_thumbnail(url=boss_url)
+                    except _RateLimited:
+                        self.bot.log.warning(f"Guild news #{config_id}: rate limited fetching encounter media")
+                    except Exception as ex:
+                        self.bot.log.debug(f"Guild news #{config_id}: failed to fetch boss image: {ex}")
                 embeds_to_send.append(emb)
+
+            else:
+                self.bot.log.debug(
+                    f"Guild news #{config_id}: unknown activity type '{activity_type}', keys: {list(activity.keys())}"
+                )
 
         self.bot.log.debug(
             f"Guild news #{config_id}: activity feed has {total} entries, {len(embeds_to_send)} new to announce"
@@ -713,6 +770,24 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                                 color=COLOR_MOUNT,
                                 timestamp=datetime.now(UTC),
                             )
+                            try:
+                                mount_info = await asyncio.to_thread(api.mount, mountId=mid)
+                                _check_rate_limit(mount_info)
+                                displays = mount_info.get("creature_displays", [])
+                                if displays:
+                                    display_id = displays[0].get("id")
+                                    if display_id:
+                                        display_media = await asyncio.to_thread(
+                                            api.creature_display_media, creatureDisplayId=display_id
+                                        )
+                                        _check_rate_limit(display_media)
+                                        mount_url = _get_asset_url(display_media, "zoom")
+                                        if mount_url:
+                                            emb.set_thumbnail(url=mount_url)
+                            except _RateLimited:
+                                self.bot.log.warning(f"Guild news #{config_id}: rate limited fetching mount media")
+                            except Exception as ex:
+                                self.bot.log.debug(f"Guild news #{config_id}: failed to fetch mount image: {ex}")
                             try:
                                 await channel.send(embed=emb)
                             except Exception as ex:
