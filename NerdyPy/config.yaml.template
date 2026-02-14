@@ -11,6 +11,7 @@ bot:
     - leavemsg
     - moderation
     - random
+    - reactionrole
     - reminder
     - search
     - tagging
