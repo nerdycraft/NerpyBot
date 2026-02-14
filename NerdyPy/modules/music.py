@@ -13,7 +13,7 @@ from discord.ext.commands import (
 )
 
 import utils.format as fmt
-from utils.audio import QueuedSong
+from utils.audio import QueuedSong, QueueMixin
 from utils.checks import is_connected_to_voice
 from utils.download import download, fetch_yt_infos
 from utils.errors import NerpyException
@@ -22,7 +22,7 @@ from utils.helpers import send_hidden_message, youtube
 
 @guild_only()
 @bot_has_permissions(send_messages=True, speak=True)
-class Music(GroupCog):
+class Music(QueueMixin, GroupCog):
     """Command group for sound and text tags"""
 
     def __init__(self, bot):
@@ -158,14 +158,10 @@ class Music(GroupCog):
                 await ctx.send(embed=emb)
             await self.audio.play(ctx.guild.id, song)
 
-    def _has_queue(self, guild_id):
-        return guild_id in self.queue
-
-    def _clear_queue(self, guild_id):
-        """Clears the Audio Queue"""
+    def _clear_queue(self, guild_id: int) -> None:
+        """Clears the Audio Queue and buffer"""
         self.audio.clear_buffer(guild_id)
-        if self._has_queue(guild_id):
-            self.queue[guild_id].clear()
+        super()._clear_queue(guild_id)
 
     @staticmethod
     def _fetch(song: QueuedSong):

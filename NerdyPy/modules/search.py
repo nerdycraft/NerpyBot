@@ -14,7 +14,7 @@ from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_
 from igdb.wrapper import IGDBWrapper
 from requests import post
 from utils.errors import NerpyException
-from utils.helpers import youtube
+from utils.helpers import check_api_response, youtube
 
 
 @bot_has_permissions(send_messages=True)
@@ -43,9 +43,7 @@ class Search(GroupCog):
 
         async with ClientSession(headers={"Authorization": f"Client-ID {self.config['imgur']}"}) as session:
             async with session.get(url) as response:
-                if response.status != 200:
-                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
-                    raise NerpyException(err)
+                await check_api_response(response, "Imgur API")
                 data = await response.json()
                 if data.get("success") is not None and len(data.get("data")) > 0:
                     meme = data.get("data")[0].get("link")
@@ -60,9 +58,7 @@ class Search(GroupCog):
 
         async with ClientSession() as session:
             async with session.get(url) as response:
-                if response.status != 200:
-                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
-                    raise NerpyException(err)
+                await check_api_response(response, "Urban Dictionary API")
                 data = await response.json()
                 emb = Embed(title=f'"{query}" on Urban Dictionary:')
                 if len(data.get("list")) > 0:
@@ -81,9 +77,7 @@ class Search(GroupCog):
 
         async with ClientSession(headers={"Authorization": f"Bearer {self.config['genius']}"}) as session:
             async with session.get(url) as response:
-                if response.status != 200:
-                    err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
-                    raise NerpyException(err)
+                await check_api_response(response, "Genius API")
                 data = await response.json()
                 emb = Embed(title=f'"{query}" on genius.com:')
                 if len(data.get("response", dict()).get("hits")) > 0:
@@ -111,18 +105,14 @@ class Search(GroupCog):
 
         async with ClientSession() as session:
             async with session.get(search_url) as search_response:
-                if search_response.status != 200:
-                    err = f"The api-webserver responded with a code:{search_response.status} - {search_response.reason}"
-                    raise NerpyException(err)
+                await check_api_response(search_response, "OMDB API")
                 search_result = await search_response.json()
 
                 if search_result["Response"] == "True":
                     id_url = f"https://www.omdbapi.com/?apikey={self.config['omdb']}&i={search_result['Search'][0]['imdbID']}"
 
                     async with session.get(id_url) as id_response:
-                        if id_response.status != 200:
-                            err = f"The api-webserver responded with a code:{id_response.status} - {id_response.reason}"
-                            raise NerpyException(err)
+                        await check_api_response(id_response, "OMDB API")
                         id_result = await id_response.json()
 
                         emb = Embed(title=id_result["Title"])
