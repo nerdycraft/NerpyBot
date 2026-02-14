@@ -24,7 +24,7 @@ class TestPrefixValidation:
         await admin_cog._prefix_set.callback(admin_cog, mock_context, new_pref="! cmd")
 
         # Check that rejection message was sent
-        mock_context.send.assert_any_call("Spaces not allowed in prefixes")
+        mock_context.send.assert_any_call("Spaces not allowed in prefixes", ephemeral=True)
 
     @pytest.mark.asyncio
     async def test_prefix_without_spaces_accepted(self, admin_cog, mock_context, db_session):
@@ -32,7 +32,7 @@ class TestPrefixValidation:
         await admin_cog._prefix_set.callback(admin_cog, mock_context, new_pref="!")
 
         # Should confirm the new prefix
-        mock_context.send.assert_called_with("new prefix is now set to '!'.")
+        mock_context.send.assert_called_with("new prefix is now set to '!'.", ephemeral=True)
 
 
 class TestPrefixGet:
@@ -121,4 +121,4 @@ class TestPrefixDelete:
 
         # Verify deletion
         assert GuildPrefix.get(mock_guild.id, db_session) is None
-        mock_context.send.assert_called_with("Prefix removed.")
+        mock_context.send.assert_called_with("Prefix removed.", ephemeral=True)

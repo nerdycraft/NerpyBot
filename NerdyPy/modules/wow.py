@@ -133,9 +133,9 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         with self.bot.session_scope() as session:
             entry = WoW.get(ctx.guild.id, session)
             if entry is None:
-                await ctx.send("No language set for this guild. Defaulting to English.")
+                await send_hidden_message(ctx, "No language set for this guild. Defaulting to English.")
             else:
-                await ctx.send(f"Current language for this guild is: {entry.Language.upper()}")
+                await send_hidden_message(ctx, f"Current language for this guild is: {entry.Language.upper()}")
 
     @_wow_language.command(name="set")
     async def _wow_language_set(self, ctx: Context, lang: Literal["de", "en"]):
@@ -149,14 +149,14 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             entry.ModifiedDate = dt.now()
             entry.Language = lang.upper()
 
-        await ctx.send(f"Language set to {lang.upper()} for this guild.")
+        await send_hidden_message(ctx, f"Language set to {lang.upper()} for this guild.")
 
     @_wow_language.command(name="delete", aliases=["remove", "rm", "del"])
     async def _wow_language_delete(self, ctx: Context):
         """Delete the current language setting for the WoW API."""
         with self.bot.session_scope() as session:
             WoW.delete(ctx.guild.id, session)
-        await ctx.send("Language setting removed. Defaulting to English for this guild.")
+        await send_hidden_message(ctx, "Language setting removed. Defaulting to English for this guild.")
 
     @hybrid_command(name="armory", aliases=["search", "char"])
     async def _wow_armory(self, ctx: Context, name: str, realm: str, region: Optional[Literal["eu", "us"]] = "eu"):
@@ -168,7 +168,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             you need to set it.
         """
         try:
-            async with ctx.typing():
+            async with ctx.typing(ephemeral=True):
                 realm = realm.lower()
                 name = name.lower()
                 profile = f"{region}/{realm}/{name}"
