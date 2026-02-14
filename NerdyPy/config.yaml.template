@@ -12,6 +12,7 @@ bot:
     - moderation
     - random
     - reactionrole
+    - rolemanage
     - reminder
     - search
     - tagging
