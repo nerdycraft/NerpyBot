@@ -332,7 +332,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             output = ""
             for cfg in configs:
                 channel = ctx.guild.get_channel(cfg.ChannelId)
-                channel_name = channel.mention if channel else f"#{cfg.ChannelId} (deleted)"
+                channel_name = f"#{channel.name}" if channel else f"#{cfg.ChannelId} (deleted)"
                 output += f"{str(cfg)}Channel: {channel_name}\n\n"
             for page in pagify(output, delims=["\n#"], page_length=1990):
                 await send_hidden_message(ctx, box(page, "md"))
