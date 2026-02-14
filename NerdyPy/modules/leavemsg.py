@@ -43,7 +43,8 @@ class LeaveMsg(Cog):
         self.bot.log.debug(f"[{member.guild.name} ({member.guild.id})]: sending leave message for {member}")
 
         message = leave_config.Message or DEFAULT_LEAVE_MESSAGE
-        formatted_message = message.format(member=member.display_name)
+        member_str = f"**{member.display_name}** ({member.name})"
+        formatted_message = message.format(member=member_str) if "{member}" in message else f"{message} — {member_str}"
 
         try:
             await channel.send(formatted_message)
