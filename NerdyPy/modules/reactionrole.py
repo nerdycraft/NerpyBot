@@ -7,7 +7,7 @@ from discord.ext.commands import Cog, Context, hybrid_group
 from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 
 from utils.format import box
-from utils.helpers import empty_subcommand, send_hidden_message
+from utils.helpers import empty_subcommand, error_context, send_hidden_message
 
 
 class ReactionRole(Cog):
@@ -26,10 +26,17 @@ class ReactionRole(Cog):
         if role is None:
             return
 
+        guild = self.bot.get_guild(payload.guild_id)
+        guild_info = f"{guild.name} ({guild.id})" if guild else payload.guild_id
+        self.bot.log.debug(f"[{guild_info}] {payload.member}: assigning role {role.name} via reaction")
+
         try:
             await payload.member.add_roles(role, reason="Reaction role")
         except Exception as ex:
-            self.bot.log.error(f"Failed to add role {role.name}: {ex}")
+            self.bot.log.error(
+                f"[{guild_info}] {payload.member} ({payload.member.id}): "
+                f"failed to add role {role.name} ({role.id}): {ex}"
+            )
 
     @Cog.listener()
     async def on_raw_reaction_remove(self, payload):
@@ -48,10 +55,15 @@ class ReactionRole(Cog):
         if member is None or member.bot:
             return
 
+        self.bot.log.debug(f"[{guild.name} ({guild.id})] {member}: removing role {role.name} via reaction")
+
         try:
             await member.remove_roles(role, reason="Reaction role")
         except Exception as ex:
-            self.bot.log.error(f"Failed to remove role {role.name}: {ex}")
+            self.bot.log.error(
+                f"[{guild.name} ({guild.id})] {member} ({member.id}): "
+                f"failed to remove role {role.name} ({role.id}): {ex}"
+            )
 
     def _get_role_for_reaction(self, payload):
         """looks up the role for a given reaction event payload"""
@@ -82,7 +94,9 @@ class ReactionRole(Cog):
             discord_msg = await channel.fetch_message(message_id)
             await discord_msg.clear_reaction(emoji)
         except Exception as ex:
-            self.bot.log.warning(f"Could not clear reaction {emoji} from message {message_id}: {ex}")
+            self.bot.log.warning(
+                f"[{guild.name} ({guild.id})]: could not clear reaction {emoji} from message {message_id}: {ex}"
+            )
 
     @hybrid_group(name="reactionrole", aliases=["rr"])
     @checks.has_permissions(manage_roles=True)
@@ -145,7 +159,7 @@ class ReactionRole(Cog):
         try:
             await discord_msg.add_reaction(emoji)
         except Exception as ex:
-            self.bot.log.warning(f"Could not add reaction to message: {ex}")
+            self.bot.log.warning(f"{error_context(ctx)}: could not add reaction to message {msg_id}: {ex}")
 
         await send_hidden_message(ctx, f"Mapped {emoji} to **{role.name}** on message `{msg_id}`.")
 

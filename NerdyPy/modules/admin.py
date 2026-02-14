@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
+import logging
 from datetime import UTC, datetime
 from typing import Literal, Optional
 
 from discord import Forbidden, HTTPException, Object, Role
 from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError, checks
-from discord.ext.commands import Cog, Context, Greedy, command, group, guild_only, hybrid_group
+from discord.ext.commands import Cog, Context, Greedy, command, group, hybrid_group
 from models.admin import GuildPrefix
 from models.botmod import BotModeratorRole
 
@@ -109,11 +110,13 @@ class Admin(Cog):
         await send_hidden_message(ctx, "Bot-moderator role removed.")
 
     @command(name="sync")
-    @guild_only()
     async def sync(
         self, ctx: Context, guilds: Greedy[Object], spec: Optional[Literal["local", "copy", "clear"]] = None
     ) -> None:
         if not guilds:
+            if spec in ("local", "copy", "clear") and ctx.guild is None:
+                await send_hidden_message(ctx, f"The `{spec}` option requires a server context.")
+                return
             if spec == "local":
                 synced = await self.bot.tree.sync(guild=ctx.guild)
             elif spec == "copy":
@@ -144,6 +147,24 @@ class Admin(Cog):
                 ret += 1
 
         await send_hidden_message(ctx, f"Synced the tree to {ret}/{len(guilds)}.")
+
+    @command(name="debug")
+    async def _debug(self, ctx: Context) -> None:
+        """Toggle debug logging at runtime. [operator]"""
+        if ctx.author.id not in self.bot.ops:
+            raise NerpyException("This command is restricted to bot operators.")
+
+        logger = logging.getLogger("nerpybot")
+        if logger.level == logging.DEBUG:
+            logger.setLevel(logging.INFO)
+            self.bot.debug = False
+            await send_hidden_message(ctx, "Debug logging **disabled** (level: INFO).")
+        else:
+            logger.setLevel(logging.DEBUG)
+            self.bot.debug = True
+            await send_hidden_message(ctx, "Debug logging **enabled** (level: DEBUG).")
+
+        self.bot.log.info(f"debug logging toggled to {self.bot.debug} by {ctx.author}")
 
 
 async def setup(bot):

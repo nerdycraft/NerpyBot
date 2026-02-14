@@ -6,7 +6,7 @@ from discord.ext.commands import Cog, Context, hybrid_group
 
 from models.rolemanage import RoleMapping
 from utils.format import box
-from utils.helpers import empty_subcommand, send_hidden_message
+from utils.helpers import empty_subcommand, error_context, send_hidden_message
 
 
 class RoleManage(Cog):
@@ -141,7 +141,7 @@ class RoleManage(Cog):
         try:
             await member.add_roles(role, reason=f"Delegated role assign by {ctx.author}")
         except Exception as ex:
-            self.bot.log.error(f"Failed to assign role {role.name} to {member}: {ex}")
+            self.bot.log.error(f"{error_context(ctx)}: failed to assign role {role.name} to {member}: {ex}")
             await send_hidden_message(ctx, f"Failed to assign role: {ex}")
             return
 
@@ -183,7 +183,7 @@ class RoleManage(Cog):
         try:
             await member.remove_roles(role, reason=f"Delegated role remove by {ctx.author}")
         except Exception as ex:
-            self.bot.log.error(f"Failed to remove role {role.name} from {member}: {ex}")
+            self.bot.log.error(f"{error_context(ctx)}: failed to remove role {role.name} from {member}: {ex}")
             await send_hidden_message(ctx, f"Failed to remove role: {ex}")
             return
 

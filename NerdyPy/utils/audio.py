@@ -95,13 +95,21 @@ class Audio:
         await self._join_channel(song.channel)
 
         if not song.channel.guild.voice_client or not song.channel.guild.voice_client.is_connected():
-            self.bot.log.error(f"Failed to connect to voice channel {song.channel.name} ({song.channel.id})")
+            guild = song.channel.guild
+            self.bot.log.error(
+                f"[{guild.name} ({guild.id})]: "
+                f"failed to connect to voice channel {song.channel.name} ({song.channel.id})"
+            )
             return
 
         self.bot.log.debug(f"Playing Song {song.title} in channel {song.channel.name} ({song.channel.id})")
         song.channel.guild.voice_client.play(
             song.stream,
-            after=lambda e: self.bot.log.error(f"Player error: {e}") if e else None,
+            after=lambda e: (
+                self.bot.log.error(f"[{song.channel.guild.name} ({song.channel.guild.id})]: player error: {e}")
+                if e
+                else None
+            ),
         )
 
         self.lastPlayed[song.channel.guild.id] = datetime.now()
@@ -117,7 +125,10 @@ class Audio:
                 try:
                     vc = await channel.connect(self_deaf=True, self_mute=True, timeout=5)
                 except asyncio.TimeoutError as e:
-                    self.bot.log.error(f"Failed to connect to voice channel {channel}: {e}")
+                    self.bot.log.error(
+                        f"[{channel.guild.name} ({channel.guild.id})]: "
+                        f"failed to connect to voice channel {channel.name} ({channel.id}): {e}"
+                    )
                     return
                 else:
                     self.buffer[channel.guild.id][BufferKey.VOICE_CLIENT] = vc

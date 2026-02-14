@@ -16,7 +16,8 @@ uv sync --only-group migrations      # Migration tools only
 
 # Run the bot
 python NerdyPy/NerdyPy.py            # Start with default config
-python NerdyPy/NerdyPy.py -l DEBUG   # Debug mode
+python NerdyPy/NerdyPy.py -d         # Debug logging (no sqlalchemy noise)
+python NerdyPy/NerdyPy.py -l DEBUG   # Debug mode (includes sqlalchemy)
 python NerdyPy/NerdyPy.py -c path    # Custom config file
 python NerdyPy/NerdyPy.py -r         # Auto-restart on failure
 

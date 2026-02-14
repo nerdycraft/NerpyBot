@@ -3,6 +3,7 @@
 from datetime import UTC, datetime, time, timedelta
 from typing import Optional, Union
 
+import utils.format as fmt
 from discord import Embed, Member, TextChannel
 from discord.app_commands import checks, rename
 from discord.ext import tasks
@@ -12,7 +13,6 @@ from pytimeparse2 import parse
 
 from models.moderation import AutoDelete, AutoKicker
 
-import utils.format as fmt
 from utils.checks import can_leave_voice, can_stop_playback
 from utils.errors import NerpyException
 from utils.helpers import empty_subcommand, send_hidden_message
@@ -40,7 +40,9 @@ class Moderation(Cog):
         self.bot.log.debug("Start Autokicker Loop!")
         try:
             with self.bot.session_scope() as session:
+                self.bot.log.debug("Fetching configurations")
                 configurations = AutoKicker.get_all(session)
+                self.bot.log.debug(f"Fetched {len(configurations)} configurations")
 
             for configuration in configurations:
                 if configuration is None:
@@ -49,20 +51,24 @@ class Moderation(Cog):
                     guild = self.bot.get_guild(configuration.GuildId)
                     if guild is None:
                         continue
-                    self.bot.log.info(f"Checking for member without role in {guild.name}.")
+                    self.bot.log.info(f"[{guild.name} ({guild.id})]: checking for members without role")
                     for member in guild.members:
                         if len(member.roles) == 1:
-                            self.bot.log.debug(f"Found member without role: {member.display_name}")
+                            self.bot.log.debug(
+                                f"[{guild.name} ({guild.id})]: member without role: {member} ({member.id})"
+                            )
                             kick_reminder = datetime.now(UTC) - timedelta(seconds=(configuration.KickAfter / 2))
                             kick_reminder = kick_reminder.replace(tzinfo=UTC)
                             kick_after = datetime.now(UTC) - timedelta(seconds=configuration.KickAfter)
                             kick_after = kick_after.replace(tzinfo=UTC)
 
                             if member.joined_at < kick_after:
-                                self.bot.log.debug(f"Kick member {member.display_name}!")
+                                self.bot.log.debug(f"[{guild.name} ({guild.id})]: kicking {member} ({member.id})")
                                 await member.kick()
                             elif member.joined_at < kick_reminder:
-                                self.bot.log.debug("Send reminder message to member")
+                                self.bot.log.debug(
+                                    f"[{guild.name} ({guild.id})]: sending kick reminder to {member} ({member.id})"
+                                )
                                 if configuration.ReminderMessage is not None:
                                     await member.send(configuration.ReminderMessage)
                                 else:
@@ -71,7 +77,7 @@ class Moderation(Cog):
                                         f"Please choose a role until {naturaldate(kick_after)}."
                                     )
         except Exception as ex:
-            self.bot.log.error(f"Error occurred: {ex}")
+            self.bot.log.error(f"Autokicker: {ex}")
         self.bot.log.debug("Finish Autokicker Loop!")
 
     @tasks.loop(minutes=5)
@@ -83,6 +89,7 @@ class Moderation(Cog):
             with self.bot.session_scope() as session:
                 self.bot.log.debug("Fetching configurations")
                 configurations = AutoDelete.get_all(session)
+                self.bot.log.debug(f"Fetched {len(configurations)} configurations")
 
             for configuration in configurations:
                 guild = self.bot.get_guild(configuration.GuildId)
@@ -109,11 +116,12 @@ class Moderation(Cog):
                         self.bot.log.debug("Skip pinned message")
                         continue
                     self.bot.log.info(
-                        f"Delete message from channel {message.channel.name}, created at {message.created_at}."
+                        f"[{guild.name} ({guild.id})]: deleting message from #{message.channel.name} "
+                        f"by {message.author} ({message.author.id}), created at {message.created_at}"
                     )
                     await message.delete()
         except Exception as ex:
-            self.bot.log.error(f"Error occurred: {ex}")
+            self.bot.log.error(f"Autodeleter: {ex}")
             if channel is not None:
                 self.bot.log.debug(f"Channel: {channel}")
             if message is not None:

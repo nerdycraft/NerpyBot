@@ -17,7 +17,7 @@ from utils.audio import QueuedSong, QueueMixin
 from utils.checks import is_connected_to_voice, is_in_same_voice_channel_as_bot
 from utils.download import download, fetch_yt_infos
 from utils.errors import NerpyException
-from utils.helpers import send_hidden_message, youtube
+from utils.helpers import error_context, send_hidden_message, youtube
 
 
 @guild_only()
@@ -37,7 +37,6 @@ class Music(QueueMixin, GroupCog):
     @check(is_in_same_voice_channel_as_bot)
     async def _skip_audio(self, ctx: Context):
         """skip current track"""
-        self.bot.log.info(f"{ctx.guild.name} requesting skip!")
         self.audio.stop(ctx.guild.id)
         if isinstance(ctx, Interaction):
             await ctx.followup.send("Skipped current track.")
@@ -135,7 +134,7 @@ class Music(QueueMixin, GroupCog):
             video_title = video_infos["title"]
             video_idn = video_infos["id"]
             video_thumbnail = video_infos.get("thumbnails", [dict()])[0].get("url")
-            self.bot.log.info(f'"{ctx.guild.name}" requesting "{video_title}" to play')
+            self.bot.log.info(f'{error_context(ctx)}: requesting "{video_title}" to play')
             emb = Embed(
                 title="Added Song to Queue!",
                 color=Color(value=int("0099ff", 16)),

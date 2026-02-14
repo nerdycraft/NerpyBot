@@ -6,9 +6,7 @@ from typing import Optional
 from discord import TextChannel
 from discord.ext import tasks
 from discord.ext.commands import Context, GroupCog, hybrid_command
-
 from models.reminder import ReminderMessage
-
 from utils.format import box, pagify
 from utils.helpers import send_hidden_message
 
@@ -29,7 +27,11 @@ class Reminder(GroupCog, group_name="reminder"):
         try:
             with self.bot.session_scope() as session:
                 for guild in self.bot.guilds:
-                    for msg in ReminderMessage.get_all_by_guild(guild.id, session):
+                    self.bot.log.debug(f"Checking reminders for guild {guild.name} ({guild.id})")
+                    messages = ReminderMessage.get_all_by_guild(guild.id, session)
+                    self.bot.log.debug(f"Found {len(messages)} reminder(s) for guild {guild.name} ({guild.id})")
+
+                    for msg in messages:
                         if msg.LastSend.astimezone(UTC) + timedelta(minutes=msg.Minutes) < datetime.now(UTC):
                             chan = guild.get_channel(msg.ChannelId)
                             if chan is None:
@@ -42,7 +44,7 @@ class Reminder(GroupCog, group_name="reminder"):
                                     msg.LastSend = datetime.now()
                                     msg.Count += 1
         except Exception as ex:
-            self.bot.log.error(f"Error occurred: {ex}")
+            self.bot.log.error(f"Reminder loop: {ex}")
         self.bot.log.debug("Stop Reminder Loop!")
 
     @hybrid_command(name="create")

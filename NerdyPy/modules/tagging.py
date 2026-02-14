@@ -21,7 +21,7 @@ from utils.audio import QueuedSong, QueueMixin
 from utils.checks import is_connected_to_voice, is_in_same_voice_channel_as_bot
 from utils.download import download
 from utils.errors import NerpyException
-from utils.helpers import send_hidden_message
+from utils.helpers import error_context, send_hidden_message
 
 
 @guild_only()
@@ -46,7 +46,6 @@ class Tagging(QueueMixin, Cog):
     @check(is_in_same_voice_channel_as_bot)
     async def _skip_audio(self, ctx: Context):
         """skip current track"""
-        self.bot.log.info(f"{ctx.guild.name} requesting skip!")
         self.audio.stop(ctx.guild.id)
 
     @_tag.group(name="queue", hidden=True)
@@ -105,7 +104,7 @@ class Tagging(QueueMixin, Cog):
 
         async with ctx.typing():
             with self.bot.session_scope() as session:
-                self.bot.log.info(f'creating tag "{ctx.guild.name}/{name}" started')
+                self.bot.log.debug(f'{error_context(ctx)}: creating tag "{name}"')
                 _tag = Tag(
                     Name=name,
                     Author=str(ctx.author),
@@ -121,7 +120,7 @@ class Tagging(QueueMixin, Cog):
 
                 self._add_tag_entries(session, _tag, content)
 
-            self.bot.log.info(f'creating tag "{ctx.guild.name}/{name}" finished')
+            self.bot.log.info(f'{error_context(ctx)}: tag "{name}" created')
         await send_hidden_message(ctx, f'tag "{name}" created!')
 
     @_tag.command(name="add")
@@ -137,7 +136,7 @@ class Tagging(QueueMixin, Cog):
                 _tag = Tag.get(name, ctx.guild.id, session)
                 self._add_tag_entries(session, _tag, content)
 
-            self.bot.log.info(f'added entry to tag "{ctx.guild.name}/{name}".')
+            self.bot.log.info(f'{error_context(ctx)}: added entry to tag "{name}"')
         await send_hidden_message(ctx, f'Entry added to tag "{name}"!')
 
     @_tag.command(name="volume")
@@ -146,7 +145,7 @@ class Tagging(QueueMixin, Cog):
         if not 0 <= vol <= 200:
             await send_hidden_message(ctx, "Volume must be between 0 and 200.")
             return
-        self.bot.log.info(f'set volume of "{name}" to {vol} from {ctx.guild.id}')
+        self.bot.log.debug(f'{error_context(ctx)}: set volume of "{name}" to {vol}')
         with self.bot.session_scope() as session:
             if not Tag.exists(name, ctx.guild.id, session):
                 await send_hidden_message(ctx, f'tag "{name}" doesn\'t exist!')
@@ -159,7 +158,7 @@ class Tagging(QueueMixin, Cog):
     @_tag.command(name="delete")
     async def _tag_delete(self, ctx: Context, name: clean_content):
         """delete a tag?"""
-        self.bot.log.info(f'trying to delete "{name}" from "{ctx.guild.id}"')
+        self.bot.log.info(f'{error_context(ctx)}: deleting tag "{name}"')
         with self.bot.session_scope() as session:
             if not Tag.exists(name, ctx.guild.id, session):
                 await send_hidden_message(ctx, f'tag "{name}" doesn\'t exist!')
@@ -170,7 +169,6 @@ class Tagging(QueueMixin, Cog):
     @_tag.command(name="list")
     async def _tag_list(self, ctx: Context):
         """a list of all available tags"""
-        self.bot.log.info("list")
         with self.bot.session_scope() as session:
             tags = Tag.get_all_from_guild(ctx.guild.id, session)
 
@@ -207,7 +205,7 @@ class Tagging(QueueMixin, Cog):
             await ctx.send(fmt.box(msg))
 
     async def _send_to_queue(self, ctx: Context, tag_name):
-        self.bot.log.info(f'{ctx.guild.name} requesting "{tag_name}" tag')
+        self.bot.log.info(f'{error_context(ctx)}: requesting tag "{tag_name}"')
         with self.bot.session_scope() as session:
             _tag = Tag.get(tag_name, ctx.guild.id, session)
             if _tag is None:
