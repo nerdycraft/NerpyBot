@@ -8,7 +8,7 @@
             <env name="PYTHONUNBUFFERED" value="1"/>
         </envs>
         <option name="SDK_HOME" value=""/>
-        <option name="WORKING_DIRECTORY" value="$Projectpath$"/>
+        <option name="WORKING_DIRECTORY" value="$ProjectFileDir$/NerdyPy"/>
         <option name="IS_MODULE_SDK" value="true"/>
         <option name="ADD_CONTENT_ROOTS" value="true"/>
         <option name="ADD_SOURCE_ROOTS" value="true"/>
@@ -22,6 +22,7 @@
                 <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false"/>
             </ENTRIES>
         </EXTENSION>
+        <option name="RUN_TOOL" value="true"/>
         <option name="SCRIPT_NAME" value="NerdyPy.py"/>
         <option name="PARAMETERS" value="-l DEBUG -c config_humanmusic.yaml"/>
         <option name="SHOW_COMMAND_LINE" value="false"/>
