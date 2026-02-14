@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from discord import Color, Embed, Interaction
-from discord.app_commands import command, guild_only
+from discord.app_commands import guild_only
 from discord.ext.commands import (
     Context,
     GroupCog,
@@ -14,7 +14,7 @@ from discord.ext.commands import (
 
 import utils.format as fmt
 from utils.audio import QueuedSong, QueueMixin
-from utils.checks import is_connected_to_voice
+from utils.checks import is_connected_to_voice, is_in_same_voice_channel_as_bot
 from utils.download import download, fetch_yt_infos
 from utils.errors import NerpyException
 from utils.helpers import send_hidden_message, youtube
@@ -34,20 +34,13 @@ class Music(QueueMixin, GroupCog):
         self.audio = self.bot.audio
 
     @hybrid_command(name="skip")
+    @check(is_in_same_voice_channel_as_bot)
     async def _skip_audio(self, ctx: Context):
         """skip current track"""
         self.bot.log.info(f"{ctx.guild.name} requesting skip!")
         self.audio.stop(ctx.guild.id)
         if isinstance(ctx, Interaction):
             await ctx.followup.send("Skipped current track.")
-
-    @command(name="stop")
-    async def _stop_playing_audio(self, ctx: Context):
-        """bot stops playing audio"""
-        self.audio.stop(ctx.guild.id)
-        self._clear_queue(ctx.guild.id)
-        if isinstance(ctx, Interaction):
-            await ctx.followup.send("Stopped playing audio.")
 
     @hybrid_group(name="queue")
     async def _queue(self, ctx: Context):
