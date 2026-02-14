@@ -8,10 +8,9 @@ from typing import Dict, Literal, LiteralString, Optional, Tuple
 import requests
 from blizzapi import Language, Region, RetailClient
 from discord import Color, Embed
-from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_command, hybrid_group
-from models.wow import WoW
+from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_command
 from utils.errors import NerpyException
-from utils.helpers import empty_subcommand, send_hidden_message
+from utils.helpers import send_hidden_message
 
 
 class WowApiLanguage(Enum):
@@ -24,7 +23,7 @@ class WowApiLanguage(Enum):
 
 @bot_has_permissions(send_messages=True, embed_links=True)
 class WorldofWarcraft(GroupCog, group_name="wow"):
-    """WOW API"""
+    """World of Warcraft API"""
 
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
@@ -50,30 +49,31 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
         return f"{url}/{profile}"
 
-    async def _get_retailclient(self, region: str, guild_id: int):
+    def _get_retailclient(self, region: str, language: str):
         if region not in self.regions:
             raise NerpyException(f"Invalid region: {region}. Valid regions are: {', '.join(self.regions)}")
 
-        language = WowApiLanguage.EN.value if region != "eu" else WowApiLanguage.EN_GB.value
-        try:
-            with self.bot.session_scope() as session:
-                lang = WoW.get(guild_id, session).Language
-            if lang:
-                language = WowApiLanguage[lang].value
+        if language == "de":
+            api_language = WowApiLanguage.DE.value
+        elif region == "eu":
+            api_language = WowApiLanguage.EN_GB.value
+        else:
+            api_language = WowApiLanguage.EN.value
 
+        try:
             # noinspection PyTypeChecker
             return RetailClient(
                 client_id=self.client_id,
                 client_secret=self.client_secret,
                 region=Region(region),
-                language=Language(language),
+                language=Language(api_language),
             )
         except ValueError as ex:
             raise NerpyException from ex
 
-    async def _get_character(self, realm: str, region: str, name: str, guild_id: int) -> Tuple[Dict, LiteralString]:
+    def _get_character(self, realm: str, region: str, name: str, language: str) -> Tuple[Dict, LiteralString]:
         """Get character profile and media from the WoW API."""
-        api = await self._get_retailclient(region, guild_id)
+        api = self._get_retailclient(region, language)
 
         character = api.character_profile_summary(realmSlug=realm, characterName=name)
         assets = api.character_media(realmSlug=realm, characterName=name).get("assets", list())
@@ -123,49 +123,22 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             return keys
         return None
 
-    @hybrid_group(name="language", aliases=["lang", "locale"])
-    async def _wow_language(self, ctx: Context):
-        await empty_subcommand(ctx)
-
-    @_wow_language.command(name="get")
-    async def _wow_language_get(self, ctx: Context):
-        """Get the current language setting for the WoW API."""
-        with self.bot.session_scope() as session:
-            entry = WoW.get(ctx.guild.id, session)
-            if entry is None:
-                await send_hidden_message(ctx, "No language set for this guild. Defaulting to English.")
-            else:
-                await send_hidden_message(ctx, f"Current language for this guild is: {entry.Language.upper()}")
-
-    @_wow_language.command(name="set")
-    async def _wow_language_set(self, ctx: Context, lang: Literal["de", "en"]):
-        """Set the language for the WoW API."""
-        with self.bot.session_scope() as session:
-            entry = WoW.get(ctx.guild.id, session)
-            if entry is None:
-                entry = WoW(GuildId=ctx.guild.id, CreateDate=dt.now(), Author=ctx.author.name)
-                session.add(entry)
-
-            entry.ModifiedDate = dt.now()
-            entry.Language = lang.upper()
-
-        await send_hidden_message(ctx, f"Language set to {lang.upper()} for this guild.")
-
-    @_wow_language.command(name="delete", aliases=["remove", "rm", "del"])
-    async def _wow_language_delete(self, ctx: Context):
-        """Delete the current language setting for the WoW API."""
-        with self.bot.session_scope() as session:
-            WoW.delete(ctx.guild.id, session)
-        await send_hidden_message(ctx, "Language setting removed. Defaulting to English for this guild.")
-
     @hybrid_command(name="armory", aliases=["search", "char"])
-    async def _wow_armory(self, ctx: Context, name: str, realm: str, region: Optional[Literal["eu", "us"]] = "eu"):
+    async def _wow_armory(
+        self,
+        ctx: Context,
+        name: str,
+        realm: str,
+        region: Optional[Literal["eu", "us"]] = "eu",
+        language: Optional[Literal["de", "en"]] = "en",
+    ):
         """
         search for character
 
         name and realm are required parameters.
         region is optional, but if you want to search on another realm than your discord server runs on,
             you need to set it.
+        language is optional, defaults to English.
         """
         try:
             async with ctx.typing(ephemeral=True):
@@ -174,7 +147,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 profile = f"{region}/{realm}/{name}"
 
                 # noinspection PyTypeChecker
-                character, profile_picture = await self._get_character(realm, region, name, ctx.guild.id)
+                character, profile_picture = self._get_character(realm, region, name, language)
 
                 if character.get("code") == 404:
                     raise NerpyException("No Character with this name found.")

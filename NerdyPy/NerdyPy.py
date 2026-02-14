@@ -133,7 +133,7 @@ class NerpyBot(Bot):
 
         # All commands require a guild context; reject prefix commands in DMs early.
         # Help, debug, and sync are exempt since they can operate globally.
-        _dm_allowed = {"help", "debug", "sync"}
+        _dm_allowed = {"help", "debug", "sync", "armory"}
 
         async def _guild_only_check(ctx: Context) -> bool:
             if ctx.command and ctx.command.qualified_name in _dm_allowed:
