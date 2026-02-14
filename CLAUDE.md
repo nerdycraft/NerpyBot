@@ -8,6 +8,8 @@ NerpyBot is a Discord bot built with discord.py using the Cog extension system. 
 
 ## Development Commands
 
+**Always use `uv run` to execute Python, pytest, ruff, and other tools** — this project is uv-managed and all dependencies live in uv's virtual environment.
+
 ```bash
 # Install dependencies
 uv sync                              # All bot dependencies (default)
@@ -15,21 +17,21 @@ uv sync --group test                 # Include test dependencies
 uv sync --only-group migrations      # Migration tools only
 
 # Run the bot
-python NerdyPy/NerdyPy.py            # Start with default config
-python NerdyPy/NerdyPy.py -d         # Debug logging (no sqlalchemy noise)
-python NerdyPy/NerdyPy.py -l DEBUG   # Debug mode (includes sqlalchemy)
-python NerdyPy/NerdyPy.py -c path    # Custom config file
-python NerdyPy/NerdyPy.py -r         # Auto-restart on failure
+uv run python NerdyPy/NerdyPy.py            # Start with default config
+uv run python NerdyPy/NerdyPy.py -d         # Debug logging (no sqlalchemy noise)
+uv run python NerdyPy/NerdyPy.py -l DEBUG   # Debug mode (includes sqlalchemy)
+uv run python NerdyPy/NerdyPy.py -c path    # Custom config file
+uv run python NerdyPy/NerdyPy.py -r         # Auto-restart on failure
 
 # Code quality
-ruff check                           # Lint
-ruff check --fix                     # Lint with auto-fix
-ruff format                          # Format code
-ruff format --check                  # Check formatting only
+uv run ruff check                    # Lint
+uv run ruff check --fix              # Lint with auto-fix
+uv run ruff format                   # Format code
+uv run ruff format --check           # Check formatting only
 
 # Testing
-pytest                               # Run tests
-pytest --cov                         # With coverage
+uv run pytest                        # Run tests
+uv run pytest --cov                  # With coverage
 
 # Database migrations
 uv sync --group migrations
