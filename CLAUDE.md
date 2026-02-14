@@ -72,11 +72,17 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 ### Utilities
 `NerdyPy/utils/` contains:
 - `audio.py` - Voice channel audio management
-- `checks.py` - Permission decorators
+- `checks.py` - Permission check functions for voice/moderator commands
 - `conversation.py` - Interactive dialog state management
 - `errors.py` - `NerpyException` for bot-specific errors
 - `format.py` - Text formatting helpers
-- `helpers.py` - General utilities
+- `helpers.py` - General utilities (incl. `send_hidden_message` for ephemeral/DM responses)
+
+### Gotchas
+
+- **`app_commands.checks` only gates slash commands** — Cog-level `@checks.has_permissions()` from `discord.app_commands` does NOT apply to prefix commands. A global `guild_only` check in `setup_hook` protects prefix commands from DM invocation.
+- **`ephemeral=True` is silently ignored on prefix commands** — Always use `send_hidden_message()` from `utils/helpers.py` which falls back to DMs for prefix contexts.
+- **Check functions must be side-effect-free during help** — `DefaultHelpCommand` calls `can_run()` on every command. Check functions in `checks.py` guard against this with `ctx.invoked_with == "help"`.
 
 ## Configuration
 

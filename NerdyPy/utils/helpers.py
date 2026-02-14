@@ -5,8 +5,15 @@ from googleapiclient.discovery import build
 from utils.errors import NerpyException
 
 
-async def send_hidden_message(ctx: Context, msg: str):
-    return await ctx.send(msg, ephemeral=True)
+async def send_hidden_message(ctx: Context, msg: str = None, **kwargs):
+    """Send a message only visible to the invoking user.
+
+    Slash commands use ephemeral replies; prefix commands fall back to DMs
+    since ephemeral is silently ignored without an interaction.
+    """
+    if ctx.interaction is not None:
+        return await ctx.send(msg, ephemeral=True, **kwargs)
+    return await ctx.author.send(msg, **kwargs)
 
 
 async def empty_subcommand(ctx: Context):

@@ -29,7 +29,10 @@ from discord.ext.commands import (
     CommandError,
     CommandNotFound,
     Context,
+    DefaultHelpCommand,
     ExtensionFailed,
+    NoPrivateMessage,
+    guild_only,
 )
 from models.admin import GuildPrefix
 from sqlalchemy import create_engine
@@ -49,7 +52,10 @@ class NerpyBot(Bot):
     def __init__(self, config: dict, intents: Intents, debug: bool):
         # noinspection PyTypeChecker
         super().__init__(
-            command_prefix=determine_prefix, description="NerdyBot - Always one step ahead!", intents=intents
+            command_prefix=determine_prefix,
+            description="NerdyBot - Always one step ahead!",
+            intents=intents,
+            help_command=DefaultHelpCommand(dm_help=True, verify_checks=False),
         )
 
         self.config = config
@@ -124,6 +130,16 @@ class NerpyBot(Bot):
         Discord Bot setup_hook
         Loads Modules and creates Databases
         """
+
+        # All commands require a guild context; reject prefix commands in DMs early.
+        # The help command is exempt since it's not guild-specific.
+        async def _guild_only_check(ctx: Context) -> bool:
+            if ctx.command and ctx.command.qualified_name == "help":
+                return True
+            return await guild_only().predicate(ctx)
+
+        self.add_check(_guild_only_check)
+
         # load modules
         for module in self.modules:
             try:
@@ -177,7 +193,16 @@ class NerpyBot(Bot):
                 self.usr_cmd_err_spam[ctx.author] = 0
 
         if send_err:
-            if isinstance(error, CommandError):
+            if isinstance(error, NoPrivateMessage):
+                await send_hidden_message(ctx, "This command can only be used in a server, not in DMs.")
+                return
+            if isinstance(error, CheckFailure):
+                if isinstance(ctx.channel, DMChannel):
+                    await send_hidden_message(ctx, "This command can only be used in a server, not in DMs.")
+                    return
+                # Check functions handle their own messaging via _reject(); just log it
+                self.log.error(error)
+            elif isinstance(error, CommandError):
                 if isinstance(error, commands.CommandInvokeError) and not isinstance(error.original, NerpyException):
                     self.log.error(f"In {ctx.command.qualified_name}:")
                     print_tb(error.original.__traceback__)
@@ -187,7 +212,7 @@ class NerpyBot(Bot):
                     error.original.original, NerpyException
                 ):
                     await send_hidden_message(ctx, error.original.original.args[0])
-                if not isinstance(error, CheckFailure) and isinstance(error.original, NerpyException):
+                if isinstance(error.original, NerpyException):
                     if ctx.interaction is None:
                         await ctx.author.send("".join(error.original.args[0]))
                     else:
@@ -279,13 +304,15 @@ def determine_prefix(bot, message) -> List[str]:
     :return: List[str]
     """
     guild = message.guild
-    # Only allow custom prefixes in guild
     if guild:
+        # Guild: use custom prefix if set, otherwise default
         with bot.session_scope() as session:
             pref = GuildPrefix.get(guild.id, session)
             if pref is not None:
                 return [pref.Prefix]
-    return ["!"]  # default prefix
+        return ["!"]
+    # DMs: no prefix needed — the user is clearly talking to the bot
+    return ["!", ""]
 
 
 def parse_arguments() -> Namespace:

@@ -6,13 +6,14 @@ from typing import Optional, Union
 from discord import Embed, Member, TextChannel
 from discord.app_commands import checks, rename
 from discord.ext import tasks
-from discord.ext.commands import Cog, Context, command, hybrid_command, hybrid_group
+from discord.ext.commands import Cog, Context, check, command, hybrid_command, hybrid_group
 from humanize import naturaldate
 from pytimeparse2 import parse
 
 from models.moderation import AutoDelete, AutoKicker
 
 import utils.format as fmt
+from utils.checks import can_leave_voice, can_stop_playback
 from utils.errors import NerpyException
 from utils.helpers import empty_subcommand, send_hidden_message
 
@@ -358,7 +359,7 @@ class Moderation(Cog):
 
         emb.add_field(name="roles", value=", ".join(rn), inline=False)
 
-        await ctx.send(embed=emb)
+        await send_hidden_message(ctx, embed=emb)
 
     @user.command(name="list")
     @checks.has_permissions(moderate_members=True)
@@ -387,17 +388,29 @@ class Moderation(Cog):
             msg = "None found."
 
         for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
-            await ctx.send(fmt.box(page))
+            await send_hidden_message(ctx, fmt.box(page))
 
     @hybrid_command()
     async def membercount(self, ctx: Context):
         """displays the current membercount of the server [bot-moderator]"""
-        await ctx.send(fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord"))
+        await send_hidden_message(
+            ctx, fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord")
+        )
 
-    @hybrid_command(name="leave", aliases=["stop"])
+    @hybrid_command(name="stop")
+    @check(can_stop_playback)
+    async def _bot_stop_playing(self, ctx: Context):
+        """bot stops playing audio [bot-moderator]"""
+        self.bot.audio.stop(ctx.guild.id)
+        self.bot.audio.clear_buffer(ctx.guild.id)
+        await send_hidden_message(ctx, "\U0001f44d")
+
+    @hybrid_command(name="leave")
+    @check(can_leave_voice)
     async def _bot_leave_channel(self, ctx: Context):
-        """bot leaves the channel [bot-moderator]"""
+        """bot leaves the voice channel [bot-moderator]"""
         await self.bot.audio.leave(ctx.guild.id)
+        await send_hidden_message(ctx, "\U0001f44b")
 
     @command()
     async def history(self, ctx: Context):
@@ -409,9 +422,9 @@ class Moderation(Cog):
                     msg += f"{m.author} - {m.content}\n"
 
             if msg != "":
-                await ctx.send(fmt.box(msg))
+                await send_hidden_message(ctx, fmt.box(msg))
                 return
-        await ctx.send("No recent commands to display.")
+        await send_hidden_message(ctx, "No recent commands to display.")
 
     @_autokicker_loop.before_loop
     async def _autokicker_before_loop(self):
