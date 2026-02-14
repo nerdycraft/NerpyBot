@@ -41,6 +41,7 @@ test = [
 migrations = [
     "SQLAlchemy",
     "alembic",
+    "pyyaml",
 ]
 
 [tool.pytest.ini_options]

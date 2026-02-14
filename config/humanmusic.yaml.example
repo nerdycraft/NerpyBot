@@ -1,0 +1,17 @@
+bot:
+  client_id: your_client_id_here
+  token: your_bot_token_here
+  ops:
+    - your_discord_id_here
+  error_spam_threshold: 5
+  modules:
+    - admin
+    - moderation
+    - music
+
+database:
+  db_type: sqlite
+  db_name: /data/humanmusic.db
+
+audio:
+  buffer_limit: 5

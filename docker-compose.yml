@@ -1,0 +1,42 @@
+services:
+  nerpybot-migrations:
+    image: ghcr.io/nerdycraft/nerpybot-database-migrations:latest
+    restart: "no"
+    volumes:
+      - nerpybot-data:/data
+      - ./config/nerpybot.yaml:/app/config.yaml:ro
+
+  nerpybot:
+    image: ghcr.io/nerdycraft/nerpybot:latest
+    restart: unless-stopped
+    depends_on:
+      nerpybot-migrations:
+        condition: service_completed_successfully
+    volumes:
+      - nerpybot-data:/data
+      - ./config/nerpybot.yaml:/app/config.yaml:ro
+    tmpfs:
+      - /app/tmp:mode=0770,uid=10001
+
+  humanmusic-migrations:
+    image: ghcr.io/nerdycraft/nerpybot-database-migrations:latest
+    restart: "no"
+    volumes:
+      - humanmusic-data:/data
+      - ./config/humanmusic.yaml:/app/config.yaml:ro
+
+  humanmusic:
+    image: ghcr.io/nerdycraft/nerpybot:latest
+    restart: unless-stopped
+    depends_on:
+      humanmusic-migrations:
+        condition: service_completed_successfully
+    volumes:
+      - humanmusic-data:/data
+      - ./config/humanmusic.yaml:/app/config.yaml:ro
+    tmpfs:
+      - /app/tmp:mode=0770,uid=10001
+
+volumes:
+  nerpybot-data:
+  humanmusic-data:

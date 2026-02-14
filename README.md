@@ -1,103 +1,165 @@
 # NerpyBot
 
-## Quickstart
+The nerdiest Discord bot! Built with [discord.py](https://discordpy.readthedocs.io/) using the Cog extension system. Provides gaming integrations (WoW, League of Legends), entertainment, moderation, music playback, and utility features.
 
-I recommend using a virtualenv or container to run.
+## Quickstart (Local Development)
 
-Rename or copy `config.yaml.template` to `config.yaml` and fill in your tokens before starting the bot.
+```bash
+# Install dependencies
+uv sync
 
-Install dependencies first: `uv sync`
+# Copy and edit configuration
+cp NerdyPy/config.yaml.template NerdyPy/config.yaml
+# Fill in your Discord bot token, client ID, and API keys
 
-Start Bot with: `python NerdyPy.py`
+# Start the bot
+python NerdyPy/NerdyPy.py
 
-## Database
-
-Currently tested and support are only SQLite and MariaDB or MySQL.
-If you want to use any other database then the above, please specify database type and the connection helper, like so:
-
-```yaml
-database:
-  db_type: postgresql+psycopg2
+# Debug mode
+python NerdyPy/NerdyPy.py -l DEBUG
 ```
 
-For anything else the engine name is enough.
+## Docker Compose
 
-Also, do not forget to install the necessary python packages for your helper.
+The recommended way to run NerpyBot in production. The compose setup runs two bot instances (NerpyBot and HumanMusic) with automatic database migrations.
 
-Username and password are optional but highly recommended:
+### Setup
 
-```yaml
-database:
-  db_username: my_user
-  db_password: very$ecurepassw0rd
+```bash
+# Create config files from examples
+cp config/nerpybot.yaml.example config/nerpybot.yaml
+cp config/humanmusic.yaml.example config/humanmusic.yaml
+
+# Edit both files with your Discord tokens and API keys
 ```
 
-MySQL Example:
+### Run
+
+```bash
+# Start all services (pulls images from GHCR)
+docker compose up -d
+
+# View logs
+docker compose logs -f nerpybot
+docker compose logs -f humanmusic
+
+# Stop
+docker compose down
+```
+
+Migration containers run automatically before each bot starts, applying any pending database schema changes.
+
+### Building Locally
+
+To build from source instead of pulling pre-built images:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+### Using an External Database
+
+To use MariaDB/MySQL instead of SQLite, update your config file:
 
 ```yaml
 database:
-  db_type: mysql
-  db_name: bot
+  db_type: mariadb
+  db_name: nerpybot
   db_username: bot_user
-  db_password: very$ecurepassw0rd
-  db_host: mysql_host
+  db_password: your_password
+  db_host: db_host
   db_port: 3306
 ```
 
-## Configuration Example
+Supported databases: SQLite (default), MariaDB/MySQL, PostgreSQL. For other databases, specify the type with its driver (e.g., `postgresql+psycopg2`).
 
-Here's a full example of the config.yaml structure:
+## Database Migrations
 
-```yaml
-bot:
-  client_id: your_client_id_here
-  token: your_bot_token_here
-  ops:
-    - your_discord_id_here
-  error_spam_threshold: 5
-  modules:
-    - admin
-    - fun
-    - league
-    - moderation
-    - music
-    - random
-    - reminder
-    - search
-    - tagging
-    - utility
-    - wow
+Migrations are managed with [Alembic](https://alembic.sqlalchemy.org/) and run automatically in Docker Compose. For manual usage:
 
-database:
-  db_type: sqlite
-  db_name: db.db
+```bash
+# Install migration dependencies
+uv sync --only-group migrations
 
-audio:
-  buffer_limit: 5
+# Apply all pending migrations
+uv run alembic upgrade head
 
-search:
-  imgur: your_imgur_key
-  genius: your_genius_key
-  omdb: your_omdb_key
-  igdb_client_id: your_igdb_client_id
-  igdb_client_secret: your_igdb_client_secret
-  ytkey: your_youtube_key
-
-utility:
-  openweather: your_openweather_key
-
-league:
-  riot: your_riot_api_key
-
-wow:
-  wow_id: your_wow_client_id
-  wow_secret: your_wow_client_secret
+# Create a new migration
+uv run alembic revision --autogenerate -m "description"
 ```
 
-# Join NerdyBot
+The migration runner resolves the database URL in this order:
 
-https://discord.com/api/oauth2/authorize?client_id=246941850223640576&permissions=582632143842386&scope=applications.commands+bot
+1. `DATABASE_URL` environment variable
+2. Bot `config.yaml` (path overridable via `BOT_CONFIG` env var)
+3. `alembic.ini` default (`sqlite:///NerdyPy/db.db`)
 
-# Join HumanMusic
+## Modules
 
-https://discord.com/api/oauth2/authorize?client_id=883656077357510697&permissions=414467959360&scope=applications.commands+bot
+| Module | Description |
+|--------|-------------|
+| admin | Server management, prefix configuration, command sync |
+| fun | Entertainment commands |
+| league | Riot Games API integration |
+| leavemsg | Server leave message announcements |
+| moderation | Server moderation tools |
+| music | Voice channel audio playback |
+| raidplaner | Guild raid scheduling |
+| random | Random generators |
+| reminder | Timed user reminders |
+| search | Multi-source search (Imgur, Genius, OMDB, IGDB, YouTube) |
+| tagging | Audio tag management |
+| utility | Weather, info commands |
+| wow | Blizzard API integration |
+
+Enable modules by listing them in the `bot.modules` section of your config file.
+
+## Configuration
+
+Copy `NerdyPy/config.yaml.template` (local dev) or `config/*.yaml.example` (Docker) and fill in:
+
+- **bot.client_id** / **bot.token** — from the [Discord Developer Portal](https://discord.com/developers/applications)
+- **bot.ops** — Discord user IDs with bot admin privileges
+- **bot.modules** — list of modules to load
+- **database** — connection settings (see [External Database](#using-an-external-database))
+- **search** / **league** / **wow** / **utility** — API keys for respective services
+
+## Development
+
+```bash
+# Lint
+ruff check
+
+# Lint with auto-fix
+ruff check --fix
+
+# Format
+ruff format
+
+# Run tests
+pytest
+
+# Run tests with coverage
+pytest --cov
+```
+
+## Docker Builds
+
+The Dockerfile provides two targets:
+
+```bash
+# Bot image
+docker buildx build --target bot -t nerpybot .
+
+# Migrations image
+docker buildx build --target migrations -t nerpybot-migrations .
+```
+
+## Bot Invite Links
+
+- **NerpyBot** — [Invite](https://discord.com/api/oauth2/authorize?client_id=246941850223640576&permissions=582632143842386&scope=applications.commands+bot)
+- **HumanMusic** — [Invite](https://discord.com/api/oauth2/authorize?client_id=883656077357510697&permissions=414467959360&scope=applications.commands+bot)
+
+## License
+
+[GPL-3.0-or-later](LICENSE)
