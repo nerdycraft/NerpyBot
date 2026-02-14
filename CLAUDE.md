@@ -34,6 +34,8 @@ pytest --cov                         # With coverage
 uv sync --group migrations
 uv run alembic upgrade head                              # Apply migrations
 uv run alembic revision --autogenerate -m "description"  # Create migration
+# NOTE: New tables do NOT need migrations — SQLAlchemy auto-creates missing tables at startup.
+# Only create migrations when altering existing tables (add/remove columns, change constraints).
 
 # Docker builds (two targets)
 docker buildx build --target bot -t nerpybot .
