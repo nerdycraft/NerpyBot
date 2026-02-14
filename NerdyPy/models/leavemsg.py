@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Guild leave message configuration model"""
 
-from sqlalchemy import BigInteger, Boolean, Column, Index, Text
+from sqlalchemy import BigInteger, Boolean, Column, Index, UnicodeText
 from utils import database as db
 
 
@@ -13,7 +13,7 @@ class LeaveMessage(db.BASE):
 
     GuildId = Column(BigInteger, primary_key=True)
     ChannelId = Column(BigInteger, nullable=True)
-    Message = Column(Text, nullable=True)
+    Message = Column(UnicodeText, nullable=True)
     Enabled = Column(Boolean, default=False)
 
     @classmethod
