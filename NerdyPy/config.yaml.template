@@ -51,3 +51,9 @@ league:
 wow:
   wow_id: your_wow_client_id
   wow_secret: your_wow_client_secret
+  # Optional guild news settings (defaults shown)
+  # guild_news:
+  #   poll_interval_minutes: 15
+  #   mount_batch_size: 20
+  #   track_mounts: true
+  #   active_days: 7

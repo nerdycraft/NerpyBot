@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 
+import asyncio
+import json
+from datetime import UTC, datetime
 from datetime import datetime as dt
 from datetime import timedelta as td
 from enum import Enum
@@ -7,9 +10,13 @@ from typing import Dict, Literal, LiteralString, Optional, Tuple
 
 import requests
 from blizzapi import Language, Region, RetailClient
-from discord import Color, Embed
-from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_command
+from discord import Color, Embed, TextChannel
+from discord.app_commands import checks
+from discord.ext import tasks
+from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_command, hybrid_group
+from models.wow import WowCharacterMounts, WowGuildNewsConfig
 from utils.errors import NerpyException
+from utils.format import box, pagify
 from utils.helpers import send_hidden_message
 
 
@@ -19,6 +26,25 @@ class WowApiLanguage(Enum):
     DE = "de_DE"
     EN = "en_US"
     EN_GB = "en_GB"
+
+
+# Embed colors for guild news notifications
+COLOR_ACHIEVEMENT = Color.gold()
+COLOR_ENCOUNTER = Color.red()
+COLOR_MOUNT = Color.purple()
+
+# Stale character cleanup: remove mount data for characters gone from roster after this many days
+STALE_DAYS = 30
+
+
+class _RateLimited(Exception):
+    """Raised when a Blizzard API call returns HTTP 429."""
+
+
+def _check_rate_limit(response):
+    """Raise _RateLimited if the API response indicates a 429."""
+    if isinstance(response, dict) and response.get("code") == 429:
+        raise _RateLimited()
 
 
 @bot_has_permissions(send_messages=True, embed_links=True)
@@ -33,6 +59,21 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         self.client_id = self.config["wow"]["wow_id"]
         self.client_secret = self.config["wow"]["wow_secret"]
         self.regions = ["eu", "us"]
+
+        # Guild news config (optional section with defaults)
+        gn_config = self.config["wow"].get("guild_news", {})
+        self._poll_interval = gn_config.get("poll_interval_minutes", 15)
+        self._mount_batch_size = gn_config.get("mount_batch_size", 20)
+        self._track_mounts = gn_config.get("track_mounts", True)
+        self._default_active_days = gn_config.get("active_days", 7)
+
+        self._guild_news_loop.change_interval(minutes=self._poll_interval)
+        self._guild_news_loop.start()
+
+    def cog_unload(self):
+        self._guild_news_loop.cancel()
+
+    # ── Shared helpers ──────────────────────────────────────────────────
 
     @staticmethod
     def _get_link(site, profile):
@@ -123,6 +164,8 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             return keys
         return None
 
+    # ── Armory command ──────────────────────────────────────────────────
+
     @hybrid_command(name="armory", aliases=["search", "char"])
     async def _wow_armory(
         self,
@@ -192,6 +235,565 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             await ctx.send(embed=emb)
         except NerpyException as ex:
             await send_hidden_message(ctx, str(ex))
+
+    # ── Guild News commands ─────────────────────────────────────────────
+
+    @hybrid_group(name="guildnews", aliases=["gn"])
+    async def _guildnews(self, ctx: Context):
+        """manage WoW guild news tracking"""
+        if ctx.invoked_subcommand is None:
+            await send_hidden_message(ctx, "Use a subcommand: setup, remove, list, pause, resume, check")
+
+    @_guildnews.command(name="setup")
+    @checks.has_permissions(manage_channels=True)
+    async def _guildnews_setup(
+        self,
+        ctx: Context,
+        guild_name: str,
+        realm: str,
+        channel: TextChannel,
+        region: Optional[Literal["eu", "us"]] = "eu",
+        language: Optional[Literal["de", "en"]] = "en",
+        active_days: Optional[int] = None,
+    ):
+        """set up guild news tracking for a WoW guild [manage_channels]
+
+        guild_name: WoW guild name (use dashes for spaces, e.g. my-guild)
+        realm: Realm slug (e.g. blackrock, azshara)
+        channel: Discord channel for notifications
+        """
+        try:
+            async with ctx.typing(ephemeral=True):
+                realm_slug = realm.lower().replace(" ", "-")
+                name_slug = guild_name.lower().replace(" ", "-")
+
+                # Validate the guild exists via API
+                api = self._get_retailclient(region, language)
+                roster = await asyncio.to_thread(api.guild_roster, realmSlug=realm_slug, nameSlug=name_slug)
+
+                if isinstance(roster, dict) and roster.get("code") in (404, 403):
+                    raise NerpyException(f"Guild '{guild_name}' not found on {realm_slug}-{region.upper()}.")
+
+                guild_display = roster.get("guild", {}).get("name", guild_name)
+
+                with self.bot.session_scope() as session:
+                    config = WowGuildNewsConfig(
+                        GuildId=ctx.guild.id,
+                        ChannelId=channel.id,
+                        WowGuildName=name_slug,
+                        WowRealmSlug=realm_slug,
+                        Region=region,
+                        Language=language,
+                        ActiveDays=active_days or self._default_active_days,
+                        LastActivityTimestamp=datetime.now(UTC),
+                        Enabled=True,
+                        CreateDate=datetime.now(UTC),
+                    )
+                    session.add(config)
+
+            await send_hidden_message(
+                ctx,
+                f"Now tracking **{guild_display}** ({realm_slug}-{region.upper()}) in {channel.mention}. "
+                f"First scan will establish a baseline silently.",
+            )
+        except NerpyException as ex:
+            await send_hidden_message(ctx, str(ex))
+
+    @_guildnews.command(name="remove")
+    @checks.has_permissions(manage_channels=True)
+    async def _guildnews_remove(self, ctx: Context, config_id: int):
+        """remove a guild news tracking config [manage_channels]"""
+        with self.bot.session_scope() as session:
+            config = WowGuildNewsConfig.get_by_id(config_id, ctx.guild.id, session)
+            if not config:
+                await send_hidden_message(ctx, f"Config #{config_id} not found.")
+                return
+            WowGuildNewsConfig.delete(config_id, ctx.guild.id, session)
+        await send_hidden_message(ctx, f"Removed tracking config #{config_id}.")
+
+    @_guildnews.command(name="list")
+    async def _guildnews_list(self, ctx: Context):
+        """list all tracked WoW guilds for this server"""
+        with self.bot.session_scope() as session:
+            configs = WowGuildNewsConfig.get_all_by_guild(ctx.guild.id, session)
+            if not configs:
+                await send_hidden_message(ctx, "No guild news configs for this server.")
+                return
+            output = ""
+            for cfg in configs:
+                channel = ctx.guild.get_channel(cfg.ChannelId)
+                channel_name = channel.mention if channel else f"#{cfg.ChannelId} (deleted)"
+                output += f"{str(cfg)}Channel: {channel_name}\n\n"
+            for page in pagify(output, delims=["\n#"], page_length=1990):
+                await send_hidden_message(ctx, box(page, "md"))
+
+    @_guildnews.command(name="pause")
+    @checks.has_permissions(manage_channels=True)
+    async def _guildnews_pause(self, ctx: Context, config_id: int):
+        """pause guild news tracking [manage_channels]"""
+        with self.bot.session_scope() as session:
+            config = WowGuildNewsConfig.get_by_id(config_id, ctx.guild.id, session)
+            if not config:
+                await send_hidden_message(ctx, f"Config #{config_id} not found.")
+                return
+            config.Enabled = False
+        await send_hidden_message(ctx, f"Paused tracking for config #{config_id}.")
+
+    @_guildnews.command(name="resume")
+    @checks.has_permissions(manage_channels=True)
+    async def _guildnews_resume(self, ctx: Context, config_id: int):
+        """resume guild news tracking [manage_channels]"""
+        with self.bot.session_scope() as session:
+            config = WowGuildNewsConfig.get_by_id(config_id, ctx.guild.id, session)
+            if not config:
+                await send_hidden_message(ctx, f"Config #{config_id} not found.")
+                return
+            config.Enabled = True
+        await send_hidden_message(ctx, f"Resumed tracking for config #{config_id}.")
+
+    @_guildnews.command(name="check")
+    @checks.has_permissions(manage_channels=True)
+    async def _guildnews_check(self, ctx: Context, config_id: int):
+        """trigger an immediate poll for testing [manage_channels]"""
+        with self.bot.session_scope() as session:
+            config = WowGuildNewsConfig.get_by_id(config_id, ctx.guild.id, session)
+            if not config:
+                await send_hidden_message(ctx, f"Config #{config_id} not found.")
+                return
+            if not config.Enabled:
+                await send_hidden_message(ctx, f"Config #{config_id} is paused. Resume it first.")
+                return
+
+        await send_hidden_message(ctx, f"Running manual poll for config #{config_id}...")
+        await self._poll_single_config(config_id)
+
+    # ── Background task ─────────────────────────────────────────────────
+
+    @tasks.loop(minutes=15)
+    async def _guild_news_loop(self):
+        self.bot.log.debug("Start Guild News Loop!")
+        try:
+            with self.bot.session_scope() as session:
+                configs = WowGuildNewsConfig.get_all_enabled(session)
+
+            for config in configs:
+                try:
+                    await self._poll_single_config(config.Id)
+                except Exception as ex:
+                    self.bot.log.error(f"Guild news poll failed for config #{config.Id}: {ex}")
+
+        except Exception as ex:
+            self.bot.log.error(f"Guild news loop error: {ex}")
+        self.bot.log.debug("Stop Guild News Loop!")
+
+    @_guild_news_loop.before_loop
+    async def _guild_news_before_loop(self):
+        self.bot.log.info("Guild News: Waiting for Bot to be ready...")
+        await self.bot.wait_until_ready()
+
+    async def _poll_single_config(self, config_id: int):
+        """Poll a single guild news config for activity and mounts."""
+        self.bot.log.debug(f"Guild news #{config_id}: starting poll")
+
+        # Re-fetch from DB inside its own session for each phase
+        with self.bot.session_scope() as session:
+            config = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
+            if not config or not config.Enabled:
+                self.bot.log.debug(f"Guild news #{config_id}: config not found or disabled, skipping")
+                return
+
+            # Snapshot config values so we can use them outside the session
+            guild_id = config.GuildId
+            channel_id = config.ChannelId
+            wow_guild = config.WowGuildName
+            realm = config.WowRealmSlug
+            region = config.Region
+            language = config.Language
+            min_level = config.MinLevel
+            active_days = config.ActiveDays
+            last_activity_ts = config.LastActivityTimestamp
+            if last_activity_ts and last_activity_ts.tzinfo is None:
+                last_activity_ts = last_activity_ts.replace(tzinfo=UTC)
+            cfg_id = config.Id
+
+        self.bot.log.debug(
+            f"Guild news #{cfg_id}: polling {wow_guild} on {realm}-{region} (last_activity={last_activity_ts})"
+        )
+
+        channel = self.bot.get_channel(channel_id)
+        if not channel:
+            self.bot.log.warning(f"Guild news config #{cfg_id}: channel {channel_id} not found, skipping.")
+            return
+
+        api = self._get_retailclient(region, language)
+
+        # ── Phase 1: Guild Activity Feed ────────────────────────────
+        await self._poll_activity(api, cfg_id, guild_id, wow_guild, realm, last_activity_ts, channel)
+
+        # ── Phase 2: Mount Tracking ─────────────────────────────────
+        if self._track_mounts:
+            await self._poll_mounts(api, cfg_id, wow_guild, realm, min_level, active_days, channel)
+        else:
+            self.bot.log.debug(f"Guild news #{cfg_id}: mount tracking disabled, skipping phase 2")
+
+        self.bot.log.debug(f"Guild news #{cfg_id}: poll complete")
+
+    async def _poll_activity(self, api, config_id, guild_id, wow_guild, realm, last_activity_ts, channel):
+        """Fetch guild_activity and post new achievements/encounters."""
+        self.bot.log.debug(f"Guild news #{config_id}: fetching activity feed")
+        try:
+            activities = await asyncio.to_thread(api.guild_activity, realmSlug=realm, nameSlug=wow_guild)
+            _check_rate_limit(activities)
+        except _RateLimited:
+            self.bot.log.warning(f"Guild news #{config_id}: rate limited on guild_activity, skipping")
+            return
+        except Exception as ex:
+            self.bot.log.warning(f"Guild news #{config_id}: guild_activity call failed: {ex}")
+            return
+
+        if not isinstance(activities, dict) or "activities" not in activities:
+            self.bot.log.debug(
+                f"Guild news #{config_id}: no activities in response (keys: {list(activities.keys()) if isinstance(activities, dict) else type(activities).__name__})"
+            )
+            return
+
+        total = len(activities["activities"])
+        new_timestamp = last_activity_ts
+        embeds_to_send = []
+
+        for activity in activities["activities"]:
+            ts_millis = activity.get("timestamp", 0)
+            activity_time = datetime.fromtimestamp(ts_millis / 1000, tz=UTC)
+
+            if last_activity_ts and activity_time <= last_activity_ts:
+                continue
+
+            if activity_time > (new_timestamp or datetime.min.replace(tzinfo=UTC)):
+                new_timestamp = activity_time
+
+            activity_type = activity.get("activity", {}).get("type", "")
+            character = activity.get("character", {})
+            char_name = character.get("name", "Unknown")
+            char_realm = character.get("realm", {}).get("name", realm)
+
+            if activity_type == "CHARACTER_ACHIEVEMENT":
+                achievement = activity.get("activity", {}).get("achievement", {})
+                ach_name = achievement.get("name", "Unknown Achievement")
+                emb = Embed(
+                    title="Achievement Unlocked!",
+                    description=f"**{char_name}** ({char_realm}) earned **{ach_name}**",
+                    color=COLOR_ACHIEVEMENT,
+                    timestamp=activity_time,
+                )
+                embeds_to_send.append(emb)
+
+            elif activity_type == "ENCOUNTER":
+                encounter = activity.get("activity", {}).get("encounter", {})
+                enc_name = encounter.get("name", "Unknown Encounter")
+                mode = activity.get("activity", {}).get("mode", {}).get("name", "")
+                desc = f"**{char_name}** ({char_realm}) defeated **{enc_name}**"
+                if mode:
+                    desc += f" ({mode})"
+                emb = Embed(
+                    title="Boss Defeated!",
+                    description=desc,
+                    color=COLOR_ENCOUNTER,
+                    timestamp=activity_time,
+                )
+                embeds_to_send.append(emb)
+
+        self.bot.log.debug(
+            f"Guild news #{config_id}: activity feed has {total} entries, {len(embeds_to_send)} new to announce"
+        )
+
+        # Send embeds oldest-first
+        for emb in reversed(embeds_to_send):
+            try:
+                await channel.send(embed=emb)
+            except Exception as ex:
+                self.bot.log.warning(f"Guild news #{config_id}: failed to send embed: {ex}")
+
+        # Update last activity timestamp
+        if new_timestamp and new_timestamp != last_activity_ts:
+            self.bot.log.debug(f"Guild news #{config_id}: advancing activity timestamp to {new_timestamp}")
+            with self.bot.session_scope() as session:
+                config = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
+                if config:
+                    config.LastActivityTimestamp = new_timestamp
+
+    async def _poll_mounts(self, api, config_id, wow_guild, realm, min_level, active_days, channel):
+        """Check roster for new mount acquisitions.
+
+        On initial sync (unbaselined characters exist), processes all batches
+        continuously. After that, one batch per poll cycle.
+        Prunes mount data for characters who left the guild after STALE_DAYS.
+        Detects character renames via the profile API and migrates stored data.
+        Backs off on Blizzard 429 rate limits.
+        """
+        self.bot.log.debug(f"Guild news #{config_id}: fetching roster for mount tracking")
+        try:
+            roster = await asyncio.to_thread(api.guild_roster, realmSlug=realm, nameSlug=wow_guild)
+            _check_rate_limit(roster)
+        except _RateLimited:
+            self.bot.log.warning(f"Guild news #{config_id}: rate limited on guild_roster, skipping mount poll")
+            return
+        except Exception as ex:
+            self.bot.log.warning(f"Guild news #{config_id}: guild_roster call failed: {ex}")
+            return
+
+        if not isinstance(roster, dict) or "members" not in roster:
+            self.bot.log.debug(f"Guild news #{config_id}: roster response has no members")
+            return
+
+        total_members = len(roster["members"])
+
+        # Filter by min level and pick highest-level char per unique name+realm combo
+        candidates = {}
+        for member in roster["members"]:
+            char = member.get("character", {})
+            level = char.get("level", 0)
+            if level < min_level:
+                continue
+
+            char_name = char.get("name", "").lower()
+            char_realm = char.get("realm", {}).get("slug", realm)
+            key = (char_name, char_realm)
+
+            if key not in candidates or level > candidates[key]["level"]:
+                candidates[key] = {"name": char_name, "realm": char_realm, "level": level}
+
+        candidate_list = sorted(candidates.values(), key=lambda c: c["name"])
+        candidate_keys = {(c["name"], c["realm"]) for c in candidate_list}
+
+        self.bot.log.debug(
+            f"Guild news #{config_id}: roster has {total_members} members, "
+            f"{len(candidate_list)} unique candidates (lvl >= {min_level})"
+        )
+
+        # Prune mount data for characters who left the guild over STALE_DAYS ago
+        stale_cutoff = datetime.now(UTC) - td(days=STALE_DAYS)
+        with self.bot.session_scope() as session:
+            deleted = WowCharacterMounts.delete_stale(config_id, candidate_keys, stale_cutoff, session)
+            if deleted:
+                self.bot.log.info(f"Guild news #{config_id}: pruned {deleted} stale character(s) from mount tracking")
+
+        if not candidate_list:
+            return
+
+        # Determine if initial sync is needed (any candidates without a baseline)
+        with self.bot.session_scope() as session:
+            existing = WowCharacterMounts.get_all_by_config(config_id, session)
+            baselined_keys = {(e.CharacterName, e.RealmSlug) for e in existing}
+        unbaselined = candidate_keys - baselined_keys
+        initial_sync = len(unbaselined) > 0
+
+        if initial_sync:
+            self.bot.log.debug(
+                f"Guild news #{config_id}: initial sync — {len(unbaselined)}/{len(candidate_keys)} "
+                f"characters not yet baselined, will process all batches"
+            )
+
+        cutoff = datetime.now(UTC) - td(days=active_days)
+        semaphore = asyncio.Semaphore(5)
+        rate_limited = asyncio.Event()
+        total_stats = {"checked": 0, "skipped_error": 0, "skipped_inactive": 0, "baselined": 0, "new_mounts": 0}
+
+        async def _check_character(candidate):
+            char_name = candidate["name"]
+            char_realm = candidate["realm"]
+
+            # Skip remaining work if we already hit a rate limit
+            if rate_limited.is_set():
+                return
+
+            async with semaphore:
+                try:
+                    profile = await asyncio.to_thread(
+                        api.character_profile_summary, realmSlug=char_realm, characterName=char_name
+                    )
+                    _check_rate_limit(profile)
+                except _RateLimited:
+                    self.bot.log.warning(f"Guild news #{config_id}: rate limited on profile for {char_name}")
+                    rate_limited.set()
+                    return
+                except Exception as ex:
+                    self.bot.log.debug(f"Guild news #{config_id}: profile fetch failed for {char_name}: {ex}")
+                    total_stats["skipped_error"] += 1
+                    return
+
+                if isinstance(profile, dict) and profile.get("code") in (404, 403):
+                    self.bot.log.debug(f"Guild news #{config_id}: {char_name} returned {profile.get('code')}, skipping")
+                    total_stats["skipped_error"] += 1
+                    return
+
+                last_login_ms = profile.get("last_login_timestamp", 0)
+                if last_login_ms:
+                    last_login = datetime.fromtimestamp(last_login_ms / 1000, tz=UTC)
+                    if last_login < cutoff:
+                        total_stats["skipped_inactive"] += 1
+                        return
+
+                try:
+                    mount_data = await asyncio.to_thread(
+                        api.character_mounts_collection_summary, realmSlug=char_realm, characterName=char_name
+                    )
+                    _check_rate_limit(mount_data)
+                except _RateLimited:
+                    self.bot.log.warning(f"Guild news #{config_id}: rate limited on mounts for {char_name}")
+                    rate_limited.set()
+                    return
+                except Exception as ex:
+                    self.bot.log.debug(f"Guild news #{config_id}: mount fetch failed for {char_name}: {ex}")
+                    total_stats["skipped_error"] += 1
+                    return
+
+                if not isinstance(mount_data, dict) or "mounts" not in mount_data:
+                    self.bot.log.debug(f"Guild news #{config_id}: no mount data for {char_name}")
+                    total_stats["skipped_error"] += 1
+                    return
+
+                current_mount_ids = sorted(
+                    {m.get("mount", {}).get("id") for m in mount_data["mounts"] if m.get("mount")}
+                )
+
+            total_stats["checked"] += 1
+
+            # Detect name changes: the API returns the canonical name which may differ
+            # from the roster slug we used to query. If there's an existing entry under
+            # the old name with the same mount set, migrate it.
+            api_name = profile.get("name", "").lower()
+
+            with self.bot.session_scope() as session:
+                stored = WowCharacterMounts.get_by_character(config_id, char_name, char_realm, session)
+
+                # Check for a renamed character: no entry under current name, but the
+                # API returns a different canonical name that does have stored data.
+                if stored is None and api_name and api_name != char_name:
+                    old_entry = WowCharacterMounts.get_by_character(config_id, api_name, char_realm, session)
+                    if old_entry:
+                        self.bot.log.info(
+                            f"Guild news #{config_id}: detected rename {api_name} -> {char_name}, migrating"
+                        )
+                        old_entry.CharacterName = char_name
+                        old_entry.LastChecked = datetime.now(UTC)
+                        stored = old_entry
+
+                if stored is None:
+                    self.bot.log.debug(
+                        f"Guild news #{config_id}: baseline for {char_name} — {len(current_mount_ids)} mounts"
+                    )
+                    entry = WowCharacterMounts(
+                        ConfigId=config_id,
+                        CharacterName=char_name,
+                        RealmSlug=char_realm,
+                        KnownMountIds=json.dumps(current_mount_ids),
+                        LastChecked=datetime.now(UTC),
+                    )
+                    session.add(entry)
+                    total_stats["baselined"] += 1
+                else:
+                    known_ids = set(json.loads(stored.KnownMountIds))
+                    new_ids = set(current_mount_ids) - known_ids
+
+                    if new_ids:
+                        mount_names = {}
+                        for m in mount_data["mounts"]:
+                            mid = m.get("mount", {}).get("id")
+                            if mid in new_ids:
+                                mount_names[mid] = m.get("mount", {}).get("name", f"Mount #{mid}")
+
+                        display_name = profile.get("name", char_name.capitalize())
+                        display_realm = profile.get("realm", {}).get("name", char_realm)
+
+                        for mid, mname in mount_names.items():
+                            self.bot.log.debug(f"Guild news #{config_id}: {display_name} got new mount: {mname}")
+                            emb = Embed(
+                                title="New Mount Collected!",
+                                description=f"**{display_name}** ({display_realm}) obtained **{mname}**",
+                                color=COLOR_MOUNT,
+                                timestamp=datetime.now(UTC),
+                            )
+                            try:
+                                await channel.send(embed=emb)
+                            except Exception as ex:
+                                self.bot.log.warning(f"Guild news #{config_id}: failed to send mount embed: {ex}")
+
+                        total_stats["new_mounts"] += len(new_ids)
+
+                    stored.KnownMountIds = json.dumps(current_mount_ids)
+                    stored.LastChecked = datetime.now(UTC)
+
+        # Process batches — loop through all during initial sync, single batch otherwise
+        with self.bot.session_scope() as session:
+            config = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
+            if not config:
+                return
+            offset = config.RosterOffset or 0
+
+        batch_num = 0
+        baselined_before = total_stats["baselined"]
+        start_offset = offset
+        while True:
+            batch = candidate_list[offset : offset + self._mount_batch_size]
+            if not batch:
+                offset = 0
+                batch = candidate_list[: self._mount_batch_size]
+
+            new_offset = offset + self._mount_batch_size
+            if new_offset >= len(candidate_list):
+                new_offset = 0
+
+            batch_num += 1
+            self.bot.log.debug(
+                f"Guild news #{config_id}: mount batch #{batch_num} offset {offset}->{new_offset}, "
+                f"checking {len(batch)} characters"
+            )
+
+            with self.bot.session_scope() as session:
+                config = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
+                if config:
+                    config.RosterOffset = new_offset
+
+            await asyncio.gather(*[_check_character(c) for c in batch])
+
+            self.bot.log.debug(
+                f"Guild news #{config_id}: batch #{batch_num} done — "
+                f"checked={total_stats['checked']}, baselined={total_stats['baselined']}, "
+                f"new_mounts={total_stats['new_mounts']}, "
+                f"skipped_inactive={total_stats['skipped_inactive']}, skipped_error={total_stats['skipped_error']}"
+            )
+
+            # Rate limited — stop immediately, resume from current offset next cycle
+            if rate_limited.is_set():
+                self.bot.log.warning(
+                    f"Guild news #{config_id}: stopping mount poll due to rate limit, "
+                    f"will resume from offset {new_offset} next cycle"
+                )
+                break
+
+            offset = new_offset
+
+            if not initial_sync:
+                break
+
+            # Full rotation completed — stop if no new baselines were added this rotation
+            if offset == start_offset or (offset == 0 and start_offset >= len(candidate_list)):
+                if total_stats["baselined"] == baselined_before:
+                    self.bot.log.debug(
+                        f"Guild news #{config_id}: full rotation with no new baselines, "
+                        f"remaining characters are inactive/inaccessible"
+                    )
+                    break
+                # New rotation — reset the counter
+                baselined_before = total_stats["baselined"]
+                start_offset = offset
+
+        if initial_sync and not rate_limited.is_set():
+            self.bot.log.info(
+                f"Guild news #{config_id}: initial sync finished in {batch_num} batches — "
+                f"baselined={total_stats['baselined']}, skipped_inactive={total_stats['skipped_inactive']}, "
+                f"skipped_error={total_stats['skipped_error']}"
+            )
 
 
 async def setup(bot):
