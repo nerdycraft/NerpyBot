@@ -1,7 +1,7 @@
 [project]
 name = "NerpyBot"
 description = "The nerdiest Bot on Discord!"
-version = "0.4.14"
+version = "0.5.0"
 authors = [
     { name = "Rico Wesenberg", email = "r.wesenberg@gmail.com" },
     { name = "Dennis Bernardy", email = "bernardyd@gmail.com" }
