@@ -43,7 +43,7 @@ from utils.audio import Audio
 from utils.conversation import AnswerType, ConversationManager
 from utils.database import BASE
 from utils.errors import NerpyException
-from utils.helpers import send_hidden_message
+from utils.helpers import error_context, send_hidden_message
 
 
 class NerpyBot(Bot):
@@ -132,9 +132,11 @@ class NerpyBot(Bot):
         """
 
         # All commands require a guild context; reject prefix commands in DMs early.
-        # The help command is exempt since it's not guild-specific.
+        # Help, debug, and sync are exempt since they can operate globally.
+        _dm_allowed = {"help", "debug", "sync"}
+
         async def _guild_only_check(ctx: Context) -> bool:
-            if ctx.command and ctx.command.qualified_name == "help":
+            if ctx.command and ctx.command.qualified_name in _dm_allowed:
                 return True
             return await guild_only().predicate(ctx)
 
@@ -164,6 +166,8 @@ class NerpyBot(Bot):
 
         Also adds legacy commands to the command cache, which can then be queried by the 'history' command
         """
+        self.log.debug(error_context(ctx))
+
         if self.restart is True and not isinstance(ctx.channel, DMChannel):
             if ctx.guild.id not in self.last_cmd_cache:
                 self.last_cmd_cache[ctx.guild.id] = []
@@ -193,35 +197,46 @@ class NerpyBot(Bot):
                 self.usr_cmd_err_spam[ctx.author] = 0
 
         if send_err:
+            err_ctx = error_context(ctx)
             if isinstance(error, NoPrivateMessage):
                 await send_hidden_message(ctx, "This command can only be used in a server, not in DMs.")
                 return
-            if isinstance(error, CheckFailure):
-                if isinstance(ctx.channel, DMChannel):
-                    await send_hidden_message(ctx, "This command can only be used in a server, not in DMs.")
-                    return
-                # Check functions handle their own messaging via _reject(); just log it
-                self.log.error(error)
-            elif isinstance(error, CommandError):
-                if isinstance(error, commands.CommandInvokeError) and not isinstance(error.original, NerpyException):
-                    self.log.error(f"In {ctx.command.qualified_name}:")
-                    print_tb(error.original.__traceback__)
-                    self.log.error(f"{error.original.__class__.__name__}: {error.original}")
-                    await ctx.author.send("Unhandled error occurred. Please report to bot author!")
-                if isinstance(error.original, app_commands.CommandInvokeError) and isinstance(
-                    error.original.original, NerpyException
-                ):
-                    await send_hidden_message(ctx, error.original.original.args[0])
-                if isinstance(error.original, NerpyException):
+            if isinstance(error, CommandError):
+                if isinstance(error, CheckFailure):
+                    if isinstance(ctx.channel, DMChannel):
+                        await send_hidden_message(ctx, "This command can only be used in a server, not in DMs.")
+                        return
+                    msg = str(error)
+                    self.log.warning(f"{err_ctx}: {msg}")
                     if ctx.interaction is None:
-                        await ctx.author.send("".join(error.original.args[0]))
+                        await ctx.author.send(msg)
                     else:
-                        await send_hidden_message(ctx, "".join(error.original.args[0]))
-                self.log.error(error)
+                        await send_hidden_message(ctx, msg)
+                elif isinstance(error, commands.CommandInvokeError):
+                    if isinstance(error.original, app_commands.CommandInvokeError) and isinstance(
+                        error.original.original, NerpyException
+                    ):
+                        self.log.error(f"{err_ctx}: {error.original.original.args[0]}")
+                        await send_hidden_message(ctx, error.original.original.args[0])
+                    elif isinstance(error.original, NerpyException):
+                        err_msg = "".join(error.original.args[0])
+                        self.log.error(f"{err_ctx}: {err_msg}")
+                        if ctx.interaction is None:
+                            await ctx.author.send(err_msg)
+                        else:
+                            await send_hidden_message(ctx, err_msg)
+                    else:
+                        self.log.error(f"{err_ctx}: {error.original.__class__.__name__}: {error.original}")
+                        print_tb(error.original.__traceback__)
+                        if ctx.interaction is None:
+                            await ctx.author.send("Unhandled error occurred. Please report to bot author!")
+                        else:
+                            await send_hidden_message(ctx, "Unhandled error occurred. Please report to bot author!")
+                else:
+                    self.log.error(f"{err_ctx}: {error}")
             else:
-                self.log.error(f"In {ctx.command.qualified_name}:")
+                self.log.error(f"{err_ctx}: {error.original.__class__.__name__}: {error.original}")
                 print_tb(error.original.__traceback__)
-                self.log.error(f"{error.original.__class__.__name__}: {error.original}")
                 if ctx.interaction is None:
                     await ctx.author.send("Unhandled error occurred. Please report to bot author!")
                 else:
@@ -324,6 +339,7 @@ def parse_arguments() -> Namespace:
     parser = ArgumentParser(description="-> NerpyBot <-")
     parser.add_argument("-r", "--auto-restart", help="Autorestarts NerdyPy in case of issues", action="store_true")
     parser.add_argument("-c", "--config", help="Specify config file for NerdyPy", nargs=1)
+    parser.add_argument("-d", "--debug", help="Enable debug logging", action="store_true")
     parser.add_argument("-v", "--verbose", action="count", required=False, dest="verbosity", default=0)
     parser.add_argument("-l", "--loglevel", action="store", required=False, dest="loglevel", default="INFO")
 
@@ -365,16 +381,16 @@ if __name__ == "__main__":
     ARGS = parse_arguments()
     CONFIG = parse_config(ARGS.config)
     INTENTS = get_intents()
-    if str(ARGS.loglevel).upper() == "DEBUG" or ARGS.verbosity > 0:
-        DEBUG = True
-        loggers = ["nerpybot", "sqlalchemy.engine"]
-    else:
-        DEBUG = False
-        loggers = ["nerpybot"]
+
+    DEBUG = ARGS.debug or str(ARGS.loglevel).upper() == "DEBUG" or ARGS.verbosity > 0
+    loggers = ["nerpybot"]
+    if ARGS.verbosity >= 3 or str(ARGS.loglevel).upper() == "DEBUG":
+        loggers.append("sqlalchemy.engine")
 
     if "bot" in CONFIG:
+        loglevel = "DEBUG" if ARGS.debug else ARGS.loglevel
         for logger_name in loggers:
-            logging.create_logger(ARGS.verbosity, ARGS.loglevel, logger_name)
+            logging.create_logger(ARGS.verbosity, loglevel, logger_name)
         BOT = NerpyBot(CONFIG, INTENTS, DEBUG)
 
         try:

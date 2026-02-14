@@ -8,6 +8,7 @@ from discord import Embed
 from discord.app_commands import rename
 from discord.ext.commands import Context, GroupCog, hybrid_command
 from utils.errors import NerpyException
+from utils.helpers import error_context
 
 
 class LeagueCommand(Enum):
@@ -53,7 +54,7 @@ class League(GroupCog):
             async with summoner_session.get(summoner_url) as summoner_response:
                 data = await summoner_response.json()
                 if "status" in data:  # if query is successful there is no status key
-                    self.bot.log.error(data["status"])
+                    self.bot.log.error(f"{error_context(ctx)}: Riot API error: {data['status']}")
                     raise NerpyException("Could not get data from API. Please report to Bot author.")
                 else:
                     summoner_id = data.get("id")

@@ -7,7 +7,7 @@ from discord import Embed, app_commands
 from discord.ext.commands import Cog, Context, bot_has_permissions, hybrid_command
 from openweather.weather import OpenWeather
 from utils.errors import NerpyException
-from utils.helpers import send_hidden_message
+from utils.helpers import error_context, send_hidden_message
 
 
 @bot_has_permissions(send_messages=True)
@@ -91,7 +91,7 @@ class Utility(Cog):
 
                 await ctx.send(embed=emb)
         except Exception as ex:
-            self.bot.log.error(f"Error while fetching weather: {ex}")
+            self.bot.log.error(f"{error_context(ctx)}: error while fetching weather: {ex}")
             await send_hidden_message(ctx, "An error occurred while fetching the weather information.")
 
 

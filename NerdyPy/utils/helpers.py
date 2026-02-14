@@ -16,6 +16,14 @@ async def send_hidden_message(ctx: Context, msg: str = None, **kwargs):
     return await ctx.author.send(msg, **kwargs)
 
 
+def error_context(ctx: Context) -> str:
+    """Build a log prefix with command, user, and guild info."""
+    cmd = ctx.command.qualified_name if ctx.command else "unknown"
+    user = f"{ctx.author} ({ctx.author.id})"
+    guild = f"{ctx.guild.name} ({ctx.guild.id})" if ctx.guild else "DM"
+    return f"[{guild}] {user} -> /{cmd}"
+
+
 async def empty_subcommand(ctx: Context):
     if ctx.invoked_subcommand is None:
         args = str(ctx.message.clean_content).split(" ")

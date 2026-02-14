@@ -157,7 +157,7 @@ class Search(GroupCog):
         ) as oauth_response:
             if oauth_response.status_code != 200:
                 self.bot.log.error(
-                    f"Server responded with code: {oauth_response.status_code} - {oauth_response.reason}"
+                    f"IGDB/Twitch OAuth token request failed: {oauth_response.status_code} - {oauth_response.reason}"
                 )
                 raise NerpyException(
                     "Something really bad happend. If this issue persists, please report to bot author."

@@ -35,9 +35,12 @@ class LeaveMsg(Cog):
         channel = member.guild.get_channel(leave_config.ChannelId)
         if channel is None or not isinstance(channel, TextChannel):
             self.bot.log.warning(
-                f"Leave channel {leave_config.ChannelId} not found or not a text channel for guild {member.guild.id}"
+                f"[{member.guild.name} ({member.guild.id})]: "
+                f"leave channel {leave_config.ChannelId} not found or not a text channel"
             )
             return
+
+        self.bot.log.debug(f"[{member.guild.name} ({member.guild.id})]: sending leave message for {member}")
 
         message = leave_config.Message or DEFAULT_LEAVE_MESSAGE
         formatted_message = message.format(member=member.display_name)
@@ -45,7 +48,9 @@ class LeaveMsg(Cog):
         try:
             await channel.send(formatted_message)
         except Exception as ex:
-            self.bot.log.error(f"Failed to send leave message in guild {member.guild.id}: {ex}")
+            self.bot.log.error(
+                f"[{member.guild.name} ({member.guild.id})]: failed to send leave message for {member}: {ex}"
+            )
 
     @hybrid_group()
     @checks.has_permissions(administrator=True)
