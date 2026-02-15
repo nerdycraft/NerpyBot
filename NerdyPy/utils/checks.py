@@ -1,19 +1,30 @@
 # -*- coding: utf-8 -*-
 
 from models.botmod import BotModeratorRole
+from utils.errors import SilentCheckFailure
+
+
+async def is_admin_or_operator(ctx) -> bool:
+    """Return True if the user is a guild administrator or a bot operator."""
+    if ctx.author.id in ctx.bot.ops:
+        return True
+    if ctx.guild and ctx.author.guild_permissions.administrator:
+        return True
+    return False
 
 
 async def _reject(ctx, msg: str):
-    """Send a check rejection message — ephemeral for interactions, DM for prefix commands.
+    """Send a check rejection message and raise SilentCheckFailure.
 
     Silently does nothing when called during a help-command probe.
     """
     if ctx.invoked_with == "help":
-        return
+        raise SilentCheckFailure(msg)
     if ctx.interaction is not None:
         await ctx.send(msg, ephemeral=True)
     else:
         await ctx.author.send(msg)
+    raise SilentCheckFailure(msg)
 
 
 async def _is_bot_moderator(ctx) -> bool:
@@ -34,8 +45,13 @@ async def is_connected_to_voice(ctx):
     if ctx.author.voice is None or ctx.author.voice.channel is None:
         await _reject(ctx, "I don't know where you are. Please connect to a voice channel.")
         return False
-    if not ctx.author.voice.channel.permissions_for(ctx.guild.me).connect:
+    channel = ctx.author.voice.channel
+    bot_perms = channel.permissions_for(ctx.guild.me)
+    if not bot_perms.connect:
         await _reject(ctx, "I'm not allowed to join you in your current channel.")
+        return False
+    if not bot_perms.speak:
+        await _reject(ctx, "I don't have permission to speak in your voice channel.")
         return False
     return True
 
@@ -65,7 +81,7 @@ async def is_in_same_voice_channel_as_bot(ctx):
 
 
 async def can_stop_playback(ctx):
-    """Bot-moderator or alone with the bot in the same voice channel."""
+    """Any user in the same voice channel as the bot, or a bot-moderator from anywhere."""
     bot_voice = ctx.guild.voice_client
     if bot_voice is None:
         await _reject(ctx, "Nothing is playing right now.")
@@ -82,12 +98,7 @@ async def can_stop_playback(ctx):
         await _reject(ctx, "You need to be in the same voice channel as the bot to use this command.")
         return False
 
-    # Allow if user is alone with the bot (only 2 members: user + bot)
-    if len(bot_voice.channel.members) <= 2:
-        return True
-
-    await _reject(ctx, "Only moderators can stop playback when others are listening.")
-    return False
+    return True
 
 
 async def can_leave_voice(ctx):
