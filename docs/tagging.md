@@ -113,9 +113,9 @@ Clear the sound tag queue.
 |--------|------|---------|
 | Id | Integer (PK) | Auto-increment |
 | GuildId | BigInteger | Discord guild ID |
-| Name | String(30) | Tag name |
+| Name | Unicode(30) | Tag name |
 | Type | Integer | TagType enum value (0=sound, 1=text, 2=url) |
-| Author | String(30) | Creator's name |
+| Author | Unicode(30) | Creator's name |
 | CreateDate | DateTime | When created |
 | Count | Integer | Times used |
 | Volume | Integer | Playback volume 0-200 |
@@ -128,7 +128,7 @@ Clear the sound tag queue.
 |--------|------|---------|
 | Id | Integer (PK) | Auto-increment |
 | TagId | Integer (FK) | Parent tag |
-| TextContent | String(255) | Text/URL content |
+| TextContent | Unicode(255) | Text/URL content |
 | ByteContent | LargeBinary(16MB) | Processed audio bytes (sound tags) |
 
 ## Audio Normalization

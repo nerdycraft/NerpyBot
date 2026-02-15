@@ -86,7 +86,7 @@ Has a `entries` relationship to `ReactionRoleEntry` with cascade delete.
 |--------|------|---------|
 | Id | Integer (PK) | Auto-increment |
 | ReactionRoleMessageId | Integer (FK) | Parent message |
-| Emoji | String(100) | Emoji string (Unicode or custom format) |
+| Emoji | Unicode(100) | Emoji string (Unicode or custom format) |
 | RoleId | BigInteger | Discord role ID to assign |
 
 ## How Detection Works

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from discord import Embed
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKeyConstraint, Index, Integer, String, asc
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKeyConstraint, Index, Integer, String, Unicode, asc
 from sqlalchemy.orm import relationship
 from utils import database as db
 
@@ -14,8 +14,8 @@ class RaidTemplate(db.BASE):
 
     GuildId = Column(BigInteger, primary_key=True)
     TemplateId = Column(BigInteger, primary_key=True)
-    Name = Column(String(30))
-    Description = Column(String(255))
+    Name = Column(Unicode(30))
+    Description = Column(Unicode(255))
     PlayerCount = Column(Integer)
     CreateDate = Column(DateTime)
 
@@ -53,8 +53,8 @@ class RaidEncounter(db.BASE):
     GuildId = Column(BigInteger, primary_key=True)
     TemplateId = Column(BigInteger, primary_key=True)
     EncounterId = Column(BigInteger, primary_key=True)
-    Name = Column(String(30))
-    Description = Column(String(255))
+    Name = Column(Unicode(30))
+    Description = Column(Unicode(255))
 
     __table_args__ = (
         Index("RaidEncounter_GuildId_TemplateId", "GuildId", "TemplateId"),
@@ -99,9 +99,9 @@ class RaidEncounterRole(db.BASE):
     GuildId = Column(BigInteger, primary_key=True)
     TemplateId = Column(BigInteger, primary_key=True)
     EncounterId = Column(BigInteger, primary_key=True)
-    Name = Column(String(30), primary_key=True)
-    Icon = Column(String(30))
-    Description = Column(String(255))
+    Name = Column(Unicode(30), primary_key=True)
+    Icon = Column(Unicode(30))
+    Description = Column(Unicode(255))
     Count = Column(Integer)
     SortIndex = Column(Integer)
 
@@ -133,11 +133,11 @@ class RaidEvent(db.BASE):
 
     GuildId = Column(BigInteger, primary_key=True)
     RaidId = Column(BigInteger, primary_key=True)
-    Name = Column(String(30))
-    Description = Column(String(255))
+    Name = Column(Unicode(30))
+    Description = Column(Unicode(255))
     StartDate = Column(DateTime)
     EndDate = Column(DateTime)
-    Organizer = Column(String(30))
+    Organizer = Column(Unicode(30))
     PlayerCount = Column(Integer)
     CreateDate = Column(DateTime)
     MessageRef = Column(String(255))

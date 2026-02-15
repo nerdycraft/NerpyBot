@@ -81,7 +81,7 @@ Toggles debug logging at runtime. **Operator-only** (user ID must be in `config.
 | Prefix | String(30) | Custom prefix |
 | CreateDate | DateTime | When set |
 | ModifiedDate | DateTime | Last change |
-| Author | String(30) | Who set it |
+| Author | Unicode(30) | Who set it |
 
 ### `BotModeratorRole`
 

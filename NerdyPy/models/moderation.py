@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """AutoDelete Messages"""
 
-from sqlalchemy import BigInteger, Boolean, Column, Index, Integer, Text
+from sqlalchemy import BigInteger, Boolean, Column, Index, Integer, UnicodeText
 from utils import database as db
 
 
@@ -55,7 +55,7 @@ class AutoKicker(db.BASE):
     GuildId = Column(BigInteger, primary_key=True)
     KickAfter = Column(BigInteger, default=0)
     Enabled = Column(Boolean, default=False)
-    ReminderMessage = Column(Text)
+    ReminderMessage = Column(UnicodeText)
 
     @classmethod
     def get_all(cls, session):

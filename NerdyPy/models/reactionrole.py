@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Reaction Role database models"""
 
-from sqlalchemy import BigInteger, Column, ForeignKey, Index, Integer, String
+from sqlalchemy import BigInteger, Column, ForeignKey, Index, Integer, Unicode
 from sqlalchemy.orm import relationship
 from utils import database as db
 
@@ -50,7 +50,7 @@ class ReactionRoleEntry(db.BASE):
 
     Id = Column(Integer, primary_key=True)
     ReactionRoleMessageId = Column(Integer, ForeignKey("ReactionRoleMessage.Id"))
-    Emoji = Column(String(100))
+    Emoji = Column(Unicode(100))
     RoleId = Column(BigInteger)
 
     message = relationship("ReactionRoleMessage", back_populates="entries")

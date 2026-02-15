@@ -3,7 +3,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, asc
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, Unicode, asc
 from utils import database as db
 
 
@@ -28,7 +28,7 @@ class WowGuildNewsConfig(db.BASE):
     Id = Column(Integer, primary_key=True)
     GuildId = Column(BigInteger)
     ChannelId = Column(BigInteger)
-    WowGuildName = Column(String(100))
+    WowGuildName = Column(Unicode(100))
     WowRealmSlug = Column(String(100))
     Region = Column(String(10))
     Language = Column(String(5), default="en")
@@ -80,7 +80,7 @@ class WowCharacterMounts(db.BASE):
 
     Id = Column(Integer, primary_key=True)
     ConfigId = Column(Integer, ForeignKey("WowGuildNewsConfig.Id"))
-    CharacterName = Column(String(50))
+    CharacterName = Column(Unicode(50))
     RealmSlug = Column(String(100))
     KnownMountIds = Column(Text, default="[]")
     LastChecked = Column(DateTime, nullable=True)

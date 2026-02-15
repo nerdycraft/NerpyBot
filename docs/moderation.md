@@ -124,7 +124,7 @@ Show the last 10 commands received by the bot in this guild. Prefix-only command
 | GuildId | BigInteger (PK) | Discord guild ID |
 | KickAfter | BigInteger | Seconds before kick (default 0) |
 | Enabled | Boolean | Active toggle (default `False`) |
-| ReminderMessage | Text | Custom reminder DM template |
+| ReminderMessage | UnicodeText | Custom reminder DM template |
 
 ### `AutoDelete`
 

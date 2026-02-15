@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """default channel dbmodel"""
 
-from sqlalchemy import BigInteger, Column, DateTime, Index, String
+from sqlalchemy import BigInteger, Column, DateTime, Index, String, Unicode
 from utils import database as db
 
 
@@ -15,7 +15,7 @@ class GuildPrefix(db.BASE):
     Prefix = Column(String(30))
     CreateDate = Column(DateTime)
     ModifiedDate = Column(DateTime)
-    Author = Column(String(30))
+    Author = Column(Unicode(30))
 
     @classmethod
     def get(cls, guild_id, session):
