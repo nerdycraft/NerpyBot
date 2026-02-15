@@ -20,6 +20,8 @@ class ReactionRole(Cog):
 
     async def cog_check(self, ctx: Context) -> bool:
         """Enforce manage_roles permission for prefix commands."""
+        if ctx.invoked_with == "help":
+            return False
         if ctx.interaction is not None:
             return True
         if ctx.author.guild_permissions.manage_roles:

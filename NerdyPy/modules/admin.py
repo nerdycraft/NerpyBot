@@ -29,6 +29,8 @@ class Admin(Cog):
 
     async def cog_check(self, ctx: Context) -> bool:
         """Allow administrators and bot operators to use all admin commands."""
+        if ctx.invoked_with == "help":
+            return False
         if await is_admin_or_operator(ctx):
             return True
         raise NerpyException("This command requires administrator permissions or bot operator status.")

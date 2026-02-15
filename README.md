@@ -1,6 +1,7 @@
 # NerpyBot
 
-The nerdiest Discord bot! Built with [discord.py](https://discordpy.readthedocs.io/) using the Cog extension system. Provides gaming integrations (WoW, League of Legends), entertainment, moderation, music playback, and utility features.
+The nerdiest Discord bot! Built with [discord.py](https://discordpy.readthedocs.io/) using the Cog extension system.
+Provides gaming integrations (WoW, League of Legends), entertainment, moderation, music playback, and utility features.
 
 ## Quickstart (Local Development)
 
@@ -21,7 +22,8 @@ python NerdyPy/NerdyPy.py -l DEBUG
 
 ## Docker Compose
 
-The recommended way to run NerpyBot in production. The compose setup runs two bot instances (NerpyBot and HumanMusic) with automatic database migrations.
+The recommended way to run NerpyBot in production. The compose setup runs two bot instances (NerpyBot and HumanMusic)
+with automatic database migrations.
 
 ### Setup
 
@@ -71,11 +73,13 @@ database:
   db_port: 3306
 ```
 
-Supported databases: SQLite (default), MariaDB/MySQL, PostgreSQL. For other databases, specify the type with its driver (e.g., `postgresql+psycopg2`).
+Supported databases: SQLite (default), MariaDB/MySQL, PostgreSQL. For other databases, specify the type with its
+driver (e.g., `postgresql+psycopg2`).
 
 ## Database Migrations
 
-Migrations are managed with [Alembic](https://alembic.sqlalchemy.org/) and run automatically in Docker Compose. For manual usage:
+Migrations are managed with [Alembic](https://alembic.sqlalchemy.org/) and run automatically in Docker Compose. For
+manual usage:
 
 ```bash
 # Install migration dependencies
@@ -96,21 +100,21 @@ The migration runner resolves the database URL in this order:
 
 ## Modules
 
-| Module | Description |
-|--------|-------------|
-| admin | Server management, prefix configuration, command sync |
-| fun | Entertainment commands |
-| league | Riot Games API integration |
-| leavemsg | Server leave message announcements |
-| moderation | Server moderation tools |
-| music | Voice channel audio playback |
-| raidplaner | Guild raid scheduling |
-| random | Random generators |
-| reminder | Timed user reminders |
-| search | Multi-source search (Imgur, Genius, OMDB, IGDB, YouTube) |
-| tagging | Audio tag management |
-| utility | Weather, info commands |
-| wow | Blizzard API integration |
+| Module     | Description                                              |
+|------------|----------------------------------------------------------|
+| admin      | Server management, prefix configuration, command sync    |
+| fun        | Entertainment commands                                   |
+| league     | Riot Games API integration                               |
+| leavemsg   | Server leave message announcements                       |
+| moderation | Server moderation tools                                  |
+| music      | Voice channel audio playback                             |
+| raidplaner | Guild raid scheduling                                    |
+| random     | Random generators                                        |
+| reminder   | Timed user reminders                                     |
+| search     | Multi-source search (Imgur, Genius, OMDB, IGDB, YouTube) |
+| tagging    | Audio tag management                                     |
+| utility    | Weather, info commands                                   |
+| wow        | Blizzard API integration                                 |
 
 Enable modules by listing them in the `bot.modules` section of your config file.
 
@@ -157,8 +161,10 @@ docker buildx build --target migrations -t nerpybot-migrations .
 
 ## Bot Invite Links
 
-- **NerpyBot** — [Invite](https://discord.com/api/oauth2/authorize?client_id=246941850223640576&permissions=582632143842386&scope=applications.commands+bot)
-- **HumanMusic** — [Invite](https://discord.com/api/oauth2/authorize?client_id=883656077357510697&permissions=414467975744&scope=applications.commands+bot)
+- **NerpyBot
+  ** — [Invite](https://discord.com/oauth2/authorize?client_id=246941850223640576&permissions=582632143842386&scope=bot%20applications.commands)
+- **HumanMusic
+  ** — [Invite](https://discord.com/oauth2/authorize?client_id=883656077357510697&permissions=414467975744&scope=bot%20applications.commands)
 
 ## License
 

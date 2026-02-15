@@ -78,8 +78,8 @@ def build_permissions_embed(guild: Guild, missing: list[str], client_id: int, re
 
     invite_perms = required.value
     invite_url = (
-        f"https://discord.com/api/oauth2/authorize"
-        f"?client_id={client_id}&permissions={invite_perms}&scope=applications.commands+bot"
+        f"https://discord.com/oauth2/authorize"
+        f"?client_id={client_id}&permissions={invite_perms}&scope=bot%20applications.commands"
     )
     emb.add_field(name="Invite link (with correct permissions)", value=f"[Re-invite]({invite_url})", inline=False)
     return emb

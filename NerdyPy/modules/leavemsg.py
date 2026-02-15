@@ -23,6 +23,8 @@ class LeaveMsg(Cog):
 
     async def cog_check(self, ctx: Context) -> bool:
         """Enforce administrator permission for prefix commands."""
+        if ctx.invoked_with == "help":
+            return False
         # Slash commands are already gated by @checks.has_permissions
         if ctx.interaction is not None:
             return True
