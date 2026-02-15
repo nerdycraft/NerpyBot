@@ -4,7 +4,7 @@
 from datetime import UTC, datetime, timedelta
 
 import humanize
-from sqlalchemy import BigInteger, Column, DateTime, Index, Integer, String, Text, asc
+from sqlalchemy import BigInteger, Column, DateTime, Index, Integer, String, Unicode, UnicodeText, asc
 from utils import database as db
 
 
@@ -22,11 +22,11 @@ class ReminderMessage(db.BASE):
     ChannelId = Column(BigInteger)
     ChannelName = Column(String(30))
     CreateDate = Column(DateTime)
-    Author = Column(String(30))
+    Author = Column(Unicode(30))
     Repeat = Column(Integer)
     Minutes = Column(Integer)
     LastSend = Column(DateTime)
-    Message = Column(Text)
+    Message = Column(UnicodeText)
     Count = Column(Integer)
 
     @classmethod

@@ -5,7 +5,7 @@ from enum import Enum
 from random import randint
 
 from discord.ext.commands import Context, Converter
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Index, Integer, LargeBinary, String, asc
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Index, Integer, LargeBinary, Unicode, asc
 from sqlalchemy.orm import relationship
 from utils import database as db
 from utils.errors import NerpyException
@@ -36,9 +36,9 @@ class Tag(db.BASE):
 
     Id = Column(Integer, primary_key=True)
     GuildId = Column(BigInteger)
-    Name = Column(String(30))
+    Name = Column(Unicode(30))
     Type = Column(Integer)
-    Author = Column(String(30))
+    Author = Column(Unicode(30))
     CreateDate = Column(DateTime)
     Count = Column(Integer)
     Volume = Column(Integer)
@@ -104,7 +104,7 @@ class TagEntry(db.BASE):
 
     Id = Column(Integer, primary_key=True)
     TagId = Column(Integer, ForeignKey("Tag.Id"))
-    TextContent = Column(String(255))
+    TextContent = Column(Unicode(255))
     ByteContent = Column(LargeBinary(16777215))
 
     tag = relationship("Tag", back_populates="entries")

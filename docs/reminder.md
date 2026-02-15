@@ -55,11 +55,11 @@ Delete a reminder by its ID.
 | ChannelId | BigInteger | Target channel |
 | ChannelName | String(30) | Channel name (for display) |
 | CreateDate | DateTime | When created |
-| Author | String(30) | Who created it |
+| Author | Unicode(30) | Who created it |
 | Repeat | Integer | 1 = repeating, 0 = one-shot |
 | Minutes | Integer | Interval in minutes |
 | LastSend | DateTime | Last time the message was sent |
-| Message | Text | Message content |
+| Message | UnicodeText | Message content |
 | Count | Integer | Number of times sent |
 
 ## How Timing Works

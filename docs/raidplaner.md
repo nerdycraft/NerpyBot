@@ -72,8 +72,8 @@ Creates a scheduled raid event from an existing template. The conversation guide
 |--------|------|---------|
 | GuildId | BigInteger (PK) | Discord guild ID |
 | TemplateId | BigInteger (PK) | Template ID within guild |
-| Name | String(30) | Template name |
-| Description | String(255) | Template description |
+| Name | Unicode(30) | Template name |
+| Description | Unicode(255) | Template description |
 | PlayerCount | Integer | Max players |
 | CreateDate | DateTime | When created |
 
@@ -86,8 +86,8 @@ Has a cascade-delete relationship to `RaidEncounter`.
 | GuildId | BigInteger (PK) | Discord guild ID |
 | TemplateId | BigInteger (PK) | Parent template |
 | EncounterId | BigInteger (PK) | Encounter ID within template |
-| Name | String(30) | Encounter name |
-| Description | String(255) | Encounter description |
+| Name | Unicode(30) | Encounter name |
+| Description | Unicode(255) | Encounter description |
 
 FK to `RaidTemplate(GuildId, TemplateId)`. Has a cascade-delete relationship to `RaidEncounterRole`.
 
@@ -99,8 +99,8 @@ FK to `RaidTemplate(GuildId, TemplateId)`. Has a cascade-delete relationship to 
 | TemplateId | BigInteger (PK) | Parent template |
 | EncounterId | BigInteger (PK) | Parent encounter |
 | RoleId | BigInteger (PK) | Role ID within encounter |
-| Name | String | Role name (e.g., "Tank", "Healer") |
-| Description | String(150) | Role description |
+| Name | Unicode(30) | Role name (e.g., "Tank", "Healer") |
+| Description | Unicode(255) | Role description |
 | Count | Integer | Number of slots for this role |
 | SortIndex | Integer | Display order |
 

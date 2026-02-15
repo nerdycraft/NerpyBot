@@ -73,6 +73,14 @@ database:
   db_port: 3306
 ```
 
+**MariaDB/MySQL charset:** Create the database with `utf8mb4` to support emojis and full Unicode:
+
+```sql
+CREATE DATABASE nerpybot CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+Using the default `utf8` charset will cause errors when storing emoji or other 4-byte Unicode characters.
+
 Supported databases: SQLite (default), MariaDB/MySQL, PostgreSQL. For other databases, specify the type with its
 driver (e.g., `postgresql+psycopg2`).
 

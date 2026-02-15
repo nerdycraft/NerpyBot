@@ -54,5 +54,5 @@ Show the current leave message configuration: enabled/disabled state, target cha
 |--------|------|---------|
 | GuildId | BigInteger (PK) | Discord guild ID |
 | ChannelId | BigInteger | Target channel for messages |
-| Message | Text | Message template with `{member}` placeholder |
+| Message | UnicodeText | Message template with `{member}` placeholder |
 | Enabled | Boolean | Active/inactive toggle (default `False`) |

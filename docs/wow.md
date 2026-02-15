@@ -202,7 +202,7 @@ When the Blizzard API returns a different canonical name than the roster name:
 | Id | Integer (PK) | Auto-increment |
 | GuildId | BigInteger | Discord guild ID |
 | ChannelId | BigInteger | Notification channel |
-| WowGuildName | String(100) | Guild name slug |
+| WowGuildName | Unicode(100) | Guild name slug |
 | WowRealmSlug | String(100) | Realm slug |
 | Region | String(10) | `"eu"` or `"us"` |
 | Language | String(5) | `"de"` or `"en"` |
@@ -219,7 +219,7 @@ When the Blizzard API returns a different canonical name than the roster name:
 |--------|------|---------|
 | Id | Integer (PK) | Auto-increment |
 | ConfigId | Integer (FK) | Parent config |
-| CharacterName | String(50) | Character name (lowercase) |
+| CharacterName | Unicode(50) | Character name (lowercase) |
 | RealmSlug | String(100) | Realm slug |
 | KnownMountIds | Text | JSON array of mount IDs |
 | LastChecked | DateTime | Last successful check |
