@@ -6,3 +6,7 @@ CHANGELOG
 .gitignore
 config/
 docker-compose*.yml
+NerdyPy/config.yaml.template
+NerdyPy/config*.yaml
+NerdyPy/db.db
+NerdyPy/weather_cache.sqlite
