@@ -8,6 +8,7 @@ from datetime import timedelta as td
 from enum import Enum
 from typing import Dict, Literal, LiteralString, Optional, Tuple
 
+import discord
 import requests
 from blizzapi import Language, Region, RetailClient
 from discord import Color, Embed, TextChannel
@@ -70,6 +71,10 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         self.client_secret = self.config["wow"]["wow_secret"]
         self.regions = ["eu", "us"]
 
+        # Realm cache: "slug-region" -> {"name": "Blackrock", "region": "eu", "slug": "blackrock"}
+        self._realm_cache: dict[str, dict] = {}
+        self._realm_cache_lock = asyncio.Lock()
+
         # Guild news config (optional section with defaults)
         gn_config = self.config["wow"].get("guild_news", {})
         self._poll_interval = gn_config.get("poll_interval_minutes", 15)
@@ -82,6 +87,52 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
     def cog_unload(self):
         self._guild_news_loop.cancel()
+
+    # ── Realm cache & autocomplete ─────────────────────────────────────
+
+    async def _ensure_realm_cache(self):
+        """Lazily populate the realm cache from both EU and US regions."""
+        if self._realm_cache:
+            return
+
+        async with self._realm_cache_lock:
+            # Double-check after acquiring lock
+            if self._realm_cache:
+                return
+
+            cache = {}
+            for region in self.regions:
+                try:
+                    api = self._get_retailclient(region, "en")
+                    data = await asyncio.to_thread(api.realms_index)
+                    _check_rate_limit(data)
+                    for realm in data.get("realms", []):
+                        slug = realm.get("slug", "")
+                        name = realm.get("name", slug)
+                        if slug:
+                            cache[f"{slug}-{region}"] = {"name": name, "region": region, "slug": slug}
+                except Exception as ex:
+                    self.bot.log.warning(f"Failed to fetch realm index for {region}: {ex}")
+
+            self._realm_cache = cache
+            self.bot.log.info(f"Realm cache populated with {len(cache)} entries")
+
+    async def _realm_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> list[discord.app_commands.Choice[str]]:
+        """Autocomplete callback for the realm parameter."""
+        await self._ensure_realm_cache()
+
+        current_lower = current.lower()
+        matches = []
+        for key, info in self._realm_cache.items():
+            if current_lower in info["name"].lower() or current_lower in info["slug"]:
+                label = f"{info['name']} ({info['region'].upper()})"
+                matches.append(discord.app_commands.Choice(name=label, value=key))
+            if len(matches) >= 25:
+                break
+
+        return matches
 
     # ── Shared helpers ──────────────────────────────────────────────────
 
@@ -127,7 +178,8 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         api = self._get_retailclient(region, language)
 
         character = api.character_profile_summary(realmSlug=realm, characterName=name)
-        assets = api.character_media(realmSlug=realm, characterName=name).get("assets", list())
+        media = api.character_media(realmSlug=realm, characterName=name)
+        assets = media.get("assets", []) if isinstance(media, dict) else []
         profile_picture = "".join(asset.get("value") for asset in assets if asset.get("key") == "avatar")
 
         return character, profile_picture
@@ -182,31 +234,48 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         ctx: Context,
         name: str,
         realm: str,
-        region: Optional[Literal["eu", "us"]] = "eu",
         language: Optional[Literal["de", "en"]] = "en",
     ):
         """
         search for character
 
         name and realm are required parameters.
-        region is optional, but if you want to search on another realm than your discord server runs on,
-            you need to set it.
+        realm accepts autocomplete suggestions (e.g. "blackrock-eu") or a plain slug (defaults to EU).
         language is optional, defaults to English.
         """
         try:
             async with ctx.typing(ephemeral=True):
+                # Parse realm: "blackrock-eu" -> ("blackrock", "eu"), "blackrock" -> ("blackrock", "eu")
                 realm = realm.lower()
+                if "-" in realm:
+                    parts = realm.rsplit("-", 1)
+                    if parts[1] in self.regions:
+                        realm_slug, region = parts[0], parts[1]
+                    else:
+                        realm_slug, region = realm, "eu"
+                else:
+                    realm_slug, region = realm, "eu"
+
+                # Validate realm against cache if populated
+                await self._ensure_realm_cache()
+                cache_key = f"{realm_slug}-{region}"
+                if self._realm_cache and cache_key not in self._realm_cache:
+                    raise NerpyException(
+                        f"Unknown realm '{realm_slug}' in {region.upper()}. "
+                        f"Use the autocomplete suggestions or check your spelling."
+                    )
+
                 name = name.lower()
-                profile = f"{region}/{realm}/{name}"
+                profile = f"{region}/{realm_slug}/{name}"
 
                 # noinspection PyTypeChecker
-                character, profile_picture = self._get_character(realm, region, name, language)
+                character, profile_picture = self._get_character(realm_slug, region, name, language)
 
-                if character.get("code") == 404:
+                if not isinstance(character, dict) or character.get("code") == 404:
                     raise NerpyException("No Character with this name found.")
 
-                best_keys = self._get_best_mythic_keys(region, realm, name)
-                rio_score = self._get_raiderio_score(region, realm, name)
+                best_keys = self._get_best_mythic_keys(region, realm_slug, name)
+                rio_score = self._get_raiderio_score(region, realm_slug, name)
 
                 armory = self._get_link("armory", profile)
                 raiderio = self._get_link("raiderio", profile)
@@ -214,7 +283,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 wowprogress = self._get_link("wowprogress", profile)
 
                 emb = Embed(
-                    title=f"{character['name']} | {realm.capitalize()} | {region.upper()} | {character['active_spec']['name']} {character['character_class']['name']} | {character['equipped_item_level']} ilvl",
+                    title=f"{character['name']} | {realm_slug.capitalize()} | {region.upper()} | {character['active_spec']['name']} {character['character_class']['name']} | {character['equipped_item_level']} ilvl",
                     url=armory,
                     color=Color(value=int("0099ff", 16)),
                     description=f"{character['gender']['name']} {character['race']['name']}",
@@ -226,7 +295,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                     emb.add_field(name="Guild", value=character["guild"]["name"], inline=True)
                 emb.add_field(name="\u200b", value="\u200b", inline=False)
 
-                if len(best_keys) > 0:
+                if best_keys:
                     keys = ""
                     for key in best_keys:
                         keys += f"+{key['level']} - {key['dungeon']} - {key['clear_time']}\n"
@@ -242,9 +311,16 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                     inline=True,
                 )
 
-            await ctx.send(embed=emb)
+            await ctx.channel.send(embed=emb)
+            # Dismiss the ephemeral "thinking..." indicator
+            if ctx.interaction is not None:
+                await ctx.interaction.delete_original_response()
         except NerpyException as ex:
             await send_hidden_message(ctx, str(ex))
+
+    @_wow_armory.autocomplete("realm")
+    async def _realm_autocomplete_handler(self, interaction: discord.Interaction, current: str):
+        return await self._realm_autocomplete(interaction, current)
 
     # ── Guild News commands ─────────────────────────────────────────────
 
