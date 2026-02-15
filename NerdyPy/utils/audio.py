@@ -189,8 +189,8 @@ class Audio:
     def clear_buffer(self, guild_id):
         """Clears the Audio Buffer"""
         if self._has_buffer(guild_id):
-            self.buffer.get(guild_id).pop(BufferKey.QUEUE)
-            self.lastPlayed.pop(guild_id)
+            self.buffer.get(guild_id).pop(BufferKey.QUEUE, None)
+            self.lastPlayed.pop(guild_id, None)
 
     def list_queue(self, guild_id):
         """lists audio queue"""
@@ -202,10 +202,15 @@ class Audio:
     def stop(self, guild_id):
         """Stops current audio from playing"""
         if self._has_buffer(guild_id):
-            self.buffer[guild_id][BufferKey.VOICE_CLIENT].stop()
+            vc = self.buffer[guild_id].get(BufferKey.VOICE_CLIENT)
+            if vc is not None:
+                vc.stop()
 
     async def leave(self, guild_id):
-        await self.buffer[guild_id][BufferKey.VOICE_CLIENT].disconnect()
+        if self._has_buffer(guild_id):
+            vc = self.buffer[guild_id].get(BufferKey.VOICE_CLIENT)
+            if vc is not None:
+                await vc.disconnect()
         self.clear_buffer(guild_id)
 
     @_timeout_manager.before_loop
