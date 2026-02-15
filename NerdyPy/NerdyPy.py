@@ -42,7 +42,7 @@ from utils import logging
 from utils.audio import Audio
 from utils.conversation import AnswerType, ConversationManager
 from utils.database import BASE
-from utils.errors import NerpyException
+from utils.errors import NerpyException, SilentCheckFailure
 from utils.helpers import error_context, send_hidden_message
 
 
@@ -55,7 +55,7 @@ class NerpyBot(Bot):
             command_prefix=determine_prefix,
             description="NerdyBot - Always one step ahead!",
             intents=intents,
-            help_command=DefaultHelpCommand(dm_help=True, verify_checks=False),
+            help_command=DefaultHelpCommand(dm_help=True, verify_checks=True),
         )
 
         self.config = config
@@ -196,54 +196,52 @@ class NerpyBot(Bot):
             else:
                 self.usr_cmd_err_spam[ctx.author] = 0
 
-        if send_err:
-            err_ctx = error_context(ctx)
-            if isinstance(error, NoPrivateMessage):
-                await send_hidden_message(ctx, "This command can only be used in a server, not in DMs.")
-                return
-            if isinstance(error, CommandError):
-                if isinstance(error, CheckFailure):
-                    if isinstance(ctx.channel, DMChannel):
-                        await send_hidden_message(ctx, "This command can only be used in a server, not in DMs.")
-                        return
-                    msg = str(error)
-                    self.log.warning(f"{err_ctx}: {msg}")
-                    if ctx.interaction is None:
-                        await ctx.author.send(msg)
-                    else:
-                        await send_hidden_message(ctx, msg)
-                elif isinstance(error, commands.CommandInvokeError):
-                    if isinstance(error.original, app_commands.CommandInvokeError) and isinstance(
-                        error.original.original, NerpyException
-                    ):
-                        self.log.error(f"{err_ctx}: {error.original.original.args[0]}")
-                        await send_hidden_message(ctx, error.original.original.args[0])
-                    elif isinstance(error.original, NerpyException):
-                        err_msg = "".join(error.original.args[0])
-                        self.log.error(f"{err_ctx}: {err_msg}")
+        try:
+            if send_err:
+                err_ctx = error_context(ctx)
+                if isinstance(error, NoPrivateMessage):
+                    await send_hidden_message(ctx, "This command can only be used in a server, not in DMs.")
+                    return
+                if isinstance(error, CommandError):
+                    if isinstance(error, CheckFailure):
+                        if isinstance(error, SilentCheckFailure):
+                            self.log.warning(f"{err_ctx}: {error}")
+                            return
+                        if isinstance(ctx.channel, DMChannel):
+                            await send_hidden_message(ctx, "This command can only be used in a server, not in DMs.")
+                            return
+                        msg = str(error)
+                        self.log.warning(f"{err_ctx}: {msg}")
                         if ctx.interaction is None:
-                            await ctx.author.send(err_msg)
+                            await ctx.author.send(msg)
                         else:
-                            await send_hidden_message(ctx, err_msg)
+                            await send_hidden_message(ctx, msg)
+                    elif isinstance(error, commands.CommandInvokeError):
+                        if isinstance(error.original, app_commands.CommandInvokeError) and isinstance(
+                            error.original.original, NerpyException
+                        ):
+                            self.log.error(f"{err_ctx}: {error.original.original.args[0]}")
+                            await send_hidden_message(ctx, error.original.original.args[0])
+                        elif isinstance(error.original, NerpyException):
+                            err_msg = "".join(error.original.args[0])
+                            self.log.error(f"{err_ctx}: {err_msg}")
+                            if ctx.interaction is None:
+                                await ctx.author.send(err_msg)
+                            else:
+                                await send_hidden_message(ctx, err_msg)
+                        else:
+                            self.log.error(f"{err_ctx}: {error.original.__class__.__name__}: {error.original}")
+                            print_tb(error.original.__traceback__)
+                            await send_hidden_message(ctx, "An error occurred. The bot operator has been notified.")
                     else:
-                        self.log.error(f"{err_ctx}: {error.original.__class__.__name__}: {error.original}")
-                        print_tb(error.original.__traceback__)
-                        if ctx.interaction is None:
-                            await ctx.author.send("Unhandled error occurred. Please report to bot author!")
-                        else:
-                            await send_hidden_message(ctx, "Unhandled error occurred. Please report to bot author!")
+                        self.log.error(f"{err_ctx}: {error}")
                 else:
-                    self.log.error(f"{err_ctx}: {error}")
-            else:
-                self.log.error(f"{err_ctx}: {error.original.__class__.__name__}: {error.original}")
-                print_tb(error.original.__traceback__)
-                if ctx.interaction is None:
-                    await ctx.author.send("Unhandled error occurred. Please report to bot author!")
-                else:
-                    await send_hidden_message(ctx, "Unhandled error occurred. Please report to bot author!")
-
-        if not isinstance(ctx.channel, DMChannel) and ctx.interaction is None:
-            await ctx.message.delete()
+                    self.log.error(f"{err_ctx}: {error.original.__class__.__name__}: {error.original}")
+                    print_tb(error.original.__traceback__)
+                    await send_hidden_message(ctx, "An error occurred. The bot operator has been notified.")
+        finally:
+            if not isinstance(ctx.channel, DMChannel) and ctx.interaction is None:
+                await ctx.message.delete()
 
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent) -> None:
         """
