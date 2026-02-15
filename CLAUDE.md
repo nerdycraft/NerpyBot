@@ -33,16 +33,28 @@ uv run ruff format --check           # Check formatting only
 uv run pytest                        # Run tests
 uv run pytest --cov                  # With coverage
 
-# Database migrations
+# Database migrations (two separate configs: nerpybot and humanmusic)
 uv sync --group migrations
-uv run alembic upgrade head                              # Apply migrations
-uv run alembic revision --autogenerate -m "description"  # Create migration
+uv run alembic -c alembic-nerpybot.ini upgrade head                              # Apply NerpyBot migrations
+uv run alembic -c alembic-nerpybot.ini revision --autogenerate -m "description"  # Create NerpyBot migration
+uv run alembic -c alembic-humanmusic.ini upgrade head                            # Apply HumanMusic migrations
+uv run alembic -c alembic-humanmusic.ini revision --autogenerate -m "description" # Create HumanMusic migration
 # NOTE: New tables do NOT need migrations — SQLAlchemy auto-creates missing tables at startup.
 # Only create migrations when altering existing tables (add/remove columns, change constraints).
+# NerpyBot migrations: for tables used by all modules (full deployment)
+# HumanMusic migrations: only for tables shared by admin, voicecontrol, and music modules
 
 # Docker builds (two targets)
 docker buildx build --target bot -t nerpybot .
 docker buildx build --target migrations -t nerpybot-migrations .
+
+# Validate GitHub Actions workflows
+actionlint .github/workflows/build.yml
+
+# Docker smoke tests (run locally to verify images work)
+docker run --rm nerpybot python -c "from NerdyPy import NerpyBot; print('OK')"
+docker run --rm nerpybot-migrations alembic -c alembic-nerpybot.ini heads
+docker run --rm -e ALEMBIC_CONFIG=alembic-humanmusic.ini nerpybot-migrations alembic -c alembic-humanmusic.ini heads
 ```
 
 ## Architecture
@@ -75,7 +87,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 ### Database Layer
 - `NerdyPy/models/` - SQLAlchemy ORM models
 - `NerdyPy/utils/database.py` - Session management with context managers
-- `database-migrations/` - Alembic migrations
+- `database-migrations/` - Alembic migrations (separate version dirs for `nerpybot/` and `humanmusic/`)
 - Supports SQLite (default), MySQL/MariaDB, PostgreSQL
 
 ### Utilities

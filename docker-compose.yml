@@ -21,6 +21,8 @@ services:
   humanmusic-migrations:
     image: ghcr.io/nerdycraft/nerpybot-database-migrations:latest
     restart: "no"
+    environment:
+      ALEMBIC_CONFIG: alembic-humanmusic.ini
     volumes:
       - humanmusic-data:/data
       - ./config/humanmusic.yaml:/app/config.yaml:ro

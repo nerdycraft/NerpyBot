@@ -1086,6 +1086,7 @@ bot = [
 ]
 migrations = [
     { name = "alembic" },
+    { name = "pymysql" },
     { name = "pyyaml" },
     { name = "sqlalchemy" },
 ]
@@ -1122,6 +1123,7 @@ bot = [
 ]
 migrations = [
     { name = "alembic" },
+    { name = "pymysql" },
     { name = "pyyaml" },
     { name = "sqlalchemy" },
 ]
