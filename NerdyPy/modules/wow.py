@@ -13,11 +13,11 @@ from blizzapi import Language, Region, RetailClient
 from discord import Color, Embed, TextChannel
 from discord.app_commands import checks
 from discord.ext import tasks
-from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_command, hybrid_group
+from discord.ext.commands import Context, GroupCog, bot_has_permissions, has_permissions, hybrid_command, hybrid_group
 from models.wow import WowCharacterMounts, WowGuildNewsConfig
 from utils.errors import NerpyException
 from utils.format import box, pagify
-from utils.helpers import send_hidden_message
+from utils.helpers import notify_error, send_hidden_message
 
 
 class WowApiLanguage(Enum):
@@ -256,6 +256,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
     @_guildnews.command(name="setup")
     @checks.has_permissions(manage_channels=True)
+    @has_permissions(manage_channels=True)
     async def _guildnews_setup(
         self,
         ctx: Context,
@@ -311,6 +312,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
     @_guildnews.command(name="remove")
     @checks.has_permissions(manage_channels=True)
+    @has_permissions(manage_channels=True)
     async def _guildnews_remove(self, ctx: Context, config_id: int):
         """remove a guild news tracking config [manage_channels]"""
         with self.bot.session_scope() as session:
@@ -339,6 +341,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
     @_guildnews.command(name="pause")
     @checks.has_permissions(manage_channels=True)
+    @has_permissions(manage_channels=True)
     async def _guildnews_pause(self, ctx: Context, config_id: int):
         """pause guild news tracking [manage_channels]"""
         with self.bot.session_scope() as session:
@@ -351,6 +354,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
     @_guildnews.command(name="resume")
     @checks.has_permissions(manage_channels=True)
+    @has_permissions(manage_channels=True)
     async def _guildnews_resume(self, ctx: Context, config_id: int):
         """resume guild news tracking [manage_channels]"""
         with self.bot.session_scope() as session:
@@ -395,6 +399,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
         except Exception as ex:
             self.bot.log.error(f"Guild news loop error: {ex}")
+            await notify_error(self.bot, "Guild news background loop", ex)
         self.bot.log.debug("Stop Guild News Loop!")
 
     @_guild_news_loop.before_loop

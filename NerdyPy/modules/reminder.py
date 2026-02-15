@@ -8,7 +8,7 @@ from discord.ext import tasks
 from discord.ext.commands import Context, GroupCog, hybrid_command
 from models.reminder import ReminderMessage
 from utils.format import box, pagify
-from utils.helpers import send_hidden_message
+from utils.helpers import notify_error, send_hidden_message
 
 
 class Reminder(GroupCog, group_name="reminder"):
@@ -45,6 +45,7 @@ class Reminder(GroupCog, group_name="reminder"):
                                     msg.Count += 1
         except Exception as ex:
             self.bot.log.error(f"Reminder loop: {ex}")
+            await notify_error(self.bot, "Reminder background loop", ex)
         self.bot.log.debug("Stop Reminder Loop!")
 
     @hybrid_command(name="create")

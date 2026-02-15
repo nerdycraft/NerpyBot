@@ -1,21 +1,30 @@
 # -*- coding: utf-8 -*-
 
-from discord import Role, TextChannel
+from discord import Role, TextChannel, app_commands
 from discord.app_commands import checks
-from discord.ext.commands import Cog, Context, hybrid_group
+from discord.ext.commands import Cog, Context, MissingPermissions, hybrid_group
 
 from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 
 from utils.format import box
-from utils.helpers import empty_subcommand, error_context, send_hidden_message
+from utils.helpers import empty_subcommand, error_context, notify_error, send_hidden_message
 
 
+@app_commands.default_permissions(manage_roles=True)
 class ReactionRole(Cog):
     """cog for managing reaction-based role assignment"""
 
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
         self.bot = bot
+
+    async def cog_check(self, ctx: Context) -> bool:
+        """Enforce manage_roles permission for prefix commands."""
+        if ctx.interaction is not None:
+            return True
+        if ctx.author.guild_permissions.manage_roles:
+            return True
+        raise MissingPermissions(["manage_roles"])
 
     @Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -37,6 +46,7 @@ class ReactionRole(Cog):
                 f"[{guild_info}] {payload.member} ({payload.member.id}): "
                 f"failed to add role {role.name} ({role.id}): {ex}"
             )
+            await notify_error(self.bot, f"[{guild_info}] Reaction role add failed", ex)
 
     @Cog.listener()
     async def on_raw_reaction_remove(self, payload):
@@ -64,6 +74,7 @@ class ReactionRole(Cog):
                 f"[{guild.name} ({guild.id})] {member} ({member.id}): "
                 f"failed to remove role {role.name} ({role.id}): {ex}"
             )
+            await notify_error(self.bot, f"[{guild.name} ({guild.id})] Reaction role remove failed", ex)
 
     def _get_role_for_reaction(self, payload):
         """looks up the role for a given reaction event payload"""

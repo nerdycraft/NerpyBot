@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Module for server leave message announcements"""
 
-from discord import Member, TextChannel
+from discord import Member, TextChannel, app_commands
 from discord.app_commands import checks
-from discord.ext.commands import Cog, Context, hybrid_group
+from discord.ext.commands import Cog, Context, MissingPermissions, hybrid_group
 from models.leavemsg import LeaveMessage
 
 from utils.errors import NerpyException
@@ -13,12 +13,22 @@ from utils.helpers import empty_subcommand, send_hidden_message
 DEFAULT_LEAVE_MESSAGE = "{member} left the server :("
 
 
+@app_commands.default_permissions(administrator=True)
 class LeaveMsg(Cog):
     """Cog for managing server leave messages"""
 
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
         self.bot = bot
+
+    async def cog_check(self, ctx: Context) -> bool:
+        """Enforce administrator permission for prefix commands."""
+        # Slash commands are already gated by @checks.has_permissions
+        if ctx.interaction is not None:
+            return True
+        if ctx.author.guild_permissions.administrator:
+            return True
+        raise MissingPermissions(["administrator"])
 
     @Cog.listener()
     async def on_member_remove(self, member: Member) -> None:

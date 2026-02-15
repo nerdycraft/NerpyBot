@@ -10,6 +10,7 @@ bot:
     - league
     - leavemsg
     - moderation
+    - voicecontrol  # voice-only stop/leave (use instead of moderation for music-only bots)
     - random
     - reactionrole
     - rolemanage
@@ -47,6 +48,11 @@ utility:
 
 league:
   riot: your_riot_api_key
+
+notifications:
+  # Discord user IDs to DM when unhandled errors occur
+  error_recipients:
+    - your_discord_id_here
 
 wow:
   wow_id: your_wow_client_id

@@ -7,15 +7,14 @@ import utils.format as fmt
 from discord import Embed, Member, TextChannel
 from discord.app_commands import checks, rename
 from discord.ext import tasks
-from discord.ext.commands import Cog, Context, check, command, hybrid_command, hybrid_group
+from discord.ext.commands import Cog, Context, command, has_permissions, hybrid_command, hybrid_group
 from humanize import naturaldate
 from pytimeparse2 import parse
 
 from models.moderation import AutoDelete, AutoKicker
 
-from utils.checks import can_leave_voice, can_stop_playback
 from utils.errors import NerpyException
-from utils.helpers import empty_subcommand, send_hidden_message
+from utils.helpers import empty_subcommand, notify_error, send_hidden_message
 
 # If no tzinfo is given then UTC is assumed.
 LOOP_RUN_TIME = time(hour=12, minute=30, tzinfo=UTC)
@@ -78,6 +77,7 @@ class Moderation(Cog):
                                     )
         except Exception as ex:
             self.bot.log.error(f"Autokicker: {ex}")
+            await notify_error(self.bot, "Autokicker background loop", ex)
         self.bot.log.debug("Finish Autokicker Loop!")
 
     @tasks.loop(minutes=5)
@@ -127,11 +127,13 @@ class Moderation(Cog):
             if message is not None:
                 self.bot.log.debug(f"Message: {message}")
                 self.bot.log.debug(f"Channel from Message: {message.channel.name}")
+            await notify_error(self.bot, "Autodeleter background loop", ex)
         self.bot.log.debug("Finish Autodeleter Loop!")
 
     @hybrid_command()
     @rename(kick_reminder_message="reminder_message")
     @checks.has_permissions(kick_members=True)
+    @has_permissions(kick_members=True)
     async def autokicker(
         self, ctx: Context, enable: bool, kick_after: Optional[str], kick_reminder_message: Optional[str]
     ):
@@ -175,6 +177,7 @@ class Moderation(Cog):
 
     @hybrid_group()
     @checks.has_permissions(manage_messages=True)
+    @has_permissions(manage_messages=True)
     async def autodeleter(self, ctx: Context) -> None:
         """Manage autodeletion per channel [bot-moderator]"""
         if ctx.invoked_subcommand is None:
@@ -188,6 +191,7 @@ class Moderation(Cog):
 
     @autodeleter.command(name="create")
     @checks.has_permissions(manage_messages=True)
+    @has_permissions(manage_messages=True)
     async def _autodeleter_create(
         self,
         ctx: Context,
@@ -247,6 +251,7 @@ class Moderation(Cog):
 
     @autodeleter.command(name="delete")
     @checks.has_permissions(manage_messages=True)
+    @has_permissions(manage_messages=True)
     async def _autodeleter_delete(self, ctx: Context, *, channel: TextChannel) -> None:
         """
         Delete AutoDelete configuration for a channel.
@@ -269,6 +274,7 @@ class Moderation(Cog):
 
     @autodeleter.command(name="list")
     @checks.has_permissions(manage_messages=True)
+    @has_permissions(manage_messages=True)
     async def _autodeleter_list(self, ctx: Context) -> None:
         """
         Lists AutoDelete configuration.
@@ -297,6 +303,7 @@ class Moderation(Cog):
 
     @autodeleter.command(name="edit")
     @checks.has_permissions(manage_messages=True)
+    @has_permissions(manage_messages=True)
     async def _autodeleter_modify(
         self,
         ctx: Context,
@@ -342,12 +349,14 @@ class Moderation(Cog):
 
     @hybrid_group(aliases=["u"])
     @checks.has_permissions(moderate_members=True)
+    @has_permissions(moderate_members=True)
     async def user(self, ctx: Context):
         """user moderation [bot-moderator]"""
         await empty_subcommand(ctx)
 
     @user.command(name="info")
     @checks.has_permissions(moderate_members=True)
+    @has_permissions(moderate_members=True)
     async def _get_user_info(self, ctx: Context, member: Optional[Member]):
         """displays information about given user [bot-moderator]"""
 
@@ -371,6 +380,7 @@ class Moderation(Cog):
 
     @user.command(name="list")
     @checks.has_permissions(moderate_members=True)
+    @has_permissions(moderate_members=True)
     async def _list_user_info_from_guild(self, ctx: Context, show_only_users_without_roles: Optional[bool]):
         """displays a list of users on your server [bot-moderator]
 
@@ -404,21 +414,6 @@ class Moderation(Cog):
         await send_hidden_message(
             ctx, fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord")
         )
-
-    @hybrid_command(name="stop")
-    @check(can_stop_playback)
-    async def _bot_stop_playing(self, ctx: Context):
-        """bot stops playing audio [bot-moderator]"""
-        self.bot.audio.stop(ctx.guild.id)
-        self.bot.audio.clear_buffer(ctx.guild.id)
-        await send_hidden_message(ctx, "\U0001f44d")
-
-    @hybrid_command(name="leave")
-    @check(can_leave_voice)
-    async def _bot_leave_channel(self, ctx: Context):
-        """bot leaves the voice channel [bot-moderator]"""
-        await self.bot.audio.leave(ctx.guild.id)
-        await send_hidden_message(ctx, "\U0001f44b")
 
     @command()
     async def history(self, ctx: Context):

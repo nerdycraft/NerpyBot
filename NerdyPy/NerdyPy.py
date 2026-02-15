@@ -43,7 +43,8 @@ from utils.audio import Audio
 from utils.conversation import AnswerType, ConversationManager
 from utils.database import BASE
 from utils.errors import NerpyException, SilentCheckFailure
-from utils.helpers import error_context, send_hidden_message
+from utils.helpers import error_context, notify_error, send_hidden_message
+from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 
 
 class NerpyBot(Bot):
@@ -158,7 +159,24 @@ class NerpyBot(Bot):
 
     async def on_ready(self) -> None:
         """calls when successfully logged in"""
+        from models.permissions import PermissionSubscriber
+
         self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
+
+        required = required_permissions_for(self.modules)
+        for guild in self.guilds:
+            missing = check_guild_permissions(guild, required)
+            if missing:
+                self.log.warning(f"[{guild.name} ({guild.id})] missing permissions: {', '.join(missing)}")
+                emb = build_permissions_embed(guild, missing, self.client_id, required)
+                with self.session_scope() as session:
+                    subscribers = PermissionSubscriber.get_by_guild(guild.id, session)
+                for sub in subscribers:
+                    try:
+                        user = await self.fetch_user(sub.UserId)
+                        await user.send(embed=emb)
+                    except Exception as ex:
+                        self.log.debug(f"Could not DM permission alert to {sub.UserId}: {ex}")
 
     async def on_command_completion(self, ctx: Context) -> None:
         """
@@ -233,12 +251,14 @@ class NerpyBot(Bot):
                             self.log.error(f"{err_ctx}: {error.original.__class__.__name__}: {error.original}")
                             print_tb(error.original.__traceback__)
                             await send_hidden_message(ctx, "An error occurred. The bot operator has been notified.")
+                            await notify_error(self, err_ctx, error.original)
                     else:
                         self.log.error(f"{err_ctx}: {error}")
                 else:
                     self.log.error(f"{err_ctx}: {error.original.__class__.__name__}: {error.original}")
                     print_tb(error.original.__traceback__)
                     await send_hidden_message(ctx, "An error occurred. The bot operator has been notified.")
+                    await notify_error(self, err_ctx, error.original)
         finally:
             if not isinstance(ctx.channel, DMChannel) and ctx.interaction is None:
                 await ctx.message.delete()
