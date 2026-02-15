@@ -52,7 +52,7 @@ Uses the YouTube Data API v3 (`config.search.ytkey`) to find the top result, the
 
 ### `/skip`
 
-Skip the currently playing track. The queue manager automatically starts the next song.
+Skip the currently playing track. The queue manager automatically starts the next song. Any user in the same voice channel as the bot can skip; moderators can skip from anywhere.
 
 ### `/queue list`
 

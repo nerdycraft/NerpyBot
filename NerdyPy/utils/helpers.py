@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 
+import logging
+from traceback import format_exception
+
 from discord.ext.commands import Context
 from googleapiclient.discovery import build
 from utils.errors import NerpyException
+
+log = logging.getLogger("nerpybot")
 
 
 async def send_hidden_message(ctx: Context, msg: str = None, **kwargs):
@@ -38,6 +43,31 @@ async def check_api_response(response, service_name: str = "API") -> None:
     """Validate API response status and raise NerpyException on error."""
     if response.status != 200:
         raise NerpyException(f"The {service_name} responded with code: {response.status} - {response.reason}")
+
+
+async def notify_error(bot, context: str, error: Exception) -> None:
+    """DM configured error recipients with details about an unhandled error.
+
+    Fails silently if recipients have DMs disabled or IDs are invalid.
+    """
+    recipients = bot.config.get("notifications", {}).get("error_recipients", [])
+    if not recipients:
+        return
+
+    tb = "".join(format_exception(type(error), error, error.__traceback__))
+    # Truncate traceback to fit Discord's 2000-char message limit
+    max_tb = 1400
+    if len(tb) > max_tb:
+        tb = tb[:max_tb] + "\n... (truncated)"
+
+    msg = f"**Error:** `{type(error).__name__}: {error}`\n**Context:** {context}\n```\n{tb}\n```"
+
+    for uid in recipients:
+        try:
+            user = await bot.fetch_user(uid)
+            await user.send(msg)
+        except Exception as dm_err:
+            log.debug(f"Could not DM error notification to {uid}: {dm_err}")
 
 
 def youtube(yt_key, return_type, query):

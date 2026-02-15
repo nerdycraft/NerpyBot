@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from io import BytesIO
 
 from discord import FFmpegOpusAudio
-from discord.app_commands import guild_only, rename
+from discord.app_commands import checks, guild_only, rename
 from discord.ext.commands import (
     Cog,
     Context,
@@ -74,6 +74,7 @@ class Tagging(QueueMixin, Cog):
                 await send_hidden_message(ctx, "Queue is empty.")
 
     @_queue.command(name="drop", hidden=True)
+    @checks.has_permissions(mute_members=True)
     @has_permissions(mute_members=True)
     async def _drop_queue(self, ctx: Context):
         """drop the playlist entirely"""

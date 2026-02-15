@@ -2,7 +2,7 @@
 
 from discord import Member, Role
 from discord.app_commands import checks
-from discord.ext.commands import Cog, Context, hybrid_group
+from discord.ext.commands import Cog, Context, has_permissions, hybrid_group
 
 from models.rolemanage import RoleMapping
 from utils.format import box
@@ -28,6 +28,7 @@ class RoleManage(Cog):
 
     @_rolemanage.command(name="allow")
     @checks.has_permissions(manage_roles=True)
+    @has_permissions(manage_roles=True)
     async def _allow(self, ctx: Context, source_role: Role, target_role: Role):
         """allow a source role to assign a target role [manage_roles]
 
@@ -68,6 +69,7 @@ class RoleManage(Cog):
 
     @_rolemanage.command(name="deny")
     @checks.has_permissions(manage_roles=True)
+    @has_permissions(manage_roles=True)
     async def _deny(self, ctx: Context, source_role: Role, target_role: Role):
         """remove a source-to-target role mapping [manage_roles]
 
@@ -89,6 +91,7 @@ class RoleManage(Cog):
 
     @_rolemanage.command(name="list")
     @checks.has_permissions(manage_roles=True)
+    @has_permissions(manage_roles=True)
     async def _list(self, ctx: Context):
         """list all delegated role mappings for this server [manage_roles]"""
         with self.bot.session_scope() as session:

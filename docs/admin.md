@@ -55,6 +55,18 @@ Syncs slash commands with Discord. Prefix-only (not a slash command itself).
 - `copy` — Copy global commands to specified guild(s)
 - `clear` — Clear commands from specified guild(s)
 
+### `/botpermissions check`
+
+Checks whether the bot has all required permissions in the current server. Reports missing permissions and provides a re-invite link with the correct permission set. Available to administrators.
+
+### `/botpermissions subscribe`
+
+Subscribe to automatic DM notifications about missing permissions. When the bot restarts and detects missing permissions in this server, subscribed administrators receive a DM with the same report as `/botpermissions check`.
+
+### `/botpermissions unsubscribe`
+
+Stop receiving automatic permission notifications for this server.
+
 ### `debug`
 
 Toggles debug logging at runtime. **Operator-only** (user ID must be in `config.bot.ops`).

@@ -6,7 +6,7 @@ bot:
   error_spam_threshold: 5
   modules:
     - admin
-    - moderation
+    - voicecontrol
     - music
 
 database:
@@ -15,3 +15,11 @@ database:
 
 audio:
   buffer_limit: 5
+
+search:
+  ytkey: your_youtube_key
+
+notifications:
+  # Discord user IDs to DM when unhandled errors occur
+  error_recipients:
+    - your_discord_id_here

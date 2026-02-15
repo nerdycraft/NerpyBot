@@ -69,6 +69,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **search** - Multi-source search (Imgur, Genius, OMDB, IGDB, YouTube)
 - **tagging** - Audio tag management
 - **utility** - Weather, info commands
+- **voicecontrol** - Voice stop/leave commands (use instead of moderation for music-only bots)
 - **wow** - Blizzard API integration
 
 ### Database Layer

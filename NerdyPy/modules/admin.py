@@ -5,16 +5,20 @@ from datetime import UTC, datetime
 from typing import Literal, Optional
 
 from discord import Forbidden, HTTPException, Object, Role
-from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError, checks
+from discord import app_commands
+from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError
 from discord.ext.commands import Cog, Context, Greedy, command, group, hybrid_group
 from models.admin import GuildPrefix
 from models.botmod import BotModeratorRole
+from models.permissions import PermissionSubscriber
 
+from utils.checks import is_admin_or_operator
 from utils.errors import NerpyException
 from utils.helpers import send_hidden_message
+from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 
 
-@checks.has_permissions(administrator=True)
+@app_commands.default_permissions(administrator=True)
 class Admin(Cog):
     """cog for administrative usage"""
 
@@ -22,6 +26,12 @@ class Admin(Cog):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
+
+    async def cog_check(self, ctx: Context) -> bool:
+        """Allow administrators and bot operators to use all admin commands."""
+        if await is_admin_or_operator(ctx):
+            return True
+        raise NerpyException("This command requires administrator permissions or bot operator status.")
 
     @group()
     async def prefix(self, ctx: Context):
@@ -165,6 +175,38 @@ class Admin(Cog):
             await send_hidden_message(ctx, "Debug logging **enabled** (level: DEBUG).")
 
         self.bot.log.info(f"debug logging toggled to {self.bot.debug} by {ctx.author}")
+
+    @hybrid_group(name="botpermissions", fallback="check")
+    async def botpermissions(self, ctx: Context) -> None:
+        """Check if the bot has all required permissions in this server."""
+        required = required_permissions_for(self.bot.modules)
+        missing = check_guild_permissions(ctx.guild, required)
+        emb = build_permissions_embed(ctx.guild, missing, self.bot.client_id, required)
+        await send_hidden_message(ctx, embed=emb)
+
+    @botpermissions.command(name="subscribe")
+    async def _botpermissions_subscribe(self, ctx: Context) -> None:
+        """Get DM notifications about missing permissions on bot restart."""
+        with self.bot.session_scope() as session:
+            existing = PermissionSubscriber.get(ctx.guild.id, ctx.author.id, session)
+            if existing is not None:
+                await send_hidden_message(ctx, "You are already subscribed to permission notifications.")
+                return
+            session.add(PermissionSubscriber(GuildId=ctx.guild.id, UserId=ctx.author.id))
+        await send_hidden_message(
+            ctx, "Subscribed. You will receive a DM when the bot restarts with missing permissions in this server."
+        )
+
+    @botpermissions.command(name="unsubscribe")
+    async def _botpermissions_unsubscribe(self, ctx: Context) -> None:
+        """Stop receiving DM notifications about missing permissions."""
+        with self.bot.session_scope() as session:
+            existing = PermissionSubscriber.get(ctx.guild.id, ctx.author.id, session)
+            if existing is None:
+                await send_hidden_message(ctx, "You are not subscribed to permission notifications.")
+                return
+            PermissionSubscriber.delete(ctx.guild.id, ctx.author.id, session)
+        await send_hidden_message(ctx, "Unsubscribed from permission notifications for this server.")
 
 
 async def setup(bot):
