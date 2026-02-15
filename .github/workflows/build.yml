@@ -33,8 +33,9 @@ jobs:
         with:
           files_yaml: |
             database-migrations:
-              - database_migrations/**
-              - alembic.ini
+              - database-migrations/**
+              - alembic-nerpybot.ini
+              - alembic-humanmusic.ini
             nerpybot:
               - NerdyPy/**
               - '!NerdyPy/**.template'
@@ -86,16 +87,29 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Database Migrations
-        id: build_database-migrations
+      - name: Build Database Migrations
         uses: docker/build-push-action@v6
         with:
           target: migrations
-          push: ${{ github.event_name != 'pull_request' }}
+          load: true
+          tags: nerpybot-migrations:smoke-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test Database Migrations
+        run: |
+          docker run --rm nerpybot-migrations:smoke-test alembic -c alembic-nerpybot.ini heads
+          docker run --rm -e ALEMBIC_CONFIG=alembic-humanmusic.ini nerpybot-migrations:smoke-test alembic -c alembic-humanmusic.ini heads
+
+      - name: Push Database Migrations
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          target: migrations
+          push: true
           tags: ${{ steps.docker_meta_database-migrations.outputs.tags }}
           labels: ${{ steps.docker_meta_database-migrations.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   build_nerdybot:
     needs:
@@ -134,13 +148,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Nerpybot
-        id: build_nerpybot
+      - name: Build Nerpybot
         uses: docker/build-push-action@v6
         with:
           target: bot
-          push: ${{ github.event_name != 'pull_request' }}
+          load: true
+          tags: nerpybot:smoke-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test Nerpybot
+        run: |
+          docker run --rm nerpybot:smoke-test python -c "from NerdyPy import NerpyBot; print('OK')"
+
+      - name: Push Nerpybot
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          target: bot
+          push: true
           tags: ${{ steps.docker_meta_nerpybot.outputs.tags }}
           labels: ${{ steps.docker_meta_nerpybot.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
