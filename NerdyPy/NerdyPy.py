@@ -43,7 +43,7 @@ from utils.audio import Audio
 from utils.conversation import AnswerType, ConversationManager
 from utils.database import BASE
 from utils.errors import NerpyException, SilentCheckFailure
-from utils.helpers import error_context, notify_error, send_hidden_message
+from utils.helpers import error_context, notify_error, parse_id, send_hidden_message
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 
 
@@ -61,9 +61,9 @@ class NerpyBot(Bot):
 
         self.config = config
         self.debug = debug
-        self.client_id = config["bot"]["client_id"]
+        self.client_id = parse_id(config["bot"]["client_id"])
         self.token = config["bot"]["token"]
-        self.ops = config["bot"]["ops"]
+        self.ops = [parse_id(op) for op in config["bot"]["ops"]]
         self.modules = config["bot"]["modules"]
         self.restart = True
         self.log = logging.get_logger("nerpybot")
