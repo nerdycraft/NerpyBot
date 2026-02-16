@@ -849,6 +849,20 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             character_failures = temporal_data.pop("_failures", {})
 
         account_groups = build_account_groups(candidate_list, stored_mounts, temporal_data)
+
+        # Log detected account clusters for debugging
+        clusters: dict[int, list[str]] = {}
+        for (name, realm), gid in account_groups.items():
+            clusters.setdefault(gid, []).append(f"{name}:{realm}")
+        multi = {gid: members for gid, members in clusters.items() if len(members) > 1}
+        if multi:
+            group_strs = [f"  group {gid}: {', '.join(members)}" for gid, members in multi.items()]
+            self.bot.log.debug(f"Guild news #{config_id}: account groups:\n" + "\n".join(group_strs))
+        else:
+            self.bot.log.debug(
+                f"Guild news #{config_id}: no account groups detected ({len(account_groups)} solo chars)"
+            )
+
         reported_by_account = {}  # account_group_id -> set of already-reported mount IDs
         cycle_new_mounts = {}  # (name, realm) -> set of new mount IDs
 
