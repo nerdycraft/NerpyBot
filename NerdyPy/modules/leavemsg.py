@@ -8,6 +8,7 @@ from models.leavemsg import LeaveMessage
 
 from utils.errors import NerpyException
 from utils.helpers import empty_subcommand, send_hidden_message
+from utils.permissions import validate_channel_permissions
 
 
 DEFAULT_LEAVE_MESSAGE = "{member} left the server :("
@@ -82,6 +83,8 @@ class LeaveMsg(Cog):
         channel: TextChannel
             The channel where leave messages will be sent.
         """
+        validate_channel_permissions(channel, ctx.guild, "view_channel", "send_messages")
+
         with self.bot.session_scope() as session:
             leave_config = LeaveMessage.get(ctx.guild.id, session)
             if leave_config is None:
