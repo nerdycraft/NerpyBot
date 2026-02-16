@@ -9,6 +9,7 @@ from discord.ext.commands import Context, GroupCog, hybrid_command
 from models.reminder import ReminderMessage
 from utils.format import box, pagify
 from utils.helpers import notify_error, send_hidden_message
+from utils.permissions import validate_channel_permissions
 
 
 class Reminder(GroupCog, group_name="reminder"):
@@ -61,6 +62,9 @@ class Reminder(GroupCog, group_name="reminder"):
         if channel:
             channel_id = channel.id
             channel_name = channel.name
+
+        target = channel or ctx.channel
+        validate_channel_permissions(target, ctx.guild, "view_channel", "send_messages")
 
         with self.bot.session_scope() as session:
             msg = ReminderMessage(
