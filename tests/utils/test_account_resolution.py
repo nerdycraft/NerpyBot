@@ -228,8 +228,8 @@ class TestBuildAccountGroups:
             {"name": "beta", "realm": "r1"},
         ]
         stored = {
-            ("alpha", "r1"): type("Obj", (), {"KnownMountIds": mounts})(),
-            ("beta", "r1"): type("Obj", (), {"KnownMountIds": mounts})(),
+            ("alpha", "r1"): mounts,
+            ("beta", "r1"): mounts,
         }
         groups = build_account_groups(candidates, stored_mounts=stored, temporal_data={})
         assert groups[("alpha", "r1")] == groups[("beta", "r1")]
@@ -265,8 +265,8 @@ class TestBuildAccountGroups:
         ]
         mounts = json.dumps(list(range(1, 201)))
         stored = {
-            ("morza", "r1"): type("Obj", (), {"KnownMountIds": mounts})(),
-            ("morzb", "r1"): type("Obj", (), {"KnownMountIds": mounts})(),
+            ("morza", "r1"): mounts,
+            ("morzb", "r1"): mounts,
         }
         groups = build_account_groups(candidates, stored_mounts=stored, temporal_data={})
         # morza and morza are grouped by name, morza and morzb by mounts -> all 3 grouped

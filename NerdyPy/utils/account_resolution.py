@@ -137,7 +137,7 @@ def build_account_groups(
 
     Args:
         candidates: List of {"name": str, "realm": str, ...} dicts.
-        stored_mounts: Mapping of (name, realm) -> object with .KnownMountIds attribute.
+        stored_mounts: Mapping of (name, realm) -> JSON-encoded mount ID string (or None).
         temporal_data: Mapping of pair_key -> {"correlated": int, "uncorrelated": int}.
 
     Returns:
@@ -167,10 +167,8 @@ def build_account_groups(
         key_a = (ca["name"], ca["realm"])
         key_b = (cb["name"], cb["realm"])
 
-        stored_a = stored_mounts.get(key_a)
-        stored_b = stored_mounts.get(key_b)
-        mounts_a = stored_a.KnownMountIds if stored_a else None
-        mounts_b = stored_b.KnownMountIds if stored_b else None
+        mounts_a = stored_mounts.get(key_a)
+        mounts_b = stored_mounts.get(key_b)
 
         pair_key = make_pair_key(key_a, key_b)
         t_data = temporal_data.get(pair_key)

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
+import itertools
 import json
 from datetime import UTC, datetime
 from datetime import datetime as dt
@@ -18,6 +19,7 @@ from discord.ext.commands import Context, GroupCog, bot_has_permissions, has_per
 from models.wow import WowCharacterMounts, WowGuildNewsConfig
 from utils.errors import NerpyException
 from utils.format import box, pagify
+from utils.account_resolution import build_account_groups, make_pair_key
 from utils.helpers import notify_error, send_hidden_message
 
 
@@ -732,10 +734,19 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         if not candidate_list:
             return
 
-        # Determine if initial sync is needed (any candidates without a baseline)
+        # Load existing data, build account groups, determine initial sync
         with self.bot.session_scope() as session:
             existing = WowCharacterMounts.get_all_by_config(config_id, session)
             baselined_keys = {(e.CharacterName, e.RealmSlug) for e in existing}
+            stored_mounts = {(e.CharacterName, e.RealmSlug): e.KnownMountIds for e in existing}
+
+            config_record = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
+            temporal_data = json.loads(config_record.AccountGroupData or "{}") if config_record else {}
+
+        account_groups = build_account_groups(candidate_list, stored_mounts, temporal_data)
+        reported_by_account = {}  # account_group_id -> set of already-reported mount IDs
+        cycle_new_mounts = {}  # (name, realm) -> set of new mount IDs
+
         unbaselined = candidate_keys - baselined_keys
         initial_sync = len(unbaselined) > 0
 
@@ -878,7 +889,17 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                         display_name = profile.get("name", char_name.capitalize())
                         display_realm = profile.get("realm", {}).get("name", char_realm)
 
+                        account_id = account_groups.get((char_name, char_realm), (char_name, char_realm))
+                        already_reported = reported_by_account.setdefault(account_id, set())
+
                         for mid, mname in mount_names.items():
+                            if mid in already_reported:
+                                self.bot.log.debug(
+                                    f"Guild news #{config_id}: skipping {mname} for {display_name} "
+                                    f"(already reported for account group {account_id})"
+                                )
+                                continue
+                            already_reported.add(mid)
                             self.bot.log.debug(f"Guild news #{config_id}: {display_name} got new mount: {mname}")
                             emb = Embed(
                                 title="New Mount Collected!",
@@ -913,6 +934,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
                     stored.KnownMountIds = json.dumps(sorted(current_ids))
                     stored.LastChecked = datetime.now(UTC)
+                    cycle_new_mounts[(char_name, char_realm)] = new_ids
 
         # Process batches — loop through all during initial sync, single batch otherwise
         with self.bot.session_scope() as session:
@@ -979,6 +1001,25 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 # New rotation — reset the counter
                 baselined_before = total_stats["baselined"]
                 start_offset = offset
+
+        # Update temporal correlation data
+        if cycle_new_mounts:
+            with self.bot.session_scope() as session:
+                config_record = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
+                if config_record:
+                    temporal_data = json.loads(config_record.AccountGroupData or "{}")
+
+                    chars_with_new = [(k, v) for k, v in cycle_new_mounts.items() if v]
+                    for (ka, new_a), (kb, new_b) in itertools.combinations(chars_with_new, 2):
+                        pair_key = make_pair_key(ka, kb)
+                        entry = temporal_data.setdefault(pair_key, {"correlated": 0, "uncorrelated": 0})
+                        if new_a & new_b:
+                            entry["correlated"] += 1
+                        else:
+                            entry["uncorrelated"] += 1
+                        entry["last_updated"] = datetime.now(UTC).isoformat()
+
+                    config_record.AccountGroupData = json.dumps(temporal_data)
 
         if initial_sync and not rate_limited.is_set():
             self.bot.log.info(
