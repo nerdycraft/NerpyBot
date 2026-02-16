@@ -5,6 +5,7 @@ Uses three signals: name patterns, mount set identity, and temporal correlation.
 """
 
 import difflib
+import itertools
 import json
 import unicodedata
 
@@ -111,3 +112,82 @@ def account_confidence(
     confirming = sum(1 for s in scores if s > 0.2)
     boost = max(0, (confirming - 1)) * 0.1
     return min(1.0, base + boost)
+
+
+CONFIDENCE_THRESHOLD = 0.7
+
+
+def make_pair_key(char_a_key: tuple, char_b_key: tuple) -> str:
+    """Create a canonical pair key for temporal data lookup.
+
+    Keys are sorted alphabetically so (A,B) and (B,A) produce the same key.
+    Format: 'name:realm|name:realm'
+    """
+    a = f"{char_a_key[0]}:{char_a_key[1]}"
+    b = f"{char_b_key[0]}:{char_b_key[1]}"
+    return "|".join(sorted([a, b]))
+
+
+def build_account_groups(
+    candidates: list[dict],
+    stored_mounts: dict,
+    temporal_data: dict,
+) -> dict[tuple, int]:
+    """Cluster characters into likely-same-account groups.
+
+    Args:
+        candidates: List of {"name": str, "realm": str, ...} dicts.
+        stored_mounts: Mapping of (name, realm) -> object with .KnownMountIds attribute.
+        temporal_data: Mapping of pair_key -> {"correlated": int, "uncorrelated": int}.
+
+    Returns:
+        Mapping of (name, realm) -> group_id (int). Characters in the same group
+        are believed to belong to the same Battle.net account.
+    """
+    # Union-Find for grouping
+    parent = {}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    keys = [(c["name"], c["realm"]) for c in candidates]
+    for k in keys:
+        parent[k] = k
+
+    # Check all pairs for confidence above threshold
+    for ca, cb in itertools.combinations(candidates, 2):
+        key_a = (ca["name"], ca["realm"])
+        key_b = (cb["name"], cb["realm"])
+
+        stored_a = stored_mounts.get(key_a)
+        stored_b = stored_mounts.get(key_b)
+        mounts_a = stored_a.KnownMountIds if stored_a else None
+        mounts_b = stored_b.KnownMountIds if stored_b else None
+
+        pair_key = make_pair_key(key_a, key_b)
+        t_data = temporal_data.get(pair_key)
+
+        conf = account_confidence(ca["name"], cb["name"], mounts_a, mounts_b, t_data)
+        if conf >= CONFIDENCE_THRESHOLD:
+            union(key_a, key_b)
+
+    # Convert to sequential group IDs
+    group_map = {}
+    next_id = 0
+    result = {}
+    for k in keys:
+        root = find(k)
+        if root not in group_map:
+            group_map[root] = next_id
+            next_id += 1
+        result[k] = group_map[root]
+
+    return result

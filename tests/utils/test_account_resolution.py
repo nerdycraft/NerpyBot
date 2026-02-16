@@ -3,7 +3,14 @@
 
 import json
 
-from utils.account_resolution import strip_diacritics, name_similarity_score, temporal_score, account_confidence
+from utils.account_resolution import (
+    strip_diacritics,
+    name_similarity_score,
+    temporal_score,
+    account_confidence,
+    make_pair_key,
+    build_account_groups,
+)
 
 
 class TestStripDiacritics:
@@ -189,3 +196,84 @@ class TestAccountConfidence:
             temporal_data={"correlated": 10, "uncorrelated": 0},
         )
         assert score >= 0.7
+
+
+class TestMakePairKey:
+    def test_alphabetical_order(self):
+        """Keys should be sorted so (A,B) and (B,A) produce the same key."""
+        assert make_pair_key(("alpha", "r1"), ("beta", "r1")) == "alpha:r1|beta:r1"
+        assert make_pair_key(("beta", "r1"), ("alpha", "r1")) == "alpha:r1|beta:r1"
+
+    def test_different_realms(self):
+        assert make_pair_key(("char", "realm-a"), ("char", "realm-b")) == "char:realm-a|char:realm-b"
+
+
+class TestBuildAccountGroups:
+    def test_diacritics_grouped(self):
+        """Characters differing only by diacritics -> same group."""
+        candidates = [
+            {"name": "morz\u00e2", "realm": "blackhand"},
+            {"name": "morza", "realm": "blackhand"},
+            {"name": "thrall", "realm": "blackhand"},
+        ]
+        groups = build_account_groups(candidates, stored_mounts={}, temporal_data={})
+        assert groups[("morz\u00e2", "blackhand")] == groups[("morza", "blackhand")]
+        assert groups[("thrall", "blackhand")] != groups[("morza", "blackhand")]
+
+    def test_identical_mounts_grouped(self):
+        """Characters with identical large mount sets -> same group."""
+        mounts = json.dumps(list(range(1, 201)))
+        candidates = [
+            {"name": "alpha", "realm": "r1"},
+            {"name": "beta", "realm": "r1"},
+        ]
+        stored = {
+            ("alpha", "r1"): type("Obj", (), {"KnownMountIds": mounts})(),
+            ("beta", "r1"): type("Obj", (), {"KnownMountIds": mounts})(),
+        }
+        groups = build_account_groups(candidates, stored_mounts=stored, temporal_data={})
+        assert groups[("alpha", "r1")] == groups[("beta", "r1")]
+
+    def test_all_different(self):
+        """Completely unrelated characters -> separate groups."""
+        candidates = [
+            {"name": "thrall", "realm": "blackhand"},
+            {"name": "jaina", "realm": "blackhand"},
+            {"name": "sylvanas", "realm": "blackhand"},
+        ]
+        groups = build_account_groups(candidates, stored_mounts={}, temporal_data={})
+        group_ids = set(groups.values())
+        assert len(group_ids) == 3
+
+    def test_temporal_only_grouping(self):
+        """Weak name + strong temporal -> grouped."""
+        candidates = [
+            {"name": "alurush", "realm": "r1"},
+            {"name": "alublood", "realm": "r1"},
+        ]
+        pair_key = make_pair_key(("alurush", "r1"), ("alublood", "r1"))
+        temporal = {pair_key: {"correlated": 6, "uncorrelated": 0}}
+        groups = build_account_groups(candidates, stored_mounts={}, temporal_data=temporal)
+        assert groups[("alurush", "r1")] == groups[("alublood", "r1")]
+
+    def test_transitive_grouping(self):
+        """If A~B and B~C, then A, B, and C should all be in the same group."""
+        candidates = [
+            {"name": "morz\u00e2", "realm": "r1"},
+            {"name": "morza", "realm": "r1"},
+            {"name": "morzb", "realm": "r1"},  # different name, but same mounts as morza
+        ]
+        mounts = json.dumps(list(range(1, 201)))
+        stored = {
+            ("morza", "r1"): type("Obj", (), {"KnownMountIds": mounts})(),
+            ("morzb", "r1"): type("Obj", (), {"KnownMountIds": mounts})(),
+        }
+        groups = build_account_groups(candidates, stored_mounts=stored, temporal_data={})
+        # morza and morza are grouped by name, morza and morzb by mounts -> all 3 grouped
+        assert groups[("morz\u00e2", "r1")] == groups[("morza", "r1")]
+        assert groups[("morza", "r1")] == groups[("morzb", "r1")]
+
+    def test_empty_candidates(self):
+        """No candidates -> empty groups."""
+        groups = build_account_groups([], stored_mounts={}, temporal_data={})
+        assert groups == {}
