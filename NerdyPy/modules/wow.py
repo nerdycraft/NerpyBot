@@ -21,6 +21,7 @@ from utils.errors import NerpyException
 from utils.format import box, pagify
 from utils.account_resolution import build_account_groups, make_pair_key
 from utils.helpers import notify_error, send_hidden_message
+from utils.permissions import validate_channel_permissions
 
 
 class WowApiLanguage(Enum):
@@ -423,6 +424,8 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
                 guild_display = roster.get("guild", {}).get("name", guild_name)
 
+                validate_channel_permissions(channel, ctx.guild, "view_channel", "send_messages", "embed_links")
+
                 with self.bot.session_scope() as session:
                     existing = WowGuildNewsConfig.get_existing(ctx.guild.id, name_slug, realm_slug, region, session)
                     if existing:
@@ -535,6 +538,9 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 ctx, "Nothing to change. Specify at least one of: channel, language, active_days."
             )
             return
+
+        if channel is not None:
+            validate_channel_permissions(channel, ctx.guild, "view_channel", "send_messages", "embed_links")
 
         with self.bot.session_scope() as session:
             config = WowGuildNewsConfig.get_by_id(config_id, ctx.guild.id, session)

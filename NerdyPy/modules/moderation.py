@@ -15,6 +15,7 @@ from models.moderation import AutoDelete, AutoKicker
 
 from utils.errors import NerpyException
 from utils.helpers import empty_subcommand, notify_error, send_hidden_message
+from utils.permissions import validate_channel_permissions
 
 # If no tzinfo is given then UTC is assumed.
 LOOP_RUN_TIME = time(hour=12, minute=30, tzinfo=UTC)
@@ -228,6 +229,9 @@ class Moderation(Cog):
                 )
             else:
                 if ctx.guild.get_channel(channel_id) is not None:
+                    validate_channel_permissions(
+                        channel, ctx.guild, "view_channel", "manage_messages", "read_message_history"
+                    )
                     if delete_older_than is None:
                         delete = delete_older_than
                     else:

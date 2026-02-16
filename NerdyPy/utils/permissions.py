@@ -4,7 +4,9 @@
 Per-module bot permission requirements and guild-level audit helpers.
 """
 
-from discord import Embed, Guild, Permissions
+from discord import Embed, Guild, Permissions, TextChannel
+
+from utils.errors import NerpyException
 
 # Maps module name → set of Permissions flag names the bot needs at runtime.
 # User-level checks (has_permissions) are NOT included — only bot actions.
@@ -83,3 +85,16 @@ def build_permissions_embed(guild: Guild, missing: list[str], client_id: int, re
     )
     emb.add_field(name="Invite link (with correct permissions)", value=f"[Re-invite]({invite_url})", inline=False)
     return emb
+
+
+def validate_channel_permissions(channel: TextChannel, guild: Guild, *perms: str) -> None:
+    """Raise NerpyException if the bot lacks any of *perms* in *channel*.
+
+    Uses channel.permissions_for(guild.me) which resolves guild-level
+    permissions plus channel-specific overrides into effective permissions.
+    """
+    resolved = channel.permissions_for(guild.me)
+    missing = [p for p in perms if not getattr(resolved, p, False)]
+    if missing:
+        formatted = ", ".join(f"`{p}`" for p in missing)
+        raise NerpyException(f"I need the following permissions in {channel.mention}: {formatted}")

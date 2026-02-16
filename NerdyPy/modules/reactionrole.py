@@ -8,6 +8,7 @@ from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 
 from utils.format import box
 from utils.helpers import empty_subcommand, error_context, notify_error, send_hidden_message
+from utils.permissions import validate_channel_permissions
 
 
 @app_commands.default_permissions(manage_roles=True)
@@ -139,6 +140,10 @@ class ReactionRole(Cog):
         if role >= ctx.guild.me.top_role:
             await send_hidden_message(ctx, f"I cannot assign **{role.name}** — it is at or above my highest role.")
             return
+
+        validate_channel_permissions(
+            channel, ctx.guild, "view_channel", "add_reactions", "manage_messages", "read_message_history"
+        )
 
         try:
             discord_msg = await channel.fetch_message(msg_id)
