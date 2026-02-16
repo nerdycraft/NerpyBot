@@ -389,7 +389,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
     async def _guildnews(self, ctx: Context):
         """manage WoW guild news tracking"""
         if ctx.invoked_subcommand is None:
-            await send_hidden_message(ctx, "Use a subcommand: setup, remove, list, pause, resume, check")
+            await send_hidden_message(ctx, "Use a subcommand: setup, remove, list, edit, pause, resume, check")
 
     @_guildnews.command(name="setup")
     @checks.has_permissions(manage_channels=True)
@@ -511,6 +511,51 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 return
             config.Enabled = True
         await send_hidden_message(ctx, f"Resumed tracking for config #{config_id}.")
+
+    @_guildnews.command(name="edit")
+    @checks.has_permissions(manage_channels=True)
+    @has_permissions(manage_channels=True)
+    async def _guildnews_edit(
+        self,
+        ctx: Context,
+        config_id: int,
+        channel: Optional[TextChannel] = None,
+        language: Optional[Literal["de", "en"]] = None,
+        active_days: Optional[int] = None,
+    ):
+        """edit a guild news tracking config [manage_channels]
+
+        config_id: ID of the config to edit (see /wow guildnews list)
+        channel: Move notifications to this channel
+        language: Change notification language (de/en)
+        active_days: Change activity window (days)
+        """
+        if channel is None and language is None and active_days is None:
+            await send_hidden_message(
+                ctx, "Nothing to change. Specify at least one of: channel, language, active_days."
+            )
+            return
+
+        with self.bot.session_scope() as session:
+            config = WowGuildNewsConfig.get_by_id(config_id, ctx.guild.id, session)
+            if not config:
+                await send_hidden_message(ctx, f"Config #{config_id} not found.")
+                return
+
+            changes = []
+            if channel is not None:
+                config.ChannelId = channel.id
+                changes.append(f"channel → {channel.mention}")
+            if language is not None:
+                config.Language = language
+                changes.append(f"language → {language}")
+            if active_days is not None:
+                config.ActiveDays = active_days
+                changes.append(f"active_days → {active_days}")
+
+            guild_label = f"**{config.WowGuildName}** ({config.WowRealmSlug}-{config.Region.upper()})"
+
+        await send_hidden_message(ctx, f"Updated config #{config_id} for {guild_label}: {', '.join(changes)}.")
 
     @_guildnews.command(name="check")
     async def _guildnews_check(self, ctx: Context, config_id: int):
