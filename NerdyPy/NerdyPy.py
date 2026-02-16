@@ -31,6 +31,7 @@ from discord.ext.commands import (
     Context,
     DefaultHelpCommand,
     ExtensionFailed,
+    HybridCommandError,
     NoPrivateMessage,
     guild_only,
 )
@@ -252,7 +253,7 @@ class NerpyBot(Bot):
                             await ctx.author.send(msg)
                         else:
                             await send_hidden_message(ctx, msg)
-                    elif isinstance(error, commands.CommandInvokeError):
+                    elif isinstance(error, (commands.CommandInvokeError, HybridCommandError)):
                         if isinstance(error.original, app_commands.CommandInvokeError) and isinstance(
                             error.original.original, NerpyException
                         ):
