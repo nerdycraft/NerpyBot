@@ -382,6 +382,34 @@ def parse_config(config_file=None) -> dict:
     return config
 
 
+def main() -> None:
+    """Entry point for the NerpyBot."""
+    args = parse_arguments()
+    config = parse_config(args.config)
+    intents = get_intents()
+
+    debug = args.debug or str(args.loglevel).upper() == "DEBUG" or args.verbosity > 0
+    loggers = ["nerpybot"]
+    if args.verbosity >= 3 or str(args.loglevel).upper() == "DEBUG":
+        loggers.append("sqlalchemy.engine")
+
+    if "bot" in config:
+        loglevel = "DEBUG" if args.debug else args.loglevel
+        for logger_name in loggers:
+            logging.create_logger(args.verbosity, loglevel, logger_name)
+        bot = NerpyBot(config, intents, debug)
+
+        try:
+            run(bot.start())
+        except LoginFailure:
+            bot.log.error(format_exc())
+            bot.log.error("Failed to login")
+        except KeyboardInterrupt:
+            bot.log.info("Received KeyboardInterrupt, shutting down.")
+    else:
+        raise NerpyException("Bot config not found.")
+
+
 if __name__ == "__main__":
     print(
         """
@@ -396,27 +424,4 @@ if __name__ == "__main__":
 """
     )
 
-    ARGS = parse_arguments()
-    CONFIG = parse_config(ARGS.config)
-    INTENTS = get_intents()
-
-    DEBUG = ARGS.debug or str(ARGS.loglevel).upper() == "DEBUG" or ARGS.verbosity > 0
-    loggers = ["nerpybot"]
-    if ARGS.verbosity >= 3 or str(ARGS.loglevel).upper() == "DEBUG":
-        loggers.append("sqlalchemy.engine")
-
-    if "bot" in CONFIG:
-        loglevel = "DEBUG" if ARGS.debug else ARGS.loglevel
-        for logger_name in loggers:
-            logging.create_logger(ARGS.verbosity, loglevel, logger_name)
-        BOT = NerpyBot(CONFIG, INTENTS, DEBUG)
-
-        try:
-            run(BOT.start())
-        except LoginFailure:
-            BOT.log.error(format_exc())
-            BOT.log.error("Failed to login")
-        except KeyboardInterrupt:
-            pass
-    else:
-        raise NerpyException("Bot config not found.")
+    main()

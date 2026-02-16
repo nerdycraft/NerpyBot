@@ -17,11 +17,11 @@ uv sync --group test                 # Include test dependencies
 uv sync --only-group migrations      # Migration tools only
 
 # Run the bot
-uv run python NerdyPy/NerdyPy.py            # Start with default config
-uv run python NerdyPy/NerdyPy.py -d         # Debug logging (no sqlalchemy noise)
-uv run python NerdyPy/NerdyPy.py -l DEBUG   # Debug mode (includes sqlalchemy)
-uv run python NerdyPy/NerdyPy.py -c path    # Custom config file
-uv run python NerdyPy/NerdyPy.py -r         # Auto-restart on failure
+uv run nerpybot                             # Start with default config
+uv run nerpybot -d                          # Debug logging (no sqlalchemy noise)
+uv run nerpybot -l DEBUG                    # Debug mode (includes sqlalchemy)
+uv run nerpybot -c path                     # Custom config file
+uv run nerpybot -r                          # Auto-restart on failure
 
 # Code quality
 uv run ruff check                    # Lint
@@ -35,10 +35,10 @@ uv run pytest --cov                  # With coverage
 
 # Database migrations (two separate configs: nerpybot and humanmusic)
 uv sync --group migrations
-uv run alembic -c alembic-nerpybot.ini upgrade head                              # Apply NerpyBot migrations
-uv run alembic -c alembic-nerpybot.ini revision --autogenerate -m "description"  # Create NerpyBot migration
-uv run alembic -c alembic-humanmusic.ini upgrade head                            # Apply HumanMusic migrations
-uv run alembic -c alembic-humanmusic.ini revision --autogenerate -m "description" # Create HumanMusic migration
+uv run alembic-nerpybot upgrade head                              # Apply NerpyBot migrations
+uv run alembic-nerpybot revision --autogenerate -m "description"  # Create NerpyBot migration
+uv run alembic-humanmusic upgrade head                            # Apply HumanMusic migrations
+uv run alembic-humanmusic revision --autogenerate -m "description" # Create HumanMusic migration
 # NOTE: New tables do NOT need migrations — SQLAlchemy auto-creates missing tables at startup.
 # Only create migrations when altering existing tables (add/remove columns, change constraints).
 # NerpyBot migrations: for tables used by all modules (full deployment)
@@ -65,7 +65,7 @@ docker run --rm -e ALEMBIC_CONFIG=alembic-humanmusic.ini nerpybot-migrations ale
 
 ### Entry Point
 
-`NerdyPy/NerdyPy.py` - Contains `NerpyBot` class extending discord.py's `Bot`. Handles module loading, database initialization, and event routing.
+`NerdyPy/NerdyPy.py` - Contains `NerpyBot` class and `main()` entry point. `cli.py` at project root provides `project.scripts` console entry points (`nerpybot`, `alembic-nerpybot`, `alembic-humanmusic`).
 
 ### Module System
 
@@ -111,6 +111,8 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 
 ### Gotchas
 
+- **`openweather-wrapper` has undeclared dep on `matplotlib`** — Don't remove `matplotlib` from pyproject.toml; `openweather.weather` imports `matplotlib.pyplot` at module level even though it's not in the package's own `requires`.
+- **NerdyPy uses script-relative imports** — Internal imports like `from models.admin import ...` assume `NerdyPy/` is on `sys.path`. Entry points or external callers must add it to `sys.path` before importing (see `cli.py:bot()`).
 - **SQLite strips timezone info from DateTime columns** — Values read back are naive. Normalize with `.replace(tzinfo=UTC)` before comparing against aware datetimes.
 - **`blizzapi` does NOT auto-retry on 429** — It returns `{"code": 429}` as a dict. Check every response and handle rate limits manually.
 - **`app_commands.checks` only gates slash commands** — Cog-level `@checks.has_permissions()` from `discord.app_commands` does NOT apply to prefix commands. A global `guild_only` check in `setup_hook` protects prefix commands from DM invocation.
