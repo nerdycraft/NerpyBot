@@ -39,6 +39,23 @@ COLOR_MOUNT = Color.purple()
 # Stale character cleanup: remove mount data for characters gone from roster after this many days
 STALE_DAYS = 30
 
+_NOTIFICATION_STRINGS = {
+    "en": {
+        "mount_title": "New Mount Collected!",
+        "mount_desc": "**{name}** ({realm}) obtained **{mount}**",
+        "boss_title": "Boss Defeated!",
+        "boss_desc": "**{name}** ({realm}) defeated **{boss}**",
+        "boss_desc_mode": "**{name}** ({realm}) defeated **{boss}** ({mode})",
+    },
+    "de": {
+        "mount_title": "Neues Reittier erhalten!",
+        "mount_desc": "**{name}** ({realm}) hat **{mount}** erhalten",
+        "boss_title": "Boss besiegt!",
+        "boss_desc": "**{name}** ({realm}) hat **{boss}** besiegt",
+        "boss_desc_mode": "**{name}** ({realm}) hat **{boss}** besiegt ({mode})",
+    },
+}
+
 
 class _RateLimited(Exception):
     """Raised when a Blizzard API call returns HTTP 429."""
@@ -540,17 +557,19 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         api = self._get_retailclient(region, language)
 
         # ── Phase 1: Guild Activity Feed ────────────────────────────
-        await self._poll_activity(api, cfg_id, guild_id, wow_guild, realm, last_activity_ts, channel)
+        await self._poll_activity(api, cfg_id, guild_id, wow_guild, realm, last_activity_ts, channel, language)
 
         # ── Phase 2: Mount Tracking ─────────────────────────────────
         if self._track_mounts:
-            await self._poll_mounts(api, cfg_id, wow_guild, realm, min_level, active_days, channel)
+            await self._poll_mounts(api, cfg_id, wow_guild, realm, min_level, active_days, channel, language)
         else:
             self.bot.log.debug(f"Guild news #{cfg_id}: mount tracking disabled, skipping phase 2")
 
         self.bot.log.debug(f"Guild news #{cfg_id}: poll complete")
 
-    async def _poll_activity(self, api, config_id, guild_id, wow_guild, realm, last_activity_ts, channel):
+    async def _poll_activity(
+        self, api, config_id, guild_id, wow_guild, realm, last_activity_ts, channel, language="en"
+    ):
         """Fetch guild_activity and post new achievements/encounters."""
         self.bot.log.debug(f"Guild news #{config_id}: fetching activity feed")
         try:
@@ -621,11 +640,13 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 enc_name = encounter.get("name", "Unknown Encounter")
                 enc_id = encounter.get("id")
                 mode = enc_data.get("mode", {}).get("name", "")
-                desc = f"**{char_name}** ({char_realm}) defeated **{enc_name}**"
+                strings = _NOTIFICATION_STRINGS.get(language, _NOTIFICATION_STRINGS["en"])
                 if mode:
-                    desc += f" ({mode})"
+                    desc = strings["boss_desc_mode"].format(name=char_name, realm=char_realm, boss=enc_name, mode=mode)
+                else:
+                    desc = strings["boss_desc"].format(name=char_name, realm=char_realm, boss=enc_name)
                 emb = Embed(
-                    title="Boss Defeated!",
+                    title=strings["boss_title"],
                     description=desc,
                     color=COLOR_ENCOUNTER,
                     timestamp=activity_time,
@@ -675,7 +696,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 if config:
                     config.LastActivityTimestamp = new_timestamp
 
-    async def _poll_mounts(self, api, config_id, wow_guild, realm, min_level, active_days, channel):
+    async def _poll_mounts(self, api, config_id, wow_guild, realm, min_level, active_days, channel, language="en"):
         """Check roster for new mount acquisitions.
 
         On initial sync (unbaselined characters exist), processes all batches
@@ -901,9 +922,12 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                                 continue
                             already_reported.add(mid)
                             self.bot.log.debug(f"Guild news #{config_id}: {display_name} got new mount: {mname}")
+                            strings = _NOTIFICATION_STRINGS.get(language, _NOTIFICATION_STRINGS["en"])
                             emb = Embed(
-                                title="New Mount Collected!",
-                                description=f"**{display_name}** ({display_realm}) obtained **{mname}**",
+                                title=strings["mount_title"],
+                                description=strings["mount_desc"].format(
+                                    name=display_name, realm=display_realm, mount=mname
+                                ),
                                 color=COLOR_MOUNT,
                                 timestamp=datetime.now(UTC),
                             )
