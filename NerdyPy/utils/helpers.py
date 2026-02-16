@@ -10,6 +10,15 @@ from utils.errors import NerpyException
 log = logging.getLogger("nerpybot")
 
 
+def parse_id(value: int | str) -> int:
+    """Coerce a config value to an integer Discord ID.
+
+    Accepts both int and str to guard against YAML formatter corruption
+    of large numeric values.
+    """
+    return int(value)
+
+
 async def send_hidden_message(ctx: Context, msg: str = None, **kwargs):
     """Send a message only visible to the invoking user.
 
@@ -64,7 +73,7 @@ async def notify_error(bot, context: str, error: Exception) -> None:
 
     for uid in recipients:
         try:
-            user = await bot.fetch_user(uid)
+            user = await bot.fetch_user(parse_id(uid))
             await user.send(msg)
         except Exception as dm_err:
             log.debug(f"Could not DM error notification to {uid}: {dm_err}")

@@ -60,12 +60,15 @@ docker run --rm -e ALEMBIC_CONFIG=alembic-humanmusic.ini nerpybot-migrations ale
 ## Architecture
 
 ### Documentation
+
 `docs/` contains per-module markdown files documenting commands, database models, background tasks, and data flows. When adding a new module or changing an existing one, update or create the corresponding `docs/<module>.md` file.
 
 ### Entry Point
+
 `NerdyPy/NerdyPy.py` - Contains `NerpyBot` class extending discord.py's `Bot`. Handles module loading, database initialization, and event routing.
 
 ### Module System
+
 Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamically based on `config.yaml`:
 
 - **admin** - Server management, prefix config, command sync
@@ -78,6 +81,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **random** - Random generators
 - **reactionrole** - Reaction-based role assignment
 - **reminder** - Timed user reminders
+- **rolemanage** - Delegated role management (lets specific roles assign other roles via mappings)
 - **search** - Multi-source search (Imgur, Genius, OMDB, IGDB, YouTube)
 - **tagging** - Audio tag management
 - **utility** - Weather, info commands
@@ -85,13 +89,16 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **wow** - Blizzard API integration
 
 ### Database Layer
+
 - `NerdyPy/models/` - SQLAlchemy ORM models
 - `NerdyPy/utils/database.py` - Session management with context managers
 - `database-migrations/` - Alembic migrations (separate version dirs for `nerpybot/` and `humanmusic/`)
 - Supports SQLite (default), MySQL/MariaDB, PostgreSQL
 
 ### Utilities
+
 `NerdyPy/utils/` contains:
+
 - `audio.py` - Voice channel audio management
 - `checks.py` - Permission check functions for voice/moderator commands
 - `conversation.py` - Interactive dialog state management
@@ -100,6 +107,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - `helpers.py` - General utilities (incl. `send_hidden_message` for ephemeral/DM responses)
 - `download.py` - Audio downloading and ffmpeg conversion (yt-dlp)
 - `logging.py` - Dual-handler log setup (stdout for INFO/DEBUG, stderr for WARNING+)
+- `permissions.py` - Per-module bot permission requirements map and guild-level permission audit helpers
 
 ### Gotchas
 
@@ -112,6 +120,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 ## Configuration
 
 Copy `NerdyPy/config.yaml.template` to `NerdyPy/config.yaml` and fill in:
+
 - Discord bot token and client ID
 - Operator user IDs (bot admins)
 - Database connection settings
