@@ -57,3 +57,53 @@ class TestDegradationGuard:
         known = set()
         current = set()
         assert _should_update_mount_set(known, current) is True
+
+
+class TestFailureTracking:
+    """Verify 404 failure tracking via AccountGroupData._failures."""
+
+    def test_record_failure_new_character(self):
+        from modules.wow import _record_character_failure
+
+        failures = {}
+        _record_character_failure(failures, "stabtain", "blackrock")
+        assert failures["stabtain:blackrock"]["count"] == 1
+        assert "last" in failures["stabtain:blackrock"]
+
+    def test_record_failure_increment(self):
+        from modules.wow import _record_character_failure
+
+        failures = {"stabtain:blackrock": {"count": 2, "last": "2026-01-01T00:00:00"}}
+        _record_character_failure(failures, "stabtain", "blackrock")
+        assert failures["stabtain:blackrock"]["count"] == 3
+
+    def test_should_skip_below_threshold(self):
+        from modules.wow import _should_skip_character
+
+        failures = {"stabtain:blackrock": {"count": 2, "last": "2026-01-01T00:00:00"}}
+        assert _should_skip_character(failures, "stabtain", "blackrock") is False
+
+    def test_should_skip_at_threshold(self):
+        from modules.wow import _should_skip_character
+
+        failures = {"stabtain:blackrock": {"count": 3, "last": "2026-01-01T00:00:00"}}
+        assert _should_skip_character(failures, "stabtain", "blackrock") is True
+
+    def test_should_not_skip_unknown(self):
+        from modules.wow import _should_skip_character
+
+        assert _should_skip_character({}, "newchar", "blackrock") is False
+
+    def test_clear_failure_on_success(self):
+        from modules.wow import _clear_character_failure
+
+        failures = {"stabtain:blackrock": {"count": 3, "last": "2026-01-01T00:00:00"}}
+        _clear_character_failure(failures, "stabtain", "blackrock")
+        assert "stabtain:blackrock" not in failures
+
+    def test_clear_failure_noop_for_unknown(self):
+        from modules.wow import _clear_character_failure
+
+        failures = {}
+        _clear_character_failure(failures, "stabtain", "blackrock")
+        assert failures == {}

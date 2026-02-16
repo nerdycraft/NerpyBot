@@ -91,6 +91,28 @@ def _should_update_mount_set(known_ids: set, current_ids: set) -> bool:
     return len(removed) <= threshold
 
 
+_FAILURE_THRESHOLD = 3
+
+
+def _record_character_failure(failures: dict, char_name: str, char_realm: str) -> None:
+    """Record a 404/403 failure for a character."""
+    key = f"{char_name}:{char_realm}"
+    entry = failures.setdefault(key, {"count": 0})
+    entry["count"] += 1
+    entry["last"] = datetime.now(UTC).isoformat()
+
+
+def _should_skip_character(failures: dict, char_name: str, char_realm: str) -> bool:
+    """Return True if the character has reached the failure threshold."""
+    entry = failures.get(f"{char_name}:{char_realm}")
+    return entry is not None and entry.get("count", 0) >= _FAILURE_THRESHOLD
+
+
+def _clear_character_failure(failures: dict, char_name: str, char_realm: str) -> None:
+    """Remove a character's failure record after a successful check."""
+    failures.pop(f"{char_name}:{char_realm}", None)
+
+
 @bot_has_permissions(send_messages=True, embed_links=True)
 class WorldofWarcraft(GroupCog, group_name="wow"):
     """World of Warcraft API"""
@@ -792,6 +814,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
             config_record = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
             temporal_data = json.loads(config_record.AccountGroupData or "{}") if config_record else {}
+            character_failures = temporal_data.pop("_failures", {})
 
         account_groups = build_account_groups(candidate_list, stored_mounts, temporal_data)
         reported_by_account = {}  # account_group_id -> set of already-reported mount IDs
@@ -814,6 +837,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             "skipped_error": 0,
             "skipped_inactive": 0,
             "skipped_degraded": 0,
+            "skipped_404": 0,
             "baselined": 0,
             "new_mounts": 0,
         }
@@ -824,6 +848,10 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
             # Skip remaining work if we already hit a rate limit
             if rate_limited.is_set():
+                return
+
+            if _should_skip_character(character_failures, char_name, char_realm):
+                total_stats["skipped_404"] += 1
                 return
 
             async with semaphore:
@@ -843,8 +871,11 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
                 if isinstance(profile, dict) and profile.get("code") in (404, 403):
                     self.bot.log.debug(f"Guild news #{config_id}: {char_name} returned {profile.get('code')}, skipping")
+                    _record_character_failure(character_failures, char_name, char_realm)
                     total_stats["skipped_error"] += 1
                     return
+
+                _clear_character_failure(character_failures, char_name, char_realm)
 
                 last_login_ms = profile.get("last_login_timestamp", 0)
                 if last_login_ms:
@@ -1027,7 +1058,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 f"checked={total_stats['checked']}, baselined={total_stats['baselined']}, "
                 f"new_mounts={total_stats['new_mounts']}, "
                 f"skipped_inactive={total_stats['skipped_inactive']}, skipped_error={total_stats['skipped_error']}, "
-                f"skipped_degraded={total_stats['skipped_degraded']}"
+                f"skipped_degraded={total_stats['skipped_degraded']}, skipped_404={total_stats['skipped_404']}"
             )
 
             # Rate limited — stop immediately, resume from current offset next cycle
@@ -1055,22 +1086,31 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 baselined_before = total_stats["baselined"]
                 start_offset = offset
 
-        # Update temporal correlation data
-        if cycle_new_mounts:
+        # Update AccountGroupData (temporal correlation + failure tracking)
+        if cycle_new_mounts or character_failures:
             with self.bot.session_scope() as session:
                 config_record = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
                 if config_record:
                     temporal_data = json.loads(config_record.AccountGroupData or "{}")
+                    temporal_data.pop("_failures", None)
 
-                    chars_with_new = [(k, v) for k, v in cycle_new_mounts.items() if v]
-                    for (ka, new_a), (kb, new_b) in itertools.combinations(chars_with_new, 2):
-                        pair_key = make_pair_key(ka, kb)
-                        entry = temporal_data.setdefault(pair_key, {"correlated": 0, "uncorrelated": 0})
-                        if new_a & new_b:
-                            entry["correlated"] += 1
-                        else:
-                            entry["uncorrelated"] += 1
-                        entry["last_updated"] = datetime.now(UTC).isoformat()
+                    if cycle_new_mounts:
+                        chars_with_new = [(k, v) for k, v in cycle_new_mounts.items() if v]
+                        for (ka, new_a), (kb, new_b) in itertools.combinations(chars_with_new, 2):
+                            pair_key = make_pair_key(ka, kb)
+                            entry = temporal_data.setdefault(pair_key, {"correlated": 0, "uncorrelated": 0})
+                            if new_a & new_b:
+                                entry["correlated"] += 1
+                            else:
+                                entry["uncorrelated"] += 1
+                            entry["last_updated"] = datetime.now(UTC).isoformat()
+
+                    # Prune failures for characters no longer in roster, then merge back
+                    pruned_failures = {
+                        k: v for k, v in character_failures.items() if tuple(k.split(":", 1)) in candidate_keys
+                    }
+                    if pruned_failures:
+                        temporal_data["_failures"] = pruned_failures
 
                     config_record.AccountGroupData = json.dumps(temporal_data)
 
@@ -1078,7 +1118,8 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             self.bot.log.info(
                 f"Guild news #{config_id}: initial sync finished in {batch_num} batches — "
                 f"baselined={total_stats['baselined']}, skipped_inactive={total_stats['skipped_inactive']}, "
-                f"skipped_error={total_stats['skipped_error']}, skipped_degraded={total_stats['skipped_degraded']}"
+                f"skipped_error={total_stats['skipped_error']}, skipped_degraded={total_stats['skipped_degraded']}, "
+                f"skipped_404={total_stats['skipped_404']}"
             )
 
 
