@@ -11,7 +11,9 @@ WORKDIR /app
 COPY --from=uv /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock ./
 
-RUN apk add --no-cache git libffi-dev
+RUN apk add --no-cache git libffi-dev \
+    gcc g++ musl-dev python3-dev pkgconf \
+    freetype-dev libpng-dev
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-managed-python --only-group bot
@@ -32,8 +34,6 @@ WORKDIR /app
 RUN adduser -D -H -h /app -u "${UID}" NerdyBot \
  && chown NerdyBot:NerdyBot /app
 
-ENV MPLCONFIGDIR=/tmp/matplotlib
-
 USER NerdyBot
 
 
@@ -42,7 +42,7 @@ FROM runtime AS bot
 ENV PYTHONFAULTHANDLER=1
 
 USER root
-RUN apk add --no-cache ffmpeg opus
+RUN apk add --no-cache ffmpeg opus freetype libpng
 
 USER NerdyBot
 COPY --chown=${UID} --from=builder /app/.venv-bot /app/.venv
