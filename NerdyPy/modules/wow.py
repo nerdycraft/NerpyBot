@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
+import itertools
 import json
 from datetime import UTC, datetime
 from datetime import datetime as dt
@@ -18,6 +19,7 @@ from discord.ext.commands import Context, GroupCog, bot_has_permissions, has_per
 from models.wow import WowCharacterMounts, WowGuildNewsConfig
 from utils.errors import NerpyException
 from utils.format import box, pagify
+from utils.account_resolution import build_account_groups, make_pair_key
 from utils.helpers import notify_error, send_hidden_message
 
 
@@ -36,6 +38,23 @@ COLOR_MOUNT = Color.purple()
 
 # Stale character cleanup: remove mount data for characters gone from roster after this many days
 STALE_DAYS = 30
+
+_NOTIFICATION_STRINGS = {
+    "en": {
+        "mount_title": "New Mount Collected!",
+        "mount_desc": "**{name}** ({realm}) obtained **{mount}**",
+        "boss_title": "Boss Defeated!",
+        "boss_desc": "**{name}** ({realm}) defeated **{boss}**",
+        "boss_desc_mode": "**{name}** ({realm}) defeated **{boss}** ({mode})",
+    },
+    "de": {
+        "mount_title": "Neues Reittier erhalten!",
+        "mount_desc": "**{name}** ({realm}) hat **{mount}** erhalten",
+        "boss_title": "Boss besiegt!",
+        "boss_desc": "**{name}** ({realm}) hat **{boss}** besiegt",
+        "boss_desc_mode": "**{name}** ({realm}) hat **{boss}** besiegt ({mode})",
+    },
+}
 
 
 class _RateLimited(Exception):
@@ -70,6 +89,28 @@ def _should_update_mount_set(known_ids: set, current_ids: set) -> bool:
     removed = known_ids - current_ids
     threshold = max(10, int(len(known_ids) * 0.1))
     return len(removed) <= threshold
+
+
+_FAILURE_THRESHOLD = 3
+
+
+def _record_character_failure(failures: dict, char_name: str, char_realm: str) -> None:
+    """Record a 404/403 failure for a character."""
+    key = f"{char_name}:{char_realm}"
+    entry = failures.setdefault(key, {"count": 0})
+    entry["count"] += 1
+    entry["last"] = datetime.now(UTC).isoformat()
+
+
+def _should_skip_character(failures: dict, char_name: str, char_realm: str) -> bool:
+    """Return True if the character has reached the failure threshold."""
+    entry = failures.get(f"{char_name}:{char_realm}")
+    return entry is not None and entry.get("count", 0) >= _FAILURE_THRESHOLD
+
+
+def _clear_character_failure(failures: dict, char_name: str, char_realm: str) -> None:
+    """Remove a character's failure record after a successful check."""
+    failures.pop(f"{char_name}:{char_realm}", None)
 
 
 @bot_has_permissions(send_messages=True, embed_links=True)
@@ -149,6 +190,31 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         return matches
 
     # ── Shared helpers ──────────────────────────────────────────────────
+
+    async def _parse_realm(self, realm: str) -> tuple[str, str]:
+        """Parse a realm string like 'blackrock-eu' into (realm_slug, region).
+
+        Validates against the realm cache if populated. Plain slugs default to EU.
+        """
+        realm = realm.lower()
+        if "-" in realm:
+            parts = realm.rsplit("-", 1)
+            if parts[1] in self.regions:
+                realm_slug, region = parts[0], parts[1]
+            else:
+                realm_slug, region = realm, "eu"
+        else:
+            realm_slug, region = realm, "eu"
+
+        await self._ensure_realm_cache()
+        cache_key = f"{realm_slug}-{region}"
+        if self._realm_cache and cache_key not in self._realm_cache:
+            raise NerpyException(
+                f"Unknown realm '{realm_slug}' in {region.upper()}. "
+                f"Use the autocomplete suggestions or check your spelling."
+            )
+
+        return realm_slug, region
 
     @staticmethod
     def _get_link(site, profile):
@@ -259,26 +325,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         """
         try:
             async with ctx.typing(ephemeral=True):
-                # Parse realm: "blackrock-eu" -> ("blackrock", "eu"), "blackrock" -> ("blackrock", "eu")
-                realm = realm.lower()
-                if "-" in realm:
-                    parts = realm.rsplit("-", 1)
-                    if parts[1] in self.regions:
-                        realm_slug, region = parts[0], parts[1]
-                    else:
-                        realm_slug, region = realm, "eu"
-                else:
-                    realm_slug, region = realm, "eu"
-
-                # Validate realm against cache if populated
-                await self._ensure_realm_cache()
-                cache_key = f"{realm_slug}-{region}"
-                if self._realm_cache and cache_key not in self._realm_cache:
-                    raise NerpyException(
-                        f"Unknown realm '{realm_slug}' in {region.upper()}. "
-                        f"Use the autocomplete suggestions or check your spelling."
-                    )
-
+                realm_slug, region = await self._parse_realm(realm)
                 name = name.lower()
                 profile = f"{region}/{realm_slug}/{name}"
 
@@ -342,7 +389,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
     async def _guildnews(self, ctx: Context):
         """manage WoW guild news tracking"""
         if ctx.invoked_subcommand is None:
-            await send_hidden_message(ctx, "Use a subcommand: setup, remove, list, pause, resume, check")
+            await send_hidden_message(ctx, "Use a subcommand: setup, remove, list, edit, pause, resume, check")
 
     @_guildnews.command(name="setup")
     @checks.has_permissions(manage_channels=True)
@@ -353,19 +400,18 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         guild_name: str,
         realm: str,
         channel: TextChannel,
-        region: Optional[Literal["eu", "us"]] = "eu",
         language: Optional[Literal["de", "en"]] = "en",
         active_days: Optional[int] = None,
     ):
         """set up guild news tracking for a WoW guild [manage_channels]
 
         guild_name: WoW guild name (use dashes for spaces, e.g. my-guild)
-        realm: Realm slug (e.g. blackrock, azshara)
+        realm: Realm with region (e.g. blackrock-eu). Autocomplete available.
         channel: Discord channel for notifications
         """
         try:
             async with ctx.typing(ephemeral=True):
-                realm_slug = realm.lower().replace(" ", "-")
+                realm_slug, region = await self._parse_realm(realm)
                 name_slug = guild_name.lower().replace(" ", "-")
 
                 # Validate the guild exists via API
@@ -378,6 +424,13 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 guild_display = roster.get("guild", {}).get("name", guild_name)
 
                 with self.bot.session_scope() as session:
+                    existing = WowGuildNewsConfig.get_existing(ctx.guild.id, name_slug, realm_slug, region, session)
+                    if existing:
+                        raise NerpyException(
+                            f"Guild '{guild_display}' on {realm_slug}-{region.upper()} is already tracked "
+                            f"(config #{existing.Id} in <#{existing.ChannelId}>)."
+                        )
+
                     config = WowGuildNewsConfig(
                         GuildId=ctx.guild.id,
                         ChannelId=channel.id,
@@ -399,6 +452,10 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             )
         except NerpyException as ex:
             await send_hidden_message(ctx, str(ex))
+
+    @_guildnews_setup.autocomplete("realm")
+    async def _guildnews_setup_realm_autocomplete(self, interaction: discord.Interaction, current: str):
+        return await self._realm_autocomplete(interaction, current)
 
     @_guildnews.command(name="remove")
     @checks.has_permissions(manage_channels=True)
@@ -454,6 +511,51 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 return
             config.Enabled = True
         await send_hidden_message(ctx, f"Resumed tracking for config #{config_id}.")
+
+    @_guildnews.command(name="edit")
+    @checks.has_permissions(manage_channels=True)
+    @has_permissions(manage_channels=True)
+    async def _guildnews_edit(
+        self,
+        ctx: Context,
+        config_id: int,
+        channel: Optional[TextChannel] = None,
+        language: Optional[Literal["de", "en"]] = None,
+        active_days: Optional[int] = None,
+    ):
+        """edit a guild news tracking config [manage_channels]
+
+        config_id: ID of the config to edit (see /wow guildnews list)
+        channel: Move notifications to this channel
+        language: Change notification language (de/en)
+        active_days: Change activity window (days)
+        """
+        if channel is None and language is None and active_days is None:
+            await send_hidden_message(
+                ctx, "Nothing to change. Specify at least one of: channel, language, active_days."
+            )
+            return
+
+        with self.bot.session_scope() as session:
+            config = WowGuildNewsConfig.get_by_id(config_id, ctx.guild.id, session)
+            if not config:
+                await send_hidden_message(ctx, f"Config #{config_id} not found.")
+                return
+
+            changes = []
+            if channel is not None:
+                config.ChannelId = channel.id
+                changes.append(f"channel → {channel.mention}")
+            if language is not None:
+                config.Language = language
+                changes.append(f"language → {language}")
+            if active_days is not None:
+                config.ActiveDays = active_days
+                changes.append(f"active_days → {active_days}")
+
+            guild_label = f"**{config.WowGuildName}** ({config.WowRealmSlug}-{config.Region.upper()})"
+
+        await send_hidden_message(ctx, f"Updated config #{config_id} for {guild_label}: {', '.join(changes)}.")
 
     @_guildnews.command(name="check")
     async def _guildnews_check(self, ctx: Context, config_id: int):
@@ -538,17 +640,19 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         api = self._get_retailclient(region, language)
 
         # ── Phase 1: Guild Activity Feed ────────────────────────────
-        await self._poll_activity(api, cfg_id, guild_id, wow_guild, realm, last_activity_ts, channel)
+        await self._poll_activity(api, cfg_id, guild_id, wow_guild, realm, last_activity_ts, channel, language)
 
         # ── Phase 2: Mount Tracking ─────────────────────────────────
         if self._track_mounts:
-            await self._poll_mounts(api, cfg_id, wow_guild, realm, min_level, active_days, channel)
+            await self._poll_mounts(api, cfg_id, wow_guild, realm, min_level, active_days, channel, language)
         else:
             self.bot.log.debug(f"Guild news #{cfg_id}: mount tracking disabled, skipping phase 2")
 
         self.bot.log.debug(f"Guild news #{cfg_id}: poll complete")
 
-    async def _poll_activity(self, api, config_id, guild_id, wow_guild, realm, last_activity_ts, channel):
+    async def _poll_activity(
+        self, api, config_id, guild_id, wow_guild, realm, last_activity_ts, channel, language="en"
+    ):
         """Fetch guild_activity and post new achievements/encounters."""
         self.bot.log.debug(f"Guild news #{config_id}: fetching activity feed")
         try:
@@ -619,11 +723,13 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 enc_name = encounter.get("name", "Unknown Encounter")
                 enc_id = encounter.get("id")
                 mode = enc_data.get("mode", {}).get("name", "")
-                desc = f"**{char_name}** ({char_realm}) defeated **{enc_name}**"
+                strings = _NOTIFICATION_STRINGS.get(language, _NOTIFICATION_STRINGS["en"])
                 if mode:
-                    desc += f" ({mode})"
+                    desc = strings["boss_desc_mode"].format(name=char_name, realm=char_realm, boss=enc_name, mode=mode)
+                else:
+                    desc = strings["boss_desc"].format(name=char_name, realm=char_realm, boss=enc_name)
                 emb = Embed(
-                    title="Boss Defeated!",
+                    title=strings["boss_title"],
                     description=desc,
                     color=COLOR_ENCOUNTER,
                     timestamp=activity_time,
@@ -673,7 +779,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 if config:
                     config.LastActivityTimestamp = new_timestamp
 
-    async def _poll_mounts(self, api, config_id, wow_guild, realm, min_level, active_days, channel):
+    async def _poll_mounts(self, api, config_id, wow_guild, realm, min_level, active_days, channel, language="en"):
         """Check roster for new mount acquisitions.
 
         On initial sync (unbaselined characters exist), processes all batches
@@ -732,10 +838,34 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         if not candidate_list:
             return
 
-        # Determine if initial sync is needed (any candidates without a baseline)
+        # Load existing data, build account groups, determine initial sync
         with self.bot.session_scope() as session:
             existing = WowCharacterMounts.get_all_by_config(config_id, session)
             baselined_keys = {(e.CharacterName, e.RealmSlug) for e in existing}
+            stored_mounts = {(e.CharacterName, e.RealmSlug): e.KnownMountIds for e in existing}
+
+            config_record = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
+            temporal_data = json.loads(config_record.AccountGroupData or "{}") if config_record else {}
+            character_failures = temporal_data.pop("_failures", {})
+
+        account_groups = build_account_groups(candidate_list, stored_mounts, temporal_data)
+
+        # Log detected account clusters for debugging
+        clusters: dict[int, list[str]] = {}
+        for (name, realm), gid in account_groups.items():
+            clusters.setdefault(gid, []).append(f"{name}:{realm}")
+        multi = {gid: members for gid, members in clusters.items() if len(members) > 1}
+        if multi:
+            group_strs = [f"  group {gid}: {', '.join(members)}" for gid, members in multi.items()]
+            self.bot.log.debug(f"Guild news #{config_id}: account groups:\n" + "\n".join(group_strs))
+        else:
+            self.bot.log.debug(
+                f"Guild news #{config_id}: no account groups detected ({len(account_groups)} solo chars)"
+            )
+
+        reported_by_account = {}  # account_group_id -> set of already-reported mount IDs
+        cycle_new_mounts = {}  # (name, realm) -> set of new mount IDs
+
         unbaselined = candidate_keys - baselined_keys
         initial_sync = len(unbaselined) > 0
 
@@ -753,6 +883,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             "skipped_error": 0,
             "skipped_inactive": 0,
             "skipped_degraded": 0,
+            "skipped_404": 0,
             "baselined": 0,
             "new_mounts": 0,
         }
@@ -763,6 +894,10 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
             # Skip remaining work if we already hit a rate limit
             if rate_limited.is_set():
+                return
+
+            if _should_skip_character(character_failures, char_name, char_realm):
+                total_stats["skipped_404"] += 1
                 return
 
             async with semaphore:
@@ -782,8 +917,11 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
                 if isinstance(profile, dict) and profile.get("code") in (404, 403):
                     self.bot.log.debug(f"Guild news #{config_id}: {char_name} returned {profile.get('code')}, skipping")
+                    _record_character_failure(character_failures, char_name, char_realm)
                     total_stats["skipped_error"] += 1
                     return
+
+                _clear_character_failure(character_failures, char_name, char_realm)
 
                 last_login_ms = profile.get("last_login_timestamp", 0)
                 if last_login_ms:
@@ -878,11 +1016,24 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                         display_name = profile.get("name", char_name.capitalize())
                         display_realm = profile.get("realm", {}).get("name", char_realm)
 
+                        account_id = account_groups.get((char_name, char_realm), (char_name, char_realm))
+                        already_reported = reported_by_account.setdefault(account_id, set())
+
                         for mid, mname in mount_names.items():
+                            if mid in already_reported:
+                                self.bot.log.debug(
+                                    f"Guild news #{config_id}: skipping {mname} for {display_name} "
+                                    f"(already reported for account group {account_id})"
+                                )
+                                continue
+                            already_reported.add(mid)
                             self.bot.log.debug(f"Guild news #{config_id}: {display_name} got new mount: {mname}")
+                            strings = _NOTIFICATION_STRINGS.get(language, _NOTIFICATION_STRINGS["en"])
                             emb = Embed(
-                                title="New Mount Collected!",
-                                description=f"**{display_name}** ({display_realm}) obtained **{mname}**",
+                                title=strings["mount_title"],
+                                description=strings["mount_desc"].format(
+                                    name=display_name, realm=display_realm, mount=mname
+                                ),
                                 color=COLOR_MOUNT,
                                 timestamp=datetime.now(UTC),
                             )
@@ -913,6 +1064,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
                     stored.KnownMountIds = json.dumps(sorted(current_ids))
                     stored.LastChecked = datetime.now(UTC)
+                    cycle_new_mounts[(char_name, char_realm)] = new_ids
 
         # Process batches — loop through all during initial sync, single batch otherwise
         with self.bot.session_scope() as session:
@@ -952,7 +1104,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 f"checked={total_stats['checked']}, baselined={total_stats['baselined']}, "
                 f"new_mounts={total_stats['new_mounts']}, "
                 f"skipped_inactive={total_stats['skipped_inactive']}, skipped_error={total_stats['skipped_error']}, "
-                f"skipped_degraded={total_stats['skipped_degraded']}"
+                f"skipped_degraded={total_stats['skipped_degraded']}, skipped_404={total_stats['skipped_404']}"
             )
 
             # Rate limited — stop immediately, resume from current offset next cycle
@@ -980,11 +1132,40 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 baselined_before = total_stats["baselined"]
                 start_offset = offset
 
+        # Update AccountGroupData (temporal correlation + failure tracking)
+        if cycle_new_mounts or character_failures:
+            with self.bot.session_scope() as session:
+                config_record = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
+                if config_record:
+                    temporal_data = json.loads(config_record.AccountGroupData or "{}")
+                    temporal_data.pop("_failures", None)
+
+                    if cycle_new_mounts:
+                        chars_with_new = [(k, v) for k, v in cycle_new_mounts.items() if v]
+                        for (ka, new_a), (kb, new_b) in itertools.combinations(chars_with_new, 2):
+                            pair_key = make_pair_key(ka, kb)
+                            entry = temporal_data.setdefault(pair_key, {"correlated": 0, "uncorrelated": 0})
+                            if new_a & new_b:
+                                entry["correlated"] += 1
+                            else:
+                                entry["uncorrelated"] += 1
+                            entry["last_updated"] = datetime.now(UTC).isoformat()
+
+                    # Prune failures for characters no longer in roster, then merge back
+                    pruned_failures = {
+                        k: v for k, v in character_failures.items() if tuple(k.split(":", 1)) in candidate_keys
+                    }
+                    if pruned_failures:
+                        temporal_data["_failures"] = pruned_failures
+
+                    config_record.AccountGroupData = json.dumps(temporal_data)
+
         if initial_sync and not rate_limited.is_set():
             self.bot.log.info(
                 f"Guild news #{config_id}: initial sync finished in {batch_num} batches — "
                 f"baselined={total_stats['baselined']}, skipped_inactive={total_stats['skipped_inactive']}, "
-                f"skipped_error={total_stats['skipped_error']}, skipped_degraded={total_stats['skipped_degraded']}"
+                f"skipped_error={total_stats['skipped_error']}, skipped_degraded={total_stats['skipped_degraded']}, "
+                f"skipped_404={total_stats['skipped_404']}"
             )
 
 

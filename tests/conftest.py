@@ -25,6 +25,7 @@ def db_engine():
     from models.admin import GuildPrefix  # noqa: F401
     from models.reminder import ReminderMessage  # noqa: F401
     from models.tagging import Tag, TagEntry  # noqa: F401
+    from models.wow import WowGuildNewsConfig, WowCharacterMounts  # noqa: F401
 
     BASE.metadata.create_all(engine)
     yield engine
