@@ -372,20 +372,38 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         guild_name: str,
         realm: str,
         channel: TextChannel,
-        region: Optional[Literal["eu", "us"]] = "eu",
         language: Optional[Literal["de", "en"]] = "en",
         active_days: Optional[int] = None,
     ):
         """set up guild news tracking for a WoW guild [manage_channels]
 
         guild_name: WoW guild name (use dashes for spaces, e.g. my-guild)
-        realm: Realm slug (e.g. blackrock, azshara)
+        realm: Realm with region (e.g. blackrock-eu). Autocomplete available.
         channel: Discord channel for notifications
         """
         try:
             async with ctx.typing(ephemeral=True):
-                realm_slug = realm.lower().replace(" ", "-")
+                # Parse realm: "blackrock-eu" -> ("blackrock", "eu"), "blackrock" -> ("blackrock", "eu")
+                realm = realm.lower()
+                if "-" in realm:
+                    parts = realm.rsplit("-", 1)
+                    if parts[1] in self.regions:
+                        realm_slug, region = parts[0], parts[1]
+                    else:
+                        realm_slug, region = realm, "eu"
+                else:
+                    realm_slug, region = realm, "eu"
+
                 name_slug = guild_name.lower().replace(" ", "-")
+
+                # Validate realm against cache
+                await self._ensure_realm_cache()
+                cache_key = f"{realm_slug}-{region}"
+                if self._realm_cache and cache_key not in self._realm_cache:
+                    raise NerpyException(
+                        f"Unknown realm '{realm_slug}' in {region.upper()}. "
+                        f"Use the autocomplete suggestions or check your spelling."
+                    )
 
                 # Validate the guild exists via API
                 api = self._get_retailclient(region, language)
@@ -397,6 +415,13 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 guild_display = roster.get("guild", {}).get("name", guild_name)
 
                 with self.bot.session_scope() as session:
+                    existing = WowGuildNewsConfig.get_existing(ctx.guild.id, name_slug, realm_slug, region, session)
+                    if existing:
+                        raise NerpyException(
+                            f"Guild '{guild_display}' on {realm_slug}-{region.upper()} is already tracked "
+                            f"(config #{existing.Id} in <#{existing.ChannelId}>)."
+                        )
+
                     config = WowGuildNewsConfig(
                         GuildId=ctx.guild.id,
                         ChannelId=channel.id,
@@ -418,6 +443,10 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             )
         except NerpyException as ex:
             await send_hidden_message(ctx, str(ex))
+
+    @_guildnews_setup.autocomplete("realm")
+    async def _guildnews_setup_realm_autocomplete(self, interaction: discord.Interaction, current: str):
+        return await self._realm_autocomplete(interaction, current)
 
     @_guildnews.command(name="remove")
     @checks.has_permissions(manage_channels=True)
