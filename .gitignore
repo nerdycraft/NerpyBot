@@ -9,6 +9,7 @@ NerdyPy/weather_cache.sqlite
 NerpyBot.code-workspace
 config/*.yaml
 !config/*.yaml.example
+docs/plans/
 
 ### macOS template
 # General
