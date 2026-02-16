@@ -191,6 +191,31 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
     # ── Shared helpers ──────────────────────────────────────────────────
 
+    async def _parse_realm(self, realm: str) -> tuple[str, str]:
+        """Parse a realm string like 'blackrock-eu' into (realm_slug, region).
+
+        Validates against the realm cache if populated. Plain slugs default to EU.
+        """
+        realm = realm.lower()
+        if "-" in realm:
+            parts = realm.rsplit("-", 1)
+            if parts[1] in self.regions:
+                realm_slug, region = parts[0], parts[1]
+            else:
+                realm_slug, region = realm, "eu"
+        else:
+            realm_slug, region = realm, "eu"
+
+        await self._ensure_realm_cache()
+        cache_key = f"{realm_slug}-{region}"
+        if self._realm_cache and cache_key not in self._realm_cache:
+            raise NerpyException(
+                f"Unknown realm '{realm_slug}' in {region.upper()}. "
+                f"Use the autocomplete suggestions or check your spelling."
+            )
+
+        return realm_slug, region
+
     @staticmethod
     def _get_link(site, profile):
         url = None
@@ -300,26 +325,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         """
         try:
             async with ctx.typing(ephemeral=True):
-                # Parse realm: "blackrock-eu" -> ("blackrock", "eu"), "blackrock" -> ("blackrock", "eu")
-                realm = realm.lower()
-                if "-" in realm:
-                    parts = realm.rsplit("-", 1)
-                    if parts[1] in self.regions:
-                        realm_slug, region = parts[0], parts[1]
-                    else:
-                        realm_slug, region = realm, "eu"
-                else:
-                    realm_slug, region = realm, "eu"
-
-                # Validate realm against cache if populated
-                await self._ensure_realm_cache()
-                cache_key = f"{realm_slug}-{region}"
-                if self._realm_cache and cache_key not in self._realm_cache:
-                    raise NerpyException(
-                        f"Unknown realm '{realm_slug}' in {region.upper()}. "
-                        f"Use the autocomplete suggestions or check your spelling."
-                    )
-
+                realm_slug, region = await self._parse_realm(realm)
                 name = name.lower()
                 profile = f"{region}/{realm_slug}/{name}"
 
@@ -405,27 +411,8 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         """
         try:
             async with ctx.typing(ephemeral=True):
-                # Parse realm: "blackrock-eu" -> ("blackrock", "eu"), "blackrock" -> ("blackrock", "eu")
-                realm = realm.lower()
-                if "-" in realm:
-                    parts = realm.rsplit("-", 1)
-                    if parts[1] in self.regions:
-                        realm_slug, region = parts[0], parts[1]
-                    else:
-                        realm_slug, region = realm, "eu"
-                else:
-                    realm_slug, region = realm, "eu"
-
+                realm_slug, region = await self._parse_realm(realm)
                 name_slug = guild_name.lower().replace(" ", "-")
-
-                # Validate realm against cache
-                await self._ensure_realm_cache()
-                cache_key = f"{realm_slug}-{region}"
-                if self._realm_cache and cache_key not in self._realm_cache:
-                    raise NerpyException(
-                        f"Unknown realm '{realm_slug}' in {region.upper()}. "
-                        f"Use the autocomplete suggestions or check your spelling."
-                    )
 
                 # Validate the guild exists via API
                 api = self._get_retailclient(region, language)
