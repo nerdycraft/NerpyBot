@@ -135,6 +135,22 @@ The Blizzard API returns `{"code": 429}` on rate limits. `blizzapi` does **not**
 2. The batch loop breaks immediately
 3. The current offset is saved so the **next cycle resumes where it left off**
 
+### Degradation Guard
+
+If a Blizzard API response returns a significantly smaller mount set than what's stored (more than `max(10, 10%)` mounts disappeared), the update is skipped entirely. This protects against partial/degraded API responses causing false "new mount" notifications on the next cycle. Small legitimate removals (e.g., Blizzard revoking bug-obtained mounts) are still processed normally.
+
+### Account-Aware Mount Dedup
+
+Account-wide mounts appear on every character belonging to the same Battle.net account. Without dedup, earning one mount triggers N notifications for N characters. The module uses **confidence-based account resolution** to group characters likely on the same account, then suppresses duplicate mount announcements within each group.
+
+**Three independent signals are combined into a confidence score:**
+
+1. **Name similarity** — Detects diacritics variants ("Mörza"/"Morza"), shared prefix patterns ("alurush"/"alublood"), and general sequence similarity
+2. **Mount set identity** — Characters with near-identical mount collections (Jaccard similarity ≥ 0.95, 50+ mounts) are almost certainly on the same account
+3. **Temporal correlation** — Characters that consistently earn the same mounts in the same poll cycles build evidence over time (persisted in `AccountGroupData`)
+
+Characters with combined confidence ≥ 0.7 are grouped via union-find clustering. Only the first character in a group to announce a mount sends the Discord notification; `KnownMountIds` is still updated for all characters.
+
 ### Stale Character Cleanup
 
 Characters who leave the guild have their mount data pruned after **30 days** (`STALE_DAYS`).
@@ -193,6 +209,10 @@ When the Blizzard API returns a different canonical name than the roster name:
 +---------------------------------------------+
 ```
 
+### Localization
+
+Boss kill and mount collection notifications respect the guild's configured `Language` setting. Supported languages: `en` (English, default), `de` (German). Unsupported language codes fall back to English. To add a new language, extend the `_NOTIFICATION_STRINGS` dict in `modules/wow.py`.
+
 ## Database Models
 
 ### `WowGuildNewsConfig`
@@ -211,6 +231,7 @@ When the Blizzard API returns a different canonical name than the roster name:
 | RosterOffset | Integer | Cursor for mount-check batch rotation |
 | LastActivityTimestamp | DateTime | Dedup timestamp for activity feed |
 | Enabled | Boolean | Active/paused toggle |
+| AccountGroupData | Text | JSON dict of temporal correlation data for account resolution |
 | CreateDate | DateTime | When configured |
 
 ### `WowCharacterMounts`
