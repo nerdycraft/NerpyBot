@@ -405,7 +405,7 @@ def main() -> None:
             bot.log.error(format_exc())
             bot.log.error("Failed to login")
         except KeyboardInterrupt:
-            pass
+            bot.log.info("Received KeyboardInterrupt, shutting down.")
     else:
         raise NerpyException("Bot config not found.")
 
