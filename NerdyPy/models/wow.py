@@ -23,6 +23,14 @@ class WowGuildNewsConfig(db.BASE):
     __table_args__ = (
         Index("WowGuildNewsConfig_GuildId", "GuildId"),
         Index("WowGuildNewsConfig_Id_GuildId", "Id", "GuildId", unique=True),
+        Index(
+            "WowGuildNewsConfig_Guild_Realm_Region",
+            "GuildId",
+            "WowGuildName",
+            "WowRealmSlug",
+            "Region",
+            unique=True,
+        ),
     )
 
     Id = Column(Integer, primary_key=True)
@@ -51,6 +59,20 @@ class WowGuildNewsConfig(db.BASE):
     @classmethod
     def get_all_by_guild(cls, guild_id, session):
         return session.query(cls).filter(cls.GuildId == guild_id).order_by(asc("Id")).all()
+
+    @classmethod
+    def get_existing(cls, guild_id, wow_guild_name, realm_slug, region, session):
+        """Check if a config already exists for this guild+realm+region combination."""
+        return (
+            session.query(cls)
+            .filter(
+                cls.GuildId == guild_id,
+                cls.WowGuildName == wow_guild_name,
+                cls.WowRealmSlug == realm_slug,
+                cls.Region == region,
+            )
+            .first()
+        )
 
     @classmethod
     def delete(cls, config_id, guild_id, session):
