@@ -58,6 +58,20 @@ def _get_asset_url(response, key="icon"):
     return None
 
 
+def _should_update_mount_set(known_ids: set, current_ids: set) -> bool:
+    """Check whether the stored mount set should be updated with current API data.
+
+    Guards against degraded Blizzard API responses that return fewer mounts
+    than reality. Small removals (e.g., Blizzard revoking bugged mounts) are
+    allowed; large drops are blocked.
+    """
+    if not known_ids:
+        return True
+    removed = known_ids - current_ids
+    threshold = max(10, int(len(known_ids) * 0.1))
+    return len(removed) <= threshold
+
+
 @bot_has_permissions(send_messages=True, embed_links=True)
 class WorldofWarcraft(GroupCog, group_name="wow"):
     """World of Warcraft API"""
@@ -734,7 +748,14 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         cutoff = datetime.now(UTC) - td(days=active_days)
         semaphore = asyncio.Semaphore(5)
         rate_limited = asyncio.Event()
-        total_stats = {"checked": 0, "skipped_error": 0, "skipped_inactive": 0, "baselined": 0, "new_mounts": 0}
+        total_stats = {
+            "checked": 0,
+            "skipped_error": 0,
+            "skipped_inactive": 0,
+            "skipped_degraded": 0,
+            "baselined": 0,
+            "new_mounts": 0,
+        }
 
         async def _check_character(candidate):
             char_name = candidate["name"]
@@ -793,6 +814,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 current_mount_ids = sorted(
                     {m.get("mount", {}).get("id") for m in mount_data["mounts"] if m.get("mount")}
                 )
+                current_ids = set(current_mount_ids)
 
             total_stats["checked"] += 1
 
@@ -817,21 +839,34 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                         stored = old_entry
 
                 if stored is None:
-                    self.bot.log.debug(
-                        f"Guild news #{config_id}: baseline for {char_name} — {len(current_mount_ids)} mounts"
-                    )
+                    self.bot.log.debug(f"Guild news #{config_id}: baseline for {char_name} — {len(current_ids)} mounts")
                     entry = WowCharacterMounts(
                         ConfigId=config_id,
                         CharacterName=char_name,
                         RealmSlug=char_realm,
-                        KnownMountIds=json.dumps(current_mount_ids),
+                        KnownMountIds=json.dumps(sorted(current_ids)),
                         LastChecked=datetime.now(UTC),
                     )
                     session.add(entry)
                     total_stats["baselined"] += 1
                 else:
                     known_ids = set(json.loads(stored.KnownMountIds))
-                    new_ids = set(current_mount_ids) - known_ids
+                    new_ids = current_ids - known_ids
+
+                    self.bot.log.debug(
+                        f"Guild news #{config_id}: {char_name} mount diff — "
+                        f"known={len(known_ids)} current={len(current_ids)} new={len(new_ids)}"
+                    )
+
+                    if not _should_update_mount_set(known_ids, current_ids):
+                        self.bot.log.warning(
+                            f"Guild news #{config_id}: {char_name} mount set shrank by "
+                            f"{len(known_ids - current_ids)} (known={len(known_ids)} "
+                            f"current={len(current_ids)}) — likely degraded API response, "
+                            f"skipping update"
+                        )
+                        total_stats["skipped_degraded"] += 1
+                        return
 
                     if new_ids:
                         mount_names = {}
@@ -876,7 +911,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
                         total_stats["new_mounts"] += len(new_ids)
 
-                    stored.KnownMountIds = json.dumps(current_mount_ids)
+                    stored.KnownMountIds = json.dumps(sorted(current_ids))
                     stored.LastChecked = datetime.now(UTC)
 
         # Process batches — loop through all during initial sync, single batch otherwise
@@ -916,7 +951,8 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 f"Guild news #{config_id}: batch #{batch_num} done — "
                 f"checked={total_stats['checked']}, baselined={total_stats['baselined']}, "
                 f"new_mounts={total_stats['new_mounts']}, "
-                f"skipped_inactive={total_stats['skipped_inactive']}, skipped_error={total_stats['skipped_error']}"
+                f"skipped_inactive={total_stats['skipped_inactive']}, skipped_error={total_stats['skipped_error']}, "
+                f"skipped_degraded={total_stats['skipped_degraded']}"
             )
 
             # Rate limited — stop immediately, resume from current offset next cycle
@@ -948,7 +984,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             self.bot.log.info(
                 f"Guild news #{config_id}: initial sync finished in {batch_num} batches — "
                 f"baselined={total_stats['baselined']}, skipped_inactive={total_stats['skipped_inactive']}, "
-                f"skipped_error={total_stats['skipped_error']}"
+                f"skipped_error={total_stats['skipped_error']}, skipped_degraded={total_stats['skipped_degraded']}"
             )
 
 
