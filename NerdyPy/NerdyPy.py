@@ -76,34 +76,52 @@ class NerpyBot(Bot):
         self.convMan = ConversationManager(self)
 
         # database variables
+        db_connection_string = self.build_connection_string(config)
         if "database" not in config:
             self.log.warning("No Database specified! Fallback to local SQLite Database!")
-            db_connection_string = "sqlite:///db.db"
-        else:
-            database_config = config["database"]
-            db_type = database_config["db_type"]
-            db_name = database_config["db_name"]
-            db_username = ""
-            db_password = ""
-            db_host = ""
-            db_port = ""
-
-            if any(s in db_type for s in ("mysql", "mariadb")):
-                db_type = f"{db_type}+pymysql"
-            if "db_password" in database_config and database_config["db_password"]:
-                db_password = f":{database_config['db_password']}"
-            if "db_username" in database_config and database_config["db_username"]:
-                db_username = database_config["db_username"]
-            if "db_host" in database_config and database_config["db_host"]:
-                db_host = f"@{database_config['db_host']}"
-            if "db_port" in database_config and database_config["db_port"]:
-                db_port = f":{database_config['db_port']}"
-
-            db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
-            db_connection_string = f"{db_type}://{db_authentication}/{db_name}"
 
         self.ENGINE = create_engine(db_connection_string)
         self.SESSION = sessionmaker(bind=self.ENGINE, expire_on_commit=False)
+
+    @staticmethod
+    def build_connection_string(config: dict) -> str:
+        """Build a SQLAlchemy connection string from the bot config.
+
+        Returns ``"sqlite:///db.db"`` when no database section is present.
+        Appends ``?charset=utf8mb4`` for MySQL/MariaDB connections so PyMySQL
+        negotiates UTF-8 instead of defaulting to latin1.
+        """
+        if "database" not in config:
+            return "sqlite:///db.db"
+
+        database_config = config["database"]
+        db_type = database_config["db_type"]
+        db_name = database_config["db_name"]
+        db_username = ""
+        db_password = ""
+        db_host = ""
+        db_port = ""
+
+        is_mysql = any(s in db_type for s in ("mysql", "mariadb"))
+
+        if is_mysql:
+            db_type = f"{db_type}+pymysql"
+        if "db_password" in database_config and database_config["db_password"]:
+            db_password = f":{database_config['db_password']}"
+        if "db_username" in database_config and database_config["db_username"]:
+            db_username = database_config["db_username"]
+        if "db_host" in database_config and database_config["db_host"]:
+            db_host = f"@{database_config['db_host']}"
+        if "db_port" in database_config and database_config["db_port"]:
+            db_port = f":{database_config['db_port']}"
+
+        db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
+        connection_string = f"{db_type}://{db_authentication}/{db_name}"
+
+        if is_mysql:
+            connection_string += "?charset=utf8mb4"
+
+        return connection_string
 
     def create_all(self) -> None:
         """creates all tables previously defined"""
