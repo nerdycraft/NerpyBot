@@ -34,6 +34,8 @@ class Reminder(GroupCog, group_name="reminder"):
                     self.bot.log.debug(f"Found {len(messages)} reminder(s) for guild {guild.name} ({guild.id})")
 
                     for msg in messages:
+                        if not msg.Enabled:
+                            continue
                         if msg.LastSend.astimezone(UTC) + timedelta(minutes=msg.Minutes) < datetime.now(UTC):
                             chan = guild.get_channel(msg.ChannelId)
                             if chan is None:
@@ -79,6 +81,7 @@ class Reminder(GroupCog, group_name="reminder"):
                 Message=message,
                 Repeat=repeat,
                 Count=0,
+                Enabled=True,
             )
             session.add(msg)
         await interaction.response.send_message("Message created.", ephemeral=True)
@@ -96,10 +99,11 @@ class Reminder(GroupCog, group_name="reminder"):
 
             to_send = ""
             for msg in msgs:
+                status = "\u2705" if msg.Enabled else "\u23f8\ufe0f"
                 next_send = humanize.naturaltime(
                     msg.LastSend + timedelta(minutes=float(msg.Minutes)), when=datetime.now(UTC)
                 )
-                to_send += f"**#{msg.Id}** \u2014 #{msg.ChannelName}\n"
+                to_send += f"{status} **#{msg.Id}** \u2014 #{msg.ChannelName}\n"
                 to_send += f"> {msg.Message}\n"
                 to_send += f"*{msg.Author} \u00b7 Next: {next_send} \u00b7 Hits: {msg.Count}*\n\n"
 
@@ -110,7 +114,8 @@ class Reminder(GroupCog, group_name="reminder"):
             reminders = ReminderMessage.get_all_by_guild(interaction.guild.id, session)
             choices = []
             for msg in reminders:
-                label = f"#{msg.Id} \u2014 {msg.Message[:80]}"
+                status = "\u2705" if msg.Enabled else "\u23f8\ufe0f"
+                label = f"#{msg.Id} {status} {msg.Message[:80]}"
                 if current and current not in str(msg.Id) and current.lower() not in msg.Message.lower():
                     continue
                 choices.append(app_commands.Choice(name=label[:100], value=msg.Id))
@@ -125,6 +130,36 @@ class Reminder(GroupCog, group_name="reminder"):
         with self.bot.session_scope() as session:
             ReminderMessage.delete(reminder_id, interaction.guild.id, session)
         await interaction.response.send_message("Message deleted.", ephemeral=True)
+
+    @app_commands.command(name="pause")
+    @app_commands.autocomplete(reminder_id=_reminder_id_autocomplete)
+    async def _reminder_pause(self, interaction: Interaction, reminder_id: int):
+        """pause a reminder without deleting it"""
+        with self.bot.session_scope() as session:
+            msg = ReminderMessage.get_by_id(reminder_id, interaction.guild.id, session)
+            if msg is None:
+                await interaction.response.send_message("Reminder not found.", ephemeral=True)
+                return
+            if not msg.Enabled:
+                await interaction.response.send_message("Reminder is already paused.", ephemeral=True)
+                return
+            msg.Enabled = False
+        await interaction.response.send_message(f"Paused reminder **#{reminder_id}**.", ephemeral=True)
+
+    @app_commands.command(name="resume")
+    @app_commands.autocomplete(reminder_id=_reminder_id_autocomplete)
+    async def _reminder_resume(self, interaction: Interaction, reminder_id: int):
+        """resume a paused reminder"""
+        with self.bot.session_scope() as session:
+            msg = ReminderMessage.get_by_id(reminder_id, interaction.guild.id, session)
+            if msg is None:
+                await interaction.response.send_message("Reminder not found.", ephemeral=True)
+                return
+            if msg.Enabled:
+                await interaction.response.send_message("Reminder is already active.", ephemeral=True)
+                return
+            msg.Enabled = True
+        await interaction.response.send_message(f"Resumed reminder **#{reminder_id}**.", ephemeral=True)
 
     @_reminder_loop.before_loop
     async def _reminder_before_loop(self):

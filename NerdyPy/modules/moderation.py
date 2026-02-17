@@ -95,6 +95,8 @@ class Moderation(Cog):
                 self.bot.log.debug(f"Fetched {len(configurations)} configurations")
 
             for configuration in configurations:
+                if not configuration.Enabled:
+                    continue
                 guild = self.bot.get_guild(configuration.GuildId)
                 if configuration.DeleteOlderThan is None:
                     list_before = None
@@ -232,6 +234,7 @@ class Moderation(Cog):
                     KeepMessages=keep_messages,
                     DeleteOlderThan=delete,
                     DeletePinnedMessage=delete_pinned_message,
+                    Enabled=True,
                 )
                 session.add(deleter)
 
@@ -281,16 +284,65 @@ class Moderation(Cog):
                 for configuration in configurations:
                     channel = interaction.guild.get_channel(configuration.ChannelId)
                     channel_name = channel.mention if channel else f"Unknown ({configuration.ChannelId})"
+                    status = "\u2705" if configuration.Enabled else "\u23f8\ufe0f"
                     age = naturaldelta(configuration.DeleteOlderThan) if configuration.DeleteOlderThan else "\u2014"
                     keep = configuration.KeepMessages if configuration.KeepMessages else "\u2014"
                     pinned = "Yes" if configuration.DeletePinnedMessage else "No"
-                    msg += f"**{channel_name}**\n"
+                    msg += f"{status} **{channel_name}**\n"
                     msg += f"> Age limit: {age} \u00b7 Keep: {keep} \u00b7 Delete pinned: {pinned}\n\n"
                 await send_paginated(
                     interaction, msg, title="\U0001f5d1\ufe0f AutoDeleter", color=0xE74C3C, ephemeral=True
                 )
             else:
                 await interaction.response.send_message("No configuration found!", ephemeral=True)
+
+    @autodeleter.command(name="pause")
+    @checks.has_permissions(manage_messages=True)
+    async def _autodeleter_pause(self, interaction: Interaction, channel: TextChannel):
+        """pause auto-deletion for a channel without removing the config
+
+        Parameters
+        ----------
+        interaction
+        channel: discord.TextChannel
+            The channel to pause auto-deletion for
+        """
+        with self.bot.session_scope() as session:
+            configuration = AutoDelete.get_by_channel(interaction.guild.id, channel.id, session)
+            if configuration is None:
+                await interaction.response.send_message(f"No auto-delete config for {channel.mention}.", ephemeral=True)
+                return
+            if not configuration.Enabled:
+                await interaction.response.send_message(
+                    f"Auto-deletion is already paused for {channel.mention}.", ephemeral=True
+                )
+                return
+            configuration.Enabled = False
+        await interaction.response.send_message(f"Paused auto-deletion for {channel.mention}.", ephemeral=True)
+
+    @autodeleter.command(name="resume")
+    @checks.has_permissions(manage_messages=True)
+    async def _autodeleter_resume(self, interaction: Interaction, channel: TextChannel):
+        """resume auto-deletion for a paused channel
+
+        Parameters
+        ----------
+        interaction
+        channel: discord.TextChannel
+            The channel to resume auto-deletion for
+        """
+        with self.bot.session_scope() as session:
+            configuration = AutoDelete.get_by_channel(interaction.guild.id, channel.id, session)
+            if configuration is None:
+                await interaction.response.send_message(f"No auto-delete config for {channel.mention}.", ephemeral=True)
+                return
+            if configuration.Enabled:
+                await interaction.response.send_message(
+                    f"Auto-deletion is already active for {channel.mention}.", ephemeral=True
+                )
+                return
+            configuration.Enabled = True
+        await interaction.response.send_message(f"Resumed auto-deletion for {channel.mention}.", ephemeral=True)
 
     @autodeleter.command(name="edit")
     @checks.has_permissions(manage_messages=True)
