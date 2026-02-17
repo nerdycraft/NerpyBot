@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from discord.ext.commands import Cog, Context, check, hybrid_command
+from discord import Interaction, app_commands
+from discord.ext.commands import Cog
 
 from utils.checks import can_leave_voice, can_stop_playback
-from utils.helpers import send_hidden_message
 
 
+@app_commands.guild_only()
 class VoiceControl(Cog):
     """commands for controlling bot voice playback"""
 
@@ -13,22 +14,20 @@ class VoiceControl(Cog):
         bot.log.info(f"loaded {__name__}")
         self.bot = bot
 
-    @hybrid_command(name="stop")
-    @check(can_stop_playback)
-    async def _bot_stop_playing(self, ctx: Context):
+    @app_commands.command(name="stop")
+    @app_commands.check(can_stop_playback)
+    async def _bot_stop_playing(self, interaction: Interaction):
         """bot stops playing audio [bot-moderator]"""
-        self.bot.audio.stop(ctx.guild.id)
-        self.bot.audio.clear_buffer(ctx.guild.id)
-        if ctx.interaction is not None:
-            await send_hidden_message(ctx, "\U0001f44d")
+        self.bot.audio.stop(interaction.guild.id)
+        self.bot.audio.clear_buffer(interaction.guild.id)
+        await interaction.response.send_message("\U0001f44d", ephemeral=True)
 
-    @hybrid_command(name="leave")
-    @check(can_leave_voice)
-    async def _bot_leave_channel(self, ctx: Context):
+    @app_commands.command(name="leave")
+    @app_commands.check(can_leave_voice)
+    async def _bot_leave_channel(self, interaction: Interaction):
         """bot leaves the voice channel [bot-moderator]"""
-        await self.bot.audio.leave(ctx.guild.id)
-        if ctx.interaction is not None:
-            await send_hidden_message(ctx, "\U0001f44b")
+        await self.bot.audio.leave(interaction.guild.id)
+        await interaction.response.send_message("\U0001f44b", ephemeral=True)
 
 
 async def setup(bot):

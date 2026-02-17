@@ -3,12 +3,13 @@
 from random import choice, randint
 from typing import Optional
 
-from discord import Member
-from discord.ext.commands import Cog, Context, bot_has_permissions, hybrid_command
+from discord import Interaction, Member, app_commands
+from discord.ext.commands import Cog
 from utils.errors import NerpyException
 
 
-@bot_has_permissions(send_messages=True)
+@app_commands.checks.bot_has_permissions(send_messages=True)
+@app_commands.guild_only()
 class Fun(Cog):
     """HAHA commands so fun, much wow"""
 
@@ -128,22 +129,28 @@ class Fun(Cog):
             63: "For every given male character, there is a female version of that character; conversely",
         }
 
-    @hybrid_command()
-    async def roll(self, ctx: Context, dice: int = 6) -> None:
+    @app_commands.command()
+    async def roll(self, interaction: Interaction, dice: int = 6) -> None:
         """
         Rolls random number (between 1 and user choice)
 
-        <dice> anything larger than 1, default is 6
+        Parameters
+        ----------
+        interaction
+        dice: int
+            anything larger than 1, default is 6
         """
-        mention = ctx.message.author.mention
+        mention = interaction.user.mention
         if dice > 1:
             n = randint(1, dice)
-            await ctx.send(f"{mention} rolled a d{dice}\n\n:game_die: {n} :game_die:")
+            await interaction.response.send_message(f"{mention} rolled a d{dice}\n\n:game_die: {n} :game_die:")
         else:
-            await ctx.send(f"{mention} rolled a 'AmIRetarded'-dice\n\n:game_die: yes :game_die:")
+            await interaction.response.send_message(
+                f"{mention} rolled a 'AmIRetarded'-dice\n\n:game_die: yes :game_die:"
+            )
 
-    @hybrid_command()
-    async def choose(self, ctx: Context, choices: str) -> None:
+    @app_commands.command()
+    async def choose(self, interaction: Interaction, choices: str) -> None:
         """
         Makes a choice for you.
         Choices need to be seperated by "," and sentences also need to be encased by "".
@@ -152,54 +159,57 @@ class Fun(Cog):
         if len(choices) < 2:
             raise NerpyException("Not enough choices to pick from.")
 
-        mention = ctx.message.author.mention
-        await ctx.send(f"{mention} asked me to choose between: {choices}\n\nI choose {choice(choices_list)}")
+        mention = interaction.user.mention
+        await interaction.response.send_message(
+            f"{mention} asked me to choose between: {choices}\n\nI choose {choice(choices_list)}"
+        )
 
-    @hybrid_command(name="8ball", aliases=["8b"])
-    async def eightball(self, ctx: Context, question: str) -> None:
+    @app_commands.command(name="8ball")
+    async def eightball(self, interaction: Interaction, question: str) -> None:
         """
         Ask 8-Ball a question.
         Question must end with a question mark.
         """
         if not question.endswith("?") or question == "?":
-            await ctx.send("That doesn't look like a question.")
+            await interaction.response.send_message("That doesn't look like a question.")
+            return
 
-        mention = ctx.message.author.mention
-        await ctx.send(f"{mention} asked me: {question}\n\n{choice(self.ball)}")
+        mention = interaction.user.mention
+        await interaction.response.send_message(f"{mention} asked me: {question}\n\n{choice(self.ball)}")
 
-    @hybrid_command()
-    async def hug(self, ctx: Context, user: Member, intensity: Optional[int] = None) -> None:
+    @app_commands.command()
+    async def hug(self, interaction: Interaction, user: Member, intensity: Optional[int] = None) -> None:
         """
         Because everyone likes hugs!
 
         Parameters
         ----------
-        ctx
+        interaction
         user: Member
              has to be a valid @user
         intensity: Optional[int]
             The intensity of your hug. 0 to 4 levels, default is random
         """
         name = user.mention
-        author = ctx.message.author.mention
+        author = interaction.user.mention
         if intensity is not None:
             if intensity <= 0:
                 intensity = 0
             if intensity >= 4:
                 intensity = 4
 
-            await ctx.send(f"{author} {self.hugs[intensity]} {name}")
+            await interaction.response.send_message(f"{author} {self.hugs[intensity]} {name}")
         else:
-            await ctx.send(f"{author} {choice(self.hugs)} {name}")
+            await interaction.response.send_message(f"{author} {choice(self.hugs)} {name}")
 
-    @hybrid_command()
-    async def leet(self, ctx: Context, intensity: int, text: str) -> None:
+    @app_commands.command()
+    async def leet(self, interaction: Interaction, intensity: int, text: str) -> None:
         """
         convert text into 1337speak
 
         Parameters
         ----------
-        ctx
+        interaction
         intensity: int
             Set the intensity for the conversion. 5 levels, starting with 1
         text: str
@@ -222,10 +232,10 @@ class Fun(Cog):
 
             text = leettext
 
-        await ctx.send(text)
+        await interaction.response.send_message(text)
 
-    @hybrid_command()
-    async def roti(self, ctx: Context, num: int = None) -> None:
+    @app_commands.command()
+    async def roti(self, interaction: Interaction, num: int = None) -> None:
         """
         rules of the internet
 
@@ -233,19 +243,19 @@ class Fun(Cog):
         """
         if num:
             if num not in self.rotis:
-                await ctx.send("Sorry 4chan pleb, no rules found with this number")
+                await interaction.response.send_message("Sorry 4chan pleb, no rules found with this number")
                 return
             rule = num
         else:
             rule = choice(list(self.rotis.keys()))
-        await ctx.send(f"Rule {rule}: {self.rotis[rule]}")
+        await interaction.response.send_message(f"Rule {rule}: {self.rotis[rule]}")
 
-    @hybrid_command()
-    async def say(self, ctx: Context, text: str) -> None:
+    @app_commands.command()
+    async def say(self, interaction: Interaction, text: str) -> None:
         """
         makes the bot say what you want :O
         """
-        await ctx.send(text)
+        await interaction.response.send_message(text)
 
 
 async def setup(bot):

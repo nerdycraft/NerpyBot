@@ -65,33 +65,33 @@ class TestRollCommand:
     """Tests for the roll dice command."""
 
     @pytest.mark.asyncio
-    async def test_roll_valid_dice(self, fun_cog, mock_context):
+    async def test_roll_valid_dice(self, fun_cog, mock_interaction):
         """Rolling with dice > 1 should produce valid result."""
         with patch("modules.fun.randint", return_value=3):
-            await fun_cog.roll.callback(fun_cog, mock_context, dice=6)
+            await fun_cog.roll.callback(fun_cog, mock_interaction, dice=6)
 
-        mock_context.send.assert_called_once()
-        call_args = mock_context.send.call_args[0][0]
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args[0][0]
         assert "d6" in call_args
         assert ":game_die:" in call_args
         assert "3" in call_args
 
     @pytest.mark.asyncio
-    async def test_roll_invalid_dice_returns_retarded_message(self, fun_cog, mock_context):
+    async def test_roll_invalid_dice_returns_retarded_message(self, fun_cog, mock_interaction):
         """Rolling with dice <= 1 should return special message."""
-        await fun_cog.roll.callback(fun_cog, mock_context, dice=1)
+        await fun_cog.roll.callback(fun_cog, mock_interaction, dice=1)
 
-        mock_context.send.assert_called_once()
-        call_args = mock_context.send.call_args[0][0]
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args[0][0]
         assert "AmIRetarded" in call_args
         assert "yes" in call_args
 
     @pytest.mark.asyncio
-    async def test_roll_zero_dice(self, fun_cog, mock_context):
+    async def test_roll_zero_dice(self, fun_cog, mock_interaction):
         """Rolling with 0 should also return special message."""
-        await fun_cog.roll.callback(fun_cog, mock_context, dice=0)
+        await fun_cog.roll.callback(fun_cog, mock_interaction, dice=0)
 
-        call_args = mock_context.send.call_args[0][0]
+        call_args = mock_interaction.response.send_message.call_args[0][0]
         assert "AmIRetarded" in call_args
 
 
@@ -99,27 +99,27 @@ class TestEightballCommand:
     """Tests for the 8ball command."""
 
     @pytest.mark.asyncio
-    async def test_valid_question_gets_answer(self, fun_cog, mock_context):
+    async def test_valid_question_gets_answer(self, fun_cog, mock_interaction):
         """Question ending with ? should get an 8ball response."""
         with patch("modules.fun.choice", return_value="Yes"):
-            await fun_cog.eightball.callback(fun_cog, mock_context, question="Will it rain?")
+            await fun_cog.eightball.callback(fun_cog, mock_interaction, question="Will it rain?")
 
-        mock_context.send.assert_called()
+        mock_interaction.response.send_message.assert_called()
 
     @pytest.mark.asyncio
-    async def test_invalid_question_no_question_mark(self, fun_cog, mock_context):
+    async def test_invalid_question_no_question_mark(self, fun_cog, mock_interaction):
         """Question without ? should get 'not a question' response."""
-        await fun_cog.eightball.callback(fun_cog, mock_context, question="Will it rain")
+        await fun_cog.eightball.callback(fun_cog, mock_interaction, question="Will it rain")
 
-        call_args = mock_context.send.call_args_list[0][0][0]
+        call_args = mock_interaction.response.send_message.call_args_list[0][0][0]
         assert "doesn't look like a question" in call_args
 
     @pytest.mark.asyncio
-    async def test_just_question_mark_is_invalid(self, fun_cog, mock_context):
+    async def test_just_question_mark_is_invalid(self, fun_cog, mock_interaction):
         """Just '?' alone should be invalid."""
-        await fun_cog.eightball.callback(fun_cog, mock_context, question="?")
+        await fun_cog.eightball.callback(fun_cog, mock_interaction, question="?")
 
-        call_args = mock_context.send.call_args_list[0][0][0]
+        call_args = mock_interaction.response.send_message.call_args_list[0][0][0]
         assert "doesn't look like a question" in call_args
 
     def test_ball_responses_are_valid(self, fun_cog):
@@ -133,36 +133,36 @@ class TestHugCommand:
     """Tests for the hug command."""
 
     @pytest.mark.asyncio
-    async def test_hug_with_specific_intensity(self, fun_cog, mock_context, mock_member):
+    async def test_hug_with_specific_intensity(self, fun_cog, mock_interaction, mock_member):
         """Hug with intensity 0-4 should use that specific emoji."""
-        await fun_cog.hug.callback(fun_cog, mock_context, user=mock_member, intensity=2)
+        await fun_cog.hug.callback(fun_cog, mock_interaction, user=mock_member, intensity=2)
 
-        call_args = mock_context.send.call_args[0][0]
+        call_args = mock_interaction.response.send_message.call_args[0][0]
         assert fun_cog.hugs[2] in call_args
 
     @pytest.mark.asyncio
-    async def test_hug_intensity_clamped_to_zero(self, fun_cog, mock_context, mock_member):
+    async def test_hug_intensity_clamped_to_zero(self, fun_cog, mock_interaction, mock_member):
         """Negative intensity should be clamped to 0."""
-        await fun_cog.hug.callback(fun_cog, mock_context, user=mock_member, intensity=-5)
+        await fun_cog.hug.callback(fun_cog, mock_interaction, user=mock_member, intensity=-5)
 
-        call_args = mock_context.send.call_args[0][0]
+        call_args = mock_interaction.response.send_message.call_args[0][0]
         assert fun_cog.hugs[0] in call_args
 
     @pytest.mark.asyncio
-    async def test_hug_intensity_clamped_to_four(self, fun_cog, mock_context, mock_member):
+    async def test_hug_intensity_clamped_to_four(self, fun_cog, mock_interaction, mock_member):
         """Intensity > 4 should be clamped to 4."""
-        await fun_cog.hug.callback(fun_cog, mock_context, user=mock_member, intensity=100)
+        await fun_cog.hug.callback(fun_cog, mock_interaction, user=mock_member, intensity=100)
 
-        call_args = mock_context.send.call_args[0][0]
+        call_args = mock_interaction.response.send_message.call_args[0][0]
         assert fun_cog.hugs[4] in call_args
 
     @pytest.mark.asyncio
-    async def test_hug_random_when_no_intensity(self, fun_cog, mock_context, mock_member):
+    async def test_hug_random_when_no_intensity(self, fun_cog, mock_interaction, mock_member):
         """No intensity should pick random hug."""
         with patch("modules.fun.choice", return_value=fun_cog.hugs[1]):
-            await fun_cog.hug.callback(fun_cog, mock_context, user=mock_member, intensity=None)
+            await fun_cog.hug.callback(fun_cog, mock_interaction, user=mock_member, intensity=None)
 
-        call_args = mock_context.send.call_args[0][0]
+        call_args = mock_interaction.response.send_message.call_args[0][0]
         assert fun_cog.hugs[1] in call_args
 
     def test_hug_emojis_available(self, fun_cog):
@@ -174,55 +174,55 @@ class TestChooseCommand:
     """Tests for the choose command."""
 
     @pytest.mark.asyncio
-    async def test_choose_from_multiple_options(self, fun_cog, mock_context):
+    async def test_choose_from_multiple_options(self, fun_cog, mock_interaction):
         """Should choose from comma-separated options."""
         with patch("modules.fun.choice", return_value="option2"):
-            await fun_cog.choose.callback(fun_cog, mock_context, choices="option1,option2,option3")
+            await fun_cog.choose.callback(fun_cog, mock_interaction, choices="option1,option2,option3")
 
-        call_args = mock_context.send.call_args[0][0]
+        call_args = mock_interaction.response.send_message.call_args[0][0]
         assert "option2" in call_args
         assert "I choose" in call_args
 
     @pytest.mark.asyncio
-    async def test_choose_insufficient_options_raises(self, fun_cog, mock_context):
+    async def test_choose_insufficient_options_raises(self, fun_cog, mock_interaction):
         """Less than 2 chars in choices string should raise."""
         # Note: The code has a bug - it checks len(choices) < 2 instead of len(choices_list)
         # This means "a" (single char) raises, but "a,b" works even though both are short
         from utils.errors import NerpyException
 
         with pytest.raises(NerpyException, match="Not enough choices"):
-            await fun_cog.choose.callback(fun_cog, mock_context, choices="a")
+            await fun_cog.choose.callback(fun_cog, mock_interaction, choices="a")
 
 
 class TestRotiCommand:
     """Tests for the rules of the internet command."""
 
     @pytest.mark.asyncio
-    async def test_roti_with_valid_number(self, fun_cog, mock_context):
+    async def test_roti_with_valid_number(self, fun_cog, mock_interaction):
         """Valid rule number should return that rule."""
-        await fun_cog.roti.callback(fun_cog, mock_context, num=34)
+        await fun_cog.roti.callback(fun_cog, mock_interaction, num=34)
 
-        call_args = mock_context.send.call_args[0][0]
+        call_args = mock_interaction.response.send_message.call_args[0][0]
         assert "Rule 34" in call_args
         assert "porn" in call_args.lower()
 
     @pytest.mark.asyncio
-    async def test_roti_invalid_number(self, fun_cog, mock_context):
+    async def test_roti_invalid_number(self, fun_cog, mock_interaction):
         """Invalid rule number should return not found message and exit early."""
-        await fun_cog.roti.callback(fun_cog, mock_context, num=999)
+        await fun_cog.roti.callback(fun_cog, mock_interaction, num=999)
 
         # Should only send the error message, then return
-        mock_context.send.assert_called_once()
-        call_args = mock_context.send.call_args[0][0]
+        mock_interaction.response.send_message.assert_called_once()
+        call_args = mock_interaction.response.send_message.call_args[0][0]
         assert "no rules found" in call_args
 
     @pytest.mark.asyncio
-    async def test_roti_random_when_no_number(self, fun_cog, mock_context):
+    async def test_roti_random_when_no_number(self, fun_cog, mock_interaction):
         """No number should return random rule."""
         with patch("modules.fun.choice", return_value=42):
-            await fun_cog.roti.callback(fun_cog, mock_context, num=None)
+            await fun_cog.roti.callback(fun_cog, mock_interaction, num=None)
 
-        call_args = mock_context.send.call_args[0][0]
+        call_args = mock_interaction.response.send_message.call_args[0][0]
         assert "Rule 42" in call_args
 
     def test_rotis_contains_classic_rules(self, fun_cog):
@@ -236,8 +236,8 @@ class TestSayCommand:
     """Tests for the say command."""
 
     @pytest.mark.asyncio
-    async def test_say_echoes_text(self, fun_cog, mock_context):
+    async def test_say_echoes_text(self, fun_cog, mock_interaction):
         """Bot should repeat the provided text."""
-        await fun_cog.say.callback(fun_cog, mock_context, text="Hello World!")
+        await fun_cog.say.callback(fun_cog, mock_interaction, text="Hello World!")
 
-        mock_context.send.assert_called_once_with("Hello World!")
+        mock_interaction.response.send_message.assert_called_once_with("Hello World!")

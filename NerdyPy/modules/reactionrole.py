@@ -1,33 +1,24 @@
 # -*- coding: utf-8 -*-
 
-from discord import Role, TextChannel, app_commands
+from discord import Interaction, Role, TextChannel, app_commands
 from discord.app_commands import checks
-from discord.ext.commands import Cog, Context, MissingPermissions, hybrid_group
+from discord.ext.commands import Cog, GroupCog
 
 from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 
 from utils.format import box
-from utils.helpers import empty_subcommand, error_context, notify_error, send_hidden_message
+from utils.helpers import error_context, notify_error
 from utils.permissions import validate_channel_permissions
 
 
 @app_commands.default_permissions(manage_roles=True)
-class ReactionRole(Cog):
+@app_commands.guild_only()
+class ReactionRole(GroupCog, group_name="reactionrole"):
     """cog for managing reaction-based role assignment"""
 
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
         self.bot = bot
-
-    async def cog_check(self, ctx: Context) -> bool:
-        """Enforce manage_roles permission for prefix commands."""
-        if ctx.invoked_with == "help":
-            return False
-        if ctx.interaction is not None:
-            return True
-        if ctx.author.guild_permissions.manage_roles:
-            return True
-        raise MissingPermissions(["manage_roles"])
 
     @Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -112,20 +103,14 @@ class ReactionRole(Cog):
                 f"[{guild.name} ({guild.id})]: could not clear reaction {emoji} from message {message_id}: {ex}"
             )
 
-    @hybrid_group(name="reactionrole", aliases=["rr"])
+    @app_commands.command(name="add")
     @checks.has_permissions(manage_roles=True)
-    async def _reactionrole(self, ctx: Context):
-        """manage reaction role assignments [bot-moderator]"""
-        await empty_subcommand(ctx)
-
-    @_reactionrole.command(name="add")
-    @checks.has_permissions(manage_roles=True)
-    async def _add(self, ctx: Context, channel: TextChannel, message_id: str, emoji: str, role: Role):
+    async def _add(self, interaction: Interaction, channel: TextChannel, message_id: str, emoji: str, role: Role):
         """add an emoji-to-role mapping on any message
 
         Parameters
         ----------
-        ctx
+        interaction
         channel: discord.TextChannel
             The channel the message is in
         message_id: str
@@ -137,25 +122,29 @@ class ReactionRole(Cog):
         """
         msg_id = int(message_id)
 
-        if role >= ctx.guild.me.top_role:
-            await send_hidden_message(ctx, f"I cannot assign **{role.name}** — it is at or above my highest role.")
+        if role >= interaction.guild.me.top_role:
+            await interaction.response.send_message(
+                f"I cannot assign **{role.name}** — it is at or above my highest role.", ephemeral=True
+            )
             return
 
         validate_channel_permissions(
-            channel, ctx.guild, "view_channel", "add_reactions", "manage_messages", "read_message_history"
+            channel, interaction.guild, "view_channel", "add_reactions", "manage_messages", "read_message_history"
         )
 
         try:
             discord_msg = await channel.fetch_message(msg_id)
         except Exception:
-            await send_hidden_message(ctx, f"Could not find message `{msg_id}` in {channel.mention}.")
+            await interaction.response.send_message(
+                f"Could not find message `{msg_id}` in {channel.mention}.", ephemeral=True
+            )
             return
 
         with self.bot.session_scope() as session:
             rr_msg = ReactionRoleMessage.get_by_message(msg_id, session)
             if rr_msg is None:
                 rr_msg = ReactionRoleMessage(
-                    GuildId=ctx.guild.id,
+                    GuildId=interaction.guild.id,
                     ChannelId=channel.id,
                     MessageId=msg_id,
                 )
@@ -164,7 +153,9 @@ class ReactionRole(Cog):
 
             existing = ReactionRoleEntry.get_by_message_and_emoji(rr_msg.Id, emoji, session)
             if existing is not None:
-                await send_hidden_message(ctx, f"Emoji {emoji} is already mapped on that message.")
+                await interaction.response.send_message(
+                    f"Emoji {emoji} is already mapped on that message.", ephemeral=True
+                )
                 return
 
             entry = ReactionRoleEntry(
@@ -177,18 +168,20 @@ class ReactionRole(Cog):
         try:
             await discord_msg.add_reaction(emoji)
         except Exception as ex:
-            self.bot.log.warning(f"{error_context(ctx)}: could not add reaction to message {msg_id}: {ex}")
+            self.bot.log.warning(f"{error_context(interaction)}: could not add reaction to message {msg_id}: {ex}")
 
-        await send_hidden_message(ctx, f"Mapped {emoji} to **{role.name}** on message `{msg_id}`.")
+        await interaction.response.send_message(
+            f"Mapped {emoji} to **{role.name}** on message `{msg_id}`.", ephemeral=True
+        )
 
-    @_reactionrole.command(name="remove")
+    @app_commands.command(name="remove")
     @checks.has_permissions(manage_roles=True)
-    async def _remove(self, ctx: Context, message_id: str, emoji: str):
+    async def _remove(self, interaction: Interaction, message_id: str, emoji: str):
         """remove an emoji-to-role mapping from a message
 
         Parameters
         ----------
-        ctx
+        interaction
         message_id: str
             The Discord message ID
         emoji: str
@@ -199,12 +192,16 @@ class ReactionRole(Cog):
         with self.bot.session_scope() as session:
             rr_msg = ReactionRoleMessage.get_by_message(msg_id, session)
             if rr_msg is None:
-                await send_hidden_message(ctx, "No reaction role config found for that message.")
+                await interaction.response.send_message(
+                    "No reaction role config found for that message.", ephemeral=True
+                )
                 return
 
             entry = ReactionRoleEntry.get_by_message_and_emoji(rr_msg.Id, emoji, session)
             if entry is None:
-                await send_hidden_message(ctx, f"No mapping for {emoji} found on that message.")
+                await interaction.response.send_message(
+                    f"No mapping for {emoji} found on that message.", ephemeral=True
+                )
                 return
 
             channel_id = rr_msg.ChannelId
@@ -215,42 +212,42 @@ class ReactionRole(Cog):
             if not remaining:
                 session.delete(rr_msg)
 
-        await self._clear_reaction(ctx.guild, channel_id, msg_id, emoji)
-        await send_hidden_message(ctx, f"Removed mapping for {emoji}.")
+        await self._clear_reaction(interaction.guild, channel_id, msg_id, emoji)
+        await interaction.response.send_message(f"Removed mapping for {emoji}.", ephemeral=True)
 
-    @_reactionrole.command(name="list")
+    @app_commands.command(name="list")
     @checks.has_permissions(manage_roles=True)
-    async def _list(self, ctx: Context):
+    async def _list(self, interaction: Interaction):
         """list all reaction role configurations for this server"""
         with self.bot.session_scope() as session:
-            messages = ReactionRoleMessage.get_by_guild(ctx.guild.id, session)
+            messages = ReactionRoleMessage.get_by_guild(interaction.guild.id, session)
             if not messages:
-                await send_hidden_message(ctx, "No reaction roles configured.")
+                await interaction.response.send_message("No reaction roles configured.", ephemeral=True)
                 return
 
             msg = "==== Reaction Roles ====\n"
             for rr_msg in messages:
-                channel = ctx.guild.get_channel(rr_msg.ChannelId)
+                channel = interaction.guild.get_channel(rr_msg.ChannelId)
                 channel_name = channel.name if channel else f"Unknown ({rr_msg.ChannelId})"
                 msg += f"\n--- #{channel_name} / {rr_msg.MessageId} ---\n"
                 if rr_msg.entries:
                     for entry in rr_msg.entries:
-                        role = ctx.guild.get_role(entry.RoleId)
+                        role = interaction.guild.get_role(entry.RoleId)
                         role_name = role.name if role else f"Unknown ({entry.RoleId})"
                         msg += f"  {entry.Emoji} -> {role_name}\n"
                 else:
                     msg += "  (no mappings)\n"
 
-        await send_hidden_message(ctx, box(msg))
+        await interaction.response.send_message(box(msg), ephemeral=True)
 
-    @_reactionrole.command(name="clear")
+    @app_commands.command(name="clear")
     @checks.has_permissions(manage_roles=True)
-    async def _clear(self, ctx: Context, message_id: str):
+    async def _clear(self, interaction: Interaction, message_id: str):
         """remove all reaction role mappings from a message
 
         Parameters
         ----------
-        ctx
+        interaction
         message_id: str
             The Discord message ID to clear all mappings from
         """
@@ -259,7 +256,9 @@ class ReactionRole(Cog):
         with self.bot.session_scope() as session:
             rr_msg = ReactionRoleMessage.get_by_message(msg_id, session)
             if rr_msg is None:
-                await send_hidden_message(ctx, "No reaction role config found for that message.")
+                await interaction.response.send_message(
+                    "No reaction role config found for that message.", ephemeral=True
+                )
                 return
 
             channel_id = rr_msg.ChannelId
@@ -267,9 +266,11 @@ class ReactionRole(Cog):
             ReactionRoleMessage.delete(msg_id, session)
 
         for emoji in emojis:
-            await self._clear_reaction(ctx.guild, channel_id, msg_id, emoji)
+            await self._clear_reaction(interaction.guild, channel_id, msg_id, emoji)
 
-        await send_hidden_message(ctx, f"Cleared all reaction role mappings from message `{msg_id}`.")
+        await interaction.response.send_message(
+            f"Cleared all reaction role mappings from message `{msg_id}`.", ephemeral=True
+        )
 
 
 async def setup(bot):

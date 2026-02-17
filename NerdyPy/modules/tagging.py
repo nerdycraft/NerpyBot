@@ -2,31 +2,24 @@
 
 from datetime import UTC, datetime
 from io import BytesIO
+from typing import Literal
 
-from discord import FFmpegOpusAudio
-from discord.app_commands import checks, guild_only, rename
-from discord.ext.commands import (
-    Cog,
-    Context,
-    bot_has_permissions,
-    check,
-    clean_content,
-    has_permissions,
-    hybrid_group,
-)
-from models.tagging import Tag, TagType, TagTypeConverter
+from discord import FFmpegOpusAudio, Interaction, app_commands
+from discord.ext.commands import GroupCog
+
+from models.tagging import Tag, TagType
 
 import utils.format as fmt
 from utils.audio import QueuedSong, QueueMixin
 from utils.checks import is_connected_to_voice, is_in_same_voice_channel_as_bot
 from utils.download import download
 from utils.errors import NerpyException
-from utils.helpers import error_context, send_hidden_message
+from utils.helpers import error_context
 
 
-@guild_only()
-@bot_has_permissions(send_messages=True)
-class Tagging(QueueMixin, Cog):
+@app_commands.guild_only()
+@app_commands.checks.bot_has_permissions(send_messages=True)
+class Tagging(QueueMixin, GroupCog, group_name="tag"):
     """Command group for sound and text tags"""
 
     def __init__(self, bot):
@@ -36,28 +29,23 @@ class Tagging(QueueMixin, Cog):
         self.queue = {}
         self.audio = self.bot.audio
 
-    @hybrid_group(name="tag", fallback="get", aliases=["t"])
-    @check(is_connected_to_voice)
-    async def _tag(self, ctx: Context, name: str):
+    @app_commands.command(name="get")
+    @app_commands.check(is_connected_to_voice)
+    async def _tag_get(self, interaction: Interaction, name: str):
         """sound and text tags"""
-        await self._send_to_queue(ctx, name)
+        await self._send_to_queue(interaction, name)
 
-    @_tag.command(name="skip", hidden=True)
-    @check(is_in_same_voice_channel_as_bot)
-    async def _skip_audio(self, ctx: Context):
+    @app_commands.command(name="skip")
+    @app_commands.check(is_in_same_voice_channel_as_bot)
+    async def _skip_audio(self, interaction: Interaction):
         """skip current track"""
-        self.audio.stop(ctx.guild.id)
+        self.audio.stop(interaction.guild.id)
+        await interaction.response.send_message("Skipped.", ephemeral=True)
 
-    @_tag.group(name="queue", hidden=True)
-    async def _queue(self, ctx: Context):
-        """Manage the Playlist Queue"""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
-
-    @_queue.command(name="list", hidden=True)
-    async def _list_queue(self, ctx: Context):
+    @app_commands.command(name="queue-list")
+    async def _list_queue(self, interaction: Interaction):
         """list current items in queue"""
-        queue = self.audio.list_queue(ctx.guild.id)
+        queue = self.audio.list_queue(interaction.guild.id)
         msg = ""
         _index = 0
 
@@ -67,111 +55,111 @@ class Tagging(QueueMixin, Cog):
                 msg += f"{t.title}"
                 _index = _index + 1
 
+        if not msg:
+            await interaction.response.send_message("Queue is empty.", ephemeral=True)
+            return
+
+        first = True
         for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
-            if page:
-                await ctx.send(fmt.box(page, "md"))
+            if first:
+                await interaction.response.send_message(fmt.box(page, "md"))
+                first = False
             else:
-                await send_hidden_message(ctx, "Queue is empty.")
+                await interaction.followup.send(fmt.box(page, "md"))
 
-    @_queue.command(name="drop", hidden=True)
-    @checks.has_permissions(mute_members=True)
-    @has_permissions(mute_members=True)
-    async def _drop_queue(self, ctx: Context):
+    @app_commands.command(name="queue-drop")
+    @app_commands.checks.has_permissions(mute_members=True)
+    async def _drop_queue(self, interaction: Interaction):
         """drop the playlist entirely"""
-        self.audio.stop(ctx.guild.id)
-        self.audio.clear_buffer(ctx.guild.id)
-        self._clear_queue(ctx.guild.id)
-        await send_hidden_message(ctx, "Queue dropped.")
+        self.audio.stop(interaction.guild.id)
+        self.audio.clear_buffer(interaction.guild.id)
+        self._clear_queue(interaction.guild.id)
+        await interaction.response.send_message("Queue dropped.", ephemeral=True)
 
-    @_tag.command(name="create")
-    @rename(tag_type="type")
-    async def _tag_create(self, ctx: Context, name: str, tag_type: TagTypeConverter, content: clean_content) -> None:
-        """
-        Create Tags.
-
-        Parameters
-        ----------
-        ctx
-        name: str
-            The name of your Tag.
-        tag_type: Literal["sound", "text", "url"]
-            One of sound, text or url.
-        content: clean_content
-            The content of your Tag. (Allowed is text or a URL for sound tags)
-        """
+    @app_commands.command(name="create")
+    @app_commands.rename(tag_type="type")
+    async def _tag_create(
+        self, interaction: Interaction, name: str, tag_type: Literal["sound", "text", "url"], content: str
+    ) -> None:
+        """Create Tags."""
         with self.bot.session_scope() as session:
-            if Tag.exists(name, ctx.guild.id, session):
-                await send_hidden_message(ctx, f'tag "{name}" already exists!')
-
-        async with ctx.typing():
-            with self.bot.session_scope() as session:
-                self.bot.log.debug(f'{error_context(ctx)}: creating tag "{name}"')
-                _tag = Tag(
-                    Name=name,
-                    Author=str(ctx.author),
-                    Type=tag_type,
-                    CreateDate=datetime.now(UTC),
-                    Count=0,
-                    Volume=100,
-                    GuildId=ctx.guild.id,
-                )
-
-                Tag.add(_tag, session)
-                session.flush()
-
-                self._add_tag_entries(session, _tag, content)
-
-            self.bot.log.info(f'{error_context(ctx)}: tag "{name}" created')
-        await send_hidden_message(ctx, f'tag "{name}" created!')
-
-    @_tag.command(name="add")
-    async def _tag_add(self, ctx: Context, name: clean_content, content: clean_content):
-        """add an entry to an existing tag"""
-        with self.bot.session_scope() as session:
-            if not Tag.exists(name, ctx.guild.id, session):
-                await send_hidden_message(ctx, f'tag "{name}" doesn\'t exists!')
+            if Tag.exists(name, interaction.guild.id, session):
+                await interaction.response.send_message(f'tag "{name}" already exists!', ephemeral=True)
                 return
 
-        async with ctx.typing():
-            with self.bot.session_scope() as session:
-                _tag = Tag.get(name, ctx.guild.id, session)
-                self._add_tag_entries(session, _tag, content)
+        await interaction.response.defer(ephemeral=True)
+        tag_type_val = TagType[tag_type].value
 
-            self.bot.log.info(f'{error_context(ctx)}: added entry to tag "{name}"')
-        await send_hidden_message(ctx, f'Entry added to tag "{name}"!')
+        with self.bot.session_scope() as session:
+            self.bot.log.debug(f'{error_context(interaction)}: creating tag "{name}"')
+            _tag = Tag(
+                Name=name,
+                Author=str(interaction.user),
+                Type=tag_type_val,
+                CreateDate=datetime.now(UTC),
+                Count=0,
+                Volume=100,
+                GuildId=interaction.guild.id,
+            )
 
-    @_tag.command(name="volume")
-    async def _tag_volume(self, ctx: Context, name: clean_content, vol: int):
+            Tag.add(_tag, session)
+            session.flush()
+
+            self._add_tag_entries(session, _tag, content)
+
+        self.bot.log.info(f'{error_context(interaction)}: tag "{name}" created')
+        await interaction.followup.send(f'tag "{name}" created!', ephemeral=True)
+
+    @app_commands.command(name="add")
+    async def _tag_add(self, interaction: Interaction, name: str, content: str):
+        """add an entry to an existing tag"""
+        with self.bot.session_scope() as session:
+            if not Tag.exists(name, interaction.guild.id, session):
+                await interaction.response.send_message(f'tag "{name}" doesn\'t exists!', ephemeral=True)
+                return
+
+        await interaction.response.defer(ephemeral=True)
+        with self.bot.session_scope() as session:
+            _tag = Tag.get(name, interaction.guild.id, session)
+            self._add_tag_entries(session, _tag, content)
+
+        self.bot.log.info(f'{error_context(interaction)}: added entry to tag "{name}"')
+        await interaction.followup.send(f'Entry added to tag "{name}"!', ephemeral=True)
+
+    @app_commands.command(name="volume")
+    async def _tag_volume(self, interaction: Interaction, name: str, vol: int):
         """adjust the volume of a sound tag"""
         if not 0 <= vol <= 200:
-            await send_hidden_message(ctx, "Volume must be between 0 and 200.")
+            await interaction.response.send_message("Volume must be between 0 and 200.", ephemeral=True)
             return
-        self.bot.log.debug(f'{error_context(ctx)}: set volume of "{name}" to {vol}')
+        self.bot.log.debug(f'{error_context(interaction)}: set volume of "{name}" to {vol}')
         with self.bot.session_scope() as session:
-            if not Tag.exists(name, ctx.guild.id, session):
-                await send_hidden_message(ctx, f'tag "{name}" doesn\'t exist!')
+            if not Tag.exists(name, interaction.guild.id, session):
+                await interaction.response.send_message(f'tag "{name}" doesn\'t exist!', ephemeral=True)
+                return
 
         with self.bot.session_scope() as session:
-            _tag = Tag.get(name, ctx.guild.id, session)
+            _tag = Tag.get(name, interaction.guild.id, session)
             _tag.Volume = vol
-        await send_hidden_message(ctx, f'changed volume of "{name}" to {vol}.')
+        await interaction.response.send_message(f'changed volume of "{name}" to {vol}.', ephemeral=True)
 
-    @_tag.command(name="delete")
-    async def _tag_delete(self, ctx: Context, name: clean_content):
+    @app_commands.command(name="delete")
+    async def _tag_delete(self, interaction: Interaction, name: str):
         """delete a tag?"""
-        self.bot.log.info(f'{error_context(ctx)}: deleting tag "{name}"')
+        self.bot.log.info(f'{error_context(interaction)}: deleting tag "{name}"')
         with self.bot.session_scope() as session:
-            if not Tag.exists(name, ctx.guild.id, session):
-                await send_hidden_message(ctx, f'tag "{name}" doesn\'t exist!')
+            if not Tag.exists(name, interaction.guild.id, session):
+                await interaction.response.send_message(f'tag "{name}" doesn\'t exist!', ephemeral=True)
+                return
 
-            Tag.delete(name, ctx.guild.id, session)
-        await send_hidden_message(ctx, f'tag "{name}" deleted!')
+            Tag.delete(name, interaction.guild.id, session)
+        await interaction.response.send_message(f'tag "{name}" deleted!', ephemeral=True)
 
-    @_tag.command(name="list")
-    async def _tag_list(self, ctx: Context):
+    @app_commands.command(name="list")
+    async def _tag_list(self, interaction: Interaction):
         """a list of all available tags"""
         with self.bot.session_scope() as session:
-            tags = Tag.get_all_from_guild(ctx.guild.id, session)
+            tags = Tag.get_all_from_guild(interaction.guild.id, session)
 
             msg = ""
             last_header = "^"
@@ -183,43 +171,47 @@ class Tagging(QueueMixin, Cog):
                 typ = TagType(t.Type).name.upper()[0]
                 msg += f"({typ}|{t.entries.count()}) - "
 
+            first = True
             for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
-                await ctx.send(fmt.box(page, "md"))
+                if first:
+                    await interaction.response.send_message(fmt.box(page, "md"))
+                    first = False
+                else:
+                    await interaction.followup.send(fmt.box(page, "md"))
 
-    @_tag.command(name="info")
-    async def _tag_info(self, ctx: Context, name: clean_content):
+    @app_commands.command(name="info")
+    async def _tag_info(self, interaction: Interaction, name: str):
         """information about the tag"""
         with self.bot.session_scope() as session:
-            t = Tag.get(name, ctx.guild.id, session)
-            await ctx.send(fmt.box(str(t)))
+            t = Tag.get(name, interaction.guild.id, session)
+            await interaction.response.send_message(fmt.box(str(t)))
 
-    @_tag.command(name="raw")
-    async def _tag_raw(self, ctx: Context, name: clean_content):
+    @app_commands.command(name="raw")
+    async def _tag_raw(self, interaction: Interaction, name: str):
         """raw tag data"""
         with self.bot.session_scope() as session:
-            t = Tag.get(name, ctx.guild.id, session)
+            t = Tag.get(name, interaction.guild.id, session)
             msg = f"==== {t.Name} ====\n\n"
 
             for entry in t.entries.all():
                 msg += entry.TextContent
 
-            await ctx.send(fmt.box(msg))
+            await interaction.response.send_message(fmt.box(msg))
 
-    async def _send_to_queue(self, ctx: Context, tag_name):
-        self.bot.log.info(f'{error_context(ctx)}: requesting tag "{tag_name}"')
+    async def _send_to_queue(self, interaction: Interaction, tag_name):
+        self.bot.log.info(f'{error_context(interaction)}: requesting tag "{tag_name}"')
         with self.bot.session_scope() as session:
-            _tag = Tag.get(tag_name, ctx.guild.id, session)
+            _tag = Tag.get(tag_name, interaction.guild.id, session)
             if _tag is None:
                 raise NerpyException(f'I searched everywhere, but could not find a Tag called "{tag_name}"!')
 
             if TagType(_tag.Type) is TagType.sound:
-                song = QueuedSong(ctx.author.voice.channel, self._fetch, tag_name, tag_name)
-                await self.audio.play(ctx.guild.id, song)
-                if ctx.interaction is not None:
-                    await ctx.send(f"Playing **{tag_name}**", ephemeral=True)
+                song = QueuedSong(interaction.user.voice.channel, self._fetch, tag_name, tag_name)
+                await self.audio.play(interaction.guild.id, song)
+                await interaction.response.send_message(f"Playing **{tag_name}**", ephemeral=True)
             else:
                 random_entry = _tag.get_random_entry()
-                await ctx.send(random_entry.TextContent)
+                await interaction.response.send_message(random_entry.TextContent)
 
     def _fetch(self, song: QueuedSong):
         with self.bot.session_scope() as session:

@@ -3,15 +3,16 @@
 from datetime import UTC, datetime, timedelta
 from typing import Optional
 
-from discord import TextChannel
+from discord import Interaction, TextChannel, app_commands
 from discord.ext import tasks
-from discord.ext.commands import Context, GroupCog, hybrid_command
+from discord.ext.commands import GroupCog
 from models.reminder import ReminderMessage
 from utils.format import box, pagify
-from utils.helpers import notify_error, send_hidden_message
+from utils.helpers import notify_error
 from utils.permissions import validate_channel_permissions
 
 
+@app_commands.guild_only()
 class Reminder(GroupCog, group_name="reminder"):
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
@@ -42,36 +43,36 @@ class Reminder(GroupCog, group_name="reminder"):
                                 if msg.Repeat < 1:
                                     session.delete(msg)
                                 else:
-                                    msg.LastSend = datetime.now()
+                                    msg.LastSend = datetime.now(UTC)
                                     msg.Count += 1
         except Exception as ex:
             self.bot.log.error(f"Reminder loop: {ex}")
             await notify_error(self.bot, "Reminder background loop", ex)
         self.bot.log.debug("Stop Reminder Loop!")
 
-    @hybrid_command(name="create")
+    @app_commands.command(name="create")
     async def _reminder_create(
-        self, ctx: Context, channel: Optional[TextChannel], minutes: int, repeat: bool, message: str
+        self, interaction: Interaction, channel: Optional[TextChannel], minutes: int, repeat: bool, message: str
     ):
         """
         creates a message which gets send after a certain time
         """
-        channel_id = ctx.channel.id
-        channel_name = ctx.channel.name
+        channel_id = interaction.channel.id
+        channel_name = interaction.channel.name
 
         if channel:
             channel_id = channel.id
             channel_name = channel.name
 
-        target = channel or ctx.channel
-        validate_channel_permissions(target, ctx.guild, "view_channel", "send_messages")
+        target = channel or interaction.channel
+        validate_channel_permissions(target, interaction.guild, "view_channel", "send_messages")
 
         with self.bot.session_scope() as session:
             msg = ReminderMessage(
-                GuildId=ctx.guild.id,
+                GuildId=interaction.guild.id,
                 ChannelId=channel_id,
                 ChannelName=channel_name,
-                Author=str(ctx.author),
+                Author=str(interaction.user),
                 CreateDate=datetime.now(UTC),
                 LastSend=datetime.now(UTC),
                 Minutes=minutes,
@@ -80,32 +81,37 @@ class Reminder(GroupCog, group_name="reminder"):
                 Count=0,
             )
             session.add(msg)
-        await send_hidden_message(ctx, "Message created.")
+        await interaction.response.send_message("Message created.", ephemeral=True)
 
-    @hybrid_command(name="list")
-    async def _reminder_list(self, ctx: Context):
+    @app_commands.command(name="list")
+    async def _reminder_list(self, interaction: Interaction):
         """
         list all current reminder messages
         """
         to_send = ""
         with self.bot.session_scope() as session:
-            msgs = ReminderMessage.get_all_by_guild(ctx.guild.id, session)
+            msgs = ReminderMessage.get_all_by_guild(interaction.guild.id, session)
             if len(msgs) > 0:
                 for msg in msgs:
                     to_send += f"{str(msg)}\n\n"
+                first = True
                 for page in pagify(to_send, delims=["\n#"], page_length=1990):
-                    await send_hidden_message(ctx, box(page, "md"))
+                    if first:
+                        await interaction.response.send_message(box(page, "md"), ephemeral=True)
+                        first = False
+                    else:
+                        await interaction.followup.send(box(page, "md"), ephemeral=True)
             else:
-                await send_hidden_message(ctx, "No messages in queue.")
+                await interaction.response.send_message("No messages in queue.", ephemeral=True)
 
-    @hybrid_command(name="delete")
-    async def _reminder_delete(self, ctx: Context, reminder_id: int):
+    @app_commands.command(name="delete")
+    async def _reminder_delete(self, interaction: Interaction, reminder_id: int):
         """
         deletes a reminder message
         """
         with self.bot.session_scope() as session:
-            ReminderMessage.delete(reminder_id, ctx.guild.id, session)
-        await send_hidden_message(ctx, "Message deleted.")
+            ReminderMessage.delete(reminder_id, interaction.guild.id, session)
+        await interaction.response.send_message("Message deleted.", ephemeral=True)
 
     @_reminder_loop.before_loop
     async def _reminder_before_loop(self):

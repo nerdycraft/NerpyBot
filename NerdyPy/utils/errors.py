@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from discord.ext.commands import CheckFailure
+from discord.app_commands import CheckFailure
 
 
 class NerpyException(Exception):

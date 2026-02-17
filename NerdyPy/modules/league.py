@@ -4,9 +4,8 @@ from enum import Enum
 from typing import Literal
 
 from aiohttp import ClientSession
-from discord import Embed
-from discord.app_commands import rename
-from discord.ext.commands import Context, GroupCog, hybrid_command
+from discord import Embed, Interaction, app_commands
+from discord.ext.commands import GroupCog
 from utils.errors import NerpyException
 from utils.helpers import error_context
 
@@ -18,6 +17,8 @@ class LeagueCommand(Enum):
     RANK_POSITIONS = "league/v4/entries/by-summoner/"
 
 
+@app_commands.guild_only()
+@app_commands.checks.bot_has_permissions(send_messages=True, embed_links=True)
 class League(GroupCog):
     """league of legends related stuff"""
 
@@ -41,9 +42,9 @@ class League(GroupCog):
         base_url = f"https://{region}.api.riotgames.com/lol/"
         return f"{base_url}{cmd.value}{arg}"
 
-    @hybrid_command()
-    @rename(summoner_name="name")
-    async def summoner(self, ctx: Context, region: Literal["EUW1", "NA1"], summoner_name: str) -> None:
+    @app_commands.command()
+    @app_commands.rename(summoner_name="name")
+    async def summoner(self, interaction: Interaction, region: Literal["EUW1", "NA1"], summoner_name: str) -> None:
         """get information about the summoner"""
         rank = tier = lp = wins = losses = ""
 
@@ -54,7 +55,7 @@ class League(GroupCog):
             async with summoner_session.get(summoner_url) as summoner_response:
                 data = await summoner_response.json()
                 if "status" in data:  # if query is successful there is no status key
-                    self.bot.log.error(f"{error_context(ctx)}: Riot API error: {data['status']}")
+                    self.bot.log.error(f"{error_context(interaction)}: Riot API error: {data['status']}")
                     raise NerpyException("Could not get data from API. Please report to Bot author.")
                 else:
                     summoner_id = data.get("id")
@@ -89,7 +90,7 @@ class League(GroupCog):
                         emb.add_field(name="wins", value=wins)
                         emb.add_field(name="losses", value=losses)
 
-        await ctx.send(embed=emb)
+        await interaction.response.send_message(embed=emb)
 
 
 async def setup(bot):

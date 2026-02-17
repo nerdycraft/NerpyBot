@@ -12,15 +12,15 @@ from typing import Dict, Literal, LiteralString, Optional, Tuple
 import discord
 import requests
 from blizzapi import Language, Region, RetailClient
-from discord import Color, Embed, TextChannel
+from discord import Color, Embed, Interaction, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext import tasks
-from discord.ext.commands import Context, GroupCog, bot_has_permissions, has_permissions, hybrid_command, hybrid_group
+from discord.ext.commands import GroupCog
 from models.wow import WowCharacterMounts, WowGuildNewsConfig
 from utils.errors import NerpyException
 from utils.format import box, pagify
 from utils.account_resolution import build_account_groups, make_pair_key
-from utils.helpers import notify_error, send_hidden_message
+from utils.helpers import notify_error
 from utils.permissions import validate_channel_permissions
 
 
@@ -114,9 +114,11 @@ def _clear_character_failure(failures: dict, char_name: str, char_realm: str) ->
     failures.pop(f"{char_name}:{char_realm}", None)
 
 
-@bot_has_permissions(send_messages=True, embed_links=True)
+@app_commands.checks.bot_has_permissions(send_messages=True, embed_links=True)
 class WorldofWarcraft(GroupCog, group_name="wow"):
     """World of Warcraft API"""
+
+    guildnews = app_commands.Group(name="guildnews", description="manage WoW guild news tracking")
 
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
@@ -309,10 +311,10 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
     # ── Armory command ──────────────────────────────────────────────────
 
-    @hybrid_command(name="armory", aliases=["search", "char"])
+    @app_commands.command(name="armory")
     async def _wow_armory(
         self,
-        ctx: Context,
+        interaction: Interaction,
         name: str,
         realm: str,
         language: Optional[Literal["de", "en"]] = "en",
@@ -325,60 +327,57 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         language is optional, defaults to English.
         """
         try:
-            async with ctx.typing(ephemeral=True):
-                realm_slug, region = await self._parse_realm(realm)
-                name = name.lower()
-                profile = f"{region}/{realm_slug}/{name}"
+            await interaction.response.defer()
+            realm_slug, region = await self._parse_realm(realm)
+            name = name.lower()
+            profile = f"{region}/{realm_slug}/{name}"
 
-                # noinspection PyTypeChecker
-                character, profile_picture = self._get_character(realm_slug, region, name, language)
+            # noinspection PyTypeChecker
+            character, profile_picture = self._get_character(realm_slug, region, name, language)
 
-                if not isinstance(character, dict) or character.get("code") == 404:
-                    raise NerpyException("No Character with this name found.")
+            if not isinstance(character, dict) or character.get("code") == 404:
+                raise NerpyException("No Character with this name found.")
 
-                best_keys = self._get_best_mythic_keys(region, realm_slug, name)
-                rio_score = self._get_raiderio_score(region, realm_slug, name)
+            best_keys = self._get_best_mythic_keys(region, realm_slug, name)
+            rio_score = self._get_raiderio_score(region, realm_slug, name)
 
-                armory = self._get_link("armory", profile)
-                raiderio = self._get_link("raiderio", profile)
-                warcraftlogs = self._get_link("warcraftlogs", profile)
-                wowprogress = self._get_link("wowprogress", profile)
+            armory = self._get_link("armory", profile)
+            raiderio = self._get_link("raiderio", profile)
+            warcraftlogs = self._get_link("warcraftlogs", profile)
+            wowprogress = self._get_link("wowprogress", profile)
 
-                emb = Embed(
-                    title=f"{character['name']} | {realm_slug.capitalize()} | {region.upper()} | {character['active_spec']['name']} {character['character_class']['name']} | {character['equipped_item_level']} ilvl",
-                    url=armory,
-                    color=Color(value=int("0099ff", 16)),
-                    description=f"{character['gender']['name']} {character['race']['name']}",
-                )
-                emb.set_thumbnail(url=profile_picture)
-                emb.add_field(name="Level", value=character["level"], inline=True)
-                emb.add_field(name="Faction", value=character["faction"]["name"], inline=True)
-                if "guild" in character:
-                    emb.add_field(name="Guild", value=character["guild"]["name"], inline=True)
-                emb.add_field(name="\u200b", value="\u200b", inline=False)
+            emb = Embed(
+                title=f"{character['name']} | {realm_slug.capitalize()} | {region.upper()} | {character['active_spec']['name']} {character['character_class']['name']} | {character['equipped_item_level']} ilvl",
+                url=armory,
+                color=Color(value=int("0099ff", 16)),
+                description=f"{character['gender']['name']} {character['race']['name']}",
+            )
+            emb.set_thumbnail(url=profile_picture)
+            emb.add_field(name="Level", value=character["level"], inline=True)
+            emb.add_field(name="Faction", value=character["faction"]["name"], inline=True)
+            if "guild" in character:
+                emb.add_field(name="Guild", value=character["guild"]["name"], inline=True)
+            emb.add_field(name="\u200b", value="\u200b", inline=False)
 
-                if best_keys:
-                    keys = ""
-                    for key in best_keys:
-                        keys += f"+{key['level']} - {key['dungeon']} - {key['clear_time']}\n"
+            if best_keys:
+                keys = ""
+                for key in best_keys:
+                    keys += f"+{key['level']} - {key['dungeon']} - {key['clear_time']}\n"
 
-                    emb.add_field(name="Best M+ Keys", value=keys, inline=True)
-                if rio_score is not None:
-                    emb.add_field(name="M+ Score", value=rio_score, inline=True)
+                emb.add_field(name="Best M+ Keys", value=keys, inline=True)
+            if rio_score is not None:
+                emb.add_field(name="M+ Score", value=rio_score, inline=True)
 
-                emb.add_field(name="\u200b", value="\u200b", inline=False)
-                emb.add_field(
-                    name="External Sites",
-                    value=f"[Raider.io]({raiderio}) | [Armory]({armory}) | [WarcraftLogs]({warcraftlogs}) | [WoWProgress]({wowprogress})",
-                    inline=True,
-                )
+            emb.add_field(name="\u200b", value="\u200b", inline=False)
+            emb.add_field(
+                name="External Sites",
+                value=f"[Raider.io]({raiderio}) | [Armory]({armory}) | [WarcraftLogs]({warcraftlogs}) | [WoWProgress]({wowprogress})",
+                inline=True,
+            )
 
-            await ctx.channel.send(embed=emb)
-            # Dismiss the ephemeral "thinking..." indicator
-            if ctx.interaction is not None:
-                await ctx.interaction.delete_original_response()
+            await interaction.followup.send(embed=emb)
         except NerpyException as ex:
-            await send_hidden_message(ctx, str(ex))
+            await interaction.followup.send(str(ex), ephemeral=True)
 
     @_wow_armory.autocomplete("realm")
     async def _realm_autocomplete_handler(self, interaction: discord.Interaction, current: str):
@@ -386,18 +385,11 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
     # ── Guild News commands ─────────────────────────────────────────────
 
-    @hybrid_group(name="guildnews", aliases=["gn"])
-    async def _guildnews(self, ctx: Context):
-        """manage WoW guild news tracking"""
-        if ctx.invoked_subcommand is None:
-            await send_hidden_message(ctx, "Use a subcommand: setup, remove, list, edit, pause, resume, check")
-
-    @_guildnews.command(name="setup")
+    @guildnews.command(name="setup")
     @checks.has_permissions(manage_channels=True)
-    @has_permissions(manage_channels=True)
     async def _guildnews_setup(
         self,
-        ctx: Context,
+        interaction: Interaction,
         guild_name: str,
         realm: str,
         channel: TextChannel,
@@ -411,116 +403,117 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         channel: Discord channel for notifications
         """
         try:
-            async with ctx.typing(ephemeral=True):
-                realm_slug, region = await self._parse_realm(realm)
-                name_slug = guild_name.lower().replace(" ", "-")
+            await interaction.response.defer(ephemeral=True)
+            realm_slug, region = await self._parse_realm(realm)
+            name_slug = guild_name.lower().replace(" ", "-")
 
-                # Validate the guild exists via API
-                api = self._get_retailclient(region, language)
-                roster = await asyncio.to_thread(api.guild_roster, realmSlug=realm_slug, nameSlug=name_slug)
+            # Validate the guild exists via API
+            api = self._get_retailclient(region, language)
+            roster = await asyncio.to_thread(api.guild_roster, realmSlug=realm_slug, nameSlug=name_slug)
 
-                if isinstance(roster, dict) and roster.get("code") in (404, 403):
-                    raise NerpyException(f"Guild '{guild_name}' not found on {realm_slug}-{region.upper()}.")
+            if isinstance(roster, dict) and roster.get("code") in (404, 403):
+                raise NerpyException(f"Guild '{guild_name}' not found on {realm_slug}-{region.upper()}.")
 
-                guild_display = roster.get("guild", {}).get("name", guild_name)
+            guild_display = roster.get("guild", {}).get("name", guild_name)
 
-                validate_channel_permissions(channel, ctx.guild, "view_channel", "send_messages", "embed_links")
+            validate_channel_permissions(channel, interaction.guild, "view_channel", "send_messages", "embed_links")
 
-                with self.bot.session_scope() as session:
-                    existing = WowGuildNewsConfig.get_existing(ctx.guild.id, name_slug, realm_slug, region, session)
-                    if existing:
-                        raise NerpyException(
-                            f"Guild '{guild_display}' on {realm_slug}-{region.upper()} is already tracked "
-                            f"(config #{existing.Id} in <#{existing.ChannelId}>)."
-                        )
-
-                    config = WowGuildNewsConfig(
-                        GuildId=ctx.guild.id,
-                        ChannelId=channel.id,
-                        WowGuildName=name_slug,
-                        WowRealmSlug=realm_slug,
-                        Region=region,
-                        Language=language,
-                        ActiveDays=active_days or self._default_active_days,
-                        LastActivityTimestamp=datetime.now(UTC),
-                        Enabled=True,
-                        CreateDate=datetime.now(UTC),
+            with self.bot.session_scope() as session:
+                existing = WowGuildNewsConfig.get_existing(interaction.guild.id, name_slug, realm_slug, region, session)
+                if existing:
+                    raise NerpyException(
+                        f"Guild '{guild_display}' on {realm_slug}-{region.upper()} is already tracked "
+                        f"(config #{existing.Id} in <#{existing.ChannelId}>)."
                     )
-                    session.add(config)
 
-            await send_hidden_message(
-                ctx,
+                config = WowGuildNewsConfig(
+                    GuildId=interaction.guild.id,
+                    ChannelId=channel.id,
+                    WowGuildName=name_slug,
+                    WowRealmSlug=realm_slug,
+                    Region=region,
+                    Language=language,
+                    ActiveDays=active_days or self._default_active_days,
+                    LastActivityTimestamp=datetime.now(UTC),
+                    Enabled=True,
+                    CreateDate=datetime.now(UTC),
+                )
+                session.add(config)
+
+            await interaction.followup.send(
                 f"Now tracking **{guild_display}** ({realm_slug}-{region.upper()}) in {channel.mention}. "
                 f"First scan will establish a baseline silently.",
+                ephemeral=True,
             )
         except NerpyException as ex:
-            await send_hidden_message(ctx, str(ex))
+            await interaction.followup.send(str(ex), ephemeral=True)
 
     @_guildnews_setup.autocomplete("realm")
     async def _guildnews_setup_realm_autocomplete(self, interaction: discord.Interaction, current: str):
         return await self._realm_autocomplete(interaction, current)
 
-    @_guildnews.command(name="remove")
+    @guildnews.command(name="remove")
     @checks.has_permissions(manage_channels=True)
-    @has_permissions(manage_channels=True)
-    async def _guildnews_remove(self, ctx: Context, config_id: int):
+    async def _guildnews_remove(self, interaction: Interaction, config_id: int):
         """remove a guild news tracking config [manage_channels]"""
         with self.bot.session_scope() as session:
-            config = WowGuildNewsConfig.get_by_id(config_id, ctx.guild.id, session)
+            config = WowGuildNewsConfig.get_by_id(config_id, interaction.guild.id, session)
             if not config:
-                await send_hidden_message(ctx, f"Config #{config_id} not found.")
+                await interaction.response.send_message(f"Config #{config_id} not found.", ephemeral=True)
                 return
-            WowGuildNewsConfig.delete(config_id, ctx.guild.id, session)
-        await send_hidden_message(ctx, f"Removed tracking config #{config_id}.")
+            WowGuildNewsConfig.delete(config_id, interaction.guild.id, session)
+        await interaction.response.send_message(f"Removed tracking config #{config_id}.", ephemeral=True)
 
-    @_guildnews.command(name="list")
-    async def _guildnews_list(self, ctx: Context):
+    @guildnews.command(name="list")
+    async def _guildnews_list(self, interaction: Interaction):
         """list all tracked WoW guilds for this server"""
         with self.bot.session_scope() as session:
-            configs = WowGuildNewsConfig.get_all_by_guild(ctx.guild.id, session)
+            configs = WowGuildNewsConfig.get_all_by_guild(interaction.guild.id, session)
             if not configs:
-                await send_hidden_message(ctx, "No guild news configs for this server.")
+                await interaction.response.send_message("No guild news configs for this server.", ephemeral=True)
                 return
             output = ""
             for cfg in configs:
-                channel = ctx.guild.get_channel(cfg.ChannelId)
+                channel = interaction.guild.get_channel(cfg.ChannelId)
                 channel_name = f"#{channel.name}" if channel else f"#{cfg.ChannelId} (deleted)"
                 output += f"{str(cfg)}Channel: {channel_name}\n\n"
+            first = True
             for page in pagify(output, delims=["\n#"], page_length=1990):
-                await send_hidden_message(ctx, box(page, "md"))
+                if first:
+                    await interaction.response.send_message(box(page, "md"), ephemeral=True)
+                    first = False
+                else:
+                    await interaction.followup.send(box(page, "md"), ephemeral=True)
 
-    @_guildnews.command(name="pause")
+    @guildnews.command(name="pause")
     @checks.has_permissions(manage_channels=True)
-    @has_permissions(manage_channels=True)
-    async def _guildnews_pause(self, ctx: Context, config_id: int):
+    async def _guildnews_pause(self, interaction: Interaction, config_id: int):
         """pause guild news tracking [manage_channels]"""
         with self.bot.session_scope() as session:
-            config = WowGuildNewsConfig.get_by_id(config_id, ctx.guild.id, session)
+            config = WowGuildNewsConfig.get_by_id(config_id, interaction.guild.id, session)
             if not config:
-                await send_hidden_message(ctx, f"Config #{config_id} not found.")
+                await interaction.response.send_message(f"Config #{config_id} not found.", ephemeral=True)
                 return
             config.Enabled = False
-        await send_hidden_message(ctx, f"Paused tracking for config #{config_id}.")
+        await interaction.response.send_message(f"Paused tracking for config #{config_id}.", ephemeral=True)
 
-    @_guildnews.command(name="resume")
+    @guildnews.command(name="resume")
     @checks.has_permissions(manage_channels=True)
-    @has_permissions(manage_channels=True)
-    async def _guildnews_resume(self, ctx: Context, config_id: int):
+    async def _guildnews_resume(self, interaction: Interaction, config_id: int):
         """resume guild news tracking [manage_channels]"""
         with self.bot.session_scope() as session:
-            config = WowGuildNewsConfig.get_by_id(config_id, ctx.guild.id, session)
+            config = WowGuildNewsConfig.get_by_id(config_id, interaction.guild.id, session)
             if not config:
-                await send_hidden_message(ctx, f"Config #{config_id} not found.")
+                await interaction.response.send_message(f"Config #{config_id} not found.", ephemeral=True)
                 return
             config.Enabled = True
-        await send_hidden_message(ctx, f"Resumed tracking for config #{config_id}.")
+        await interaction.response.send_message(f"Resumed tracking for config #{config_id}.", ephemeral=True)
 
-    @_guildnews.command(name="edit")
+    @guildnews.command(name="edit")
     @checks.has_permissions(manage_channels=True)
-    @has_permissions(manage_channels=True)
     async def _guildnews_edit(
         self,
-        ctx: Context,
+        interaction: Interaction,
         config_id: int,
         channel: Optional[TextChannel] = None,
         language: Optional[Literal["de", "en"]] = None,
@@ -534,50 +527,54 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         active_days: Change activity window (days)
         """
         if channel is None and language is None and active_days is None:
-            await send_hidden_message(
-                ctx, "Nothing to change. Specify at least one of: channel, language, active_days."
+            await interaction.response.send_message(
+                "Nothing to change. Specify at least one of: channel, language, active_days.", ephemeral=True
             )
             return
 
         if channel is not None:
-            validate_channel_permissions(channel, ctx.guild, "view_channel", "send_messages", "embed_links")
+            validate_channel_permissions(channel, interaction.guild, "view_channel", "send_messages", "embed_links")
 
         with self.bot.session_scope() as session:
-            config = WowGuildNewsConfig.get_by_id(config_id, ctx.guild.id, session)
+            config = WowGuildNewsConfig.get_by_id(config_id, interaction.guild.id, session)
             if not config:
-                await send_hidden_message(ctx, f"Config #{config_id} not found.")
+                await interaction.response.send_message(f"Config #{config_id} not found.", ephemeral=True)
                 return
 
             changes = []
             if channel is not None:
                 config.ChannelId = channel.id
-                changes.append(f"channel → {channel.mention}")
+                changes.append(f"channel \u2192 {channel.mention}")
             if language is not None:
                 config.Language = language
-                changes.append(f"language → {language}")
+                changes.append(f"language \u2192 {language}")
             if active_days is not None:
                 config.ActiveDays = active_days
-                changes.append(f"active_days → {active_days}")
+                changes.append(f"active_days \u2192 {active_days}")
 
             guild_label = f"**{config.WowGuildName}** ({config.WowRealmSlug}-{config.Region.upper()})"
 
-        await send_hidden_message(ctx, f"Updated config #{config_id} for {guild_label}: {', '.join(changes)}.")
+        await interaction.response.send_message(
+            f"Updated config #{config_id} for {guild_label}: {', '.join(changes)}.", ephemeral=True
+        )
 
-    @_guildnews.command(name="check")
-    async def _guildnews_check(self, ctx: Context, config_id: int):
+    @guildnews.command(name="check")
+    async def _guildnews_check(self, interaction: Interaction, config_id: int):
         """trigger an immediate poll for testing [operator]"""
-        if ctx.author.id not in self.bot.ops:
+        if interaction.user.id not in self.bot.ops:
             raise NerpyException("This command is restricted to bot operators.")
         with self.bot.session_scope() as session:
-            config = WowGuildNewsConfig.get_by_id(config_id, ctx.guild.id, session)
+            config = WowGuildNewsConfig.get_by_id(config_id, interaction.guild.id, session)
             if not config:
-                await send_hidden_message(ctx, f"Config #{config_id} not found.")
+                await interaction.response.send_message(f"Config #{config_id} not found.", ephemeral=True)
                 return
             if not config.Enabled:
-                await send_hidden_message(ctx, f"Config #{config_id} is paused. Resume it first.")
+                await interaction.response.send_message(
+                    f"Config #{config_id} is paused. Resume it first.", ephemeral=True
+                )
                 return
 
-        await send_hidden_message(ctx, f"Running manual poll for config #{config_id}...")
+        await interaction.response.send_message(f"Running manual poll for config #{config_id}...", ephemeral=True)
         await self._poll_single_config(config_id, ignore_baseline=True)
 
     # ── Background task ─────────────────────────────────────────────────

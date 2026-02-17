@@ -14,7 +14,7 @@ Look up a WoW character profile.
 | `realm` | `str` | *(required)* | Realm with region (e.g., `blackrock-eu`, `thrall-us`). Slash commands offer autocomplete suggestions. Plain slugs (e.g., `blackrock`) default to EU. |
 | `language` | `Literal["de", "en"]` | `"en"` | Response language |
 
-**Realm autocomplete:** On first use, the bot fetches all EU and US realms from the Blizzard API and caches them. Slash command users get filtered suggestions as they type. Prefix command users can type `realm-region` manually (e.g., `!wow armory charname blackrock-us`).
+**Realm autocomplete:** On first use, the bot fetches all EU and US realms from the Blizzard API and caches them. Users get filtered suggestions as they type. Plain slugs (e.g., `blackrock`) default to EU; append `-us` for US realms (e.g., `blackrock-us`).
 
 **Supports DM usage** — one of the few commands that works outside guilds.
 

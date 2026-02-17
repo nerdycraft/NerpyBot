@@ -3,7 +3,6 @@ bot:
   token: your_bot_token_here
   ops:
     - "your_discord_id_here"  # quoted to prevent formatter corruption
-  error_spam_threshold: 5
   modules:
     - admin
     - fun

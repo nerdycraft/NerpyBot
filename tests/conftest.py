@@ -22,7 +22,6 @@ def db_engine():
     engine = create_engine("sqlite:///:memory:", echo=False)
 
     # Import all models to ensure they're registered with BASE.metadata
-    from models.admin import GuildPrefix  # noqa: F401
     from models.reminder import ReminderMessage  # noqa: F401
     from models.tagging import Tag, TagEntry  # noqa: F401
     from models.wow import WowGuildNewsConfig, WowCharacterMounts  # noqa: F401
@@ -131,6 +130,26 @@ def mock_context(mock_bot, mock_member, mock_guild, mock_channel, mock_message):
     ctx.typing = MagicMock(return_value=AsyncMock(__aenter__=AsyncMock(), __aexit__=AsyncMock()))
     ctx.invoked_subcommand = None
     return ctx
+
+
+@pytest.fixture
+def mock_interaction(mock_bot, mock_member, mock_guild, mock_channel):
+    """Create a mock discord Interaction for slash command testing."""
+    interaction = MagicMock()
+    interaction.client = mock_bot
+    interaction.user = mock_member
+    interaction.guild = mock_guild
+    interaction.guild_id = mock_guild.id
+    interaction.channel = mock_channel
+    interaction.response = MagicMock()
+    interaction.response.send_message = AsyncMock()
+    interaction.response.defer = AsyncMock()
+    interaction.response.is_done = MagicMock(return_value=False)
+    interaction.followup = MagicMock()
+    interaction.followup.send = AsyncMock()
+    interaction.command = MagicMock()
+    interaction.command.qualified_name = "test"
+    return interaction
 
 
 @pytest.fixture
