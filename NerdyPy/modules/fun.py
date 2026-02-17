@@ -172,6 +172,7 @@ class Fun(Cog):
         """
         if not question.endswith("?") or question == "?":
             await interaction.response.send_message("That doesn't look like a question.")
+            return
 
         mention = interaction.user.mention
         await interaction.response.send_message(f"{mention} asked me: {question}\n\n{choice(self.ball)}")

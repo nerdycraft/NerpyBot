@@ -115,7 +115,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **NerdyPy uses script-relative imports** — Internal imports like `from models.admin import ...` assume `NerdyPy/` is on `sys.path`. Entry points or external callers must add it to `sys.path` before importing (see `cli.py:bot()`).
 - **SQLite strips timezone info from DateTime columns** — Values read back are naive. Normalize with `.replace(tzinfo=UTC)` before comparing against aware datetimes.
 - **`blizzapi` does NOT auto-retry on 429** — It returns `{"code": 429}` as a dict. Check every response and handle rate limits manually.
-- **`send_hidden_message()` accepts Interaction** — It now only handles `discord.Interaction` objects, using `response.send_message` or `followup.send` based on `is_done()`. Still used by admin prefix commands for DM fallback.
+- **`send_hidden_message()` accepts Interaction** — It only handles `discord.Interaction` objects, using `response.send_message` or `followup.send` based on `is_done()`. Prefix commands use `ctx.send()` directly.
 - **`sync` is dual-registered** — Both a slash command (`/sync`) and a prefix command (`!sync`). The slash version syncs to current guild or globally. The prefix version has advanced options (`Greedy[Object]`, spec parameter).
 - **raidplaner remains prefix-only** — Uses interactive DM conversations that require message-based back-and-forth (`conversation.py` utilities).
 - **Check functions accept Interaction, not Context** — All check functions in `checks.py` were converted to accept `discord.Interaction` for slash command compatibility. The `interaction_check` in admin.py uses these. The `cog_check` in admin.py has inline logic for prefix commands.

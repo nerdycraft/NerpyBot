@@ -12,7 +12,6 @@ from models.permissions import PermissionSubscriber
 
 from utils.checks import is_admin_or_operator
 from utils.errors import NerpyException
-from utils.helpers import send_hidden_message
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 
 
@@ -138,7 +137,7 @@ class Admin(Cog):
     ) -> None:
         if not guilds:
             if spec in ("local", "copy", "clear") and ctx.guild is None:
-                await send_hidden_message(ctx, f"The `{spec}` option requires a server context.")
+                await ctx.send(f"The `{spec}` option requires a server context.")
                 return
             if spec == "local":
                 synced = await self.bot.tree.sync(guild=ctx.guild)
@@ -152,9 +151,7 @@ class Admin(Cog):
             else:
                 synced = await self.bot.tree.sync()
 
-            await send_hidden_message(
-                ctx, f"Synced {len(synced)} commands {'globally' if spec is None else 'to the current guild.'}"
-            )
+            await ctx.send(f"Synced {len(synced)} commands {'globally' if spec is None else 'to the current guild.'}")
             return
 
         ret = 0
@@ -169,7 +166,7 @@ class Admin(Cog):
             else:
                 ret += 1
 
-        await send_hidden_message(ctx, f"Synced the tree to {ret}/{len(guilds)}.")
+        await ctx.send(f"Synced the tree to {ret}/{len(guilds)}.")
 
     @command(name="debug")
     async def _debug(self, ctx: Context) -> None:
@@ -181,11 +178,11 @@ class Admin(Cog):
         if logger.level == logging.DEBUG:
             logger.setLevel(logging.INFO)
             self.bot.debug = False
-            await send_hidden_message(ctx, "Debug logging **disabled** (level: INFO).")
+            await ctx.send("Debug logging **disabled** (level: INFO).")
         else:
             logger.setLevel(logging.DEBUG)
             self.bot.debug = True
-            await send_hidden_message(ctx, "Debug logging **enabled** (level: DEBUG).")
+            await ctx.send("Debug logging **enabled** (level: DEBUG).")
 
         self.bot.log.info(f"debug logging toggled to {self.bot.debug} by {ctx.author}")
 
