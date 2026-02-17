@@ -19,6 +19,23 @@ class ReactionRole(GroupCog, group_name="reactionrole"):
         bot.log.info(f"loaded {__name__}")
         self.bot = bot
 
+    async def _message_id_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
+        with self.bot.session_scope() as session:
+            messages = ReactionRoleMessage.get_by_guild(interaction.guild.id, session)
+            if not messages:
+                return []
+            choices = []
+            for rr_msg in messages:
+                channel = interaction.guild.get_channel(rr_msg.ChannelId)
+                channel_name = f"#{channel.name}" if channel else "Unknown"
+                entry_count = len(rr_msg.entries) if rr_msg.entries else 0
+                label = f"{channel_name} \u00b7 {rr_msg.MessageId} ({entry_count} mappings)"
+                msg_id_str = str(rr_msg.MessageId)
+                if current and current not in msg_id_str and current.lower() not in channel_name.lower():
+                    continue
+                choices.append(app_commands.Choice(name=label[:100], value=msg_id_str))
+            return choices[:25]
+
     @Cog.listener()
     async def on_raw_reaction_add(self, payload):
         if payload.guild_id is None or payload.member is None or payload.member.bot:
@@ -104,6 +121,7 @@ class ReactionRole(GroupCog, group_name="reactionrole"):
 
     @app_commands.command(name="add")
     @checks.has_permissions(manage_roles=True)
+    @app_commands.autocomplete(message_id=_message_id_autocomplete)
     async def _add(self, interaction: Interaction, channel: TextChannel, message_id: str, emoji: str, role: Role):
         """add an emoji-to-role mapping on any message
 
@@ -175,6 +193,7 @@ class ReactionRole(GroupCog, group_name="reactionrole"):
 
     @app_commands.command(name="remove")
     @checks.has_permissions(manage_roles=True)
+    @app_commands.autocomplete(message_id=_message_id_autocomplete)
     async def _remove(self, interaction: Interaction, message_id: str, emoji: str):
         """remove an emoji-to-role mapping from a message
 
@@ -242,6 +261,7 @@ class ReactionRole(GroupCog, group_name="reactionrole"):
 
     @app_commands.command(name="clear")
     @checks.has_permissions(manage_roles=True)
+    @app_commands.autocomplete(message_id=_message_id_autocomplete)
     async def _clear(self, interaction: Interaction, message_id: str):
         """remove all reaction role mappings from a message
 

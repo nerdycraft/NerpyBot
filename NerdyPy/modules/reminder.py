@@ -105,7 +105,19 @@ class Reminder(GroupCog, group_name="reminder"):
 
             await send_paginated(interaction, to_send, title="\u23f0 Reminders", color=0xF39C12, ephemeral=True)
 
+    async def _reminder_id_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[int]]:
+        with self.bot.session_scope() as session:
+            reminders = ReminderMessage.get_all_by_guild(interaction.guild.id, session)
+            choices = []
+            for msg in reminders:
+                label = f"#{msg.Id} \u2014 {msg.Message[:80]}"
+                if current and current not in str(msg.Id) and current.lower() not in msg.Message.lower():
+                    continue
+                choices.append(app_commands.Choice(name=label[:100], value=msg.Id))
+            return choices[:25]
+
     @app_commands.command(name="delete")
+    @app_commands.autocomplete(reminder_id=_reminder_id_autocomplete)
     async def _reminder_delete(self, interaction: Interaction, reminder_id: int):
         """
         deletes a reminder message

@@ -30,8 +30,16 @@ class Tagging(QueueMixin, GroupCog, group_name="tag"):
         self.queue = {}
         self.audio = self.bot.audio
 
+    async def _tag_name_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
+        with self.bot.session_scope() as session:
+            tags = Tag.get_all_from_guild(interaction.guild.id, session)
+            return [app_commands.Choice(name=t.Name, value=t.Name) for t in tags if current.lower() in t.Name.lower()][
+                :25
+            ]
+
     @app_commands.command(name="get")
     @app_commands.check(is_connected_to_voice)
+    @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_get(self, interaction: Interaction, name: str):
         """sound and text tags"""
         await self._send_to_queue(interaction, name)
@@ -90,6 +98,7 @@ class Tagging(QueueMixin, GroupCog, group_name="tag"):
         await interaction.followup.send(f'tag "{name}" created!', ephemeral=True)
 
     @app_commands.command(name="add")
+    @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_add(self, interaction: Interaction, name: str, content: str):
         """add an entry to an existing tag"""
         with self.bot.session_scope() as session:
@@ -106,6 +115,7 @@ class Tagging(QueueMixin, GroupCog, group_name="tag"):
         await interaction.followup.send(f'Entry added to tag "{name}"!', ephemeral=True)
 
     @app_commands.command(name="volume")
+    @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_volume(self, interaction: Interaction, name: str, vol: int):
         """adjust the volume of a sound tag"""
         if not 0 <= vol <= 200:
@@ -123,6 +133,7 @@ class Tagging(QueueMixin, GroupCog, group_name="tag"):
         await interaction.response.send_message(f'changed volume of "{name}" to {vol}.', ephemeral=True)
 
     @app_commands.command(name="delete")
+    @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_delete(self, interaction: Interaction, name: str):
         """delete a tag?"""
         self.bot.log.info(f'{error_context(interaction)}: deleting tag "{name}"')
@@ -166,6 +177,7 @@ class Tagging(QueueMixin, GroupCog, group_name="tag"):
             await send_paginated(interaction, msg, title="\U0001f3f7\ufe0f Tags", color=0x2ECC71)
 
     @app_commands.command(name="info")
+    @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_info(self, interaction: Interaction, name: str):
         """information about the tag"""
         with self.bot.session_scope() as session:
@@ -186,6 +198,7 @@ class Tagging(QueueMixin, GroupCog, group_name="tag"):
             await interaction.response.send_message(embed=emb)
 
     @app_commands.command(name="raw")
+    @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_raw(self, interaction: Interaction, name: str):
         """raw tag data"""
         with self.bot.session_scope() as session:

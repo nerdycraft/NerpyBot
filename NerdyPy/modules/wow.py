@@ -452,17 +452,29 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
     async def _guildnews_setup_realm_autocomplete(self, interaction: discord.Interaction, current: str):
         return await self._realm_autocomplete(interaction, current)
 
+    async def _config_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[int]]:
+        with self.bot.session_scope() as session:
+            configs = WowGuildNewsConfig.get_all_by_guild(interaction.guild.id, session)
+            choices = []
+            for cfg in configs:
+                status = "\u2705" if cfg.Enabled else "\u23f8\ufe0f"
+                label = f"#{cfg.Id} {status} {cfg.WowGuildName} ({cfg.WowRealmSlug}-{cfg.Region.upper()})"
+                if current and current not in str(cfg.Id) and current.lower() not in cfg.WowGuildName.lower():
+                    continue
+                choices.append(app_commands.Choice(name=label[:100], value=cfg.Id))
+            return choices[:25]
+
     @guildnews.command(name="remove")
     @checks.has_permissions(manage_channels=True)
-    async def _guildnews_remove(self, interaction: Interaction, config_id: int):
+    async def _guildnews_remove(self, interaction: Interaction, config: int):
         """remove a guild news tracking config [manage_channels]"""
         with self.bot.session_scope() as session:
-            config = WowGuildNewsConfig.get_by_id(config_id, interaction.guild.id, session)
-            if not config:
-                await interaction.response.send_message(f"Config #{config_id} not found.", ephemeral=True)
+            cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
+            if not cfg:
+                await interaction.response.send_message(f"Config #{config} not found.", ephemeral=True)
                 return
-            WowGuildNewsConfig.delete(config_id, interaction.guild.id, session)
-        await interaction.response.send_message(f"Removed tracking config #{config_id}.", ephemeral=True)
+            WowGuildNewsConfig.delete(config, interaction.guild.id, session)
+        await interaction.response.send_message(f"Removed tracking config #{config}.", ephemeral=True)
 
     @guildnews.command(name="list")
     async def _guildnews_list(self, interaction: Interaction):
@@ -484,41 +496,41 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
     @guildnews.command(name="pause")
     @checks.has_permissions(manage_channels=True)
-    async def _guildnews_pause(self, interaction: Interaction, config_id: int):
+    async def _guildnews_pause(self, interaction: Interaction, config: int):
         """pause guild news tracking [manage_channels]"""
         with self.bot.session_scope() as session:
-            config = WowGuildNewsConfig.get_by_id(config_id, interaction.guild.id, session)
-            if not config:
-                await interaction.response.send_message(f"Config #{config_id} not found.", ephemeral=True)
+            cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
+            if not cfg:
+                await interaction.response.send_message(f"Config #{config} not found.", ephemeral=True)
                 return
-            config.Enabled = False
-        await interaction.response.send_message(f"Paused tracking for config #{config_id}.", ephemeral=True)
+            cfg.Enabled = False
+        await interaction.response.send_message(f"Paused tracking for config #{config}.", ephemeral=True)
 
     @guildnews.command(name="resume")
     @checks.has_permissions(manage_channels=True)
-    async def _guildnews_resume(self, interaction: Interaction, config_id: int):
+    async def _guildnews_resume(self, interaction: Interaction, config: int):
         """resume guild news tracking [manage_channels]"""
         with self.bot.session_scope() as session:
-            config = WowGuildNewsConfig.get_by_id(config_id, interaction.guild.id, session)
-            if not config:
-                await interaction.response.send_message(f"Config #{config_id} not found.", ephemeral=True)
+            cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
+            if not cfg:
+                await interaction.response.send_message(f"Config #{config} not found.", ephemeral=True)
                 return
-            config.Enabled = True
-        await interaction.response.send_message(f"Resumed tracking for config #{config_id}.", ephemeral=True)
+            cfg.Enabled = True
+        await interaction.response.send_message(f"Resumed tracking for config #{config}.", ephemeral=True)
 
     @guildnews.command(name="edit")
     @checks.has_permissions(manage_channels=True)
     async def _guildnews_edit(
         self,
         interaction: Interaction,
-        config_id: int,
+        config: int,
         channel: Optional[TextChannel] = None,
         language: Optional[Literal["de", "en"]] = None,
         active_days: Optional[int] = None,
     ):
         """edit a guild news tracking config [manage_channels]
 
-        config_id: ID of the config to edit (see /wow guildnews list)
+        config: Config to edit (autocomplete shows tracked guilds)
         channel: Move notifications to this channel
         language: Change notification language (de/en)
         active_days: Change activity window (days)
@@ -533,46 +545,52 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             validate_channel_permissions(channel, interaction.guild, "view_channel", "send_messages", "embed_links")
 
         with self.bot.session_scope() as session:
-            config = WowGuildNewsConfig.get_by_id(config_id, interaction.guild.id, session)
-            if not config:
-                await interaction.response.send_message(f"Config #{config_id} not found.", ephemeral=True)
+            cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
+            if not cfg:
+                await interaction.response.send_message(f"Config #{config} not found.", ephemeral=True)
                 return
 
             changes = []
             if channel is not None:
-                config.ChannelId = channel.id
+                cfg.ChannelId = channel.id
                 changes.append(f"channel \u2192 {channel.mention}")
             if language is not None:
-                config.Language = language
+                cfg.Language = language
                 changes.append(f"language \u2192 {language}")
             if active_days is not None:
-                config.ActiveDays = active_days
+                cfg.ActiveDays = active_days
                 changes.append(f"active_days \u2192 {active_days}")
 
-            guild_label = f"**{config.WowGuildName}** ({config.WowRealmSlug}-{config.Region.upper()})"
+            guild_label = f"**{cfg.WowGuildName}** ({cfg.WowRealmSlug}-{cfg.Region.upper()})"
 
         await interaction.response.send_message(
-            f"Updated config #{config_id} for {guild_label}: {', '.join(changes)}.", ephemeral=True
+            f"Updated config #{config} for {guild_label}: {', '.join(changes)}.", ephemeral=True
         )
 
     @guildnews.command(name="check")
-    async def _guildnews_check(self, interaction: Interaction, config_id: int):
+    async def _guildnews_check(self, interaction: Interaction, config: int):
         """trigger an immediate poll for testing [operator]"""
         if interaction.user.id not in self.bot.ops:
             raise NerpyException("This command is restricted to bot operators.")
         with self.bot.session_scope() as session:
-            config = WowGuildNewsConfig.get_by_id(config_id, interaction.guild.id, session)
-            if not config:
-                await interaction.response.send_message(f"Config #{config_id} not found.", ephemeral=True)
+            cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
+            if not cfg:
+                await interaction.response.send_message(f"Config #{config} not found.", ephemeral=True)
                 return
-            if not config.Enabled:
-                await interaction.response.send_message(
-                    f"Config #{config_id} is paused. Resume it first.", ephemeral=True
-                )
+            if not cfg.Enabled:
+                await interaction.response.send_message(f"Config #{config} is paused. Resume it first.", ephemeral=True)
                 return
 
-        await interaction.response.send_message(f"Running manual poll for config #{config_id}...", ephemeral=True)
-        await self._poll_single_config(config_id, ignore_baseline=True)
+        await interaction.response.send_message(f"Running manual poll for config #{config}...", ephemeral=True)
+        await self._poll_single_config(config, ignore_baseline=True)
+
+    @_guildnews_remove.autocomplete("config")
+    @_guildnews_pause.autocomplete("config")
+    @_guildnews_resume.autocomplete("config")
+    @_guildnews_edit.autocomplete("config")
+    @_guildnews_check.autocomplete("config")
+    async def _config_autocomplete_handler(self, interaction: Interaction, current: str):
+        return await self._config_autocomplete(interaction, current)
 
     # ── Background task ─────────────────────────────────────────────────
 
