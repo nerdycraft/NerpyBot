@@ -4,26 +4,6 @@ Server administration and bot configuration. All commands require **Administrato
 
 ## Commands
 
-### `/prefix get`
-
-Retrieves the current custom command prefix for the server.
-
-- **Default prefix:** `!` (if none configured)
-
-### `/prefix set <new_pref>`
-
-Sets a custom command prefix for the server.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `new_pref` | `str` | New prefix (no spaces allowed) |
-
-Creates a new DB entry if none exists, otherwise updates the existing one.
-
-### `/prefix delete`
-
-Removes the custom prefix, reverting to the default `!`.
-
 ### `/modrole get`
 
 Shows the configured bot-moderator role for this server. Alerts if the role has been deleted from Discord.
@@ -72,16 +52,6 @@ Stop receiving automatic permission notifications for this server.
 Toggles debug logging at runtime. **Operator-only** (user ID must be in `config.bot.ops`).
 
 ## Database Models
-
-### `GuildPrefix`
-
-| Column | Type | Purpose |
-|--------|------|---------|
-| GuildId | BigInteger (PK) | Discord guild ID |
-| Prefix | String(30) | Custom prefix |
-| CreateDate | DateTime | When set |
-| ModifiedDate | DateTime | Last change |
-| Author | Unicode(30) | Who set it |
 
 ### `BotModeratorRole`
 

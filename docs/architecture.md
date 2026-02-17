@@ -36,12 +36,6 @@ NerpyBot is a Discord bot built with discord.py using the Cog extension system. 
 | `on_raw_reaction_add` | Routes reactions to active conversations (raidplaner) |
 | `on_message` | Routes DMs to active conversations, then processes commands |
 
-### Prefix Resolution
-
-`determine_prefix(bot, message)`:
-- **In a guild:** Custom prefix from `GuildPrefix` table, or `!` as default
-- **In DMs:** Both `!` and empty string (no prefix needed)
-
 ## Module System
 
 Modules live in `NerdyPy/modules/` as discord.py Cogs. Each must implement:
