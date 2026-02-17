@@ -122,7 +122,7 @@ class Admin(Cog):
 
     @app_commands.command(name="sync")
     async def sync_slash(self, interaction: Interaction):
-        """Sync commands. In a guild: sync to that guild. In DMs: sync globally."""
+        """Sync commands. In a guild: sync to that guild. In DMs: sync globally. [operator]"""
         await interaction.response.defer(ephemeral=True)
         if interaction.guild:
             synced = await self.bot.tree.sync(guild=interaction.guild)
@@ -135,6 +135,7 @@ class Admin(Cog):
     async def sync(
         self, ctx: Context, guilds: Greedy[Object], spec: Optional[Literal["local", "copy", "clear"]] = None
     ) -> None:
+        """Sync commands globally or to a specific guild. [operator]"""
         if not guilds:
             if spec in ("local", "copy", "clear") and ctx.guild is None:
                 await ctx.send(f"The `{spec}` option requires a server context.")

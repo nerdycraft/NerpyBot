@@ -48,9 +48,10 @@ class NerpyBot(Bot):
 
     def __init__(self, config: dict, intents: Intents, debug: bool):
         super().__init__(
-            command_prefix=["!", ""],
+            command_prefix="",
             description="NerdyBot - Always one step ahead!",
             intents=intents,
+            help_command=None,
         )
 
         self.config = config
@@ -239,22 +240,19 @@ class NerpyBot(Bot):
 
     async def on_message(self, message: Message) -> None:
         """
-        Handles chats in DMs to the bot
-
-        :param message:
-        :return:
+        Handles DM messages — prefix commands and conversation replies.
+        Guild messages are ignored; guilds use slash commands exclusively.
         """
         if message.author.bot:
             return
 
-        invoke = True
-        if isinstance(message.channel, DMChannel):
-            conv = self.convMan.get_user_conversation(message.author)
-            if conv is not None and conv.is_answer_type(AnswerType.TEXT):
-                await conv.on_message(message.content)
-                invoke = False
+        if not isinstance(message.channel, DMChannel):
+            return
 
-        if invoke:
+        conv = self.convMan.get_user_conversation(message.author)
+        if conv is not None and conv.is_answer_type(AnswerType.TEXT):
+            await conv.on_message(message.content)
+        else:
             await self.process_commands(message)
 
     async def start(self, token: str = None, reconnect: bool = True) -> None:
