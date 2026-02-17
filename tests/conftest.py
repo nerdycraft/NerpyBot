@@ -133,6 +133,26 @@ def mock_context(mock_bot, mock_member, mock_guild, mock_channel, mock_message):
 
 
 @pytest.fixture
+def mock_interaction(mock_bot, mock_member, mock_guild, mock_channel):
+    """Create a mock discord Interaction for slash command testing."""
+    interaction = MagicMock()
+    interaction.client = mock_bot
+    interaction.user = mock_member
+    interaction.guild = mock_guild
+    interaction.guild_id = mock_guild.id
+    interaction.channel = mock_channel
+    interaction.response = MagicMock()
+    interaction.response.send_message = AsyncMock()
+    interaction.response.defer = AsyncMock()
+    interaction.response.is_done = MagicMock(return_value=False)
+    interaction.followup = MagicMock()
+    interaction.followup.send = AsyncMock()
+    interaction.command = MagicMock()
+    interaction.command.qualified_name = "test"
+    return interaction
+
+
+@pytest.fixture
 def mock_user():
     """Create a mock discord.User for DM conversations."""
     user = MagicMock()

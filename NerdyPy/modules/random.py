@@ -4,14 +4,15 @@
 from random import choice, randint
 
 from aiohttp import ClientSession
-from discord import Embed
-from discord.ext.commands import Cog, Context, bot_has_permissions, hybrid_command
+from discord import Embed, Interaction, app_commands
+from discord.ext.commands import Cog
 
 import utils.format as fmt
 from utils.errors import NerpyException
 
 
-@bot_has_permissions(send_messages=True)
+@app_commands.checks.bot_has_permissions(send_messages=True)
+@app_commands.guild_only()
 class Random(Cog):
     """who is that random"""
 
@@ -31,13 +32,13 @@ class Random(Cog):
             "ヽ༼ຈل͜ຈ༽ﾉ",
         ]
 
-    @hybrid_command()
-    async def lenny(self, ctx: Context) -> None:
+    @app_commands.command()
+    async def lenny(self, interaction: Interaction) -> None:
         """Displays a random lenny face."""
-        await ctx.send(choice(self.lennys))
+        await interaction.response.send_message(choice(self.lennys))
 
-    @hybrid_command()
-    async def quote(self, ctx: Context) -> None:
+    @app_commands.command()
+    async def quote(self, interaction: Interaction) -> None:
         """random quote"""
         url = "https://quotesondesign.com/wp-json/wp/v2/posts/?orderby=rand"
 
@@ -47,12 +48,12 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-                await ctx.send(
+                await interaction.response.send_message(
                     f"{fmt.strip_tags(data[0].get('content').get('rendered'))} - {data[0].get('title').get('rendered')}"
                 )
 
-    @hybrid_command()
-    async def trump(self, ctx: Context) -> None:
+    @app_commands.command()
+    async def trump(self, interaction: Interaction) -> None:
         """random trump tweet"""
         url = "https://api.whatdoestrumpthink.com/api/v1/quotes/random"
         trump_pic = "https://www.tolonews.com/sites/default/files/styles/principal_article_image/public/Trumpppp.jpg"
@@ -66,10 +67,10 @@ class Random(Cog):
                 emb = Embed(title="Donald Trump")
                 emb.description = data.get("message")
                 emb.set_thumbnail(url=trump_pic)
-        await ctx.send(embed=emb)
+        await interaction.response.send_message(embed=emb)
 
-    @hybrid_command()
-    async def xkcd(self, ctx: Context) -> None:
+    @app_commands.command()
+    async def xkcd(self, interaction: Interaction) -> None:
         """random xkcd comic"""
         url = "https://xkcd.com/"
         urlend = "info.0.json"
@@ -86,10 +87,10 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-        await ctx.send(data.get("img"))
+        await interaction.response.send_message(data.get("img"))
 
-    @hybrid_command()
-    async def bunny(self, ctx: Context) -> None:
+    @app_commands.command()
+    async def bunny(self, interaction: Interaction) -> None:
         """Why do I have a random bunny gif command???"""
         url = "https://api.bunnies.io/v2/loop/random/?media=gif"
 
@@ -99,7 +100,7 @@ class Random(Cog):
                     err = f"The api-webserver responded with a code: {response.status} - {response.reason}"
                     raise NerpyException(err)
                 data = await response.json()
-        await ctx.send(data.get("media").get("gif"))
+        await interaction.response.send_message(data.get("media").get("gif"))
 
 
 async def setup(bot):
