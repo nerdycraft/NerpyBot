@@ -18,22 +18,22 @@ NerpyBot is a Discord bot built with discord.py using the Cog extension system. 
 
 ### CLI Arguments
 
-| Flag | Description |
-|------|-------------|
-| `-r, --auto-restart` | Restart bot on failure |
-| `-c, --config` | Custom config file path |
-| `-d, --debug` | Debug logging (excludes SQLAlchemy noise) |
-| `-v, --verbose` | Verbosity level (stackable) |
-| `-l, --loglevel` | Set log level directly (INFO, DEBUG, etc.) |
+| Flag                 | Description                                |
+| -------------------- | ------------------------------------------ |
+| `-r, --auto-restart` | Restart bot on failure                     |
+| `-c, --config`       | Custom config file path                    |
+| `-d, --debug`        | Debug logging (excludes SQLAlchemy noise)  |
+| `-v, --verbose`      | Verbosity level (stackable)                |
+| `-l, --loglevel`     | Set log level directly (INFO, DEBUG, etc.) |
 
 ### Key Events
 
-| Event | Behavior |
-|-------|----------|
-| `on_app_command_error` | Logs errors and sends user-friendly messages for slash commands |
-| `on_command_error` | Handles errors for the few remaining prefix commands (admin sync/debug) |
-| `on_raw_reaction_add` | Routes reactions to active conversations (raidplaner) |
-| `on_message` | Routes DMs to active conversations, then processes prefix commands |
+| Event                  | Behavior                                                                |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `on_app_command_error` | Logs errors and sends user-friendly messages for slash commands         |
+| `on_command_error`     | Handles errors for the few remaining prefix commands (admin sync/debug) |
+| `on_raw_reaction_add`  | Routes reactions to active conversations (raidplaner)                   |
+| `on_message`           | Routes DMs to active conversations, then processes prefix commands      |
 
 ## Module System
 
@@ -46,22 +46,22 @@ async def setup(bot):
 
 Modules are loaded dynamically based on `config.bot.modules`. Available modules:
 
-| Module | Type | Background Tasks | External APIs |
-|--------|------|-----------------|---------------|
-| admin | Cog (slash + prefix) | — | — |
-| fun | Cog | — | — |
-| league | GroupCog | — | Riot API |
-| leavemsg | GroupCog | — | — |
-| moderation | Cog | AutoKicker (daily), AutoDeleter (5min) | — |
-| music | GroupCog + QueueMixin | — | YouTube API, yt-dlp |
-| raidplaner | Cog | — | — |
-| random | Cog | — | Various public APIs |
-| reactionrole | GroupCog | — | — |
-| reminder | GroupCog | Reminder loop (30s) | — |
-| rolemanage | GroupCog | — | — |
-| search | GroupCog | — | Imgur, Genius, OMDB, IGDB, YouTube |
-| tagging | GroupCog + QueueMixin | — | — |
-| wow | GroupCog | Guild news loop (15min) | Blizzard API, Raider.io |
+| Module       | Type                  | Background Tasks                       | External APIs                      |
+| ------------ | --------------------- | -------------------------------------- | ---------------------------------- |
+| admin        | Cog (slash + prefix)  | —                                      | —                                  |
+| fun          | Cog                   | —                                      | —                                  |
+| league       | GroupCog              | —                                      | Riot API                           |
+| leavemsg     | GroupCog              | —                                      | —                                  |
+| moderation   | Cog                   | AutoKicker (daily), AutoDeleter (5min) | —                                  |
+| music        | GroupCog + QueueMixin | —                                      | YouTube API, yt-dlp                |
+| raidplaner   | Cog                   | —                                      | —                                  |
+| random       | Cog                   | —                                      | Various public APIs                |
+| reactionrole | GroupCog              | —                                      | —                                  |
+| reminder     | GroupCog              | Reminder loop (30s)                    | —                                  |
+| rolemanage   | GroupCog              | —                                      | —                                  |
+| search       | GroupCog              | —                                      | Imgur, Genius, OMDB, IGDB, YouTube |
+| tagging      | GroupCog + QueueMixin | —                                      | —                                  |
+| wow          | GroupCog              | Guild news loop (15min)                | Blizzard API, Raider.io            |
 
 ## Database Layer
 
@@ -70,6 +70,7 @@ Modules are loaded dynamically based on `config.bot.modules`. Available modules:
 **File:** `NerdyPy/NerdyPy.py` (connection setup in `NerpyBot.__init__`)
 
 Supports SQLite, MySQL/MariaDB, and PostgreSQL via SQLAlchemy connection strings:
+
 - SQLite: `sqlite:///db.db` (default)
 - MySQL: `mysql+pymysql://user:pass@host:port/dbname`
 - PostgreSQL: `postgresql://user:pass@host:port/dbname`
@@ -150,17 +151,18 @@ Discord markdown helpers: `bold()`, `italics()`, `box()`, `inline()`, `strikethr
 
 Permission check functions for use with `@check()` decorator:
 
-| Function | Gates |
-|----------|-------|
-| `is_connected_to_voice` | User in voice + bot can connect |
-| `can_stop_playback` | Same channel or mod (rejects if nothing playing) |
-| `can_leave_voice` | Bot-moderator only |
+| Function                | Gates                                            |
+| ----------------------- | ------------------------------------------------ |
+| `is_connected_to_voice` | User in voice + bot can connect                  |
+| `can_stop_playback`     | Same channel or mod (rejects if nothing playing) |
+| `can_leave_voice`       | Bot-moderator only                               |
 
 All check functions accept `discord.Interaction` objects (not `Context`) for slash command compatibility.
 
 ### Logging (`utils/logging.py`)
 
 Dual-handler setup:
+
 - **stdout:** INFO and DEBUG (below WARNING)
 - **stderr:** WARNING and above
 
@@ -207,7 +209,7 @@ bot:
   modules: [admin, fun, ...]
 
 database:
-  db_type: sqlite          # sqlite, mariadb, postgresql
+  db_type: sqlite # sqlite, mariadb, postgresql
   db_name: db.db
 
 audio:

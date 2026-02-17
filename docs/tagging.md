@@ -8,11 +8,12 @@ User-created sound, text, and URL tags. Sound tags play audio in voice channels;
 
 Play or display a tag. This is the default subcommand (`fallback="get"`).
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `name` | `str` | Tag name |
+| Parameter | Type  | Description |
+| --------- | ----- | ----------- |
+| `name`    | `str` | Tag name    |
 
 **Behavior by type:**
+
 - **Sound** — Downloads and plays audio in the user's voice channel (requires voice connection)
 - **Text** — Sends the text content as a message
 - **URL** — Sends the URL as a message
@@ -23,13 +24,14 @@ If a tag has multiple entries, one is selected at random. Each use increments th
 
 Create a new tag.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `name` | `str` | Tag name (max 30 chars, unique per guild) |
-| `tag_type` | `TagTypeConverter` | `sound`, `text`, or `url` |
-| `content` | `str` | URL for sound/url tags, text for text tags |
+| Parameter  | Type               | Description                                |
+| ---------- | ------------------ | ------------------------------------------ |
+| `name`     | `str`              | Tag name (max 30 chars, unique per guild)  |
+| `tag_type` | `TagTypeConverter` | `sound`, `text`, or `url`                  |
+| `content`  | `str`              | URL for sound/url tags, text for text tags |
 
 **Sound processing pipeline:**
+
 1. Download audio from URL via HTTP
 2. Run through `ffmpeg` with `loudnorm` filter (normalizes volume)
 3. Convert to MP3 (48kHz, 2-channel)
@@ -39,9 +41,9 @@ Create a new tag.
 
 Add an additional entry to an existing tag.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `name` | `str` | Existing tag name |
+| Parameter | Type  | Description       |
+| --------- | ----- | ----------------- |
+| `name`    | `str` | Existing tag name |
 | `content` | `str` | New content entry |
 
 Allows a tag to have multiple variants — each invocation plays/shows a random one.
@@ -50,10 +52,10 @@ Allows a tag to have multiple variants — each invocation plays/shows a random 
 
 Adjust playback volume for a sound tag.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `name` | `str` | Tag name |
-| `vol` | `int` | Volume 0-200 (100 = normal) |
+| Parameter | Type  | Description                 |
+| --------- | ----- | --------------------------- |
+| `name`    | `str` | Tag name                    |
+| `vol`     | `int` | Volume 0-200 (100 = normal) |
 
 Applied as an ffmpeg filter at playback: `-filter:a volume={vol/100}`.
 
@@ -91,11 +93,11 @@ Clear the sound tag queue.
 
 ## Tag Types
 
-| Type | Value | Storage | Playback |
-|------|-------|---------|----------|
-| `sound` | 0 | `ByteContent` (binary audio) | Voice channel via ffmpeg |
-| `text` | 1 | `TextContent` (string) | Channel message |
-| `url` | 2 | `TextContent` (URL string) | Channel message |
+| Type    | Value | Storage                      | Playback                 |
+| ------- | ----- | ---------------------------- | ------------------------ |
+| `sound` | 0     | `ByteContent` (binary audio) | Voice channel via ffmpeg |
+| `text`  | 1     | `TextContent` (string)       | Channel message          |
+| `url`   | 2     | `TextContent` (URL string)   | Channel message          |
 
 ## How Sound Playback Works
 
@@ -109,26 +111,26 @@ Clear the sound tag queue.
 
 ### `Tag`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| Id | Integer (PK) | Auto-increment |
-| GuildId | BigInteger | Discord guild ID |
-| Name | Unicode(30) | Tag name |
-| Type | Integer | TagType enum value (0=sound, 1=text, 2=url) |
-| Author | Unicode(30) | Creator's name |
-| CreateDate | DateTime | When created |
-| Count | Integer | Times used |
-| Volume | Integer | Playback volume 0-200 |
+| Column     | Type         | Purpose                                     |
+| ---------- | ------------ | ------------------------------------------- |
+| Id         | Integer (PK) | Auto-increment                              |
+| GuildId    | BigInteger   | Discord guild ID                            |
+| Name       | Unicode(30)  | Tag name                                    |
+| Type       | Integer      | TagType enum value (0=sound, 1=text, 2=url) |
+| Author     | Unicode(30)  | Creator's name                              |
+| CreateDate | DateTime     | When created                                |
+| Count      | Integer      | Times used                                  |
+| Volume     | Integer      | Playback volume 0-200                       |
 
 **Unique constraint:** `(Name, GuildId)` — one tag per name per guild.
 
 ### `TagEntry`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| Id | Integer (PK) | Auto-increment |
-| TagId | Integer (FK) | Parent tag |
-| TextContent | Unicode(255) | Text/URL content |
+| Column      | Type              | Purpose                            |
+| ----------- | ----------------- | ---------------------------------- |
+| Id          | Integer (PK)      | Auto-increment                     |
+| TagId       | Integer (FK)      | Parent tag                         |
+| TextContent | Unicode(255)      | Text/URL content                   |
 | ByteContent | LargeBinary(16MB) | Processed audio bytes (sound tags) |
 
 ## Audio Normalization

@@ -109,7 +109,7 @@ The migration runner resolves the database URL in this order:
 ## Modules
 
 | Module     | Description                                              |
-|------------|----------------------------------------------------------|
+| ---------- | -------------------------------------------------------- |
 | admin      | Server management, prefix configuration, command sync    |
 | fun        | Entertainment commands                                   |
 | league     | Riot Games API integration                               |

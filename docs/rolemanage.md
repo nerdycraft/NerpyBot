@@ -25,12 +25,13 @@ This enables role hierarchies without giving broad `manage_roles` permission to 
 
 Authorize a source role to assign a target role.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter     | Type   | Description                              |
+| ------------- | ------ | ---------------------------------------- |
 | `source_role` | `Role` | Role whose members gain assignment power |
-| `target_role` | `Role` | Role that can be assigned |
+| `target_role` | `Role` | Role that can be assigned                |
 
 **Safety checks:**
+
 - Target role must not be a managed/integration role
 - Target role must be below the bot's top role
 
@@ -48,10 +49,10 @@ Show all source-to-target role mappings for this server.
 
 Assign a role to a member.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `member` | `Member` | Target user |
-| `role` | `Role` | Role to assign |
+| Parameter | Type     | Description    |
+| --------- | -------- | -------------- |
+| `member`  | `Member` | Target user    |
+| `role`    | `Role`   | Role to assign |
 
 **Authorization:** The invoking user must have at least one role that is configured as a source for the requested target role.
 
@@ -63,12 +64,12 @@ Remove a role from a member. Same authorization as `assign`.
 
 ### `RoleMapping`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| Id | Integer (PK) | Auto-increment |
-| GuildId | BigInteger | Discord guild ID |
-| SourceRoleId | BigInteger | Role that grants assignment power |
-| TargetRoleId | BigInteger | Role that can be assigned |
+| Column       | Type         | Purpose                           |
+| ------------ | ------------ | --------------------------------- |
+| Id           | Integer (PK) | Auto-increment                    |
+| GuildId      | BigInteger   | Discord guild ID                  |
+| SourceRoleId | BigInteger   | Role that grants assignment power |
+| TargetRoleId | BigInteger   | Role that can be assigned         |
 
 **Unique constraint:** `(GuildId, SourceRoleId, TargetRoleId)` — prevents duplicate mappings.
 

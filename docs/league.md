@@ -8,10 +8,10 @@ Riot API integration for looking up summoner profiles. Requires `league.riot` AP
 
 Look up a League of Legends summoner profile.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `region` | `Literal["EUW1", "NA1"]` | Server region |
-| `summoner_name` | `str` | Summoner name to look up |
+| Parameter       | Type                     | Description              |
+| --------------- | ------------------------ | ------------------------ |
+| `region`        | `Literal["EUW1", "NA1"]` | Server region            |
+| `summoner_name` | `str`                    | Summoner name to look up |
 
 ## How the Lookup Works
 

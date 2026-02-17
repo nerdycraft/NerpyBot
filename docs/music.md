@@ -8,11 +8,12 @@ YouTube music playback in voice channels. Uses `yt-dlp` for video extraction and
 
 Play audio from a URL or search YouTube.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter  | Type  | Description         |
+| ---------- | ----- | ------------------- |
 | `song_url` | `str` | URL or search query |
 
 **Behavior depends on input:**
+
 - **Direct URL** — Fetches video info, queues, and plays
 - **YouTube playlist URL** — Redirects to `play playlist`
 - **Text query** — Redirects to `play search`
@@ -23,19 +24,20 @@ Play audio from a URL or search YouTube.
 
 Play a single song by direct URL. Hidden subcommand (used internally).
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter  | Type  | Description               |
+| ---------- | ----- | ------------------------- |
 | `song_url` | `str` | Direct URL to audio/video |
 
 ### `/play playlist <playlist_url>`
 
 Add all videos from a YouTube playlist to the queue.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter      | Type  | Description          |
+| -------------- | ----- | -------------------- |
 | `playlist_url` | `str` | YouTube playlist URL |
 
 **Process:**
+
 1. Extract playlist via `yt-dlp` (`extract_flat` mode for speed)
 2. Create a `QueuedSong` for each entry with the video title and ID
 3. Queue all songs — playback starts automatically via the queue manager
@@ -44,9 +46,9 @@ Add all videos from a YouTube playlist to the queue.
 
 Search YouTube and play the first result.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `query` | `str` | Search terms |
+| Parameter | Type  | Description  |
+| --------- | ----- | ------------ |
+| `query`   | `str` | Search terms |
 
 Uses the YouTube Data API v3 (`config.search.ytkey`) to find the top result, then queues it.
 
@@ -94,8 +96,8 @@ The queue is stored per-guild in `Audio.buffer[guild_id][BufferKey.QUEUE]` as a 
 
 ```yaml
 audio:
-  buffer_limit: 5    # Max queued songs per guild
+  buffer_limit: 5 # Max queued songs per guild
 
 search:
-  ytkey: your_youtube_api_key    # Required for /play search
+  ytkey: your_youtube_api_key # Required for /play search
 ```

@@ -31,6 +31,7 @@ Fetches a random Trump quote.
 Fetches a random XKCD comic.
 
 **Process:**
+
 1. Fetch `https://xkcd.com/info.0.json` to get the latest comic number
 2. Pick a random number between 1 and the latest
 3. Fetch `https://xkcd.com/{num}/info.0.json` for that comic

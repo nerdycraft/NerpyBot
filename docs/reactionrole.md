@@ -9,6 +9,7 @@ Assign Discord roles based on emoji reactions on designated messages. When a use
 Triggered when any user adds a reaction to any message.
 
 **Process:**
+
 1. Skip if the reactor is a bot
 2. Look up the message ID in `ReactionRoleMessage`
 3. Find a `ReactionRoleEntry` matching the emoji
@@ -29,14 +30,15 @@ All commands require **`manage_roles`** permission.
 
 Create an emoji-to-role mapping on a message.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `channel` | `TextChannel` | Channel containing the message |
-| `message_id` | `str` | Discord message ID |
-| `emoji` | `str` | Emoji to react with |
-| `role` | `Role` | Role to assign |
+| Parameter    | Type          | Description                    |
+| ------------ | ------------- | ------------------------------ |
+| `channel`    | `TextChannel` | Channel containing the message |
+| `message_id` | `str`         | Discord message ID             |
+| `emoji`      | `str`         | Emoji to react with            |
+| `role`       | `Role`        | Role to assign                 |
 
 **Process:**
+
 1. Fetch the message to verify it exists
 2. Create `ReactionRoleMessage` entry if first mapping on this message
 3. Create `ReactionRoleEntry` for the emoji-role pair
@@ -48,10 +50,10 @@ Create an emoji-to-role mapping on a message.
 
 Remove an emoji-role mapping.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter    | Type  | Description        |
+| ------------ | ----- | ------------------ |
 | `message_id` | `str` | Discord message ID |
-| `emoji` | `str` | Emoji to unmap |
+| `emoji`      | `str` | Emoji to unmap     |
 
 Also attempts to clear the bot's reaction from the message.
 
@@ -63,31 +65,31 @@ List all reaction role mappings for this server, grouped by channel and message.
 
 Remove **all** reaction role mappings from a message and clear all reactions.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter    | Type  | Description        |
+| ------------ | ----- | ------------------ |
 | `message_id` | `str` | Discord message ID |
 
 ## Database Models
 
 ### `ReactionRoleMessage`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| Id | Integer (PK) | Auto-increment |
-| GuildId | BigInteger | Discord guild ID |
-| ChannelId | BigInteger | Channel containing the message |
-| MessageId | BigInteger | Discord message ID (unique) |
+| Column    | Type         | Purpose                        |
+| --------- | ------------ | ------------------------------ |
+| Id        | Integer (PK) | Auto-increment                 |
+| GuildId   | BigInteger   | Discord guild ID               |
+| ChannelId | BigInteger   | Channel containing the message |
+| MessageId | BigInteger   | Discord message ID (unique)    |
 
 Has a `entries` relationship to `ReactionRoleEntry` with cascade delete.
 
 ### `ReactionRoleEntry`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| Id | Integer (PK) | Auto-increment |
-| ReactionRoleMessageId | Integer (FK) | Parent message |
-| Emoji | Unicode(100) | Emoji string (Unicode or custom format) |
-| RoleId | BigInteger | Discord role ID to assign |
+| Column                | Type         | Purpose                                 |
+| --------------------- | ------------ | --------------------------------------- |
+| Id                    | Integer (PK) | Auto-increment                          |
+| ReactionRoleMessageId | Integer (FK) | Parent message                          |
+| Emoji                 | Unicode(100) | Emoji string (Unicode or custom format) |
+| RoleId                | BigInteger   | Discord role ID to assign               |
 
 ## How Detection Works
 
