@@ -1,28 +1,31 @@
 # -*- coding: utf-8 -*-
 
 from datetime import UTC, datetime, time, timedelta
-from typing import Optional, Union
+from typing import Optional
 
 import utils.format as fmt
-from discord import Embed, Member, TextChannel
-from discord.app_commands import checks, rename
+from discord import Embed, Interaction, Member, TextChannel, app_commands
+from discord.app_commands import checks
 from discord.ext import tasks
-from discord.ext.commands import Cog, Context, command, has_permissions, hybrid_command, hybrid_group
+from discord.ext.commands import Cog
 from humanize import naturaldate
 from pytimeparse2 import parse
 
 from models.moderation import AutoDelete, AutoKicker
 
-from utils.errors import NerpyException
-from utils.helpers import empty_subcommand, notify_error, send_hidden_message
+from utils.helpers import notify_error
 from utils.permissions import validate_channel_permissions
 
 # If no tzinfo is given then UTC is assumed.
 LOOP_RUN_TIME = time(hour=12, minute=30, tzinfo=UTC)
 
 
+@app_commands.guild_only()
 class Moderation(Cog):
     """cog for bot management"""
+
+    autodeleter = app_commands.Group(name="autodeleter", description="Manage autodeletion per channel")
+    user_group = app_commands.Group(name="user", description="User moderation")
 
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
@@ -131,18 +134,17 @@ class Moderation(Cog):
             await notify_error(self.bot, "Autodeleter background loop", ex)
         self.bot.log.debug("Finish Autodeleter Loop!")
 
-    @hybrid_command()
-    @rename(kick_reminder_message="reminder_message")
+    @app_commands.command()
+    @app_commands.rename(kick_reminder_message="reminder_message")
     @checks.has_permissions(kick_members=True)
-    @has_permissions(kick_members=True)
     async def autokicker(
-        self, ctx: Context, enable: bool, kick_after: Optional[str], kick_reminder_message: Optional[str]
+        self, interaction: Interaction, enable: bool, kick_after: str, kick_reminder_message: Optional[str] = None
     ):
         """Activates the AutoKicker. [bot-moderator]
 
         Parameters
         ----------
-        ctx
+        interaction
         enable: bool
         kick_after: str
             Time after someone gets kicked, like "1 day", "1 week" or "5 minutes".
@@ -150,16 +152,12 @@ class Moderation(Cog):
         kick_reminder_message: Optional[str]
         """
         with self.bot.session_scope() as session:
-            configuration = AutoKicker.get_by_guild(ctx.guild.id, session)
-            if kick_after is not None:
-                kick_time = parse(kick_after)
-                if kick_time is None:
-                    await send_hidden_message(
-                        ctx, "Only timespans up until weeks are allowed. Do not use months or years."
-                    )
-                    return
-            else:
-                await send_hidden_message(ctx, "You need to specify when I should kick someone!")
+            configuration = AutoKicker.get_by_guild(interaction.guild.id, session)
+            kick_time = parse(kick_after)
+            if kick_time is None:
+                await interaction.response.send_message(
+                    "Only timespans up until weeks are allowed. Do not use months or years.", ephemeral=True
+                )
                 return
             if configuration is not None:
                 configuration.KickAfter = kick_time
@@ -167,52 +165,36 @@ class Moderation(Cog):
                 configuration.ReminderMessage = kick_reminder_message
             else:
                 autokicker = AutoKicker(
-                    GuildId=ctx.guild.id,
+                    GuildId=interaction.guild.id,
                     KickAfter=kick_time,
                     Enabled=enable,
                     ReminderMessage=kick_reminder_message,
                 )
                 session.add(autokicker)
 
-        await send_hidden_message(ctx, "AutoKicker configured for this server.")
-
-    @hybrid_group()
-    @checks.has_permissions(manage_messages=True)
-    @has_permissions(manage_messages=True)
-    async def autodeleter(self, ctx: Context) -> None:
-        """Manage autodeletion per channel [bot-moderator]"""
-        if ctx.invoked_subcommand is None:
-            args = str(ctx.message.clean_content).split(" ")
-            if len(args) > 2:
-                raise NerpyException("Command not found!")
-            elif len(args) <= 1:
-                await ctx.send_help(ctx.command)
-            else:
-                await ctx.send(args[1])
+        await interaction.response.send_message("AutoKicker configured for this server.", ephemeral=True)
 
     @autodeleter.command(name="create")
     @checks.has_permissions(manage_messages=True)
-    @has_permissions(manage_messages=True)
     async def _autodeleter_create(
         self,
-        ctx: Context,
-        *,
+        interaction: Interaction,
         channel: TextChannel,
-        delete_older_than: Optional[Union[str | None]],
-        keep_messages: Optional[Union[int | None]],
-        delete_pinned_message: bool,
+        delete_older_than: Optional[str] = None,
+        keep_messages: Optional[int] = None,
+        delete_pinned_message: bool = False,
     ) -> None:
         """
         Creates AutoDeletion configuration on a per-channel basis.
 
         Parameters
         ----------
-        ctx
+        interaction
         channel: discord.TextChannel
-        delete_older_than: Optional[Union[str | None]]
+        delete_older_than: Optional[str]
             Time after messages get deleted, like "1 day", "1 week" or "5 minutes".
             Supports also abbreviations like "min" and "h".
-        keep_messages: Optional[Union[int | None]]
+        keep_messages: Optional[int]
             Messages to keep after deletion. Can be used in combination with "delete_older_than".
         delete_pinned_message: bool
         """
@@ -220,80 +202,84 @@ class Moderation(Cog):
         channel_name = channel.name
 
         with self.bot.session_scope() as session:
-            configuration = AutoDelete.get_by_channel(ctx.guild.id, channel_id, session)
+            configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
             if configuration is not None:
-                await send_hidden_message(
-                    ctx,
+                await interaction.response.send_message(
                     "This Channel is already configured for AutoDelete."
                     "Please edit or delete the existing configuration.",
+                    ephemeral=True,
                 )
-            else:
-                if ctx.guild.get_channel(channel_id) is not None:
-                    validate_channel_permissions(
-                        channel, ctx.guild, "view_channel", "manage_messages", "read_message_history"
-                    )
-                    if delete_older_than is None:
-                        delete = delete_older_than
-                    else:
-                        delete = parse(delete_older_than)
-                        if delete is None:
-                            await send_hidden_message(
-                                ctx, "Only timespans up until weeks are allowed. Do not use months or years."
-                            )
-                            return
+                return
 
-                    deleter = AutoDelete(
-                        GuildId=ctx.guild.id,
-                        ChannelId=channel_id,
-                        KeepMessages=keep_messages,
-                        DeleteOlderThan=delete,
-                        DeletePinnedMessage=delete_pinned_message,
-                    )
-                    session.add(deleter)
+            if interaction.guild.get_channel(channel_id) is not None:
+                validate_channel_permissions(
+                    channel, interaction.guild, "view_channel", "manage_messages", "read_message_history"
+                )
+                if delete_older_than is None:
+                    delete = delete_older_than
+                else:
+                    delete = parse(delete_older_than)
+                    if delete is None:
+                        await interaction.response.send_message(
+                            "Only timespans up until weeks are allowed. Do not use months or years.",
+                            ephemeral=True,
+                        )
+                        return
 
-        await send_hidden_message(ctx, f'AutoDeleter configured for channel "{channel_name}".')
+                deleter = AutoDelete(
+                    GuildId=interaction.guild.id,
+                    ChannelId=channel_id,
+                    KeepMessages=keep_messages,
+                    DeleteOlderThan=delete,
+                    DeletePinnedMessage=delete_pinned_message,
+                )
+                session.add(deleter)
+
+        await interaction.response.send_message(f'AutoDeleter configured for channel "{channel_name}".', ephemeral=True)
 
     @autodeleter.command(name="delete")
     @checks.has_permissions(manage_messages=True)
-    @has_permissions(manage_messages=True)
-    async def _autodeleter_delete(self, ctx: Context, *, channel: TextChannel) -> None:
+    async def _autodeleter_delete(self, interaction: Interaction, channel: TextChannel) -> None:
         """
         Delete AutoDelete configuration for a channel.
 
         Parameters
         ----------
-        ctx
+        interaction
         channel
         """
         channel_id = channel.id
         channel_name = channel.name
 
         with self.bot.session_scope() as session:
-            configuration = AutoDelete.get_by_channel(ctx.guild.id, channel_id, session)
+            configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
             if configuration is not None:
-                AutoDelete.delete(ctx.guild.id, channel_id, session)
-                await send_hidden_message(ctx, f'Deleted configuration for channel "{channel_name}".')
+                AutoDelete.delete(interaction.guild.id, channel_id, session)
+                await interaction.response.send_message(
+                    f'Deleted configuration for channel "{channel_name}".', ephemeral=True
+                )
             else:
-                await send_hidden_message(ctx, f'No configuration for channel "{channel_name}" found!')
+                await interaction.response.send_message(
+                    f'No configuration for channel "{channel_name}" found!', ephemeral=True
+                )
 
     @autodeleter.command(name="list")
     @checks.has_permissions(manage_messages=True)
-    @has_permissions(manage_messages=True)
-    async def _autodeleter_list(self, ctx: Context) -> None:
+    async def _autodeleter_list(self, interaction: Interaction) -> None:
         """
         Lists AutoDelete configuration.
 
         Parameters
         ----------
-        ctx
+        interaction
         """
 
         with self.bot.session_scope() as session:
-            configurations = AutoDelete.get_by_guild(ctx.guild.id, session)
+            configurations = AutoDelete.get_by_guild(interaction.guild.id, session)
             if configurations is not None:
                 msg = "==== AutoDeleter Configuration ====\n"
                 for configuration in configurations:
-                    channel = ctx.guild.get_channel(configuration.ChannelId)
+                    channel = interaction.guild.get_channel(configuration.ChannelId)
                     channel_name = channel.name if channel else f"Unknown ({configuration.ChannelId})"
                     msg += (
                         f"Channel: {channel_name}, "
@@ -301,33 +287,31 @@ class Moderation(Cog):
                         f"DeletePinnedMessages: {configuration.DeletePinnedMessage}, "
                         f"KeepMessages: {configuration.KeepMessages}\n"
                     )
-                await send_hidden_message(ctx, fmt.box(msg))
+                await interaction.response.send_message(fmt.box(msg), ephemeral=True)
             else:
-                await send_hidden_message(ctx, "No configuration found!")
+                await interaction.response.send_message("No configuration found!", ephemeral=True)
 
     @autodeleter.command(name="edit")
     @checks.has_permissions(manage_messages=True)
-    @has_permissions(manage_messages=True)
     async def _autodeleter_modify(
         self,
-        ctx: Context,
-        *,
+        interaction: Interaction,
         channel: TextChannel,
-        delete_older_than: Optional[Union[str | None]],
-        keep_messages: Optional[Union[int | None]],
-        delete_pinned_message: bool,
+        delete_older_than: Optional[str] = None,
+        keep_messages: Optional[int] = None,
+        delete_pinned_message: bool = False,
     ):
         """
         Modifies a AutoDeletion configuration for a channel.
 
         Parameters
         ----------
-        ctx
+        interaction
         channel: discord.TextChannel
-        delete_older_than: Optional[Union[str | None]]
+        delete_older_than: Optional[str]
             Time after messages get deleted, like "1 day", "1 week" or "5 minutes".
             Supports also abbreviations like "min" and "h".
-        keep_messages: Optional[Union[int | None]]
+        keep_messages: Optional[int]
             Messages to keep after deletion. Can be used in combination with "delete_older_than".
         delete_pinned_message: bool
         """
@@ -335,7 +319,7 @@ class Moderation(Cog):
         channel_name = channel.name
 
         with self.bot.session_scope() as session:
-            configuration = AutoDelete.get_by_channel(ctx.guild.id, channel_id, session)
+            configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
             if configuration is not None:
                 if delete_older_than is None:
                     configuration.DeleteOlderThan = delete_older_than
@@ -345,26 +329,21 @@ class Moderation(Cog):
                 configuration.KeepMessages = keep_messages if keep_messages is not None else 0
                 configuration.DeletePinnedMessage = delete_pinned_message
 
-                await send_hidden_message(ctx, f'Updated configuration for channel "{channel_name}".')
+                await interaction.response.send_message(
+                    f'Updated configuration for channel "{channel_name}".', ephemeral=True
+                )
             else:
-                await send_hidden_message(
-                    ctx, f'Configuration for channel "{channel_name}" does not exist. Please create one first.'
+                await interaction.response.send_message(
+                    f'Configuration for channel "{channel_name}" does not exist. Please create one first.',
+                    ephemeral=True,
                 )
 
-    @hybrid_group(aliases=["u"])
+    @user_group.command(name="info")
     @checks.has_permissions(moderate_members=True)
-    @has_permissions(moderate_members=True)
-    async def user(self, ctx: Context):
-        """user moderation [bot-moderator]"""
-        await empty_subcommand(ctx)
-
-    @user.command(name="info")
-    @checks.has_permissions(moderate_members=True)
-    @has_permissions(moderate_members=True)
-    async def _get_user_info(self, ctx: Context, member: Optional[Member]):
+    async def _get_user_info(self, interaction: Interaction, member: Optional[Member] = None):
         """displays information about given user [bot-moderator]"""
 
-        member = member or ctx.author
+        member = member or interaction.user
         created = member.created_at.strftime("%d. %B %Y - %H:%M")
         joined = member.joined_at.strftime("%d. %B %Y - %H:%M")
 
@@ -380,28 +359,29 @@ class Moderation(Cog):
 
         emb.add_field(name="roles", value=", ".join(rn), inline=False)
 
-        await send_hidden_message(ctx, embed=emb)
+        await interaction.response.send_message(embed=emb, ephemeral=True)
 
-    @user.command(name="list")
+    @user_group.command(name="list")
     @checks.has_permissions(moderate_members=True)
-    @has_permissions(moderate_members=True)
-    async def _list_user_info_from_guild(self, ctx: Context, show_only_users_without_roles: Optional[bool]):
+    async def _list_user_info_from_guild(
+        self, interaction: Interaction, show_only_users_without_roles: Optional[bool] = None
+    ):
         """displays a list of users on your server [bot-moderator]
 
         Parameters
         ----------
-        ctx
+        interaction
         show_only_users_without_roles: Optional[bool]
             If True shows only Users without a Role. (The role everyone is not considered a given role)
         """
         msg = ""
         if show_only_users_without_roles:
-            for member in ctx.guild.members:
+            for member in interaction.guild.members:
                 if len(member.roles) == 1:
                     joined = member.joined_at.strftime("%d. %b %Y - %H:%M")
                     msg += f"{member.display_name}: joined: {joined}\n"
         else:
-            for member in ctx.guild.members:
+            for member in interaction.guild.members:
                 created = member.created_at.strftime("%d. %b %Y - %H:%M")
                 joined = member.joined_at.strftime("%d. %b %Y - %H:%M")
                 msg += f"{member.display_name}: [created: {created} | joined: {joined}]\n"
@@ -409,29 +389,20 @@ class Moderation(Cog):
         if msg == "":
             msg = "None found."
 
+        first_page = True
         for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
-            await send_hidden_message(ctx, fmt.box(page))
+            if first_page:
+                await interaction.response.send_message(fmt.box(page), ephemeral=True)
+                first_page = False
+            else:
+                await interaction.followup.send(fmt.box(page), ephemeral=True)
 
-    @hybrid_command()
-    async def membercount(self, ctx: Context):
+    @app_commands.command()
+    async def membercount(self, interaction: Interaction):
         """displays the current membercount of the server [bot-moderator]"""
-        await send_hidden_message(
-            ctx, fmt.inline(f"There are currently {ctx.guild.member_count} members on this discord")
+        await interaction.response.send_message(
+            fmt.inline(f"There are currently {interaction.guild.member_count} members on this discord"), ephemeral=True
         )
-
-    @command()
-    async def history(self, ctx: Context):
-        """displays the last 10 received commands since last restart [bot-moderator]"""
-        if ctx.guild.id in ctx.bot.last_cmd_cache:
-            msg = ""
-            for m in ctx.bot.last_cmd_cache[ctx.guild.id]:
-                if m.content != "":
-                    msg += f"{m.author} - {m.content}\n"
-
-            if msg != "":
-                await send_hidden_message(ctx, fmt.box(msg))
-                return
-        await send_hidden_message(ctx, "No recent commands to display.")
 
     @_autokicker_loop.before_loop
     async def _autokicker_before_loop(self):
