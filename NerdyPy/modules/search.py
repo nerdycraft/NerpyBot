@@ -8,16 +8,16 @@ from urllib.parse import quote
 
 import utils.format as fmt
 from aiohttp import ClientSession
-from discord import Embed
-from discord.app_commands import rename
-from discord.ext.commands import Context, GroupCog, bot_has_permissions, hybrid_command
+from discord import Embed, Interaction, app_commands
+from discord.ext.commands import GroupCog
 from igdb.wrapper import IGDBWrapper
 from requests import post
 from utils.errors import NerpyException
 from utils.helpers import check_api_response, youtube
 
 
-@bot_has_permissions(send_messages=True)
+@app_commands.guild_only()
+@app_commands.checks.bot_has_permissions(send_messages=True)
 class Search(GroupCog):
     """search module"""
 
@@ -28,14 +28,14 @@ class Search(GroupCog):
         self.config = self.bot.config["search"]
         self.igdb_token = {}
 
-    @hybrid_command()
-    @rename(query="meme")
-    async def imgur(self, ctx: Context, query: str):
+    @app_commands.command()
+    @app_commands.rename(query="meme")
+    async def imgur(self, interaction: Interaction, query: str):
         """may the meme be with you
 
         Parameters
         ----------
-        ctx: Context
+        interaction: Interaction
         query: str
             Meme/Picture/Gif to search for.
         """
@@ -49,10 +49,10 @@ class Search(GroupCog):
                     meme = data.get("data")[0].get("link")
                 else:
                     meme = "R.I.P. memes"
-                await ctx.send(meme)
+                await interaction.response.send_message(meme)
 
-    @hybrid_command()
-    async def urban(self, ctx: Context, query: str):
+    @app_commands.command()
+    async def urban(self, interaction: Interaction, query: str):
         """urban legend"""
         url = f"https://api.urbandictionary.com/v0/define?term={quote(query)}"
 
@@ -68,10 +68,10 @@ class Search(GroupCog):
                     emb.url = item.get("permalink")
                 else:
                     emb.description = "no results - R.I.P. memes"
-                await ctx.send(embed=emb)
+                await interaction.response.send_message(embed=emb)
 
-    @hybrid_command()
-    async def lyrics(self, ctx: Context, query: str):
+    @app_commands.command()
+    async def lyrics(self, interaction: Interaction, query: str):
         """genius lyrics"""
         url = f"https://api.genius.com/search?q={quote(query)}"
 
@@ -87,16 +87,16 @@ class Search(GroupCog):
                     emb.url = item.get("url")
                 else:
                     emb.description = "R.I.P. memes"
-                await ctx.send(embed=emb)
+                await interaction.response.send_message(embed=emb)
 
-    @hybrid_command()
-    async def youtube(self, ctx: Context, query: str):
+    @app_commands.command()
+    async def youtube(self, interaction: Interaction, query: str):
         """don't stick too long, you might get lost"""
         msg = youtube(self.config["ytkey"], "url", query)
 
         if msg is None:
             msg = "And i thought everything is on youtube :open_mouth:"
-        await ctx.send(msg)
+        await interaction.response.send_message(msg)
 
     async def _imdb_search(self, query_type: str, query: str):
         emb = None
@@ -130,21 +130,21 @@ class Search(GroupCog):
                     rip = fmt.inline("No movie found with this search query")
         return rip, emb
 
-    @hybrid_command()
-    @rename(query_type="type", query="name")
-    async def imdb(self, ctx: Context, query_type: Literal["movie", "series", "episode"], query: str):
+    @app_commands.command()
+    @app_commands.rename(query_type="type", query="name")
+    async def imdb(self, interaction: Interaction, query_type: Literal["movie", "series", "episode"], query: str):
         """omdb movie information
 
         Parameters
         ----------
-        ctx
+        interaction: Interaction
         query_type: Literal["movie", "series", "episode"]
             Which kind of Media you want to search for. Possible values are "Movie", "Series" or "Episode".
         query: str
             What do you want to search for?
         """
         rip, emb = await self._imdb_search(query_type.lower(), query)
-        await ctx.send(rip, embed=emb)
+        await interaction.response.send_message(rip, embed=emb)
 
     def _get_igdb_access_token(self):
         client_id = self.config["igdb_client_id"]
@@ -167,9 +167,9 @@ class Search(GroupCog):
 
             return result
 
-    @hybrid_command()
-    @rename(query="name")
-    async def games(self, ctx: Context, query: str):
+    @app_commands.command()
+    @app_commands.rename(query="name")
+    async def games(self, interaction: Interaction, query: str):
         """killerspiele"""
         main_query = (
             f'search "{query}";'
@@ -215,7 +215,7 @@ class Search(GroupCog):
             else:
                 emb.add_field(name=fmt.bold("Rating"), value="no rating")
         except IndexError:
-            await ctx.send(f"Nothing found for {query}.")
+            await interaction.response.send_message(f"Nothing found for {query}.")
         else:
             if len(result) > 0:
                 i = iter(result)
@@ -227,7 +227,7 @@ class Search(GroupCog):
 
             emb.set_footer(text=data.get("url"))
 
-            await ctx.send(embed=emb)
+            await interaction.response.send_message(embed=emb)
 
 
 async def setup(bot):
