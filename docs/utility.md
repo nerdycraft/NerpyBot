@@ -6,11 +6,11 @@ General-purpose utility commands. Requires `utility.openweather` API key in conf
 
 ### `/ping`
 
-Responds with "Pong." — a simple latency check. Hidden from help.
+Responds with "Pong." — a simple latency check.
 
 ### `/uptime`
 
-Shows how long the bot has been running since last restart. Hidden from help.
+Shows how long the bot has been running since last restart.
 
 **Format:** `X day(s), Y hour(s), Z minute(s)`
 

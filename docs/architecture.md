@@ -12,7 +12,6 @@ NerpyBot is a Discord bot built with discord.py using the Cog extension system. 
 2. Load `config.yaml` and initialize the bot
 3. `setup_hook()`:
    - Load each module listed in `config.bot.modules` via `bot.load_extension(f"modules.{name}")`
-   - Register global guild-only check (exceptions: `help`, `debug`, `sync`, `armory`)
    - Call `create_all()` to auto-create missing database tables
    - Start audio loops if `tagging` or `music` modules are loaded
 4. `on_ready()` — log successful connection
@@ -31,10 +30,10 @@ NerpyBot is a Discord bot built with discord.py using the Cog extension system. 
 
 | Event | Behavior |
 |-------|----------|
-| `on_command_completion` | Deletes the invoking prefix message; caches last 10 commands per guild |
-| `on_command_error` | Logs errors, sends user-friendly messages, throttles `CommandNotFound` spam |
+| `on_app_command_error` | Logs errors and sends user-friendly messages for slash commands |
+| `on_command_error` | Handles errors for the few remaining prefix commands (admin sync/debug) |
 | `on_raw_reaction_add` | Routes reactions to active conversations (raidplaner) |
-| `on_message` | Routes DMs to active conversations, then processes commands |
+| `on_message` | Routes DMs to active conversations, then processes prefix commands |
 
 ## Module System
 
@@ -49,19 +48,19 @@ Modules are loaded dynamically based on `config.bot.modules`. Available modules:
 
 | Module | Type | Background Tasks | External APIs |
 |--------|------|-----------------|---------------|
-| admin | Cog | — | — |
+| admin | Cog (slash + prefix) | — | — |
 | fun | Cog | — | — |
 | league | GroupCog | — | Riot API |
-| leavemsg | Cog | — | — |
+| leavemsg | GroupCog | — | — |
 | moderation | Cog | AutoKicker (daily), AutoDeleter (5min) | — |
 | music | GroupCog + QueueMixin | — | YouTube API, yt-dlp |
 | raidplaner | Cog | — | — |
 | random | Cog | — | Various public APIs |
-| reactionrole | Cog | — | — |
+| reactionrole | GroupCog | — | — |
 | reminder | GroupCog | Reminder loop (30s) | — |
-| rolemanage | Cog | — | — |
+| rolemanage | GroupCog | — | — |
 | search | GroupCog | — | Imgur, Genius, OMDB, IGDB, YouTube |
-| tagging | Cog + QueueMixin | — | — |
+| tagging | GroupCog + QueueMixin | — | — |
 | utility | Cog | — | OpenWeatherMap |
 | wow | GroupCog | Guild news loop (15min) | Blizzard API, Raider.io |
 
@@ -142,7 +141,7 @@ Discord markdown helpers: `bold()`, `italics()`, `box()`, `inline()`, `strikethr
 
 ### Helpers (`utils/helpers.py`)
 
-- **`send_hidden_message(ctx, msg)`** — Slash: ephemeral reply. Prefix: DM fallback.
+- **`send_hidden_message(interaction, msg)`** — Sends an ephemeral reply via `response.send_message` or `followup.send` based on `is_done()`. Accepts `discord.Interaction` objects.
 - **`error_context(ctx)`** — Formatted log prefix: `[Guild (id)] User (id) -> /command`
 - **`empty_subcommand(ctx)`** — Default handler when no subcommand is given.
 - **`check_api_response(response)`** — Raises `NerpyException` on non-200 status.
@@ -159,7 +158,7 @@ Permission check functions for use with `@check()` decorator:
 | `can_stop_playback` | Mod, or alone with bot in voice |
 | `can_leave_voice` | Bot-moderator only |
 
-All checks guard against side effects during help probes (`ctx.invoked_with == "help"`).
+All check functions accept `discord.Interaction` objects (not `Context`) for slash command compatibility.
 
 ### Logging (`utils/logging.py`)
 
@@ -171,13 +170,13 @@ Format: `[DD/MM/YYYY HH:MM] - LEVEL - module line: message`
 
 ## Key Patterns
 
-### Hybrid Commands
+### Slash Commands
 
-Most commands are `@hybrid_command` — they work as both prefix (`!command`) and slash (`/command`). The `GroupCog` pattern creates command groups (e.g., `/wow armory`, `/reminder create`).
+All user-facing commands are slash commands (`/command`) using `@app_commands.command`. The `GroupCog` pattern creates command groups (e.g., `/wow armory`, `/reminder create`). Exceptions: admin `sync` is dual-registered (slash + prefix), admin `debug` is prefix-only, and raidplaner remains fully prefix-only (interactive DM conversations).
 
 ### Ephemeral Messaging
 
-`ephemeral=True` is silently ignored on prefix commands (no interaction context). Always use `send_hidden_message()` which falls back to DMs.
+Use `send_hidden_message()` from `utils/helpers.py` to send ephemeral replies. It accepts `discord.Interaction` and uses `response.send_message` or `followup.send` based on whether the interaction has already been responded to.
 
 ### Background Task Pattern
 
@@ -197,8 +196,8 @@ def cog_unload(self):
 ### Error Handling
 
 - `NerpyException` — bot-specific errors, message sent to user
-- `CommandNotFound` — throttled per user via `error_spam_threshold`
-- Other exceptions — logged with traceback, generic error sent to user
+- `app_commands` errors — handled by `on_app_command_error`, logged with traceback
+- Prefix command errors (admin only) — handled by `on_command_error`
 
 ## Configuration
 
@@ -207,7 +206,6 @@ bot:
   client_id: discord_app_id
   token: discord_bot_token
   ops: [operator_user_ids]
-  error_spam_threshold: 5
   modules: [admin, fun, ...]
 
 database:

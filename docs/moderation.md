@@ -111,10 +111,6 @@ Stop audio playback. Uses the `can_stop_playback` check — bot-moderators can a
 
 Make the bot leave the voice channel. **Bot-moderator only.**
 
-### `history`
-
-Show the last 10 commands received by the bot in this guild. Prefix-only command.
-
 ## Database Models
 
 ### `AutoKicker`

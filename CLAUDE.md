@@ -71,7 +71,7 @@ docker run --rm -e ALEMBIC_CONFIG=alembic-humanmusic.ini nerpybot-migrations ale
 
 Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamically based on `config.yaml`:
 
-- **admin** - Server management, prefix config, command sync
+- **admin** - Server management, moderator role config, command sync
 - **fun** - Entertainment commands
 - **league** - Riot API integration
 - **leavemsg** - Custom leave messages when members depart
@@ -104,7 +104,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - `conversation.py` - Interactive dialog state management
 - `errors.py` - `NerpyException` for bot-specific errors
 - `format.py` - Text formatting helpers
-- `helpers.py` - General utilities (incl. `send_hidden_message` for ephemeral/DM responses)
+- `helpers.py` - General utilities (incl. `send_hidden_message` for ephemeral responses via Interaction)
 - `download.py` - Audio downloading and ffmpeg conversion (yt-dlp)
 - `logging.py` - Dual-handler log setup (stdout for INFO/DEBUG, stderr for WARNING+)
 - `permissions.py` - Per-module bot permission requirements map and guild-level permission audit helpers
@@ -115,9 +115,11 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **NerdyPy uses script-relative imports** — Internal imports like `from models.admin import ...` assume `NerdyPy/` is on `sys.path`. Entry points or external callers must add it to `sys.path` before importing (see `cli.py:bot()`).
 - **SQLite strips timezone info from DateTime columns** — Values read back are naive. Normalize with `.replace(tzinfo=UTC)` before comparing against aware datetimes.
 - **`blizzapi` does NOT auto-retry on 429** — It returns `{"code": 429}` as a dict. Check every response and handle rate limits manually.
-- **`app_commands.checks` only gates slash commands** — Cog-level `@checks.has_permissions()` from `discord.app_commands` does NOT apply to prefix commands. A global `guild_only` check in `setup_hook` protects prefix commands from DM invocation.
-- **`ephemeral=True` is silently ignored on prefix commands** — Always use `send_hidden_message()` from `utils/helpers.py` which falls back to DMs for prefix contexts.
-- **Check functions must be side-effect-free during help** — `DefaultHelpCommand` calls `can_run()` on every command. Check functions in `checks.py` guard against this with `ctx.invoked_with == "help"`.
+- **`send_hidden_message()` accepts Interaction** — It now only handles `discord.Interaction` objects, using `response.send_message` or `followup.send` based on `is_done()`. Still used by admin prefix commands for DM fallback.
+- **`sync` is dual-registered** — Both a slash command (`/sync`) and a prefix command (`!sync`). The slash version syncs to current guild or globally. The prefix version has advanced options (`Greedy[Object]`, spec parameter).
+- **raidplaner remains prefix-only** — Uses interactive DM conversations that require message-based back-and-forth (`conversation.py` utilities).
+- **Check functions accept Interaction, not Context** — All check functions in `checks.py` were converted to accept `discord.Interaction` for slash command compatibility. The `interaction_check` in admin.py uses these. The `cog_check` in admin.py has inline logic for prefix commands.
+- **admin.py modrole and botpermissions are guild_only** — The `app_commands.Group` definitions have `guild_only=True` to prevent DM invocation, since they access `interaction.guild` unconditionally. The top-level `sync_slash` command works in DMs for global syncs.
 
 ## Configuration
 

@@ -20,16 +20,20 @@ Sets the bot-moderator role. Members with this role gain elevated bot permission
 
 Removes the bot-moderator role configuration.
 
-### `sync [guilds] [spec]`
+### `/sync`
 
-Syncs slash commands with Discord. Prefix-only (not a slash command itself).
+Syncs slash commands with Discord. **Dual-registered:** available as both a slash command and a prefix command (`!sync`).
+
+**Slash version** (`/sync`): Syncs commands to the current guild, or globally if used in DMs.
+
+**Prefix version** (`!sync`): Advanced options for operators.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `guilds` | `Greedy[Object]` | Optional guild IDs to sync to |
 | `spec` | `Literal["local", "copy", "clear"]` | Sync mode |
 
-**Sync modes:**
+**Prefix sync modes:**
 - *(no spec, no guilds)* — Global sync
 - `local` — Sync current guild's commands
 - `copy` — Copy global commands to specified guild(s)
@@ -47,9 +51,9 @@ Subscribe to automatic DM notifications about missing permissions. When the bot 
 
 Stop receiving automatic permission notifications for this server.
 
-### `debug`
+### `!debug`
 
-Toggles debug logging at runtime. **Operator-only** (user ID must be in `config.bot.ops`).
+Toggles debug logging at runtime. **Prefix-only, DM-only, operator-only** (user ID must be in `config.bot.ops`).
 
 ## Database Models
 
