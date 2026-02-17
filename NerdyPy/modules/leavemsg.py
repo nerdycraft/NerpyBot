@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 """Module for server leave message announcements"""
 
-from discord import Member, TextChannel, app_commands
+from discord import Interaction, Member, TextChannel, app_commands
 from discord.app_commands import checks
-from discord.ext.commands import Cog, Context, MissingPermissions, hybrid_group
+from discord.ext.commands import Cog, GroupCog
 from models.leavemsg import LeaveMessage
 
 from utils.errors import NerpyException
-from utils.helpers import empty_subcommand, send_hidden_message
 from utils.permissions import validate_channel_permissions
 
 
@@ -15,23 +14,13 @@ DEFAULT_LEAVE_MESSAGE = "{member} left the server :("
 
 
 @app_commands.default_permissions(administrator=True)
-class LeaveMsg(Cog):
+@app_commands.guild_only()
+class LeaveMsg(GroupCog, group_name="leavemsg"):
     """Cog for managing server leave messages"""
 
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
         self.bot = bot
-
-    async def cog_check(self, ctx: Context) -> bool:
-        """Enforce administrator permission for prefix commands."""
-        if ctx.invoked_with == "help":
-            return False
-        # Slash commands are already gated by @checks.has_permissions
-        if ctx.interaction is not None:
-            return True
-        if ctx.author.guild_permissions.administrator:
-            return True
-        raise MissingPermissions(["administrator"])
 
     @Cog.listener()
     async def on_member_remove(self, member: Member) -> None:
@@ -66,30 +55,24 @@ class LeaveMsg(Cog):
                 f"[{member.guild.name} ({member.guild.id})]: failed to send leave message for {member}: {ex}"
             )
 
-    @hybrid_group()
+    @app_commands.command(name="enable")
     @checks.has_permissions(administrator=True)
-    async def leavemsg(self, ctx: Context) -> None:
-        """Manage leave messages for the server [administrator]"""
-        await empty_subcommand(ctx)
-
-    @leavemsg.command(name="enable")
-    @checks.has_permissions(administrator=True)
-    async def _leavemsg_enable(self, ctx: Context, channel: TextChannel) -> None:
+    async def _leavemsg_enable(self, interaction: Interaction, channel: TextChannel) -> None:
         """Enable leave messages in the specified channel. [administrator]
 
         Parameters
         ----------
-        ctx
+        interaction
         channel: TextChannel
             The channel where leave messages will be sent.
         """
-        validate_channel_permissions(channel, ctx.guild, "view_channel", "send_messages")
+        validate_channel_permissions(channel, interaction.guild, "view_channel", "send_messages")
 
         with self.bot.session_scope() as session:
-            leave_config = LeaveMessage.get(ctx.guild.id, session)
+            leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
                 leave_config = LeaveMessage(
-                    GuildId=ctx.guild.id,
+                    GuildId=interaction.guild.id,
                     ChannelId=channel.id,
                     Message=DEFAULT_LEAVE_MESSAGE,
                     Enabled=True,
@@ -101,28 +84,28 @@ class LeaveMsg(Cog):
                 if leave_config.Message is None:
                     leave_config.Message = DEFAULT_LEAVE_MESSAGE
 
-        await send_hidden_message(ctx, f"Leave messages enabled in {channel.mention}.")
+        await interaction.response.send_message(f"Leave messages enabled in {channel.mention}.", ephemeral=True)
 
-    @leavemsg.command(name="disable")
+    @app_commands.command(name="disable")
     @checks.has_permissions(administrator=True)
-    async def _leavemsg_disable(self, ctx: Context) -> None:
+    async def _leavemsg_disable(self, interaction: Interaction) -> None:
         """Disable leave messages for this server. [administrator]"""
         with self.bot.session_scope() as session:
-            leave_config = LeaveMessage.get(ctx.guild.id, session)
+            leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
                 raise NerpyException("Leave messages are not configured for this server.")
             leave_config.Enabled = False
 
-        await send_hidden_message(ctx, "Leave messages disabled.")
+        await interaction.response.send_message("Leave messages disabled.", ephemeral=True)
 
-    @leavemsg.command(name="message")
+    @app_commands.command(name="message")
     @checks.has_permissions(administrator=True)
-    async def _leavemsg_message(self, ctx: Context, *, message: str) -> None:
+    async def _leavemsg_message(self, interaction: Interaction, message: str) -> None:
         """Set a custom leave message. Use {member} as placeholder. [administrator]
 
         Parameters
         ----------
-        ctx
+        interaction
         message: str
             The message template. Use {member} for the member's display name.
         """
@@ -130,30 +113,30 @@ class LeaveMsg(Cog):
             raise NerpyException("Message must contain {member} placeholder for the member name.")
 
         with self.bot.session_scope() as session:
-            leave_config = LeaveMessage.get(ctx.guild.id, session)
+            leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
                 raise NerpyException("Please enable leave messages first using `/leavemsg enable #channel`.")
             leave_config.Message = message
 
-        await send_hidden_message(ctx, f"Leave message updated to: {message}")
+        await interaction.response.send_message(f"Leave message updated to: {message}", ephemeral=True)
 
-    @leavemsg.command(name="status")
+    @app_commands.command(name="status")
     @checks.has_permissions(administrator=True)
-    async def _leavemsg_status(self, ctx: Context) -> None:
+    async def _leavemsg_status(self, interaction: Interaction) -> None:
         """Show current leave message configuration. [administrator]"""
         with self.bot.session_scope() as session:
-            leave_config = LeaveMessage.get(ctx.guild.id, session)
+            leave_config = LeaveMessage.get(interaction.guild.id, session)
 
         if leave_config is None or not leave_config.Enabled:
-            await send_hidden_message(ctx, "Leave messages are not enabled for this server.")
+            await interaction.response.send_message("Leave messages are not enabled for this server.", ephemeral=True)
             return
 
-        channel = ctx.guild.get_channel(leave_config.ChannelId)
+        channel = interaction.guild.get_channel(leave_config.ChannelId)
         channel_mention = channel.mention if channel else "Unknown channel"
         message = leave_config.Message or DEFAULT_LEAVE_MESSAGE
 
-        await send_hidden_message(
-            ctx, f"**Leave messages:** Enabled\n**Channel:** {channel_mention}\n**Message:** {message}"
+        await interaction.response.send_message(
+            f"**Leave messages:** Enabled\n**Channel:** {channel_mention}\n**Message:** {message}", ephemeral=True
         )
 
 
