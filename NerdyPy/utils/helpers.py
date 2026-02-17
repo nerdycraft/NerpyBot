@@ -3,7 +3,7 @@
 import logging
 from traceback import format_exception
 
-from discord.ext.commands import Context
+from discord import Interaction
 from googleapiclient.discovery import build
 from utils.errors import NerpyException
 
@@ -19,33 +19,29 @@ def parse_id(value: int | str) -> int:
     return int(value)
 
 
-async def send_hidden_message(ctx: Context, msg: str = None, **kwargs):
-    """Send a message only visible to the invoking user.
+async def send_hidden_message(interaction: Interaction, msg: str = None, **kwargs):
+    """Send an ephemeral message via slash command interaction."""
+    if not interaction.response.is_done():
+        return await interaction.response.send_message(msg, ephemeral=True, **kwargs)
+    return await interaction.followup.send(msg, ephemeral=True, **kwargs)
 
-    Slash commands use ephemeral replies; prefix commands fall back to DMs
-    since ephemeral is silently ignored without an interaction.
+
+def error_context(source) -> str:
+    """Build a log prefix with command, user, and guild info.
+
+    Accepts both Interaction (slash) and Context (prefix fallback).
     """
-    if ctx.interaction is not None:
-        return await ctx.send(msg, ephemeral=True, **kwargs)
-    return await ctx.author.send(msg, **kwargs)
-
-
-def error_context(ctx: Context) -> str:
-    """Build a log prefix with command, user, and guild info."""
-    cmd = ctx.command.qualified_name if ctx.command else "unknown"
-    user = f"{ctx.author} ({ctx.author.id})"
-    guild = f"{ctx.guild.name} ({ctx.guild.id})" if ctx.guild else "DM"
+    if hasattr(source, "interaction"):
+        # Context (prefix commands) — has an .interaction attribute
+        cmd = source.command.qualified_name if source.command else "unknown"
+        user = f"{source.author} ({source.author.id})"
+        guild = f"{source.guild.name} ({source.guild.id})" if source.guild else "DM"
+    else:
+        # Interaction (slash commands)
+        cmd = source.command.qualified_name if source.command else "unknown"
+        user = f"{source.user} ({source.user.id})"
+        guild = f"{source.guild.name} ({source.guild.id})" if source.guild else "DM"
     return f"[{guild}] {user} -> /{cmd}"
-
-
-async def empty_subcommand(ctx: Context):
-    if ctx.invoked_subcommand is None:
-        args = str(ctx.message.clean_content).split(" ")
-        if len(args) > 2:
-            raise NerpyException("Command not found!")
-        elif len(args) <= 1:
-            await ctx.send_help(ctx.command)
-    return
 
 
 async def check_api_response(response, service_name: str = "API") -> None:
