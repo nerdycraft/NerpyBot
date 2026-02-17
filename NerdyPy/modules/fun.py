@@ -130,6 +130,7 @@ class Fun(Cog):
         }
 
     @app_commands.command()
+    @app_commands.guild_only()
     async def roll(self, interaction: Interaction, dice: int = 6) -> None:
         """
         Rolls random number (between 1 and user choice)
@@ -150,6 +151,7 @@ class Fun(Cog):
             )
 
     @app_commands.command()
+    @app_commands.guild_only()
     async def choose(self, interaction: Interaction, choices: str) -> None:
         """
         Makes a choice for you.
@@ -165,6 +167,7 @@ class Fun(Cog):
         )
 
     @app_commands.command(name="8ball")
+    @app_commands.guild_only()
     async def eightball(self, interaction: Interaction, question: str) -> None:
         """
         Ask 8-Ball a question.
@@ -178,6 +181,7 @@ class Fun(Cog):
         await interaction.response.send_message(f"{mention} asked me: {question}\n\n{choice(self.ball)}")
 
     @app_commands.command()
+    @app_commands.guild_only()
     async def hug(self, interaction: Interaction, user: Member, intensity: Optional[int] = None) -> None:
         """
         Because everyone likes hugs!
@@ -203,6 +207,7 @@ class Fun(Cog):
             await interaction.response.send_message(f"{author} {choice(self.hugs)} {name}")
 
     @app_commands.command()
+    @app_commands.guild_only()
     async def leet(self, interaction: Interaction, intensity: int, text: str) -> None:
         """
         convert text into 1337speak
@@ -235,6 +240,7 @@ class Fun(Cog):
         await interaction.response.send_message(text)
 
     @app_commands.command()
+    @app_commands.guild_only()
     async def roti(self, interaction: Interaction, num: int = None) -> None:
         """
         rules of the internet
@@ -251,6 +257,7 @@ class Fun(Cog):
         await interaction.response.send_message(f"Rule {rule}: {self.rotis[rule]}")
 
     @app_commands.command()
+    @app_commands.guild_only()
     async def say(self, interaction: Interaction, text: str) -> None:
         """
         makes the bot say what you want :O

@@ -201,6 +201,14 @@ class NerpyBot(Bot):
                     except Exception as ex:
                         self.log.debug(f"Could not DM permission alert to {sub.UserId}: {ex}")
 
+    async def on_app_command_completion(self, interaction: Interaction, command: app_commands.Command) -> None:
+        """Log successful slash command invocations."""
+        self.log.debug(error_context(interaction))
+
+    async def on_command_completion(self, ctx: Context) -> None:
+        """Log successful prefix command invocations."""
+        self.log.debug(error_context(ctx))
+
     async def _on_app_command_error(self, interaction: Interaction, error: app_commands.AppCommandError) -> None:
         """Handle errors from slash commands."""
         err_ctx = error_context(interaction)

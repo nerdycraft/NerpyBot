@@ -35,10 +35,8 @@ bot = [
     "pynacl",
     "pyyaml",
     "blizzapi",
-    "openweather-wrapper",
     "requests-cache",
     "cachetools",
-    "matplotlib",
     "yt-dlp",
 ]
 test = [

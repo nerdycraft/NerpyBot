@@ -1,16 +1,18 @@
 # -*- coding: utf-8 -*-
 
 import logging
+from datetime import UTC, datetime
+from importlib.metadata import version as pkg_version
 from typing import Literal, Optional
 
-from discord import Forbidden, HTTPException, Interaction, Object, Role
+from discord import Embed, Forbidden, HTTPException, Interaction, Object, Role
 from discord import app_commands
 from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError
-from discord.ext.commands import Cog, Context, Greedy, command
+from discord.ext.commands import Cog, Context, Greedy, command, hybrid_command
 from models.botmod import BotModeratorRole
 from models.permissions import PermissionSubscriber
 
-from utils.checks import is_admin_or_operator
+from utils.checks import is_admin_or_operator, require_operator
 from utils.errors import NerpyException
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 
@@ -31,12 +33,16 @@ class Admin(Cog):
 
     async def interaction_check(self, interaction: Interaction) -> bool:
         """Allow administrators and bot operators to use all admin slash commands."""
+        if interaction.command and interaction.command.name == "ping":
+            return True
         if await is_admin_or_operator(interaction):
             return True
         raise app_commands.CheckFailure("This command requires administrator permissions or bot operator status.")
 
     async def cog_check(self, ctx: Context) -> bool:
-        """Allow operators to use DM prefix commands (sync, debug)."""
+        """Allow operators to use DM prefix commands (sync, debug, uptime)."""
+        if ctx.command and ctx.command.name == "ping":
+            return True
         if ctx.author.id in self.bot.ops:
             return True
         if ctx.guild and ctx.author.guild_permissions.administrator:
@@ -120,16 +126,12 @@ class Admin(Cog):
             "Unsubscribed from permission notifications for this server.", ephemeral=True
         )
 
-    @app_commands.command(name="sync")
-    async def sync_slash(self, interaction: Interaction):
-        """Sync commands. In a guild: sync to that guild. In DMs: sync globally. [operator]"""
-        await interaction.response.defer(ephemeral=True)
-        if interaction.guild:
-            synced = await self.bot.tree.sync(guild=interaction.guild)
-            await interaction.followup.send(f"Synced {len(synced)} commands to this guild.")
-        else:
-            synced = await self.bot.tree.sync()
-            await interaction.followup.send(f"Synced {len(synced)} commands globally.")
+    @hybrid_command(name="ping")
+    @app_commands.default_permissions()
+    async def ping(self, ctx: Context):
+        """Pong."""
+        latency = round(self.bot.latency * 1000)
+        await ctx.send(f"\U0001f3d3 Pong! **{latency}ms**")
 
     @command(name="sync")
     async def sync(
@@ -169,11 +171,27 @@ class Admin(Cog):
 
         await ctx.send(f"Synced the tree to {ret}/{len(guilds)}.")
 
+    @command(name="uptime")
+    async def _uptime(self, ctx: Context) -> None:
+        """Shows bot uptime and version. [operator]"""
+        require_operator(ctx)
+
+        td = datetime.now(UTC) - self.bot.uptime
+        bot_version = pkg_version("NerpyBot")
+        hours = td.seconds // 3600
+        minutes = (td.seconds // 60) % 60
+
+        emb = Embed(
+            description=f"**{td.days}**d · **{hours}**h · **{minutes}**m",
+            color=0x5865F2,
+        )
+        emb.set_author(name=f"NerpyBot v{bot_version}")
+        await ctx.send(embed=emb)
+
     @command(name="debug")
     async def _debug(self, ctx: Context) -> None:
         """Toggle debug logging at runtime. [operator]"""
-        if ctx.author.id not in self.bot.ops:
-            raise NerpyException("This command is restricted to bot operators.")
+        require_operator(ctx)
 
         logger = logging.getLogger("nerpybot")
         if logger.level == logging.DEBUG:

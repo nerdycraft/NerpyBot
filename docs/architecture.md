@@ -61,7 +61,6 @@ Modules are loaded dynamically based on `config.bot.modules`. Available modules:
 | rolemanage | GroupCog | — | — |
 | search | GroupCog | — | Imgur, Genius, OMDB, IGDB, YouTube |
 | tagging | GroupCog + QueueMixin | — | — |
-| utility | Cog | — | OpenWeatherMap |
 | wow | GroupCog | Guild news loop (15min) | Blizzard API, Raider.io |
 
 ## Database Layer
@@ -172,7 +171,7 @@ Format: `[DD/MM/YYYY HH:MM] - LEVEL - module line: message`
 
 ### Slash Commands
 
-All user-facing commands are slash commands (`/command`) using `@app_commands.command`. The `GroupCog` pattern creates command groups (e.g., `/wow armory`, `/reminder create`). Exceptions: admin `sync` is dual-registered (slash + prefix), admin `debug` is prefix-only, and raidplaner remains fully prefix-only (interactive DM conversations).
+All user-facing commands are slash commands (`/command`) using `@app_commands.command`. The `GroupCog` pattern creates command groups (e.g., `/wow armory`, `/reminder create`). Exceptions: admin `ping` is a hybrid command (slash + prefix), admin `sync`/`debug`/`uptime` are prefix-only (DM-only), and raidplaner remains fully prefix-only (interactive DM conversations).
 
 ### Ephemeral Messaging
 
@@ -215,7 +214,7 @@ database:
 audio:
   buffer_limit: 5
 
-# Per-module config sections (search, league, utility, wow)
+# Per-module config sections (search, league, wow)
 ```
 
 See `config.yaml.template` for the full reference.

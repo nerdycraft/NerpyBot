@@ -1,9 +1,24 @@
 # -*- coding: utf-8 -*-
 
-from discord import Interaction
+from discord import Interaction, app_commands
+from discord.ext.commands import Context
 
 from models.botmod import BotModeratorRole
-from utils.errors import SilentCheckFailure
+from utils.errors import NerpyException, SilentCheckFailure
+
+
+def require_operator(ctx_or_interaction: Context | Interaction) -> None:
+    """Raise if the command invoker is not a bot operator.
+
+    Accepts both prefix-command Context and slash-command Interaction.
+    Raises NerpyException for prefix commands, CheckFailure for slash commands.
+    """
+    if isinstance(ctx_or_interaction, Context):
+        if ctx_or_interaction.author.id not in ctx_or_interaction.bot.ops:
+            raise NerpyException("This command is restricted to bot operators.")
+    else:
+        if ctx_or_interaction.user.id not in ctx_or_interaction.client.ops:
+            raise app_commands.CheckFailure("This command is restricted to bot operators.")
 
 
 async def is_admin_or_operator(interaction: Interaction) -> bool:
