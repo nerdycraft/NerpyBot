@@ -3,12 +3,12 @@
 from datetime import UTC, datetime, timedelta
 from typing import Optional
 
+import humanize
 from discord import Interaction, TextChannel, app_commands
 from discord.ext import tasks
 from discord.ext.commands import GroupCog
 from models.reminder import ReminderMessage
-from utils.format import box, pagify
-from utils.helpers import notify_error
+from utils.helpers import notify_error, send_paginated
 from utils.permissions import validate_channel_permissions
 
 
@@ -88,21 +88,22 @@ class Reminder(GroupCog, group_name="reminder"):
         """
         list all current reminder messages
         """
-        to_send = ""
         with self.bot.session_scope() as session:
             msgs = ReminderMessage.get_all_by_guild(interaction.guild.id, session)
-            if len(msgs) > 0:
-                for msg in msgs:
-                    to_send += f"{str(msg)}\n\n"
-                first = True
-                for page in pagify(to_send, delims=["\n#"], page_length=1990):
-                    if first:
-                        await interaction.response.send_message(box(page, "md"), ephemeral=True)
-                        first = False
-                    else:
-                        await interaction.followup.send(box(page, "md"), ephemeral=True)
-            else:
-                await interaction.response.send_message("No messages in queue.", ephemeral=True)
+            if not msgs:
+                await interaction.response.send_message("No reminders set.", ephemeral=True)
+                return
+
+            to_send = ""
+            for msg in msgs:
+                next_send = humanize.naturaltime(
+                    msg.LastSend + timedelta(minutes=float(msg.Minutes)), when=datetime.now(UTC)
+                )
+                to_send += f"**#{msg.Id}** \u2014 #{msg.ChannelName}\n"
+                to_send += f"> {msg.Message}\n"
+                to_send += f"*{msg.Author} \u00b7 Next: {next_send} \u00b7 Hits: {msg.Count}*\n\n"
+
+            await send_paginated(interaction, to_send, title="\u23f0 Reminders", color=0xF39C12, ephemeral=True)
 
     @app_commands.command(name="delete")
     async def _reminder_delete(self, interaction: Interaction, reminder_id: int):

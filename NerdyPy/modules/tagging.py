@@ -11,16 +11,18 @@ from models.tagging import Tag, TagType
 
 import utils.format as fmt
 from utils.audio import QueuedSong, QueueMixin
-from utils.checks import is_connected_to_voice, is_in_same_voice_channel_as_bot
+from utils.checks import can_stop_playback, is_connected_to_voice
 from utils.download import download
 from utils.errors import NerpyException
-from utils.helpers import error_context
+from utils.helpers import error_context, send_paginated
 
 
 @app_commands.guild_only()
 @app_commands.checks.bot_has_permissions(send_messages=True)
 class Tagging(QueueMixin, GroupCog, group_name="tag"):
     """Command group for sound and text tags"""
+
+    queue_group = app_commands.Group(name="queue", description="Manage the Tag Queue")
 
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
@@ -36,44 +38,22 @@ class Tagging(QueueMixin, GroupCog, group_name="tag"):
         await self._send_to_queue(interaction, name)
 
     @app_commands.command(name="skip")
-    @app_commands.check(is_in_same_voice_channel_as_bot)
+    @app_commands.check(can_stop_playback)
     async def _skip_audio(self, interaction: Interaction):
         """skip current track"""
         self.audio.stop(interaction.guild.id)
         await interaction.response.send_message("Skipped.", ephemeral=True)
 
-    @app_commands.command(name="queue-list")
+    @queue_group.command(name="list")
     async def _list_queue(self, interaction: Interaction):
         """list current items in queue"""
-        queue = self.audio.list_queue(interaction.guild.id)
-        msg = ""
-        _index = 0
+        await self._send_queue_list(interaction)
 
-        if queue is not None:
-            for t in queue:
-                msg += f"\n# Position {_index} #\n- "
-                msg += f"{t.title}"
-                _index = _index + 1
-
-        if not msg:
-            await interaction.response.send_message("Queue is empty.", ephemeral=True)
-            return
-
-        first = True
-        for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
-            if first:
-                await interaction.response.send_message(fmt.box(page, "md"))
-                first = False
-            else:
-                await interaction.followup.send(fmt.box(page, "md"))
-
-    @app_commands.command(name="queue-drop")
+    @queue_group.command(name="drop")
     @app_commands.checks.has_permissions(mute_members=True)
     async def _drop_queue(self, interaction: Interaction):
         """drop the playlist entirely"""
-        self.audio.stop(interaction.guild.id)
-        self.audio.clear_buffer(interaction.guild.id)
-        self._clear_queue(interaction.guild.id)
+        self._stop_and_clear_queue(interaction.guild.id)
         await interaction.response.send_message("Queue dropped.", ephemeral=True)
 
     @app_commands.command(name="create")
@@ -155,29 +135,36 @@ class Tagging(QueueMixin, GroupCog, group_name="tag"):
             Tag.delete(name, interaction.guild.id, session)
         await interaction.response.send_message(f'tag "{name}" deleted!', ephemeral=True)
 
+    _TAG_TYPE_EMOJI = {
+        TagType.sound.value: "\U0001f50a",
+        TagType.text.value: "\U0001f4dd",
+        TagType.url.value: "\U0001f517",
+    }
+
     @app_commands.command(name="list")
     async def _tag_list(self, interaction: Interaction):
         """a list of all available tags"""
         with self.bot.session_scope() as session:
             tags = Tag.get_all_from_guild(interaction.guild.id, session)
 
-            msg = ""
-            last_header = "^"
-            for t in tags:
-                if t.Name[0] is not last_header:
-                    last_header = t.Name[0]
-                    msg += f"\n# {last_header} #\n- "
-                msg += f"[{t.Name}]"
-                typ = TagType(t.Type).name.upper()[0]
-                msg += f"({typ}|{t.entries.count()}) - "
+            if not tags:
+                await interaction.response.send_message("No tags found.", ephemeral=True)
+                return
 
-            first = True
-            for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
-                if first:
-                    await interaction.response.send_message(fmt.box(page, "md"))
-                    first = False
-                else:
-                    await interaction.followup.send(fmt.box(page, "md"))
+            msg = ""
+            last_header = None
+            for t in tags:
+                if t.Name[0].upper() != last_header:
+                    last_header = t.Name[0].upper()
+                    if msg:
+                        msg += "\n"
+                    msg += f"**{last_header}**\n"
+                emoji = self._TAG_TYPE_EMOJI.get(t.Type, "\u2753")
+                count = t.entries.count()
+                plural = "entry" if count == 1 else "entries"
+                msg += f"> {emoji} `{t.Name}` \u2014 {count} {plural}\n"
+
+            await send_paginated(interaction, msg, title="\U0001f3f7\ufe0f Tags", color=0x2ECC71)
 
     @app_commands.command(name="info")
     async def _tag_info(self, interaction: Interaction, name: str):

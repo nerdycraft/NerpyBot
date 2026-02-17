@@ -3,7 +3,6 @@
 from discord import Color, Embed, Interaction, app_commands
 from discord.ext.commands import GroupCog
 
-import utils.format as fmt
 from utils.audio import QueuedSong, QueueMixin
 from utils.checks import can_stop_playback, is_connected_to_voice
 from utils.download import download, fetch_yt_infos
@@ -36,34 +35,13 @@ class Music(QueueMixin, GroupCog):
     @queue_group.command(name="list")
     async def _list_queue(self, interaction: Interaction):
         """list current items in queue"""
-        queue = self.audio.list_queue(interaction.guild.id)
-        msg = ""
-        _index = 0
-
-        if queue is not None:
-            for t in queue:
-                msg += f"\n# Position {_index} #\n- "
-                msg += f"{t.title}"
-                _index = _index + 1
-
-        if not msg:
-            await interaction.response.send_message("Queue is empty.", ephemeral=True)
-            return
-
-        first = True
-        for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
-            if first:
-                await interaction.response.send_message(fmt.box(page, "md"))
-                first = False
-            else:
-                await interaction.followup.send(fmt.box(page, "md"))
+        await self._send_queue_list(interaction)
 
     @queue_group.command(name="drop")
     @app_commands.checks.has_permissions(mute_members=True)
     async def _drop_queue(self, interaction: Interaction):
         """drop the playlist entirely"""
-        self.audio.stop(interaction.guild.id)
-        self._clear_queue(interaction.guild.id)
+        self._stop_and_clear_queue(interaction.guild.id)
         await interaction.response.send_message("Cleared the queue and stopped playing audio.", ephemeral=True)
 
     @play.command(name="song")
@@ -124,11 +102,6 @@ class Music(QueueMixin, GroupCog):
         song = QueuedSong(interaction.user.voice.channel, self._fetch, video_url, video_title, video_idn)
         await interaction.followup.send(embed=emb)
         await self.audio.play(interaction.guild.id, song)
-
-    def _clear_queue(self, guild_id: int) -> None:
-        """Clears the Audio Queue and buffer"""
-        self.audio.clear_buffer(guild_id)
-        super()._clear_queue(guild_id)
 
     @staticmethod
     def _fetch(song: QueuedSong):

@@ -44,9 +44,9 @@ class QueueMixin:
 
         msg = ""
         for i, t in enumerate(audio_queue, start=1):
-            msg += f"**{i}.** {t.title}\n"
+            msg += f"`{i}` {t.title}\n"
 
-        await send_paginated(interaction, msg, title="\U0001f3b5 Queue")
+        await send_paginated(interaction, msg, title="\U0001f3b5 Queue", color=0x0099FF)
 
     def _stop_and_clear_queue(self, guild_id: int) -> None:
         """Stop playback, clear the audio buffer, and clear the module queue."""

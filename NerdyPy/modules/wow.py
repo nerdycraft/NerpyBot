@@ -18,9 +18,8 @@ from discord.ext import tasks
 from discord.ext.commands import GroupCog
 from models.wow import WowCharacterMounts, WowGuildNewsConfig
 from utils.errors import NerpyException
-from utils.format import box, pagify
 from utils.account_resolution import build_account_groups, make_pair_key
-from utils.helpers import notify_error
+from utils.helpers import notify_error, send_paginated
 from utils.permissions import validate_channel_permissions
 
 
@@ -477,14 +476,11 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             for cfg in configs:
                 channel = interaction.guild.get_channel(cfg.ChannelId)
                 channel_name = f"#{channel.name}" if channel else f"#{cfg.ChannelId} (deleted)"
-                output += f"{str(cfg)}Channel: {channel_name}\n\n"
-            first = True
-            for page in pagify(output, delims=["\n#"], page_length=1990):
-                if first:
-                    await interaction.response.send_message(box(page, "md"), ephemeral=True)
-                    first = False
-                else:
-                    await interaction.followup.send(box(page, "md"), ephemeral=True)
+                status = "\u2705 Active" if cfg.Enabled else "\u23f8\ufe0f Paused"
+                output += f"**#{cfg.Id}** {cfg.WowGuildName} (`{cfg.WowRealmSlug}-{cfg.Region.upper()}`)\n"
+                output += f"> {cfg.Language} \u00b7 {status} \u00b7 Active Days: {cfg.ActiveDays}\n"
+                output += f"> Channel: {channel_name}\n\n"
+            await send_paginated(interaction, output, title="\u2694\ufe0f Guild News", color=0xFFB100, ephemeral=True)
 
     @guildnews.command(name="pause")
     @checks.has_permissions(manage_channels=True)
