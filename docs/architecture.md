@@ -153,8 +153,7 @@ Permission check functions for use with `@check()` decorator:
 | Function | Gates |
 |----------|-------|
 | `is_connected_to_voice` | User in voice + bot can connect |
-| `is_in_same_voice_channel_as_bot` | User in same channel (mod override) |
-| `can_stop_playback` | Mod, or alone with bot in voice |
+| `can_stop_playback` | Same channel or mod (rejects if nothing playing) |
 | `can_leave_voice` | Bot-moderator only |
 
 All check functions accept `discord.Interaction` objects (not `Context`) for slash command compatibility.

@@ -160,15 +160,29 @@ class NerpyBot(Bot):
         self.tree.on_error = self._on_app_command_error
 
         # load modules
+        audio_module_loaded = False
         for module in self.modules:
             try:
                 await self.load_extension(f"modules.{module}")
-                if module == "tagging" or module == "music":
-                    # set-up audio loops
+                if module in ("tagging", "music") and not audio_module_loaded:
                     await self.audio.setup_loops()
+                    audio_module_loaded = True
             except (ImportError, ExtensionFailed, ClientException) as e:
                 self.log.error(f"failed to load extension {module}. {e}")
                 self.log.debug(print_exc())
+
+        # auto-load essential extensions not explicitly listed in config
+        auto_load = ["admin"]
+        if audio_module_loaded:
+            auto_load.append("voicecontrol")
+
+        for module in auto_load:
+            if module not in self.modules:
+                try:
+                    await self.load_extension(f"modules.{module}")
+                except (ImportError, ExtensionFailed, ClientException) as e:
+                    self.log.error(f"failed to auto-load {module} extension. {e}")
+                    self.log.debug(print_exc())
 
         # create database/tables and such stuff
         self.create_all()

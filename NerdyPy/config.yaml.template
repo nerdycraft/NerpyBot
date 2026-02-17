@@ -3,13 +3,12 @@ bot:
   token: your_bot_token_here
   ops:
     - "your_discord_id_here"  # quoted to prevent formatter corruption
+  # admin and voicecontrol auto-load (admin always, voicecontrol with tagging/music)
   modules:
-    - admin
     - fun
     - league
     - leavemsg
     - moderation
-    - voicecontrol  # voice-only stop/leave (use instead of moderation for music-only bots)
     - random
     - reactionrole
     - rolemanage

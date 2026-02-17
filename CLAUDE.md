@@ -71,7 +71,7 @@ docker run --rm -e ALEMBIC_CONFIG=alembic-humanmusic.ini nerpybot-migrations ale
 
 Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamically based on `config.yaml`:
 
-- **admin** - Server management, moderator role config, command sync
+- **admin** - Server management, moderator role config, command sync (always auto-loaded)
 - **fun** - Entertainment commands
 - **league** - Riot API integration
 - **leavemsg** - Custom leave messages when members depart
@@ -84,7 +84,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **rolemanage** - Delegated role management (lets specific roles assign other roles via mappings)
 - **search** - Multi-source search (Imgur, Genius, OMDB, IGDB, YouTube)
 - **tagging** - Audio tag management
-- **voicecontrol** - Voice stop/leave commands (use instead of moderation for music-only bots)
+- **voicecontrol** - Voice stop/leave commands (auto-loaded when tagging or music is enabled)
 - **wow** - Blizzard API integration
 
 ### Database Layer

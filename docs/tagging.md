@@ -79,11 +79,11 @@ Show all raw content entries for a tag.
 
 Skip the currently playing sound tag.
 
-### `/tag queue-list`
+### `/tag queue list`
 
 List queued sound tags.
 
-### `/tag queue-drop`
+### `/tag queue drop`
 
 Clear the sound tag queue.
 
