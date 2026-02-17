@@ -6,8 +6,7 @@ from discord.ext.commands import Cog, GroupCog
 
 from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 
-from utils.format import box
-from utils.helpers import error_context, notify_error
+from utils.helpers import error_context, notify_error, send_paginated
 from utils.permissions import validate_channel_permissions
 
 
@@ -225,20 +224,21 @@ class ReactionRole(GroupCog, group_name="reactionrole"):
                 await interaction.response.send_message("No reaction roles configured.", ephemeral=True)
                 return
 
-            msg = "==== Reaction Roles ====\n"
+            msg = ""
             for rr_msg in messages:
                 channel = interaction.guild.get_channel(rr_msg.ChannelId)
-                channel_name = channel.name if channel else f"Unknown ({rr_msg.ChannelId})"
-                msg += f"\n--- #{channel_name} / {rr_msg.MessageId} ---\n"
+                channel_name = channel.mention if channel else f"Unknown ({rr_msg.ChannelId})"
+                msg += f"**{channel_name}** \u00b7 `{rr_msg.MessageId}`\n"
                 if rr_msg.entries:
                     for entry in rr_msg.entries:
                         role = interaction.guild.get_role(entry.RoleId)
                         role_name = role.name if role else f"Unknown ({entry.RoleId})"
-                        msg += f"  {entry.Emoji} -> {role_name}\n"
+                        msg += f"> {entry.Emoji} \u2192 {role_name}\n"
                 else:
-                    msg += "  (no mappings)\n"
+                    msg += "> *(no mappings)*\n"
+                msg += "\n"
 
-        await interaction.response.send_message(box(msg), ephemeral=True)
+        await send_paginated(interaction, msg, title="\U0001f3ad Reaction Roles", color=0x9B59B6, ephemeral=True)
 
     @app_commands.command(name="clear")
     @checks.has_permissions(manage_roles=True)

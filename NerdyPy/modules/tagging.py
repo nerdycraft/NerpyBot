@@ -4,12 +4,11 @@ from datetime import UTC, datetime
 from io import BytesIO
 from typing import Literal
 
-from discord import FFmpegOpusAudio, Interaction, app_commands
+from discord import Color, Embed, FFmpegOpusAudio, Interaction, app_commands
 from discord.ext.commands import GroupCog
 
 from models.tagging import Tag, TagType
 
-import utils.format as fmt
 from utils.audio import QueuedSong, QueueMixin
 from utils.checks import can_stop_playback, is_connected_to_voice
 from utils.download import download
@@ -171,19 +170,34 @@ class Tagging(QueueMixin, GroupCog, group_name="tag"):
         """information about the tag"""
         with self.bot.session_scope() as session:
             t = Tag.get(name, interaction.guild.id, session)
-            await interaction.response.send_message(fmt.box(str(t)))
+            emoji = self._TAG_TYPE_EMOJI.get(t.Type, "\u2753")
+            tag_type = TagType(t.Type).name.capitalize()
+            entries = t.entries.count()
+
+            emb = Embed(title=f"\U0001f3f7\ufe0f {t.Name}", color=Color(0x2ECC71))
+            emb.add_field(name="Author", value=t.Author)
+            emb.add_field(name="Type", value=f"{emoji} {tag_type}")
+            emb.add_field(name="Created", value=t.CreateDate.strftime("%Y-%m-%d %H:%M"))
+            emb.add_field(name="Hits", value=str(t.Count))
+            emb.add_field(name="Entries", value=str(entries))
+            if t.Type == TagType.sound.value:
+                emb.add_field(name="Volume", value=f"{t.Volume}%")
+
+            await interaction.response.send_message(embed=emb)
 
     @app_commands.command(name="raw")
     async def _tag_raw(self, interaction: Interaction, name: str):
         """raw tag data"""
         with self.bot.session_scope() as session:
             t = Tag.get(name, interaction.guild.id, session)
-            msg = f"==== {t.Name} ====\n\n"
+            msg = ""
+            for i, entry in enumerate(t.entries.all(), start=1):
+                if entry.TextContent:
+                    msg += f"`{i}` {entry.TextContent}\n"
+                else:
+                    msg += f"`{i}` *(binary audio data)*\n"
 
-            for entry in t.entries.all():
-                msg += entry.TextContent
-
-            await interaction.response.send_message(fmt.box(msg))
+            await send_paginated(interaction, msg, title=f"\U0001f3f7\ufe0f {t.Name} \u2014 Raw", color=0x2ECC71)
 
     async def _send_to_queue(self, interaction: Interaction, tag_name):
         self.bot.log.info(f'{error_context(interaction)}: requesting tag "{tag_name}"')

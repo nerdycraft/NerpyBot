@@ -92,8 +92,8 @@ class Music(QueueMixin, GroupCog):
         video_thumbnail = video_infos.get("thumbnails", [dict()])[0].get("url")
         self.bot.log.info(f'{error_context(interaction)}: requesting "{video_title}" to play')
         emb = Embed(
-            title="Added Song to Queue!",
-            color=Color(value=int("0099ff", 16)),
+            title="\U0001f3b5 Added to Queue",
+            color=Color(0x0099FF),
             description=f"[{video_title}]({video_url})",
         )
         if video_thumbnail is not None:
