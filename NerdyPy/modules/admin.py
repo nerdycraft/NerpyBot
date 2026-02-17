@@ -3,10 +3,10 @@
 import logging
 from typing import Literal, Optional
 
-from discord import Forbidden, HTTPException, Object, Role
+from discord import Forbidden, HTTPException, Interaction, Object, Role
 from discord import app_commands
 from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError
-from discord.ext.commands import Cog, Context, Greedy, command, hybrid_group
+from discord.ext.commands import Cog, Context, Greedy, command
 from models.botmod import BotModeratorRole
 from models.permissions import PermissionSubscriber
 
@@ -20,62 +20,117 @@ from utils.permissions import build_permissions_embed, check_guild_permissions, 
 class Admin(Cog):
     """cog for administrative usage"""
 
+    modrole = app_commands.Group(
+        name="modrole", description="Manage the bot-moderator role for this server", guild_only=True
+    )
+    botpermissions = app_commands.Group(name="botpermissions", description="Check bot permissions", guild_only=True)
+
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
 
+    async def interaction_check(self, interaction: Interaction) -> bool:
+        """Allow administrators and bot operators to use all admin slash commands."""
+        if await is_admin_or_operator(interaction):
+            return True
+        raise app_commands.CheckFailure("This command requires administrator permissions or bot operator status.")
+
     async def cog_check(self, ctx: Context) -> bool:
-        """Allow administrators and bot operators to use all admin commands."""
-        if ctx.invoked_with == "help":
-            return False
-        if await is_admin_or_operator(ctx):
+        """Allow operators to use DM prefix commands (sync, debug)."""
+        if ctx.author.id in self.bot.ops:
+            return True
+        if ctx.guild and ctx.author.guild_permissions.administrator:
             return True
         raise NerpyException("This command requires administrator permissions or bot operator status.")
 
-    @hybrid_group()
-    async def modrole(self, ctx: Context):
-        """Manage the bot-moderator role for this server."""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
-
     @modrole.command(name="get")
-    async def _modrole_get(self, ctx: Context):
+    async def _modrole_get(self, interaction: Interaction):
         """Show the currently configured bot-moderator role."""
         with self.bot.session_scope() as session:
-            entry = BotModeratorRole.get(ctx.guild.id, session)
+            entry = BotModeratorRole.get(interaction.guild.id, session)
             if entry is not None:
-                role = ctx.guild.get_role(entry.RoleId)
+                role = interaction.guild.get_role(entry.RoleId)
                 if role is not None:
-                    await send_hidden_message(ctx, f"Bot-moderator role: **{role.name}**")
+                    await interaction.response.send_message(f"Bot-moderator role: **{role.name}**", ephemeral=True)
                 else:
-                    await send_hidden_message(
-                        ctx,
+                    await interaction.response.send_message(
                         "A bot-moderator role is configured but the role no longer exists."
-                        " Use `modrole delete` to clear it.",
+                        " Use `/admin modrole delete` to clear it.",
+                        ephemeral=True,
                     )
             else:
-                await send_hidden_message(
-                    ctx, "No bot-moderator role configured. Falling back to permission-based checks."
+                await interaction.response.send_message(
+                    "No bot-moderator role configured. Falling back to permission-based checks.", ephemeral=True
                 )
 
     @modrole.command(name="set")
-    async def _modrole_set(self, ctx: Context, role: Role):
+    async def _modrole_set(self, interaction: Interaction, role: Role):
         """Set the bot-moderator role for this server."""
         with self.bot.session_scope() as session:
-            entry = BotModeratorRole.get(ctx.guild.id, session)
+            entry = BotModeratorRole.get(interaction.guild.id, session)
             if entry is None:
-                entry = BotModeratorRole(GuildId=ctx.guild.id)
+                entry = BotModeratorRole(GuildId=interaction.guild.id)
                 session.add(entry)
             entry.RoleId = role.id
-        await send_hidden_message(ctx, f"Bot-moderator role set to **{role.name}**.")
+        await interaction.response.send_message(f"Bot-moderator role set to **{role.name}**.", ephemeral=True)
 
-    @modrole.command(name="delete", aliases=["remove", "rm", "del"])
-    async def _modrole_del(self, ctx: Context):
+    @modrole.command(name="delete")
+    async def _modrole_del(self, interaction: Interaction):
         """Remove the bot-moderator role configuration."""
         with self.bot.session_scope() as session:
-            BotModeratorRole.delete(ctx.guild.id, session)
-        await send_hidden_message(ctx, "Bot-moderator role removed.")
+            BotModeratorRole.delete(interaction.guild.id, session)
+        await interaction.response.send_message("Bot-moderator role removed.", ephemeral=True)
+
+    @botpermissions.command(name="check")
+    async def _botpermissions_check(self, interaction: Interaction) -> None:
+        """Check if the bot has all required permissions in this server."""
+        required = required_permissions_for(self.bot.modules)
+        missing = check_guild_permissions(interaction.guild, required)
+        emb = build_permissions_embed(interaction.guild, missing, self.bot.client_id, required)
+        await interaction.response.send_message(embed=emb, ephemeral=True)
+
+    @botpermissions.command(name="subscribe")
+    async def _botpermissions_subscribe(self, interaction: Interaction) -> None:
+        """Get DM notifications about missing permissions on bot restart."""
+        with self.bot.session_scope() as session:
+            existing = PermissionSubscriber.get(interaction.guild.id, interaction.user.id, session)
+            if existing is not None:
+                await interaction.response.send_message(
+                    "You are already subscribed to permission notifications.", ephemeral=True
+                )
+                return
+            session.add(PermissionSubscriber(GuildId=interaction.guild.id, UserId=interaction.user.id))
+        await interaction.response.send_message(
+            "Subscribed. You will receive a DM when the bot restarts with missing permissions in this server.",
+            ephemeral=True,
+        )
+
+    @botpermissions.command(name="unsubscribe")
+    async def _botpermissions_unsubscribe(self, interaction: Interaction) -> None:
+        """Stop receiving DM notifications about missing permissions."""
+        with self.bot.session_scope() as session:
+            existing = PermissionSubscriber.get(interaction.guild.id, interaction.user.id, session)
+            if existing is None:
+                await interaction.response.send_message(
+                    "You are not subscribed to permission notifications.", ephemeral=True
+                )
+                return
+            PermissionSubscriber.delete(interaction.guild.id, interaction.user.id, session)
+        await interaction.response.send_message(
+            "Unsubscribed from permission notifications for this server.", ephemeral=True
+        )
+
+    @app_commands.command(name="sync")
+    async def sync_slash(self, interaction: Interaction):
+        """Sync commands. In a guild: sync to that guild. In DMs: sync globally."""
+        await interaction.response.defer(ephemeral=True)
+        if interaction.guild:
+            synced = await self.bot.tree.sync(guild=interaction.guild)
+            await interaction.followup.send(f"Synced {len(synced)} commands to this guild.")
+        else:
+            synced = await self.bot.tree.sync()
+            await interaction.followup.send(f"Synced {len(synced)} commands globally.")
 
     @command(name="sync")
     async def sync(
@@ -133,38 +188,6 @@ class Admin(Cog):
             await send_hidden_message(ctx, "Debug logging **enabled** (level: DEBUG).")
 
         self.bot.log.info(f"debug logging toggled to {self.bot.debug} by {ctx.author}")
-
-    @hybrid_group(name="botpermissions", fallback="check")
-    async def botpermissions(self, ctx: Context) -> None:
-        """Check if the bot has all required permissions in this server."""
-        required = required_permissions_for(self.bot.modules)
-        missing = check_guild_permissions(ctx.guild, required)
-        emb = build_permissions_embed(ctx.guild, missing, self.bot.client_id, required)
-        await send_hidden_message(ctx, embed=emb)
-
-    @botpermissions.command(name="subscribe")
-    async def _botpermissions_subscribe(self, ctx: Context) -> None:
-        """Get DM notifications about missing permissions on bot restart."""
-        with self.bot.session_scope() as session:
-            existing = PermissionSubscriber.get(ctx.guild.id, ctx.author.id, session)
-            if existing is not None:
-                await send_hidden_message(ctx, "You are already subscribed to permission notifications.")
-                return
-            session.add(PermissionSubscriber(GuildId=ctx.guild.id, UserId=ctx.author.id))
-        await send_hidden_message(
-            ctx, "Subscribed. You will receive a DM when the bot restarts with missing permissions in this server."
-        )
-
-    @botpermissions.command(name="unsubscribe")
-    async def _botpermissions_unsubscribe(self, ctx: Context) -> None:
-        """Stop receiving DM notifications about missing permissions."""
-        with self.bot.session_scope() as session:
-            existing = PermissionSubscriber.get(ctx.guild.id, ctx.author.id, session)
-            if existing is None:
-                await send_hidden_message(ctx, "You are not subscribed to permission notifications.")
-                return
-            PermissionSubscriber.delete(ctx.guild.id, ctx.author.id, session)
-        await send_hidden_message(ctx, "Unsubscribed from permission notifications for this server.")
 
 
 async def setup(bot):
