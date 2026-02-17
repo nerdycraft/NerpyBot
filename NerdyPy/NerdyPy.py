@@ -7,6 +7,7 @@ from argparse import ArgumentParser, Namespace
 from asyncio import run
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from itertools import cycle
 from pathlib import Path
 from traceback import format_exc, print_exc, print_tb
 from typing import Any, Generator
@@ -23,7 +24,7 @@ from discord import (
     RawReactionActionEvent,
     app_commands,
 )
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ext.commands import (
     Bot,
     CommandError,
@@ -41,6 +42,20 @@ from utils.database import BASE
 from utils.errors import NerpyException, SilentCheckFailure
 from utils.helpers import error_context, notify_error, parse_id
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
+
+
+ACTIVITIES = [
+    "💡 Use / for commands",
+    "🤓 Now even more Nerdy!",
+    "⚡ Use / for commands",
+    "🔮 I told you it was true!",
+    "🚀 Use / for commands",
+    "🏃 One step ahead!",
+    "✨ Use / for commands",
+    "🤖 Beep boop, I'm helping!",
+    "🎯 Use / for commands",
+    "🧠 Trust the process.",
+]
 
 
 class NerpyBot(Bot):
@@ -66,6 +81,7 @@ class NerpyBot(Bot):
 
         self.audio = Audio(self)
         self.convMan = ConversationManager(self)
+        self._activity_cycle = cycle(ACTIVITIES)
 
         # database variables
         db_connection_string = self.build_connection_string(config)
@@ -157,11 +173,18 @@ class NerpyBot(Bot):
         # create database/tables and such stuff
         self.create_all()
 
+    @tasks.loop(minutes=5)
+    async def _rotate_activity(self) -> None:
+        await self.change_presence(activity=Game(name=next(self._activity_cycle)))
+
     async def on_ready(self) -> None:
         """calls when successfully logged in"""
         from models.permissions import PermissionSubscriber
 
         self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
+
+        if not self._rotate_activity.is_running():
+            self._rotate_activity.start()
 
         required = required_permissions_for(self.modules)
         for guild in self.guilds:
@@ -264,7 +287,7 @@ class NerpyBot(Bot):
         """
         self.log.info("Logging into Discord...")
         if self.token:
-            self.activity = Game(name="Use / for commands")
+            self.activity = Game(name=ACTIVITIES[0])
             await self.login(self.token)
         else:
             self.log.critical("No credentials available to login.")
