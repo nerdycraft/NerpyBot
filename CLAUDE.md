@@ -41,6 +41,7 @@ uv run alembic-humanmusic upgrade head                            # Apply HumanM
 uv run alembic-humanmusic revision --autogenerate -m "description" # Create HumanMusic migration
 # NOTE: New tables do NOT need migrations — SQLAlchemy auto-creates missing tables at startup.
 # Only create migrations when altering existing tables (add/remove columns, change constraints).
+# When adding columns to existing tables, use server_default (not just ORM default) so existing rows get a value.
 # NerpyBot migrations: for tables used by all modules (full deployment)
 # HumanMusic migrations: only for tables shared by admin, voicecontrol, and music modules
 
@@ -49,7 +50,13 @@ docker buildx build --target bot -t nerpybot .
 docker buildx build --target migrations -t nerpybot-migrations .
 
 # Validate GitHub Actions workflows
-actionlint .github/workflows/build.yml
+actionlint .github/workflows/*.yml
+
+# Run CI locally with act (requires Docker)
+act pull_request -W .github/workflows/test.yml --container-architecture linux/amd64
+
+# Format markdown and YAML files
+prettier --write "docs/**/*.md" "**/*.yaml" "**/*.yml" "*.md"
 
 # Docker smoke tests (run locally to verify images work)
 docker run --rm nerpybot python -c "from NerdyPy import NerpyBot; print('OK')"
@@ -133,5 +140,6 @@ Copy `NerdyPy/config.yaml.template` to `NerdyPy/config.yaml` and fill in:
 
 - **Line length**: 120 characters
 - **Formatter**: Ruff
+- **Markdown/YAML**: Prettier (run `prettier --write` on `.md`, `.yml`, `.yaml` files)
 - **Line endings**: LF
 - CI enforces `ruff check` and `ruff format --check` on PRs
