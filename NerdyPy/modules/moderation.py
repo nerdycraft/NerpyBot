@@ -24,8 +24,8 @@ LOOP_RUN_TIME = time(hour=12, minute=30, tzinfo=UTC)
 class Moderation(Cog):
     """cog for bot management"""
 
-    autodeleter = app_commands.Group(name="autodeleter", description="Manage autodeletion per channel")
-    user_group = app_commands.Group(name="user", description="User moderation")
+    autodeleter = app_commands.Group(name="autodeleter", description="Manage autodeletion per channel", guild_only=True)
+    user_group = app_commands.Group(name="user", description="User moderation", guild_only=True)
 
     def __init__(self, bot):
         bot.log.info(f"loaded {__name__}")
@@ -135,6 +135,7 @@ class Moderation(Cog):
         self.bot.log.debug("Finish Autodeleter Loop!")
 
     @app_commands.command()
+    @app_commands.guild_only()
     @app_commands.rename(kick_reminder_message="reminder_message")
     @checks.has_permissions(kick_members=True)
     async def autokicker(
@@ -398,6 +399,7 @@ class Moderation(Cog):
                 await interaction.followup.send(fmt.box(page), ephemeral=True)
 
     @app_commands.command()
+    @app_commands.guild_only()
     async def membercount(self, interaction: Interaction):
         """displays the current membercount of the server [bot-moderator]"""
         await interaction.response.send_message(

@@ -15,6 +15,7 @@ class VoiceControl(Cog):
         self.bot = bot
 
     @app_commands.command(name="stop")
+    @app_commands.guild_only()
     @app_commands.check(can_stop_playback)
     async def _bot_stop_playing(self, interaction: Interaction):
         """bot stops playing audio [bot-moderator]"""
@@ -23,6 +24,7 @@ class VoiceControl(Cog):
         await interaction.response.send_message("\U0001f44d", ephemeral=True)
 
     @app_commands.command(name="leave")
+    @app_commands.guild_only()
     @app_commands.check(can_leave_voice)
     async def _bot_leave_channel(self, interaction: Interaction):
         """bot leaves the voice channel [bot-moderator]"""

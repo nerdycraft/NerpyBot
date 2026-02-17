@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-NerpyBot is a Discord bot built with discord.py using the Cog extension system. It provides gaming integrations (WoW, League of Legends), entertainment, moderation, and utility features.
+NerpyBot is a Discord bot built with discord.py using the Cog extension system. It provides gaming integrations (WoW, League of Legends), entertainment, and moderation.
 
 ## Development Commands
 
@@ -84,7 +84,6 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **rolemanage** - Delegated role management (lets specific roles assign other roles via mappings)
 - **search** - Multi-source search (Imgur, Genius, OMDB, IGDB, YouTube)
 - **tagging** - Audio tag management
-- **utility** - Weather, info commands
 - **voicecontrol** - Voice stop/leave commands (use instead of moderation for music-only bots)
 - **wow** - Blizzard API integration
 
@@ -111,15 +110,15 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 
 ### Gotchas
 
-- **`openweather-wrapper` has undeclared dep on `matplotlib`** — Don't remove `matplotlib` from pyproject.toml; `openweather.weather` imports `matplotlib.pyplot` at module level even though it's not in the package's own `requires`.
 - **NerdyPy uses script-relative imports** — Internal imports like `from models.admin import ...` assume `NerdyPy/` is on `sys.path`. Entry points or external callers must add it to `sys.path` before importing (see `cli.py:bot()`).
 - **SQLite strips timezone info from DateTime columns** — Values read back are naive. Normalize with `.replace(tzinfo=UTC)` before comparing against aware datetimes.
 - **`blizzapi` does NOT auto-retry on 429** — It returns `{"code": 429}` as a dict. Check every response and handle rate limits manually.
 - **`send_hidden_message()` accepts Interaction** — It only handles `discord.Interaction` objects, using `response.send_message` or `followup.send` based on `is_done()`. Prefix commands use `ctx.send()` directly.
-- **`sync` is dual-registered** — Both a slash command (`/sync`) and a prefix command (`!sync`). The slash version syncs to current guild or globally. The prefix version has advanced options (`Greedy[Object]`, spec parameter).
+- **`sync` is prefix-only** — DM-only operator command (`!sync`). Supports global sync, guild-specific sync via `Greedy[Object]`, and `local`/`copy`/`clear` spec modes.
 - **raidplaner remains prefix-only** — Uses interactive DM conversations that require message-based back-and-forth (`conversation.py` utilities).
 - **Check functions accept Interaction, not Context** — All check functions in `checks.py` were converted to accept `discord.Interaction` for slash command compatibility. The `interaction_check` in admin.py uses these. The `cog_check` in admin.py has inline logic for prefix commands.
-- **admin.py modrole and botpermissions are guild_only** — The `app_commands.Group` definitions have `guild_only=True` to prevent DM invocation, since they access `interaction.guild` unconditionally. The top-level `sync_slash` command works in DMs for global syncs.
+- **admin.py modrole and botpermissions are guild_only** — The `app_commands.Group` definitions have `guild_only=True` to prevent DM invocation, since they access `interaction.guild` unconditionally.
+- **`@app_commands.guild_only()` on regular `Cog` does NOT propagate to commands** — discord.py's `Command.__init__` reads `guild_only` from the callback function, not the class. Only `GroupCog` propagates the class attribute via `Group.__init__`. For regular `Cog` classes, add `@app_commands.guild_only()` to each individual command and `guild_only=True` to each `Group()` definition.
 
 ## Configuration
 

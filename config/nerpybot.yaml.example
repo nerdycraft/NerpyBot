@@ -17,7 +17,6 @@ bot:
     - reminder
     - search
     - tagging
-    - utility
     - wow
 
 database:
@@ -34,9 +33,6 @@ search:
   igdb_client_id: your_igdb_client_id
   igdb_client_secret: your_igdb_client_secret
   ytkey: your_youtube_key
-
-utility:
-  openweather: your_openweather_key
 
 league:
   riot: your_riot_api_key

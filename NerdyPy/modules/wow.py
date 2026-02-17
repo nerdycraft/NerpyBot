@@ -115,6 +115,7 @@ def _clear_character_failure(failures: dict, char_name: str, char_realm: str) ->
 
 
 @app_commands.checks.bot_has_permissions(send_messages=True, embed_links=True)
+@app_commands.guild_only()
 class WorldofWarcraft(GroupCog, group_name="wow"):
     """World of Warcraft API"""
 

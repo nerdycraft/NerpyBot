@@ -1,7 +1,7 @@
 # NerpyBot
 
 The nerdiest Discord bot! Built with [discord.py](https://discordpy.readthedocs.io/) using the Cog extension system.
-Provides gaming integrations (WoW, League of Legends), entertainment, moderation, music playback, and utility features.
+Provides gaming integrations (WoW, League of Legends), entertainment, moderation, and music playback.
 
 ## Quickstart (Local Development)
 
@@ -121,7 +121,6 @@ The migration runner resolves the database URL in this order:
 | reminder   | Timed user reminders                                     |
 | search     | Multi-source search (Imgur, Genius, OMDB, IGDB, YouTube) |
 | tagging    | Audio tag management                                     |
-| utility    | Weather, info commands                                   |
 | wow        | Blizzard API integration                                 |
 
 Enable modules by listing them in the `bot.modules` section of your config file.
@@ -134,7 +133,7 @@ Copy `NerdyPy/config.yaml.template` (local dev) or `config/*.yaml.example` (Dock
 - **bot.ops** — Discord user IDs with bot admin privileges
 - **bot.modules** — list of modules to load
 - **database** — connection settings (see [External Database](#using-an-external-database))
-- **search** / **league** / **wow** / **utility** — API keys for respective services
+- **search** / **league** / **wow** — API keys for respective services
 
 ## Development
 
