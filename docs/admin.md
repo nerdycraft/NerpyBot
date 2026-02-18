@@ -12,9 +12,9 @@ Shows the configured bot-moderator role for this server. Alerts if the role has 
 
 Sets the bot-moderator role. Members with this role gain elevated bot permissions (e.g., stopping playback, leaving voice).
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `role` | `Role` | Discord role to designate as bot-moderator |
+| Parameter | Type   | Description                                |
+| --------- | ------ | ------------------------------------------ |
+| `role`    | `Role` | Discord role to designate as bot-moderator |
 
 ### `/modrole delete`
 
@@ -24,13 +24,14 @@ Removes the bot-moderator role configuration.
 
 Syncs slash commands with Discord. **Prefix-only, DM-only, operator-only.**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `guilds` | `Greedy[Object]` | Optional guild IDs to sync to |
-| `spec` | `Literal["local", "copy", "clear"]` | Sync mode |
+| Parameter | Type                                | Description                   |
+| --------- | ----------------------------------- | ----------------------------- |
+| `guilds`  | `Greedy[Object]`                    | Optional guild IDs to sync to |
+| `spec`    | `Literal["local", "copy", "clear"]` | Sync mode                     |
 
 **Sync modes:**
-- *(no spec, no guilds)* — Global sync
+
+- _(no spec, no guilds)_ — Global sync
 - `local` — Sync current guild's commands
 - `copy` — Copy global commands to specified guild(s)
 - `clear` — Clear commands from specified guild(s)
@@ -65,10 +66,10 @@ Toggles debug logging at runtime. **Prefix-only, DM-only, operator-only** (user 
 
 ### `BotModeratorRole`
 
-| Column | Type | Purpose |
-|--------|------|---------|
+| Column  | Type            | Purpose          |
+| ------- | --------------- | ---------------- |
 | GuildId | BigInteger (PK) | Discord guild ID |
-| RoleId | BigInteger | Discord role ID |
+| RoleId  | BigInteger      | Discord role ID  |
 
 ## How Bot-Moderator Checks Work
 

@@ -73,26 +73,6 @@ async def is_connected_to_voice(interaction: Interaction):
     return True
 
 
-async def is_in_same_voice_channel_as_bot(interaction: Interaction):
-    bot_voice = interaction.guild.voice_client
-
-    if bot_voice is None:
-        return True
-
-    if interaction.user.voice is None or interaction.user.voice.channel is None:
-        await _reject(interaction, "You need to be in a voice channel to use this command.")
-        return False
-
-    if interaction.user.voice.channel == bot_voice.channel:
-        return True
-
-    if await _is_bot_moderator(interaction):
-        return True
-
-    await _reject(interaction, "You need to be in the same voice channel as the bot to use this command.")
-    return False
-
-
 async def can_stop_playback(interaction: Interaction):
     """Any user in the same voice channel as the bot, or a bot-moderator from anywhere."""
     bot_voice = interaction.guild.voice_client

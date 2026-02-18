@@ -20,6 +20,7 @@ class AutoDelete(db.BASE):
     KeepMessages = Column(BigInteger, default=0)
     DeleteOlderThan = Column(BigInteger)
     DeletePinnedMessage = Column(Boolean, default=False)
+    Enabled = Column(Boolean, default=True)
 
     @classmethod
     def get_all(cls, session):

@@ -9,10 +9,12 @@ Timed message reminders that send to a Discord channel on a schedule. Supports b
 **Schedule:** Runs every **30 seconds**.
 
 **Process:**
+
 1. For each guild the bot is in:
 2. Fetch all `ReminderMessage` entries for that guild
-3. For each message, check if `LastSend + Minutes` has elapsed
-4. If due:
+3. Skip disabled reminders (`Enabled = False`)
+4. For each enabled message, check if `LastSend + Minutes` has elapsed
+5. If due:
    - **Channel deleted** — delete the reminder from DB
    - **Repeat disabled** (`Repeat < 1`) — send message, then delete
    - **Repeat enabled** — send message, update `LastSend` to now, increment `Count`
@@ -23,12 +25,12 @@ Timed message reminders that send to a Discord channel on a schedule. Supports b
 
 Create a new timed reminder.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter | Type                     | Description                                  |
+| --------- | ------------------------ | -------------------------------------------- |
 | `channel` | `TextChannel` (optional) | Target channel (defaults to current channel) |
-| `minutes` | `int` | Interval in minutes between sends |
-| `repeat` | `bool` | Whether to repeat or fire once |
-| `message` | `str` | Message text to send |
+| `minutes` | `int`                    | Interval in minutes between sends            |
+| `repeat`  | `bool`                   | Whether to repeat or fire once               |
+| `message` | `str`                    | Message text to send                         |
 
 ### `/reminder list`
 
@@ -40,27 +42,44 @@ Output is paginated if it exceeds Discord's 2000-character limit.
 
 Delete a reminder by its ID.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `reminder_id` | `int` | Reminder ID (shown in `/reminder list`) |
+| Parameter     | Type  | Description                                      |
+| ------------- | ----- | ------------------------------------------------ |
+| `reminder_id` | `int` | Reminder ID (autocompleted with message preview) |
+
+### `/reminder pause <reminder_id>`
+
+Pause a reminder without deleting it. The reminder loop will skip paused entries.
+
+| Parameter     | Type  | Description                                   |
+| ------------- | ----- | --------------------------------------------- |
+| `reminder_id` | `int` | Reminder ID (autocompleted with status emoji) |
+
+### `/reminder resume <reminder_id>`
+
+Resume a previously paused reminder.
+
+| Parameter     | Type  | Description                                   |
+| ------------- | ----- | --------------------------------------------- |
+| `reminder_id` | `int` | Reminder ID (autocompleted with status emoji) |
 
 ## Database Model
 
 ### `ReminderMessage`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| Id | Integer (PK) | Auto-increment |
-| GuildId | BigInteger | Discord guild ID |
-| ChannelId | BigInteger | Target channel |
-| ChannelName | String(30) | Channel name (for display) |
-| CreateDate | DateTime | When created |
-| Author | Unicode(30) | Who created it |
-| Repeat | Integer | 1 = repeating, 0 = one-shot |
-| Minutes | Integer | Interval in minutes |
-| LastSend | DateTime | Last time the message was sent |
-| Message | UnicodeText | Message content |
-| Count | Integer | Number of times sent |
+| Column      | Type         | Purpose                        |
+| ----------- | ------------ | ------------------------------ |
+| Id          | Integer (PK) | Auto-increment                 |
+| GuildId     | BigInteger   | Discord guild ID               |
+| ChannelId   | BigInteger   | Target channel                 |
+| ChannelName | String(30)   | Channel name (for display)     |
+| CreateDate  | DateTime     | When created                   |
+| Author      | Unicode(30)  | Who created it                 |
+| Repeat      | Integer      | 1 = repeating, 0 = one-shot    |
+| Minutes     | Integer      | Interval in minutes            |
+| LastSend    | DateTime     | Last time the message was sent |
+| Message     | UnicodeText  | Message content                |
+| Count       | Integer      | Number of times sent           |
+| Enabled     | Boolean      | Active toggle (default `True`) |
 
 ## How Timing Works
 

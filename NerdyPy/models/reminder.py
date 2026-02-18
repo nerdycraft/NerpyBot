@@ -4,7 +4,7 @@
 from datetime import UTC, datetime, timedelta
 
 import humanize
-from sqlalchemy import BigInteger, Column, DateTime, Index, Integer, String, Unicode, UnicodeText, asc
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, Index, Integer, String, Unicode, UnicodeText, asc
 from utils import database as db
 
 
@@ -28,6 +28,7 @@ class ReminderMessage(db.BASE):
     LastSend = Column(DateTime)
     Message = Column(UnicodeText)
     Count = Column(Integer)
+    Enabled = Column(Boolean, default=True)
 
     @classmethod
     def get_by_id(cls, timed_id, guild_id, session):
@@ -61,7 +62,7 @@ class ReminderMessage(db.BASE):
         msg += f"Created: {self.CreateDate.strftime('%Y-%m-%d %H:%M')}\n"
         msg += (
             f"Next Message: "
-            f"{humanize.naturaltime(self.LastSend + timedelta(minutes=float(self.Minutes)), when=datetime.now(UTC))}\n"
+            f"{humanize.naturaltime(self.LastSend.replace(tzinfo=UTC) + timedelta(minutes=float(self.Minutes)), when=datetime.now(UTC))}\n"
         )
         msg += f"Message: {self.Message}\n"
         msg += f"Hits: {self.Count}\n"

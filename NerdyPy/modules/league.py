@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Literal
 
 from aiohttp import ClientSession
-from discord import Embed, Interaction, app_commands
+from discord import Color, Embed, Interaction, app_commands
 from discord.ext.commands import GroupCog
 from utils.errors import NerpyException
 from utils.helpers import error_context
@@ -78,17 +78,17 @@ class League(GroupCog):
 
                     ver = await self._get_latest_version()
 
-                    emb = Embed(title=name)
+                    emb = Embed(title=name, color=Color(0x0AC8B9))
                     emb.set_thumbnail(
                         url=f"https://ddragon.leagueoflegends.com/cdn/{ver}/img/profileicon/{icon_id}.png"
                     )
                     emb.description = f"Summoner Level: {level}"
 
                     if played_ranked:
-                        emb.add_field(name="rank", value=f"{tier} {rank}")
-                        emb.add_field(name="league points", value=lp)
-                        emb.add_field(name="wins", value=wins)
-                        emb.add_field(name="losses", value=losses)
+                        emb.add_field(name="Rank", value=f"{tier} {rank}")
+                        emb.add_field(name="League Points", value=lp)
+                        emb.add_field(name="Wins", value=wins)
+                        emb.add_field(name="Losses", value=losses)
 
         await interaction.response.send_message(embed=emb)
 

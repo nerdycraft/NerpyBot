@@ -9,8 +9,9 @@ import logging
 import queue
 from datetime import datetime
 
-from discord import VoiceChannel
+from discord import Interaction, VoiceChannel
 from discord.ext import tasks
+from utils.helpers import send_paginated
 
 
 class BufferKey(enum.Enum):
@@ -25,6 +26,7 @@ class QueueMixin:
     """Mixin providing queue management methods."""
 
     queue: dict
+    audio: "Audio"
 
     def _has_queue(self, guild_id: int) -> bool:
         return guild_id in self.queue
@@ -32,6 +34,25 @@ class QueueMixin:
     def _clear_queue(self, guild_id: int) -> None:
         if self._has_queue(guild_id):
             self.queue[guild_id].clear()
+
+    async def _send_queue_list(self, interaction: Interaction) -> None:
+        """Format and send the paginated queue listing."""
+        audio_queue = self.audio.list_queue(interaction.guild.id)
+        if not audio_queue:
+            await interaction.response.send_message("Queue is empty.", ephemeral=True)
+            return
+
+        msg = ""
+        for i, t in enumerate(audio_queue, start=1):
+            msg += f"`{i}` {t.title}\n"
+
+        await send_paginated(interaction, msg, title="\U0001f3b5 Queue", color=0x0099FF)
+
+    def _stop_and_clear_queue(self, guild_id: int) -> None:
+        """Stop playback, clear the audio buffer, and clear the module queue."""
+        self.audio.stop(guild_id)
+        self.audio.clear_buffer(guild_id)
+        self._clear_queue(guild_id)
 
 
 class QueuedSong:

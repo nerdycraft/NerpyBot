@@ -9,6 +9,7 @@ Server moderation tools including automatic member kicking, message cleanup, voi
 **Schedule:** Runs once daily at **12:30 UTC**.
 
 **Process:**
+
 1. For each guild with an enabled `AutoKicker` config:
 2. Iterate all members
 3. **Detection:** A member is "roleless" if they only have the `@everyone` role (`len(member.roles) == 1`)
@@ -25,7 +26,8 @@ Server moderation tools including automatic member kicking, message cleanup, voi
 **Schedule:** Runs every **5 minutes**.
 
 **Process:**
-1. For each `AutoDelete` config across all guilds:
+
+1. For each enabled `AutoDelete` config across all guilds (skips paused configs):
 2. Fetch message history for the configured channel
 3. Find messages older than `DeleteOlderThan` seconds
 4. Sort oldest-first, keep the newest `KeepMessages` count
@@ -38,11 +40,11 @@ Server moderation tools including automatic member kicking, message cleanup, voi
 
 Configure automatic kicking of members who don't pick a role.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `enable` | `bool` | Enable or disable |
-| `kick_after` | `str` | Duration string (e.g., `"7d"`, `"48h"`) — parsed by `pytimeparse2` |
-| `kick_reminder_message` | `str` (optional) | Custom reminder DM. Use `{guild}` for server name |
+| Parameter               | Type             | Description                                                        |
+| ----------------------- | ---------------- | ------------------------------------------------------------------ |
+| `enable`                | `bool`           | Enable or disable                                                  |
+| `kick_after`            | `str`            | Duration string (e.g., `"7d"`, `"48h"`) — parsed by `pytimeparse2` |
+| `kick_reminder_message` | `str` (optional) | Custom reminder DM. Use `{guild}` for server name                  |
 
 **Permission:** `kick_members`
 
@@ -50,12 +52,12 @@ Configure automatic kicking of members who don't pick a role.
 
 Create an auto-delete policy for a channel.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `channel` | `TextChannel` | *(required)* | Target channel |
-| `delete_older_than` | `str` | `None` | Age threshold (e.g., `"24h"`, `"7d"`) |
-| `keep_messages` | `int` | `None` | Minimum messages to keep |
-| `delete_pinned_message` | `bool` | `False` | Whether to delete pinned messages |
+| Parameter               | Type          | Default      | Description                           |
+| ----------------------- | ------------- | ------------ | ------------------------------------- |
+| `channel`               | `TextChannel` | _(required)_ | Target channel                        |
+| `delete_older_than`     | `str`         | `None`       | Age threshold (e.g., `"24h"`, `"7d"`) |
+| `keep_messages`         | `int`         | `None`       | Minimum messages to keep              |
+| `delete_pinned_message` | `bool`        | `False`      | Whether to delete pinned messages     |
 
 **Permission:** `manage_messages`
 
@@ -77,13 +79,25 @@ Modify an existing auto-delete configuration.
 
 **Permission:** `manage_messages`
 
+### `/autodeleter pause <channel>`
+
+Pause auto-deletion for a channel without removing the configuration.
+
+**Permission:** `manage_messages`
+
+### `/autodeleter resume <channel>`
+
+Resume auto-deletion for a previously paused channel.
+
+**Permission:** `manage_messages`
+
 ### `/user info [member]`
 
 Show detailed information about a member.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `member` | `Member` | command invoker | Member to inspect |
+| Parameter | Type     | Default         | Description       |
+| --------- | -------- | --------------- | ----------------- |
+| `member`  | `Member` | command invoker | Member to inspect |
 
 **Displays:** Account creation date, server join date, top role, all roles.
 
@@ -93,8 +107,8 @@ Show detailed information about a member.
 
 List all server members with join dates. Paginated output.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
+| Parameter                       | Type   | Default | Description                     |
+| ------------------------------- | ------ | ------- | ------------------------------- |
 | `show_only_users_without_roles` | `bool` | `False` | Filter to roleless members only |
 
 **Permission:** `moderate_members`
@@ -115,20 +129,21 @@ Make the bot leave the voice channel. **Bot-moderator only.**
 
 ### `AutoKicker`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| GuildId | BigInteger (PK) | Discord guild ID |
-| KickAfter | BigInteger | Seconds before kick (default 0) |
-| Enabled | Boolean | Active toggle (default `False`) |
-| ReminderMessage | UnicodeText | Custom reminder DM template |
+| Column          | Type            | Purpose                         |
+| --------------- | --------------- | ------------------------------- |
+| GuildId         | BigInteger (PK) | Discord guild ID                |
+| KickAfter       | BigInteger      | Seconds before kick (default 0) |
+| Enabled         | Boolean         | Active toggle (default `False`) |
+| ReminderMessage | UnicodeText     | Custom reminder DM template     |
 
 ### `AutoDelete`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| Id | Integer (PK) | Auto-increment |
-| GuildId | BigInteger | Discord guild ID |
-| ChannelId | BigInteger | Target channel |
-| KeepMessages | BigInteger | Minimum messages to retain (default 0) |
-| DeleteOlderThan | BigInteger | Age threshold in seconds |
-| DeletePinnedMessage | Boolean | Include pinned messages (default `False`) |
+| Column              | Type         | Purpose                                   |
+| ------------------- | ------------ | ----------------------------------------- |
+| Id                  | Integer (PK) | Auto-increment                            |
+| GuildId             | BigInteger   | Discord guild ID                          |
+| ChannelId           | BigInteger   | Target channel                            |
+| KeepMessages        | BigInteger   | Minimum messages to retain (default 0)    |
+| DeleteOlderThan     | BigInteger   | Age threshold in seconds                  |
+| DeletePinnedMessage | Boolean      | Include pinned messages (default `False`) |
+| Enabled             | Boolean      | Active toggle (default `True`)            |

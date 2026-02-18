@@ -36,12 +36,14 @@ The conversation uses three input modes:
 ### Main Menu
 
 From the main menu, the user can:
+
 - **Manage Templates** — Create, edit, or delete raid templates
 - **Create Event** — Schedule a raid using an existing template
 
 ### Template Management
 
 A template defines the structure of a raid:
+
 - **Name** (5-35 characters)
 - **Description** (max 350 characters)
 - **Player Count** (3-25)
@@ -50,6 +52,7 @@ A template defines the structure of a raid:
 ### Encounter Management
 
 Each encounter within a template has:
+
 - **Name** (5-35 characters)
 - **Description** (max 150 characters)
 - **Roles** — Named slots with a count (e.g., "Tank x2", "Healer x3")
@@ -68,47 +71,47 @@ Creates a scheduled raid event from an existing template. The conversation guide
 
 ### `RaidTemplate`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| GuildId | BigInteger (PK) | Discord guild ID |
-| TemplateId | BigInteger (PK) | Template ID within guild |
-| Name | Unicode(30) | Template name |
-| Description | Unicode(255) | Template description |
-| PlayerCount | Integer | Max players |
-| CreateDate | DateTime | When created |
+| Column      | Type            | Purpose                  |
+| ----------- | --------------- | ------------------------ |
+| GuildId     | BigInteger (PK) | Discord guild ID         |
+| TemplateId  | BigInteger (PK) | Template ID within guild |
+| Name        | Unicode(30)     | Template name            |
+| Description | Unicode(255)    | Template description     |
+| PlayerCount | Integer         | Max players              |
+| CreateDate  | DateTime        | When created             |
 
 Has a cascade-delete relationship to `RaidEncounter`.
 
 ### `RaidEncounter`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| GuildId | BigInteger (PK) | Discord guild ID |
-| TemplateId | BigInteger (PK) | Parent template |
+| Column      | Type            | Purpose                      |
+| ----------- | --------------- | ---------------------------- |
+| GuildId     | BigInteger (PK) | Discord guild ID             |
+| TemplateId  | BigInteger (PK) | Parent template              |
 | EncounterId | BigInteger (PK) | Encounter ID within template |
-| Name | Unicode(30) | Encounter name |
-| Description | Unicode(255) | Encounter description |
+| Name        | Unicode(30)     | Encounter name               |
+| Description | Unicode(255)    | Encounter description        |
 
 FK to `RaidTemplate(GuildId, TemplateId)`. Has a cascade-delete relationship to `RaidEncounterRole`.
 
 ### `RaidEncounterRole`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| GuildId | BigInteger (PK) | Discord guild ID |
-| TemplateId | BigInteger (PK) | Parent template |
-| EncounterId | BigInteger (PK) | Parent encounter |
-| RoleId | BigInteger (PK) | Role ID within encounter |
-| Name | Unicode(30) | Role name (e.g., "Tank", "Healer") |
-| Description | Unicode(255) | Role description |
-| Count | Integer | Number of slots for this role |
-| SortIndex | Integer | Display order |
+| Column      | Type            | Purpose                            |
+| ----------- | --------------- | ---------------------------------- |
+| GuildId     | BigInteger (PK) | Discord guild ID                   |
+| TemplateId  | BigInteger (PK) | Parent template                    |
+| EncounterId | BigInteger (PK) | Parent encounter                   |
+| RoleId      | BigInteger (PK) | Role ID within encounter           |
+| Name        | Unicode(30)     | Role name (e.g., "Tank", "Healer") |
+| Description | Unicode(255)    | Role description                   |
+| Count       | Integer         | Number of slots for this role      |
+| SortIndex   | Integer         | Display order                      |
 
 ### `RaidEvent`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| GuildId | BigInteger (PK) | Discord guild ID |
+| Column  | Type            | Purpose               |
+| ------- | --------------- | --------------------- |
+| GuildId | BigInteger (PK) | Discord guild ID      |
 | EventId | BigInteger (PK) | Event ID within guild |
 
 ## How the State Machine Works

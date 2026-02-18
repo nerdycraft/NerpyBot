@@ -449,19 +449,6 @@ voice = [
 ]
 
 [[package]]
-name = "enum-tools"
-version = "0.13.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pygments" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/6d/87/50091e20c2765aa495b24521844a7d8f7041d48e4f9b47dd928cd38c8606/enum_tools-0.13.0.tar.gz", hash = "sha256:0d13335e361d300dc0f8fd82c8cf9951417246f9676144f5ee1761eb690228eb", size = 18904, upload-time = "2025-04-17T15:26:59.412Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/45/cf8a8df3ebe78db691ab54525d552085b67658877f0334f4b0c08c43b518/enum_tools-0.13.0-py3-none-any.whl", hash = "sha256:e0112b16767dd08cb94105844b52770eae67ece6f026916a06db4a3d330d2a95", size = 22366, upload-time = "2025-04-17T15:26:58.34Z" },
-]
-
-[[package]]
 name = "ffmpeg-python"
 version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -688,19 +675,6 @@ wheels = [
 ]
 
 [[package]]
-name = "igdb-api-v4"
-version = "0.3.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "protobuf" },
-    { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/61/c0/a9f7cf5171d81668a6940be5b811c9902bd9144257f8ffb3fbd15eebc3e9/igdb-api-v4-0.3.3.tar.gz", hash = "sha256:25de6ba3f7641d0bf0f88d034e6d38e1327375535aa7c01c1d9572069ed01ea5", size = 15217, upload-time = "2024-07-17T08:39:00.205Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/aa/b8/6e6bc134fb7fb7b1c40fed2606c345ad88455bac8ea5cce682712ff10e9b/igdb_api_v4-0.3.3-py3-none-any.whl", hash = "sha256:7b878d3e6cf01da5d73761432a52b699467b75ae858c7d6c6f7cfce241818e0e", size = 15710, upload-time = "2024-07-17T08:38:58.745Z" },
-]
-
-[[package]]
 name = "iniconfig"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -869,14 +843,12 @@ bot = [
     { name = "google-api-python-client" },
     { name = "humanize" },
     { name = "idna" },
-    { name = "igdb-api-v4" },
     { name = "pymysql" },
     { name = "pynacl" },
     { name = "pytimeparse2" },
     { name = "pyyaml" },
     { name = "requests-cache" },
     { name = "sqlalchemy" },
-    { name = "twitchapi" },
     { name = "yt-dlp" },
 ]
 migrations = [
@@ -904,14 +876,12 @@ bot = [
     { name = "google-api-python-client" },
     { name = "humanize" },
     { name = "idna" },
-    { name = "igdb-api-v4" },
     { name = "pymysql" },
     { name = "pynacl" },
     { name = "pytimeparse2" },
     { name = "pyyaml" },
     { name = "requests-cache" },
     { name = "sqlalchemy" },
-    { name = "twitchapi" },
     { name = "yt-dlp" },
 ]
 migrations = [
@@ -1179,18 +1149,6 @@ wheels = [
 ]
 
 [[package]]
-name = "python-dateutil"
-version = "2.9.0.post0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "six" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/66/c0/0c8b6ad9f17a802ee498c46e004a0eb49bc148f2fd230864601a86dcf6db/python-dateutil-2.9.0.post0.tar.gz", hash = "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3", size = 342432, upload-time = "2024-03-01T18:36:20.211Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ec/57/56b9bcc3c9c6a792fcbaf139543cee77261f3651ca9da0c93f5c1221264b/python_dateutil-2.9.0.post0-py2.py3-none-any.whl", hash = "sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427", size = 229892, upload-time = "2024-03-01T18:36:18.57Z" },
-]
-
-[[package]]
 name = "pytimeparse2"
 version = "1.7.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1318,15 +1276,6 @@ wheels = [
 ]
 
 [[package]]
-name = "six"
-version = "1.17.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
-]
-
-[[package]]
 name = "sqlalchemy"
 version = "2.0.46"
 source = { registry = "https://pypi.org/simple" }
@@ -1359,21 +1308,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/33/75/f28622ba6dde79cd545055ea7bd4062dc934e0621f7b3be2891f8563f8de/sqlalchemy-2.0.46-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:ff33c6e6ad006bbc0f34f5faf941cfc62c45841c64c0a058ac38c799f15b5ede", size = 3470008, upload-time = "2026-01-21T18:33:11.725Z" },
     { url = "https://files.pythonhosted.org/packages/a9/42/4afecbbc38d5e99b18acef446453c76eec6fbd03db0a457a12a056836e22/sqlalchemy-2.0.46-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:82ec52100ec1e6ec671563bbd02d7c7c8d0b9e71a0723c72f22ecf52d1755330", size = 3476137, upload-time = "2026-01-21T18:45:15.001Z" },
     { url = "https://files.pythonhosted.org/packages/fc/a1/9c4efa03300926601c19c18582531b45aededfb961ab3c3585f1e24f120b/sqlalchemy-2.0.46-py3-none-any.whl", hash = "sha256:f9c11766e7e7c0a2767dda5acb006a118640c9fc0a4104214b96269bfb78399e", size = 1937882, upload-time = "2026-01-21T18:22:10.456Z" },
-]
-
-[[package]]
-name = "twitchapi"
-version = "4.5.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "enum-tools" },
-    { name = "python-dateutil" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b0/09/894e49db07bc2ba58193f3e5377c53b674195124025cd1d8b142dda26f81/twitchapi-4.5.0.tar.gz", hash = "sha256:06849800c5931d6b6e5d817a2ada7a18d55fa0d0af1dc3109ea6c699a71f8db7", size = 111278, upload-time = "2025-05-23T12:50:22.558Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/f6/00ba809687db199105a6bbbe8e861625ce3c9739ef32e0bb2b30e051ce66/twitchapi-4.5.0-py3-none-any.whl", hash = "sha256:b54486f72d6a3ebb235b11b53d08d092418563f3f4c48c07f5d0c396d3a9178b", size = 116879, upload-time = "2025-05-23T12:50:20.926Z" },
 ]
 
 [[package]]

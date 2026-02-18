@@ -3,17 +3,16 @@
 from datetime import UTC, datetime, time, timedelta
 from typing import Optional
 
-import utils.format as fmt
-from discord import Embed, Interaction, Member, TextChannel, app_commands
+from discord import Color, Embed, Interaction, Member, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext import tasks
 from discord.ext.commands import Cog
-from humanize import naturaldate
+from humanize import naturaldate, naturaldelta
 from pytimeparse2 import parse
 
 from models.moderation import AutoDelete, AutoKicker
 
-from utils.helpers import notify_error
+from utils.helpers import notify_error, send_paginated
 from utils.permissions import validate_channel_permissions
 
 # If no tzinfo is given then UTC is assumed.
@@ -96,6 +95,8 @@ class Moderation(Cog):
                 self.bot.log.debug(f"Fetched {len(configurations)} configurations")
 
             for configuration in configurations:
+                if not configuration.Enabled:
+                    continue
                 guild = self.bot.get_guild(configuration.GuildId)
                 if configuration.DeleteOlderThan is None:
                     list_before = None
@@ -233,6 +234,7 @@ class Moderation(Cog):
                     KeepMessages=keep_messages,
                     DeleteOlderThan=delete,
                     DeletePinnedMessage=delete_pinned_message,
+                    Enabled=True,
                 )
                 session.add(deleter)
 
@@ -278,19 +280,69 @@ class Moderation(Cog):
         with self.bot.session_scope() as session:
             configurations = AutoDelete.get_by_guild(interaction.guild.id, session)
             if configurations is not None:
-                msg = "==== AutoDeleter Configuration ====\n"
+                msg = ""
                 for configuration in configurations:
                     channel = interaction.guild.get_channel(configuration.ChannelId)
-                    channel_name = channel.name if channel else f"Unknown ({configuration.ChannelId})"
-                    msg += (
-                        f"Channel: {channel_name}, "
-                        f"DeleteOlderThan: {configuration.DeleteOlderThan}, "
-                        f"DeletePinnedMessages: {configuration.DeletePinnedMessage}, "
-                        f"KeepMessages: {configuration.KeepMessages}\n"
-                    )
-                await interaction.response.send_message(fmt.box(msg), ephemeral=True)
+                    channel_name = channel.mention if channel else f"Unknown ({configuration.ChannelId})"
+                    status = "\u2705" if configuration.Enabled else "\u23f8\ufe0f"
+                    age = naturaldelta(configuration.DeleteOlderThan) if configuration.DeleteOlderThan else "\u2014"
+                    keep = configuration.KeepMessages if configuration.KeepMessages else "\u2014"
+                    pinned = "Yes" if configuration.DeletePinnedMessage else "No"
+                    msg += f"{status} **{channel_name}**\n"
+                    msg += f"> Age limit: {age} \u00b7 Keep: {keep} \u00b7 Delete pinned: {pinned}\n\n"
+                await send_paginated(
+                    interaction, msg, title="\U0001f5d1\ufe0f AutoDeleter", color=0xE74C3C, ephemeral=True
+                )
             else:
                 await interaction.response.send_message("No configuration found!", ephemeral=True)
+
+    @autodeleter.command(name="pause")
+    @checks.has_permissions(manage_messages=True)
+    async def _autodeleter_pause(self, interaction: Interaction, channel: TextChannel):
+        """pause auto-deletion for a channel without removing the config
+
+        Parameters
+        ----------
+        interaction
+        channel: discord.TextChannel
+            The channel to pause auto-deletion for
+        """
+        with self.bot.session_scope() as session:
+            configuration = AutoDelete.get_by_channel(interaction.guild.id, channel.id, session)
+            if configuration is None:
+                await interaction.response.send_message(f"No auto-delete config for {channel.mention}.", ephemeral=True)
+                return
+            if not configuration.Enabled:
+                await interaction.response.send_message(
+                    f"Auto-deletion is already paused for {channel.mention}.", ephemeral=True
+                )
+                return
+            configuration.Enabled = False
+        await interaction.response.send_message(f"Paused auto-deletion for {channel.mention}.", ephemeral=True)
+
+    @autodeleter.command(name="resume")
+    @checks.has_permissions(manage_messages=True)
+    async def _autodeleter_resume(self, interaction: Interaction, channel: TextChannel):
+        """resume auto-deletion for a paused channel
+
+        Parameters
+        ----------
+        interaction
+        channel: discord.TextChannel
+            The channel to resume auto-deletion for
+        """
+        with self.bot.session_scope() as session:
+            configuration = AutoDelete.get_by_channel(interaction.guild.id, channel.id, session)
+            if configuration is None:
+                await interaction.response.send_message(f"No auto-delete config for {channel.mention}.", ephemeral=True)
+                return
+            if configuration.Enabled:
+                await interaction.response.send_message(
+                    f"Auto-deletion is already active for {channel.mention}.", ephemeral=True
+                )
+                return
+            configuration.Enabled = True
+        await interaction.response.send_message(f"Resumed auto-deletion for {channel.mention}.", ephemeral=True)
 
     @autodeleter.command(name="edit")
     @checks.has_permissions(manage_messages=True)
@@ -348,17 +400,17 @@ class Moderation(Cog):
         created = member.created_at.strftime("%d. %B %Y - %H:%M")
         joined = member.joined_at.strftime("%d. %B %Y - %H:%M")
 
-        emb = Embed(title=member.display_name)
-        emb.description = f"original name: {member.name}"
+        emb = Embed(title=member.display_name, color=Color(0xE74C3C))
+        emb.description = f"Original name: {member.name}"
         emb.set_thumbnail(url=member.avatar.url)
-        emb.add_field(name="created", value=created)
-        emb.add_field(name="joined", value=joined)
-        emb.add_field(name="top role", value=member.top_role.name.replace("@", ""))
+        emb.add_field(name="Created", value=created)
+        emb.add_field(name="Joined", value=joined)
+        emb.add_field(name="Top Role", value=member.top_role.name.replace("@", ""))
         rn = []
         for r in member.roles:
             rn.append(r.name.replace("@", ""))
 
-        emb.add_field(name="roles", value=", ".join(rn), inline=False)
+        emb.add_field(name="Roles", value=", ".join(rn), inline=False)
 
         await interaction.response.send_message(embed=emb, ephemeral=True)
 
@@ -380,31 +432,27 @@ class Moderation(Cog):
             for member in interaction.guild.members:
                 if len(member.roles) == 1:
                     joined = member.joined_at.strftime("%d. %b %Y - %H:%M")
-                    msg += f"{member.display_name}: joined: {joined}\n"
+                    msg += f"> **{member.display_name}** \u2014 joined: {joined}\n"
         else:
             for member in interaction.guild.members:
                 created = member.created_at.strftime("%d. %b %Y - %H:%M")
                 joined = member.joined_at.strftime("%d. %b %Y - %H:%M")
-                msg += f"{member.display_name}: [created: {created} | joined: {joined}]\n"
+                msg += f"> **{member.display_name}** \u2014 created: {created} \u00b7 joined: {joined}\n"
 
         if msg == "":
             msg = "None found."
 
-        first_page = True
-        for page in fmt.pagify(msg, delims=["\n#"], page_length=1990):
-            if first_page:
-                await interaction.response.send_message(fmt.box(page), ephemeral=True)
-                first_page = False
-            else:
-                await interaction.followup.send(fmt.box(page), ephemeral=True)
+        await send_paginated(interaction, msg, title="\U0001f465 Members", color=0xE74C3C, ephemeral=True)
 
     @app_commands.command()
     @app_commands.guild_only()
     async def membercount(self, interaction: Interaction):
         """displays the current membercount of the server [bot-moderator]"""
-        await interaction.response.send_message(
-            fmt.inline(f"There are currently {interaction.guild.member_count} members on this discord"), ephemeral=True
+        emb = Embed(
+            description=f"There are currently **{interaction.guild.member_count}** members on this server.",
+            color=Color(0xE74C3C),
         )
+        await interaction.response.send_message(embed=emb, ephemeral=True)
 
     @_autokicker_loop.before_loop
     async def _autokicker_before_loop(self):

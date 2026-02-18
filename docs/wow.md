@@ -8,11 +8,11 @@ Blizzard API integration for character lookups and guild news tracking. Uses the
 
 Look up a WoW character profile.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `name` | `str` | *(required)* | Character name |
-| `realm` | `str` | *(required)* | Realm with region (e.g., `blackrock-eu`, `thrall-us`). Slash commands offer autocomplete suggestions. Plain slugs (e.g., `blackrock`) default to EU. |
-| `language` | `Literal["de", "en"]` | `"en"` | Response language |
+| Parameter  | Type                  | Default      | Description                                                                                                                                          |
+| ---------- | --------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`     | `str`                 | _(required)_ | Character name                                                                                                                                       |
+| `realm`    | `str`                 | _(required)_ | Realm with region (e.g., `blackrock-eu`, `thrall-us`). Slash commands offer autocomplete suggestions. Plain slugs (e.g., `blackrock`) default to EU. |
+| `language` | `Literal["de", "en"]` | `"en"`       | Response language                                                                                                                                    |
 
 **Realm autocomplete:** On first use, the bot fetches all EU and US realms from the Blizzard API and caches them. Users get filtered suggestions as they type. Plain slugs (e.g., `blackrock`) default to EU; append `-us` for US realms (e.g., `blackrock-us`).
 
@@ -39,6 +39,7 @@ Look up a WoW character profile.
 ```
 
 **Data sources:**
+
 1. **Blizzard API** — `character_profile_summary` for stats, `character_media` for avatar
 2. **Raider.io API** — `mythic_plus_scores_by_season:current` for M+ score, `mythic_plus_best_runs` for dungeon keys
 
@@ -46,14 +47,14 @@ Look up a WoW character profile.
 
 Register a WoW guild for news tracking.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `guild_name` | `str` | *(required)* | Guild name slug (dashes for spaces) |
-| `realm` | `str` | *(required)* | Realm slug |
-| `channel` | `TextChannel` | *(required)* | Notification channel |
-| `region` | `Literal["eu", "us"]` | `"eu"` | API region |
-| `language` | `Literal["de", "en"]` | `"en"` | Notification language |
-| `active_days` | `int` | `7` | Only track characters active within N days |
+| Parameter     | Type                  | Default      | Description                                |
+| ------------- | --------------------- | ------------ | ------------------------------------------ |
+| `guild_name`  | `str`                 | _(required)_ | Guild name slug (dashes for spaces)        |
+| `realm`       | `str`                 | _(required)_ | Realm slug                                 |
+| `channel`     | `TextChannel`         | _(required)_ | Notification channel                       |
+| `region`      | `Literal["eu", "us"]` | `"eu"`       | API region                                 |
+| `language`    | `Literal["de", "en"]` | `"en"`       | Notification language                      |
+| `active_days` | `int`                 | `7`          | Only track characters active within N days |
 
 **Permission:** `manage_channels`
 
@@ -90,6 +91,7 @@ Trigger an immediate poll cycle for testing.
 Uses the **`guild_activity` endpoint** — a single API call per guild that returns a feed of recent events.
 
 **Process:**
+
 1. Call `api.guild_activity(realmSlug, nameSlug)` — returns activities with timestamps and types
 2. Compare each activity's timestamp against `config.LastActivityTimestamp`
 3. Any activity **newer** than the stored timestamp is new — build an embed
@@ -97,6 +99,7 @@ Uses the **`guild_activity` endpoint** — a single API call per guild that retu
 5. On **first setup**, current time is stored as baseline — only future events trigger notifications
 
 **Activity types handled:**
+
 - `CHARACTER_ACHIEVEMENT` — Character earned an achievement
 - `ENCOUNTER` — Boss kill (includes difficulty mode)
 
@@ -105,6 +108,7 @@ Uses the **`guild_activity` endpoint** — a single API call per guild that retu
 There's no "mount earned" event in any API. This uses **differential polling** — comparing a character's current mount collection against what was stored last time.
 
 **Process per character:**
+
 1. Fetch `character_profile_summary` — check `last_login_timestamp` to skip inactive characters
 2. Fetch `character_mounts_collection_summary` — returns all mount IDs the account owns
 3. Look up stored `WowCharacterMounts.KnownMountIds` (JSON list)
@@ -123,6 +127,7 @@ There's no "mount earned" event in any API. This uses **differential polling** �
 ### Initial Sync
 
 When unbaselined characters exist (new setup or new guild members), the loop processes **all batches continuously** instead of one-per-cycle. This completes the initial baseline in minutes instead of hours. The sync stops when either:
+
 - All active characters are baselined
 - A full rotation produces no new baselines (remaining characters are inactive/inaccessible)
 
@@ -131,6 +136,7 @@ When unbaselined characters exist (new setup or new guild members), the loop pro
 The Blizzard API returns `{"code": 429}` on rate limits. `blizzapi` does **not** auto-retry on 429.
 
 **Detection:** Every API response is checked via `_check_rate_limit()`. On 429:
+
 1. An `asyncio.Event` is set — all in-flight concurrent tasks short-circuit
 2. The batch loop breaks immediately
 3. The current offset is saved so the **next cycle resumes where it left off**
@@ -156,6 +162,7 @@ Characters with combined confidence ≥ 0.7 are grouped via union-find clusterin
 Characters who leave the guild have their mount data pruned after **30 days** (`STALE_DAYS`).
 
 **Process (runs at the start of each mount poll):**
+
 1. Compare stored `WowCharacterMounts` entries against the current roster
 2. Any entry not in the roster whose `LastChecked` is older than 30 days gets deleted
 3. The grace period prevents data loss for temporary absences (transfers, etc.)
@@ -163,6 +170,7 @@ Characters who leave the guild have their mount data pruned after **30 days** (`
 ### Character Rename Detection
 
 When the Blizzard API returns a different canonical name than the roster name:
+
 1. No DB entry exists under the current (new) name
 2. Check if an entry exists under the API's canonical (old) name
 3. If found, **migrate** the entry by updating `CharacterName` — preserving the mount baseline
@@ -217,33 +225,33 @@ Boss kill and mount collection notifications respect the guild's configured `Lan
 
 ### `WowGuildNewsConfig`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| Id | Integer (PK) | Auto-increment |
-| GuildId | BigInteger | Discord guild ID |
-| ChannelId | BigInteger | Notification channel |
-| WowGuildName | Unicode(100) | Guild name slug |
-| WowRealmSlug | String(100) | Realm slug |
-| Region | String(10) | `"eu"` or `"us"` |
-| Language | String(5) | `"de"` or `"en"` |
-| MinLevel | Integer | Min character level to track (default 10) |
-| ActiveDays | Integer | Only track chars active within N days (default 7) |
-| RosterOffset | Integer | Cursor for mount-check batch rotation |
-| LastActivityTimestamp | DateTime | Dedup timestamp for activity feed |
-| Enabled | Boolean | Active/paused toggle |
-| AccountGroupData | Text | JSON dict of temporal correlation data for account resolution |
-| CreateDate | DateTime | When configured |
+| Column                | Type         | Purpose                                                       |
+| --------------------- | ------------ | ------------------------------------------------------------- |
+| Id                    | Integer (PK) | Auto-increment                                                |
+| GuildId               | BigInteger   | Discord guild ID                                              |
+| ChannelId             | BigInteger   | Notification channel                                          |
+| WowGuildName          | Unicode(100) | Guild name slug                                               |
+| WowRealmSlug          | String(100)  | Realm slug                                                    |
+| Region                | String(10)   | `"eu"` or `"us"`                                              |
+| Language              | String(5)    | `"de"` or `"en"`                                              |
+| MinLevel              | Integer      | Min character level to track (default 10)                     |
+| ActiveDays            | Integer      | Only track chars active within N days (default 7)             |
+| RosterOffset          | Integer      | Cursor for mount-check batch rotation                         |
+| LastActivityTimestamp | DateTime     | Dedup timestamp for activity feed                             |
+| Enabled               | Boolean      | Active/paused toggle                                          |
+| AccountGroupData      | Text         | JSON dict of temporal correlation data for account resolution |
+| CreateDate            | DateTime     | When configured                                               |
 
 ### `WowCharacterMounts`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| Id | Integer (PK) | Auto-increment |
-| ConfigId | Integer (FK) | Parent config |
-| CharacterName | Unicode(50) | Character name (lowercase) |
-| RealmSlug | String(100) | Realm slug |
-| KnownMountIds | Text | JSON array of mount IDs |
-| LastChecked | DateTime | Last successful check |
+| Column        | Type         | Purpose                    |
+| ------------- | ------------ | -------------------------- |
+| Id            | Integer (PK) | Auto-increment             |
+| ConfigId      | Integer (FK) | Parent config              |
+| CharacterName | Unicode(50)  | Character name (lowercase) |
+| RealmSlug     | String(100)  | Realm slug                 |
+| KnownMountIds | Text         | JSON array of mount IDs    |
+| LastChecked   | DateTime     | Last successful check      |
 
 **Unique constraint:** `(ConfigId, CharacterName, RealmSlug)`
 

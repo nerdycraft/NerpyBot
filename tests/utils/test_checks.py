@@ -13,7 +13,6 @@ from utils.checks import (
     can_stop_playback,
     is_admin_or_operator,
     is_connected_to_voice,
-    is_in_same_voice_channel_as_bot,
 )
 from utils.errors import SilentCheckFailure
 
@@ -226,59 +225,6 @@ class TestIsConnectedToVoice:
             await is_connected_to_voice(mock_interaction)
         msg = mock_interaction.response.send_message.call_args[0][0]
         assert "permission to speak" in msg
-
-
-# ---------------------------------------------------------------------------
-# is_in_same_voice_channel_as_bot
-# ---------------------------------------------------------------------------
-
-
-class TestIsInSameVoiceChannelAsBot:
-    async def test_returns_true_when_bot_not_in_voice(self, mock_interaction):
-        mock_interaction.guild.voice_client = None
-        assert await is_in_same_voice_channel_as_bot(mock_interaction) is True
-
-    async def test_returns_true_when_same_channel(self, mock_interaction):
-        voice_channel = MagicMock()
-        bot_voice = MagicMock()
-        bot_voice.channel = voice_channel
-        mock_interaction.guild.voice_client = bot_voice
-        mock_interaction.user.voice.channel = voice_channel
-        assert await is_in_same_voice_channel_as_bot(mock_interaction) is True
-
-    async def test_rejects_when_user_not_in_voice(self, mock_interaction):
-        bot_voice = MagicMock()
-        bot_voice.channel = MagicMock()
-        mock_interaction.guild.voice_client = bot_voice
-        mock_interaction.user.voice = None
-        with pytest.raises(SilentCheckFailure, match="be in a voice channel"):
-            await is_in_same_voice_channel_as_bot(mock_interaction)
-
-    async def test_allows_moderator_from_different_channel(self, mock_interaction):
-        bot_voice = MagicMock()
-        bot_voice.channel = MagicMock()
-        mock_interaction.guild.voice_client = bot_voice
-        mock_interaction.user.voice.channel = MagicMock()  # different channel
-        mock_interaction.user.guild_permissions.mute_members = True  # is mod
-        assert await is_in_same_voice_channel_as_bot(mock_interaction) is True
-
-    async def test_rejects_non_moderator_in_different_channel(self, mock_interaction):
-        bot_voice = MagicMock()
-        bot_voice.channel = MagicMock()
-        mock_interaction.guild.voice_client = bot_voice
-        mock_interaction.user.voice.channel = MagicMock()  # different channel
-        with pytest.raises(SilentCheckFailure, match="same voice channel"):
-            await is_in_same_voice_channel_as_bot(mock_interaction)
-        msg = mock_interaction.response.send_message.call_args[0][0]
-        assert "same voice channel" in msg
-
-    async def test_rejects_when_user_voice_channel_is_none(self, mock_interaction):
-        bot_voice = MagicMock()
-        bot_voice.channel = MagicMock()
-        mock_interaction.guild.voice_client = bot_voice
-        mock_interaction.user.voice.channel = None
-        with pytest.raises(SilentCheckFailure, match="be in a voice channel"):
-            await is_in_same_voice_channel_as_bot(mock_interaction)
 
 
 # ---------------------------------------------------------------------------

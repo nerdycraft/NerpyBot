@@ -5,8 +5,7 @@ from discord.app_commands import checks
 from discord.ext.commands import GroupCog
 
 from models.rolemanage import RoleMapping
-from utils.format import box
-from utils.helpers import error_context
+from utils.helpers import error_context, send_paginated
 
 
 @app_commands.guild_only()
@@ -99,15 +98,17 @@ class RoleManage(GroupCog, group_name="rolemanage"):
                 await interaction.response.send_message("No role mappings configured.", ephemeral=True)
                 return
 
-            lines = ["==== Delegated Role Mappings ====\n"]
+            msg = ""
             for m in mappings:
                 source = interaction.guild.get_role(m.SourceRoleId)
                 target = interaction.guild.get_role(m.TargetRoleId)
                 source_name = source.name if source else f"Unknown ({m.SourceRoleId})"
                 target_name = target.name if target else f"Unknown ({m.TargetRoleId})"
-                lines.append(f"  {source_name} -> {target_name}")
+                msg += f"> **{source_name}** \u2192 {target_name}\n"
 
-        await interaction.response.send_message(box("\n".join(lines)), ephemeral=True)
+        await send_paginated(
+            interaction, msg, title="\U0001f517 Delegated Role Mappings", color=0x3498DB, ephemeral=True
+        )
 
     @app_commands.command(name="assign")
     async def _assign(self, interaction: Interaction, member: Member, role: Role):

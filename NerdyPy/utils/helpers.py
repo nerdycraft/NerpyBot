@@ -3,9 +3,8 @@
 import logging
 from traceback import format_exception
 
-from discord import Interaction
+from discord import Color, Embed, Interaction
 from googleapiclient.discovery import build
-from utils.errors import NerpyException
 
 log = logging.getLogger("nerpybot")
 
@@ -26,6 +25,54 @@ async def send_hidden_message(interaction: Interaction, msg: str = None, **kwarg
     return await interaction.followup.send(msg, ephemeral=True, **kwargs)
 
 
+DISCORD_MESSAGE_LIMIT = 2000
+# Embed description supports up to 4096 characters
+DISCORD_EMBED_DESCRIPTION_LIMIT = 4096
+
+
+async def send_paginated(
+    interaction: Interaction,
+    text: str,
+    *,
+    title: str = None,
+    color: Color | int = None,
+    ephemeral: bool = False,
+    delims=None,
+    page_length=None,
+):
+    """Paginate text into Discord embed messages.
+
+    Uses ``response.send_message`` for the first page and ``followup.send``
+    for subsequent pages.  Adds a page footer when content spans multiple
+    pages.
+    """
+    from utils.format import pagify
+
+    if delims is None:
+        delims = ["\n"]
+    if page_length is None:
+        page_length = DISCORD_EMBED_DESCRIPTION_LIMIT - 50
+    if isinstance(color, int):
+        color = Color(color)
+    if color is None:
+        color = Color(0x5865F2)
+
+    pages = list(pagify(text, delims=delims, page_length=page_length))
+    total = len(pages)
+
+    for i, page in enumerate(pages):
+        embed = Embed(description=page, color=color)
+        if title:
+            embed.title = title
+        if total > 1:
+            embed.set_footer(text=f"Page {i + 1}/{total}")
+
+        if i == 0:
+            await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
+        else:
+            await interaction.followup.send(embed=embed, ephemeral=ephemeral)
+
+
 def error_context(source) -> str:
     """Build a log prefix with command, user, and guild info.
 
@@ -42,12 +89,6 @@ def error_context(source) -> str:
         user = f"{source.user} ({source.user.id})"
         guild = f"{source.guild.name} ({source.guild.id})" if source.guild else "DM"
     return f"[{guild}] {user} -> /{cmd}"
-
-
-async def check_api_response(response, service_name: str = "API") -> None:
-    """Validate API response status and raise NerpyException on error."""
-    if response.status != 200:
-        raise NerpyException(f"The {service_name} responded with code: {response.status} - {response.reason}")
 
 
 async def notify_error(bot, context: str, error: Exception) -> None:

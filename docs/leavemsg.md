@@ -9,6 +9,7 @@ Sends a configurable farewell message when a member leaves the server. All confi
 Triggered when a member leaves (or is kicked/banned from) the guild.
 
 **Process:**
+
 1. Skip if the departing member is a bot
 2. Look up `LeaveMessage` config for this guild
 3. If enabled and channel still exists, send the configured message
@@ -20,8 +21,8 @@ Triggered when a member leaves (or is kicked/banned from) the guild.
 
 Enable leave messages and set the notification channel.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter | Type          | Description                     |
+| --------- | ------------- | ------------------------------- |
 | `channel` | `TextChannel` | Where to send farewell messages |
 
 Creates a config entry with the default message if none exists, or re-enables an existing one.
@@ -34,8 +35,8 @@ Disable leave messages without deleting the configuration. Can be re-enabled lat
 
 Set a custom farewell message.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter | Type  | Description                                       |
+| --------- | ----- | ------------------------------------------------- |
 | `message` | `str` | Custom message template (must contain `{member}`) |
 
 **Validation:** The message must include the `{member}` placeholder or the command is rejected.
@@ -50,9 +51,9 @@ Show the current leave message configuration: enabled/disabled state, target cha
 
 ### `LeaveMessage`
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| GuildId | BigInteger (PK) | Discord guild ID |
-| ChannelId | BigInteger | Target channel for messages |
-| Message | UnicodeText | Message template with `{member}` placeholder |
-| Enabled | Boolean | Active/inactive toggle (default `False`) |
+| Column    | Type            | Purpose                                      |
+| --------- | --------------- | -------------------------------------------- |
+| GuildId   | BigInteger (PK) | Discord guild ID                             |
+| ChannelId | BigInteger      | Target channel for messages                  |
+| Message   | UnicodeText     | Message template with `{member}` placeholder |
+| Enabled   | Boolean         | Active/inactive toggle (default `False`)     |

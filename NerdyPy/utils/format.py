@@ -1,39 +1,6 @@
 # -*- coding: utf-8 -*-
 """discord and other format functions"""
 
-from html.parser import HTMLParser
-
-
-class MLStripper(HTMLParser):
-    """Markup Language Stripper"""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.reset()
-        self.strict = False
-        self.convert_charrefs = True
-        self.fed: list[str] = []
-
-    def handle_data(self, data: str) -> None:
-        """handle data"""
-        self.fed.append(data)
-
-    def get_data(self) -> str:
-        """return data"""
-        return "".join(self.fed)
-
-    @staticmethod
-    def error(message):
-        """had to do this cuz abstract"""
-        return message
-
-
-def strip_tags(html):
-    """strips text from xml/html tags"""
-    stripper = MLStripper()
-    stripper.feed(html)
-    return stripper.get_data()
-
 
 def box(text, lang=""):
     """discord format for box with optional language highlighting"""

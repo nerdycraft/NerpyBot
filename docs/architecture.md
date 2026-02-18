@@ -18,22 +18,22 @@ NerpyBot is a Discord bot built with discord.py using the Cog extension system. 
 
 ### CLI Arguments
 
-| Flag | Description |
-|------|-------------|
-| `-r, --auto-restart` | Restart bot on failure |
-| `-c, --config` | Custom config file path |
-| `-d, --debug` | Debug logging (excludes SQLAlchemy noise) |
-| `-v, --verbose` | Verbosity level (stackable) |
-| `-l, --loglevel` | Set log level directly (INFO, DEBUG, etc.) |
+| Flag                 | Description                                |
+| -------------------- | ------------------------------------------ |
+| `-r, --auto-restart` | Restart bot on failure                     |
+| `-c, --config`       | Custom config file path                    |
+| `-d, --debug`        | Debug logging (excludes SQLAlchemy noise)  |
+| `-v, --verbose`      | Verbosity level (stackable)                |
+| `-l, --loglevel`     | Set log level directly (INFO, DEBUG, etc.) |
 
 ### Key Events
 
-| Event | Behavior |
-|-------|----------|
-| `on_app_command_error` | Logs errors and sends user-friendly messages for slash commands |
-| `on_command_error` | Handles errors for the few remaining prefix commands (admin sync/debug) |
-| `on_raw_reaction_add` | Routes reactions to active conversations (raidplaner) |
-| `on_message` | Routes DMs to active conversations, then processes prefix commands |
+| Event                  | Behavior                                                                |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `on_app_command_error` | Logs errors and sends user-friendly messages for slash commands         |
+| `on_command_error`     | Handles errors for the few remaining prefix commands (admin sync/debug) |
+| `on_raw_reaction_add`  | Routes reactions to active conversations (raidplaner)                   |
+| `on_message`           | Routes DMs to active conversations, then processes prefix commands      |
 
 ## Module System
 
@@ -46,22 +46,19 @@ async def setup(bot):
 
 Modules are loaded dynamically based on `config.bot.modules`. Available modules:
 
-| Module | Type | Background Tasks | External APIs |
-|--------|------|-----------------|---------------|
-| admin | Cog (slash + prefix) | — | — |
-| fun | Cog | — | — |
-| league | GroupCog | — | Riot API |
-| leavemsg | GroupCog | — | — |
-| moderation | Cog | AutoKicker (daily), AutoDeleter (5min) | — |
-| music | GroupCog + QueueMixin | — | YouTube API, yt-dlp |
-| raidplaner | Cog | — | — |
-| random | Cog | — | Various public APIs |
-| reactionrole | GroupCog | — | — |
-| reminder | GroupCog | Reminder loop (30s) | — |
-| rolemanage | GroupCog | — | — |
-| search | GroupCog | — | Imgur, Genius, OMDB, IGDB, YouTube |
-| tagging | GroupCog + QueueMixin | — | — |
-| wow | GroupCog | Guild news loop (15min) | Blizzard API, Raider.io |
+| Module       | Type                  | Background Tasks                       | External APIs           |
+| ------------ | --------------------- | -------------------------------------- | ----------------------- |
+| admin        | Cog (slash + prefix)  | —                                      | —                       |
+| league       | GroupCog              | —                                      | Riot API                |
+| leavemsg     | GroupCog              | —                                      | —                       |
+| moderation   | Cog                   | AutoKicker (daily), AutoDeleter (5min) | —                       |
+| music        | GroupCog + QueueMixin | —                                      | YouTube API, yt-dlp     |
+| raidplaner   | Cog                   | —                                      | —                       |
+| reactionrole | GroupCog              | —                                      | —                       |
+| reminder     | GroupCog              | Reminder loop (30s)                    | —                       |
+| rolemanage   | GroupCog              | —                                      | —                       |
+| tagging      | GroupCog + QueueMixin | —                                      | —                       |
+| wow          | GroupCog              | Guild news loop (15min)                | Blizzard API, Raider.io |
 
 ## Database Layer
 
@@ -70,6 +67,7 @@ Modules are loaded dynamically based on `config.bot.modules`. Available modules:
 **File:** `NerdyPy/NerdyPy.py` (connection setup in `NerpyBot.__init__`)
 
 Supports SQLite, MySQL/MariaDB, and PostgreSQL via SQLAlchemy connection strings:
+
 - SQLite: `sqlite:///db.db` (default)
 - MySQL: `mysql+pymysql://user:pass@host:port/dbname`
 - PostgreSQL: `postgresql://user:pass@host:port/dbname`
@@ -134,7 +132,7 @@ Audio downloading and conversion.
 
 ### Format (`utils/format.py`)
 
-Discord markdown helpers: `bold()`, `italics()`, `box()`, `inline()`, `strikethrough()`, `underline()`, `pagify()`, `strip_tags()`.
+Discord markdown helpers: `bold()`, `italics()`, `box()`, `inline()`, `strikethrough()`, `underline()`, `pagify()`.
 
 `pagify()` is used extensively to split long output into 2000-character pages.
 
@@ -142,26 +140,24 @@ Discord markdown helpers: `bold()`, `italics()`, `box()`, `inline()`, `strikethr
 
 - **`send_hidden_message(interaction, msg)`** — Sends an ephemeral reply via `response.send_message` or `followup.send` based on `is_done()`. Accepts `discord.Interaction` objects.
 - **`error_context(ctx)`** — Formatted log prefix: `[Guild (id)] User (id) -> /command`
-- **`empty_subcommand(ctx)`** — Default handler when no subcommand is given.
-- **`check_api_response(response)`** — Raises `NerpyException` on non-200 status.
 - **`youtube(yt_key, return_type, query)`** — YouTube Data API v3 search.
 
 ### Checks (`utils/checks.py`)
 
 Permission check functions for use with `@check()` decorator:
 
-| Function | Gates |
-|----------|-------|
-| `is_connected_to_voice` | User in voice + bot can connect |
-| `is_in_same_voice_channel_as_bot` | User in same channel (mod override) |
-| `can_stop_playback` | Mod, or alone with bot in voice |
-| `can_leave_voice` | Bot-moderator only |
+| Function                | Gates                                            |
+| ----------------------- | ------------------------------------------------ |
+| `is_connected_to_voice` | User in voice + bot can connect                  |
+| `can_stop_playback`     | Same channel or mod (rejects if nothing playing) |
+| `can_leave_voice`       | Bot-moderator only                               |
 
 All check functions accept `discord.Interaction` objects (not `Context`) for slash command compatibility.
 
 ### Logging (`utils/logging.py`)
 
 Dual-handler setup:
+
 - **stdout:** INFO and DEBUG (below WARNING)
 - **stderr:** WARNING and above
 
@@ -205,16 +201,16 @@ bot:
   client_id: discord_app_id
   token: discord_bot_token
   ops: [operator_user_ids]
-  modules: [admin, fun, ...]
+  modules: [admin, league, ...]
 
 database:
-  db_type: sqlite          # sqlite, mariadb, postgresql
+  db_type: sqlite # sqlite, mariadb, postgresql
   db_name: db.db
 
 audio:
   buffer_limit: 5
 
-# Per-module config sections (search, league, wow)
+# Per-module config sections (music, league, wow)
 ```
 
 See `config.yaml.template` for the full reference.
