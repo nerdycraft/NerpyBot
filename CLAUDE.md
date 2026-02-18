@@ -140,3 +140,8 @@ Copy `NerdyPy/config.yaml.template` to `NerdyPy/config.yaml` and fill in:
 - **Markdown/YAML**: Prettier (run `prettier --write` on `.md`, `.yml`, `.yaml` files)
 - **Line endings**: LF
 - CI enforces `ruff check` and `ruff format --check` on PRs
+
+## Git
+
+- **Co-Authored-By**: `Co-Authored-By: Claude <noreply@anthropic.com>` (this is a GitHub repo)
+- **`docs/plans/`** is gitignored — never stage or commit plan files
