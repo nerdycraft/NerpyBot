@@ -100,6 +100,10 @@ async def notify_error(bot, context: str, error: Exception) -> None:
     if not recipients:
         return
 
+    if not bot.error_throttle.should_notify(context, error):
+        log.debug(f"Error notification throttled: {type(error).__name__} in {context}")
+        return
+
     tb = "".join(format_exception(type(error), error, error.__traceback__))
     # Truncate traceback to fit Discord's 2000-char message limit
     max_tb = 1400

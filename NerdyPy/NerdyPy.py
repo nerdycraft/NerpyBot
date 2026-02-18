@@ -39,6 +39,7 @@ from utils import logging
 from utils.audio import Audio
 from utils.conversation import AnswerType, ConversationManager
 from utils.database import BASE
+from utils.error_throttle import ErrorThrottle
 from utils.errors import NerpyException, SilentCheckFailure
 from utils.helpers import error_context, notify_error, parse_id
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
@@ -82,6 +83,7 @@ class NerpyBot(Bot):
         self.audio = Audio(self)
         self.convMan = ConversationManager(self)
         self._activity_cycle = cycle(ACTIVITIES)
+        self.error_throttle = ErrorThrottle()
 
         # database variables
         db_connection_string = self.build_connection_string(config)
