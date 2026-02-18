@@ -28,8 +28,6 @@ bot = [
     "ffmpeg-python",
     "pytimeparse2",
     "humanize",
-    "igdb-api-v4",
-    "twitchAPI",
     "aiohttp",
     "idna",
     "pynacl",
