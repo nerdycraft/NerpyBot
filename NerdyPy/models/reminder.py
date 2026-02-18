@@ -62,7 +62,7 @@ class ReminderMessage(db.BASE):
         msg += f"Created: {self.CreateDate.strftime('%Y-%m-%d %H:%M')}\n"
         msg += (
             f"Next Message: "
-            f"{humanize.naturaltime(self.LastSend + timedelta(minutes=float(self.Minutes)), when=datetime.now(UTC))}\n"
+            f"{humanize.naturaltime(self.LastSend.replace(tzinfo=UTC) + timedelta(minutes=float(self.Minutes)), when=datetime.now(UTC))}\n"
         )
         msg += f"Message: {self.Message}\n"
         msg += f"Hits: {self.Count}\n"

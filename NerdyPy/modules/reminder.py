@@ -36,7 +36,7 @@ class Reminder(GroupCog, group_name="reminder"):
                     for msg in messages:
                         if not msg.Enabled:
                             continue
-                        if msg.LastSend.astimezone(UTC) + timedelta(minutes=msg.Minutes) < datetime.now(UTC):
+                        if msg.LastSend.replace(tzinfo=UTC) + timedelta(minutes=msg.Minutes) < datetime.now(UTC):
                             chan = guild.get_channel(msg.ChannelId)
                             if chan is None:
                                 session.delete(msg)
@@ -100,12 +100,17 @@ class Reminder(GroupCog, group_name="reminder"):
             to_send = ""
             for msg in msgs:
                 status = "\u2705" if msg.Enabled else "\u23f8\ufe0f"
-                next_send = humanize.naturaltime(
-                    msg.LastSend + timedelta(minutes=float(msg.Minutes)), when=datetime.now(UTC)
-                )
+                if msg.Enabled:
+                    next_send = humanize.naturaltime(
+                        msg.LastSend.replace(tzinfo=UTC) + timedelta(minutes=float(msg.Minutes)),
+                        when=datetime.now(UTC),
+                    )
+                    timing = f"Next: {next_send}"
+                else:
+                    timing = "paused"
                 to_send += f"{status} **#{msg.Id}** \u2014 #{msg.ChannelName}\n"
                 to_send += f"> {msg.Message}\n"
-                to_send += f"*{msg.Author} \u00b7 Next: {next_send} \u00b7 Hits: {msg.Count}*\n\n"
+                to_send += f"*{msg.Author} \u00b7 {timing} \u00b7 Hits: {msg.Count}*\n\n"
 
             await send_paginated(interaction, to_send, title="\u23f0 Reminders", color=0xF39C12, ephemeral=True)
 
