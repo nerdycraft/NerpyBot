@@ -1,48 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for utils/format.py - Discord text formatting utilities"""
 
-from utils.format import bold, box, inline, italics, pagify, strikethrough, strip_tags, underline
-
-
-class TestStripTags:
-    """Tests for strip_tags() HTML/XML tag removal."""
-
-    def test_removes_simple_html_tags(self):
-        """Basic HTML tags should be stripped."""
-        assert strip_tags("<p>Hello</p>") == "Hello"
-        assert strip_tags("<b>Bold</b>") == "Bold"
-
-    def test_removes_nested_tags(self):
-        """Nested HTML tags should all be stripped."""
-        assert strip_tags("<div><p><span>Nested</span></p></div>") == "Nested"
-
-    def test_removes_tags_with_attributes(self):
-        """Tags with attributes should be stripped."""
-        assert strip_tags('<a href="https://example.com">Link</a>') == "Link"
-        assert strip_tags('<div class="container" id="main">Content</div>') == "Content"
-
-    def test_handles_empty_string(self):
-        """Empty string should return empty string."""
-        assert strip_tags("") == ""
-
-    def test_passthrough_plain_text(self):
-        """Text without tags should pass through unchanged."""
-        assert strip_tags("Hello World") == "Hello World"
-        assert strip_tags("No tags here!") == "No tags here!"
-
-    def test_handles_multiple_elements(self):
-        """Multiple separate elements should preserve text."""
-        assert strip_tags("<p>First</p><p>Second</p>") == "FirstSecond"
-
-    def test_handles_self_closing_tags(self):
-        """Self-closing tags should be removed."""
-        assert strip_tags("Before<br/>After") == "BeforeAfter"
-        assert strip_tags("Image here: <img src='x.png'/>") == "Image here: "
-
-    def test_preserves_html_entities(self):
-        """HTML entities should be converted to characters."""
-        assert strip_tags("&amp;") == "&"
-        assert strip_tags("&lt;not a tag&gt;") == "<not a tag>"
+from utils.format import bold, box, inline, italics, pagify, strikethrough, underline
 
 
 class TestBox:
