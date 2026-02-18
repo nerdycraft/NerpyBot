@@ -41,6 +41,8 @@ STALE_DAYS = 30
 
 _NOTIFICATION_STRINGS = {
     "en": {
+        "achievement_title": "Achievement Earned!",
+        "achievement_desc": "**{name}** ({realm}) has earned the achievement **{achievement}**",
         "mount_title": "New Mount Collected!",
         "mount_desc": "**{name}** ({realm}) obtained **{mount}**",
         "boss_title": "Boss Defeated!",
@@ -48,6 +50,8 @@ _NOTIFICATION_STRINGS = {
         "boss_desc_mode": "**{name}** ({realm}) defeated **{boss}** ({mode})",
     },
     "de": {
+        "achievement_title": "Erfolg errungen!",
+        "achievement_desc": "**{name}** ({realm}) hat den Erfolg **{achievement}** errungen",
         "mount_title": "Neues Reittier erhalten!",
         "mount_desc": "**{name}** ({realm}) hat **{mount}** erhalten",
         "boss_title": "Boss besiegt!",
@@ -713,9 +717,12 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                 achievement = ach_data.get("achievement", {})
                 ach_name = achievement.get("name", "Unknown Achievement")
                 ach_id = achievement.get("id")
+                strings = _NOTIFICATION_STRINGS.get(language, _NOTIFICATION_STRINGS["en"])
                 emb = Embed(
-                    title="Achievement Unlocked!",
-                    description=f"**{char_name}** ({char_realm}) earned **{ach_name}**",
+                    title=strings["achievement_title"],
+                    description=strings["achievement_desc"].format(
+                        name=char_name, realm=char_realm, achievement=ach_name
+                    ),
                     color=COLOR_ACHIEVEMENT,
                     timestamp=activity_time,
                 )
