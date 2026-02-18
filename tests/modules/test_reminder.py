@@ -38,7 +38,7 @@ class TestReminderCreate:
         )
 
         await reminder_cog._reminder_create.callback(
-            reminder_cog, mock_interaction, duration="2h", message="Test", channel=None, repeat=False, start=None
+            reminder_cog, mock_interaction, delay="2h", message="Test", channel=None, repeat=False
         )
 
         mock_interaction.response.send_message.assert_called_once()
@@ -62,7 +62,7 @@ class TestReminderCreate:
         )
 
         await reminder_cog._reminder_create.callback(
-            reminder_cog, mock_interaction, duration="1d", message="Daily", channel=None, repeat=True, start=None
+            reminder_cog, mock_interaction, delay="1d", message="Daily", channel=None, repeat=True
         )
 
         reminders = ReminderMessage.get_all_by_guild(123, db_session)
@@ -73,7 +73,7 @@ class TestReminderCreate:
     @pytest.mark.asyncio
     async def test_create_invalid_duration(self, reminder_cog, mock_interaction, db_session):
         await reminder_cog._reminder_create.callback(
-            reminder_cog, mock_interaction, duration="nope", message="Test", channel=None, repeat=False, start=None
+            reminder_cog, mock_interaction, delay="nope", message="Test", channel=None, repeat=False
         )
 
         call_args = str(mock_interaction.response.send_message.call_args)
@@ -83,7 +83,7 @@ class TestReminderCreate:
     @pytest.mark.asyncio
     async def test_create_too_short_duration(self, reminder_cog, mock_interaction, db_session):
         await reminder_cog._reminder_create.callback(
-            reminder_cog, mock_interaction, duration="30s", message="Test", channel=None, repeat=False, start=None
+            reminder_cog, mock_interaction, delay="30s", message="Test", channel=None, repeat=False
         )
 
         call_args = str(mock_interaction.response.send_message.call_args)

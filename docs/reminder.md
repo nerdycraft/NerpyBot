@@ -22,17 +22,16 @@ This means the loop sleeps up to 60 seconds when no reminders are due soon, but 
 
 ## Commands
 
-### `/reminder create <duration> <message> [channel] [repeat] [start]`
+### `/reminder create <in> <message> [channel] [repeat]`
 
 Create an interval-based reminder.
 
-| Parameter  | Type                     | Description                                                             |
-| ---------- | ------------------------ | ----------------------------------------------------------------------- |
-| `duration` | `str`                    | Delay before firing, e.g. `2h30m`, `1d`, `90s`, `1w` (minimum 60s)      |
-| `message`  | `str`                    | Message text to send                                                    |
-| `channel`  | `TextChannel` (optional) | Target channel (defaults to current channel)                            |
-| `repeat`   | `bool` (optional)        | Repeat at the same interval after each fire (default: `False`)          |
-| `start`    | `str` (optional)         | Start time as duration offset or ISO datetime (default: now + duration) |
+| Parameter | Type                     | Description                                                    |
+| --------- | ------------------------ | -------------------------------------------------------------- |
+| `in`      | `str`                    | When to fire, e.g. `2h30m`, `1d`, `90s`, `1w` (minimum 60s)    |
+| `message` | `str`                    | Message text to send                                           |
+| `channel` | `TextChannel` (optional) | Target channel (defaults to current channel)                   |
+| `repeat`  | `bool` (optional)        | Repeat at the same interval after each fire (default: `False`) |
 
 A bare integer (no unit suffix) is treated as minutes for backward compatibility.
 

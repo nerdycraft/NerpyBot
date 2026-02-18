@@ -125,25 +125,24 @@ class Reminder(GroupCog, group_name="reminder"):
     # -- /reminder create ----------------------------------------------
 
     @app_commands.command(name="create")
+    @app_commands.rename(delay="in")
     @app_commands.describe(
-        duration="Delay before firing, e.g. 2h30m, 1d, 90s, 1w (minimum 60s)",
+        delay="When to fire, e.g. 2h30m, 1d, 90s, 1w (minimum 60s)",
         message="Message text to send",
         channel="Target channel (defaults to current)",
         repeat="Repeat at the same interval (default: no)",
-        start="Start time as duration offset or ISO datetime (default: now + duration)",
     )
     async def _reminder_create(
         self,
         interaction: Interaction,
-        duration: str,
+        delay: str,
         message: str,
         channel: Optional[TextChannel] = None,
         repeat: bool = False,
-        start: Optional[str] = None,
     ):
         """Create an interval-based reminder."""
         try:
-            td = parse_duration(duration)
+            td = parse_duration(delay)
         except ValueError as e:
             await interaction.response.send_message(str(e), ephemeral=True)
             return
@@ -153,21 +152,7 @@ class Reminder(GroupCog, group_name="reminder"):
 
         interval_seconds = int(td.total_seconds()) if repeat else None
         schedule_type = "interval" if repeat else "once"
-
-        if start:
-            try:
-                # Try ISO datetime first
-                next_fire = datetime.fromisoformat(start).astimezone(UTC)
-            except ValueError:
-                # Try as duration offset
-                try:
-                    start_td = parse_duration(start)
-                    next_fire = datetime.now(UTC) + start_td
-                except ValueError as e:
-                    await interaction.response.send_message(f"Invalid start: {e}", ephemeral=True)
-                    return
-        else:
-            next_fire = datetime.now(UTC) + td
+        next_fire = datetime.now(UTC) + td
 
         with self.bot.session_scope() as session:
             reminder = ReminderMessage(
