@@ -6,16 +6,13 @@ bot:
   error_spam_threshold: 5
   modules:
     - admin
-    - fun
     - league
     - leavemsg
     - moderation
     - voicecontrol
-    - random
     - reactionrole
     - rolemanage
     - reminder
-    - search
     - tagging
     - wow
 
@@ -26,12 +23,7 @@ database:
 audio:
   buffer_limit: 5
 
-search:
-  imgur: your_imgur_key
-  genius: your_genius_key
-  omdb: your_omdb_key
-  igdb_client_id: your_igdb_client_id
-  igdb_client_secret: your_igdb_client_secret
+music:
   ytkey: your_youtube_key
 
 league:
