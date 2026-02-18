@@ -21,7 +21,7 @@ class Music(QueueMixin, GroupCog):
         bot.log.info(f"loaded {__name__}")
 
         self.bot = bot
-        self.config = self.bot.config["search"]
+        self.config = self.bot.config["music"]
         self.queue = {}
         self.audio = self.bot.audio
 
