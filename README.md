@@ -1,5 +1,7 @@
 # NerpyBot
 
+![AI-Powered](https://img.shields.io/badge/Developed%20with-AI-blue?style=for-the-badge&logo=anthropic&logoColor=white)
+
 The nerdiest Discord bot! Built with [discord.py](https://discordpy.readthedocs.io/) using the Cog extension system.
 Provides gaming integrations (WoW, League of Legends), moderation, and music playback.
 
