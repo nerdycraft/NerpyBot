@@ -46,22 +46,19 @@ async def setup(bot):
 
 Modules are loaded dynamically based on `config.bot.modules`. Available modules:
 
-| Module       | Type                  | Background Tasks                       | External APIs                      |
-| ------------ | --------------------- | -------------------------------------- | ---------------------------------- |
-| admin        | Cog (slash + prefix)  | —                                      | —                                  |
-| fun          | Cog                   | —                                      | —                                  |
-| league       | GroupCog              | —                                      | Riot API                           |
-| leavemsg     | GroupCog              | —                                      | —                                  |
-| moderation   | Cog                   | AutoKicker (daily), AutoDeleter (5min) | —                                  |
-| music        | GroupCog + QueueMixin | —                                      | YouTube API, yt-dlp                |
-| raidplaner   | Cog                   | —                                      | —                                  |
-| random       | Cog                   | —                                      | Various public APIs                |
-| reactionrole | GroupCog              | —                                      | —                                  |
-| reminder     | GroupCog              | Reminder loop (30s)                    | —                                  |
-| rolemanage   | GroupCog              | —                                      | —                                  |
-| search       | GroupCog              | —                                      | Imgur, Genius, OMDB, IGDB, YouTube |
-| tagging      | GroupCog + QueueMixin | —                                      | —                                  |
-| wow          | GroupCog              | Guild news loop (15min)                | Blizzard API, Raider.io            |
+| Module       | Type                  | Background Tasks                       | External APIs           |
+| ------------ | --------------------- | -------------------------------------- | ----------------------- |
+| admin        | Cog (slash + prefix)  | —                                      | —                       |
+| league       | GroupCog              | —                                      | Riot API                |
+| leavemsg     | GroupCog              | —                                      | —                       |
+| moderation   | Cog                   | AutoKicker (daily), AutoDeleter (5min) | —                       |
+| music        | GroupCog + QueueMixin | —                                      | YouTube API, yt-dlp     |
+| raidplaner   | Cog                   | —                                      | —                       |
+| reactionrole | GroupCog              | —                                      | —                       |
+| reminder     | GroupCog              | Reminder loop (30s)                    | —                       |
+| rolemanage   | GroupCog              | —                                      | —                       |
+| tagging      | GroupCog + QueueMixin | —                                      | —                       |
+| wow          | GroupCog              | Guild news loop (15min)                | Blizzard API, Raider.io |
 
 ## Database Layer
 
@@ -135,7 +132,7 @@ Audio downloading and conversion.
 
 ### Format (`utils/format.py`)
 
-Discord markdown helpers: `bold()`, `italics()`, `box()`, `inline()`, `strikethrough()`, `underline()`, `pagify()`, `strip_tags()`.
+Discord markdown helpers: `bold()`, `italics()`, `box()`, `inline()`, `strikethrough()`, `underline()`, `pagify()`.
 
 `pagify()` is used extensively to split long output into 2000-character pages.
 
@@ -143,8 +140,6 @@ Discord markdown helpers: `bold()`, `italics()`, `box()`, `inline()`, `strikethr
 
 - **`send_hidden_message(interaction, msg)`** — Sends an ephemeral reply via `response.send_message` or `followup.send` based on `is_done()`. Accepts `discord.Interaction` objects.
 - **`error_context(ctx)`** — Formatted log prefix: `[Guild (id)] User (id) -> /command`
-- **`empty_subcommand(ctx)`** — Default handler when no subcommand is given.
-- **`check_api_response(response)`** — Raises `NerpyException` on non-200 status.
 - **`youtube(yt_key, return_type, query)`** — YouTube Data API v3 search.
 
 ### Checks (`utils/checks.py`)
@@ -206,7 +201,7 @@ bot:
   client_id: discord_app_id
   token: discord_bot_token
   ops: [operator_user_ids]
-  modules: [admin, fun, ...]
+  modules: [admin, league, ...]
 
 database:
   db_type: sqlite # sqlite, mariadb, postgresql
@@ -215,7 +210,7 @@ database:
 audio:
   buffer_limit: 5
 
-# Per-module config sections (search, league, wow)
+# Per-module config sections (music, league, wow)
 ```
 
 See `config.yaml.template` for the full reference.

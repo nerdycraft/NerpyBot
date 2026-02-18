@@ -5,7 +5,6 @@ from traceback import format_exception
 
 from discord import Color, Embed, Interaction
 from googleapiclient.discovery import build
-from utils.errors import NerpyException
 
 log = logging.getLogger("nerpybot")
 
@@ -90,12 +89,6 @@ def error_context(source) -> str:
         user = f"{source.user} ({source.user.id})"
         guild = f"{source.guild.name} ({source.guild.id})" if source.guild else "DM"
     return f"[{guild}] {user} -> /{cmd}"
-
-
-async def check_api_response(response, service_name: str = "API") -> None:
-    """Validate API response status and raise NerpyException on error."""
-    if response.status != 200:
-        raise NerpyException(f"The {service_name} responded with code: {response.status} - {response.reason}")
 
 
 async def notify_error(bot, context: str, error: Exception) -> None:

@@ -1,7 +1,7 @@
 # NerpyBot
 
 The nerdiest Discord bot! Built with [discord.py](https://discordpy.readthedocs.io/) using the Cog extension system.
-Provides gaming integrations (WoW, League of Legends), entertainment, moderation, and music playback.
+Provides gaming integrations (WoW, League of Legends), moderation, and music playback.
 
 ## Quickstart (Local Development)
 
@@ -108,20 +108,17 @@ The migration runner resolves the database URL in this order:
 
 ## Modules
 
-| Module     | Description                                              |
-| ---------- | -------------------------------------------------------- |
-| admin      | Server management, prefix configuration, command sync    |
-| fun        | Entertainment commands                                   |
-| league     | Riot Games API integration                               |
-| leavemsg   | Server leave message announcements                       |
-| moderation | Server moderation tools                                  |
-| music      | Voice channel audio playback                             |
-| raidplaner | Guild raid scheduling                                    |
-| random     | Random generators                                        |
-| reminder   | Timed user reminders                                     |
-| search     | Multi-source search (Imgur, Genius, OMDB, IGDB, YouTube) |
-| tagging    | Audio tag management                                     |
-| wow        | Blizzard API integration                                 |
+| Module     | Description                                           |
+| ---------- | ----------------------------------------------------- |
+| admin      | Server management, prefix configuration, command sync |
+| league     | Riot Games API integration                            |
+| leavemsg   | Server leave message announcements                    |
+| moderation | Server moderation tools                               |
+| music      | Voice channel audio playback                          |
+| raidplaner | Guild raid scheduling                                 |
+| reminder   | Timed user reminders                                  |
+| tagging    | Audio tag management                                  |
+| wow        | Blizzard API integration                              |
 
 Enable modules by listing them in the `bot.modules` section of your config file.
 
@@ -133,7 +130,7 @@ Copy `NerdyPy/config.yaml.template` (local dev) or `config/*.yaml.example` (Dock
 - **bot.ops** — Discord user IDs with bot admin privileges
 - **bot.modules** — list of modules to load
 - **database** — connection settings (see [External Database](#using-an-external-database))
-- **search** / **league** / **wow** — API keys for respective services
+- **music** / **league** / **wow** — API keys for respective services
 
 ## Development
 
