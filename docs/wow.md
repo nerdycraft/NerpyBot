@@ -219,7 +219,7 @@ When the Blizzard API returns a different canonical name than the roster name:
 
 ### Localization
 
-Boss kill and mount collection notifications respect the guild's configured `Language` setting. Supported languages: `en` (English, default), `de` (German). Unsupported language codes fall back to English. To add a new language, extend the `_NOTIFICATION_STRINGS` dict in `modules/wow.py`.
+Achievement, boss kill, and mount collection notifications respect the guild's configured `Language` setting. Supported languages: `en` (English, default), `de` (German). Unsupported language codes fall back to English. To add a new language, extend the `_NOTIFICATION_STRINGS` dict in `modules/wow.py`.
 
 ## Database Models
 
