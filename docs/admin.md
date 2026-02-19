@@ -79,6 +79,26 @@ Manage error notification throttling and suppression. **Prefix-only, DM-only, op
 
 **Suppression:** Operators can manually suppress all error DMs for a specified duration. Useful during deployments or known maintenance windows.
 
+### `!disable <module>`
+
+Disable a module at runtime. All its slash commands will respond with an ephemeral "disabled for maintenance" message until re-enabled. **Prefix-only, DM-only, operator-only** (user ID must be in `config.bot.ops`).
+
+| Parameter | Type  | Description                                 |
+| --------- | ----- | ------------------------------------------- |
+| `module`  | `str` | Module name (e.g. `wow`, `league`, `music`) |
+
+**Protected modules:** `admin` and `voicecontrol` cannot be disabled.
+
+**State is in-memory only** — all modules are re-enabled on bot restart.
+
+### `!enable <module>`
+
+Re-enable a previously disabled module. **Prefix-only, DM-only, operator-only** (user ID must be in `config.bot.ops`).
+
+### `!disabled`
+
+List all currently disabled modules. **Prefix-only, DM-only, operator-only** (user ID must be in `config.bot.ops`).
+
 ## Database Models
 
 ### `BotModeratorRole`
