@@ -1,5 +1,6 @@
 # NerpyBot
 
+[![Release](https://img.shields.io/badge/Version-0.0.0-green?style=for-the-badge)](https://github.com/nerdycraft/NerpyBot/releases)
 ![AI-Powered](https://img.shields.io/badge/Developed%20with-AI-blue?style=for-the-badge&logo=anthropic&logoColor=white)
 
 The nerdiest Discord bot! Built with [discord.py](https://discordpy.readthedocs.io/) using the Cog extension system.
