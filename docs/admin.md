@@ -20,6 +20,10 @@ Sets the bot-moderator role. Members with this role gain elevated bot permission
 
 Removes the bot-moderator role configuration.
 
+### `!help`
+
+Lists all available operator commands with descriptions. Auto-discovers commands tagged `[operator]`. **Prefix-only, DM-only, operator-only** (user ID must be in `config.bot.ops`).
+
 ### `!sync`
 
 Syncs slash commands with Discord. **Prefix-only, DM-only, operator-only.**
@@ -70,7 +74,7 @@ Manage error notification throttling and suppression. **Prefix-only, DM-only, op
 
 | Subcommand       | Description                                                  |
 | ---------------- | ------------------------------------------------------------ |
-| _(none)_         | Show usage help                                              |
+| _(none)_         | Defaults to `status`                                         |
 | `status`         | Show current throttle state with per-bucket error details    |
 | `suppress <dur>` | Suppress all error DMs for duration (e.g. `30m`, `2h`, `1d`) |
 | `resume`         | Cancel suppression and resume notifications                  |
@@ -78,6 +82,26 @@ Manage error notification throttling and suppression. **Prefix-only, DM-only, op
 **Throttling:** Errors are automatically deduplicated by exception type + context. After the first DM for a given error, identical errors are suppressed for 15 minutes before sending another notification. This is always active — no configuration needed.
 
 **Suppression:** Operators can manually suppress all error DMs for a specified duration. Useful during deployments or known maintenance windows.
+
+### `!disable <module>`
+
+Disable a module at runtime. All its slash commands will respond with an ephemeral "disabled for maintenance" message until re-enabled. **Prefix-only, DM-only, operator-only** (user ID must be in `config.bot.ops`).
+
+| Parameter | Type  | Description                                 |
+| --------- | ----- | ------------------------------------------- |
+| `module`  | `str` | Module name (e.g. `wow`, `league`, `music`) |
+
+**Protected modules:** `admin` and `voicecontrol` cannot be disabled.
+
+**State is in-memory only** — all modules are re-enabled on bot restart.
+
+### `!enable [module]`
+
+Re-enable a previously disabled module, or **all disabled modules** if no argument is given. **Prefix-only, DM-only, operator-only** (user ID must be in `config.bot.ops`).
+
+### `!disabled`
+
+List all currently disabled modules. **Prefix-only, DM-only, operator-only** (user ID must be in `config.bot.ops`).
 
 ## Database Models
 

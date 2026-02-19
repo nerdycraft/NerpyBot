@@ -84,6 +84,7 @@ class NerpyBot(Bot):
         self.convMan = ConversationManager(self)
         self._activity_cycle = cycle(ACTIVITIES)
         self.error_throttle = ErrorThrottle()
+        self.disabled_modules: set[str] = set()
 
         # database variables
         db_connection_string = self.build_connection_string(config)
@@ -160,6 +161,7 @@ class NerpyBot(Bot):
         Loads Modules and creates Databases
         """
         self.tree.on_error = self._on_app_command_error
+        self.tree.interaction_check = self._global_interaction_check
 
         # load modules
         audio_module_loaded = False
@@ -188,6 +190,27 @@ class NerpyBot(Bot):
 
         # create database/tables and such stuff
         self.create_all()
+
+    async def _global_interaction_check(self, interaction: Interaction) -> bool:
+        """Block slash commands from disabled modules."""
+        command = interaction.command
+        if command is None:
+            return True
+
+        cog = getattr(command, "binding", None)
+        if cog is None:
+            return True
+
+        module_name = type(cog).__module__.rsplit(".", 1)[-1]
+        if module_name in self.disabled_modules:
+            msg = f"\u26a0\ufe0f The **{module_name}** module is currently disabled for maintenance. Please try again later."
+            if not interaction.response.is_done():
+                await interaction.response.send_message(msg, ephemeral=True)
+            else:
+                await interaction.followup.send(msg, ephemeral=True)
+            raise SilentCheckFailure(msg)
+
+        return True
 
     @tasks.loop(minutes=5)
     async def _rotate_activity(self) -> None:

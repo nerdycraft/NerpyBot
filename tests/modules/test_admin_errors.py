@@ -29,15 +29,19 @@ def operator_ctx(mock_bot):
     return ctx
 
 
-class TestErrorsHelp:
+class TestErrorsDefaultAction:
     @pytest.mark.asyncio
-    async def test_no_action_shows_help(self, admin_cog, operator_ctx):
-        await admin_cog._errors.callback(admin_cog, operator_ctx, action=None)
+    async def test_no_action_defaults_to_status(self, admin_cog, operator_ctx):
+        admin_cog.bot.error_throttle.get_status.return_value = {
+            "is_suppressed": False,
+            "suppressed_remaining": None,
+            "throttle_window": 900,
+            "buckets": {},
+        }
+        await admin_cog._errors.callback(admin_cog, operator_ctx, action="status")
         operator_ctx.send.assert_awaited_once()
         msg = operator_ctx.send.call_args[0][0]
-        assert "!errors status" in msg
-        assert "!errors suppress" in msg
-        assert "!errors resume" in msg
+        assert "\U0001f514" in msg
 
 
 class TestErrorsSuppress:
