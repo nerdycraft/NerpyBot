@@ -10,6 +10,24 @@ import json
 import unicodedata
 
 
+def parse_known_mounts(raw: str) -> tuple[set[int], int]:
+    """Parse stored mount data, supporting both legacy and new formats.
+
+    Legacy format: JSON list of mount IDs, e.g. [1, 2, 3]
+    New format: JSON dict with union set and real API count,
+                e.g. {"ids": [1, 2, 3], "last_count": 73}
+
+    Returns (known_id_set, last_api_count).
+    For legacy data, last_api_count equals the list length.
+    """
+    data = json.loads(raw)
+    if isinstance(data, dict):
+        ids: list[int] = data["ids"]
+        return set(ids), int(data["last_count"])
+    mount_list: list[int] = data
+    return set(mount_list), len(mount_list)
+
+
 def strip_diacritics(name: str) -> str:
     """Normalize a character name for comparison by removing diacritics.
 
@@ -88,9 +106,9 @@ def account_confidence(
 
     if mounts_a and mounts_b:
         try:
-            ids_a = set(json.loads(mounts_a))
-            ids_b = set(json.loads(mounts_b))
-        except (ValueError, TypeError):
+            ids_a, _ = parse_known_mounts(mounts_a)
+            ids_b, _ = parse_known_mounts(mounts_b)
+        except (ValueError, TypeError, KeyError):
             pass  # corrupt data — skip mount signal
         else:
             if len(ids_a) > 50 and len(ids_b) > 50:
