@@ -72,7 +72,7 @@ jobs:
 
       - name: Verify pushed image
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_SHA::7}"
+          IMAGE="${REGISTRY}/${IMAGE_NAME,,}:${GITHUB_SHA::7}"
           docker pull "${IMAGE}"
           docker run --rm "${IMAGE}" python -c "from NerdyPy import NerpyBot; print('OK')"
           echo "✅ NerpyBot image verified"
@@ -130,7 +130,7 @@ jobs:
 
       - name: Verify pushed image
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-database-migrations:${GITHUB_SHA::7}"
+          IMAGE="${REGISTRY}/${IMAGE_NAME,,}-database-migrations:${GITHUB_SHA::7}"
           docker pull "${IMAGE}"
           docker run --rm "${IMAGE}" alembic -c alembic-nerpybot.ini heads
           echo "✅ Migrations image verified"
