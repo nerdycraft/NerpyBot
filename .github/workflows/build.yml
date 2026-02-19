@@ -1,172 +1,188 @@
-name: Build Docker Images
+name: Build & Push Docker Images
 
 on:
   push:
-    branches:
-      - "main"
-    tags:
-      - "v*"
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "NerdyPy/**"
+      - "database-migrations/**"
+      - "alembic-*.ini"
+      - ".github/workflows/build.yml"
   pull_request:
-    branches:
-      - "main"
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "NerdyPy/**"
+      - "database-migrations/**"
+      - "alembic-*.ini"
+      - ".github/workflows/build.yml"
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  changed_files:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    outputs:
-      changed_python: ${{ steps.changed_python.outputs.modified_keys }}
-      changed_docker: ${{ steps.changed_docker.outputs.any_changed }}
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Get all src files that have changed
-        id: changed_python
-        uses: tj-actions/changed-files@v47
-        with:
-          files_yaml: |
-            database-migrations:
-              - database-migrations/**
-              - alembic-nerpybot.ini
-              - alembic-humanmusic.ini
-            nerpybot:
-              - NerdyPy/**
-              - '!NerdyPy/**.template'
-              - pyproject.toml
-              - uv.lock
-
-      - name: Get all Docker related files that have changed
-        id: changed_docker
-        uses: tj-actions/changed-files@v47
-        with:
-          files: |
-            Dockerfile
-            .dockerignore
-
-  build_db_migrations:
-    needs:
-      - changed_files
-    if: contains(needs.changed_files.outputs.changed_python, 'database-migrations') || needs.changed_files.outputs.changed_docker == 'true'
+  build-bot:
+    name: Build NerpyBot Image
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Docker Container Meta
-        id: docker_meta_database-migrations
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-database-migrations
-          tags: |
-            type=ref,event=branch
-            type=ref,event=tag
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Github Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build Database Migrations
-        uses: docker/build-push-action@v6
-        with:
-          target: migrations
-          load: true
-          tags: nerpybot-migrations:smoke-test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Smoke test Database Migrations
-        run: |
-          docker run --rm nerpybot-migrations:smoke-test alembic -c alembic-nerpybot.ini heads
-          docker run --rm -e ALEMBIC_CONFIG=alembic-humanmusic.ini nerpybot-migrations:smoke-test alembic -c alembic-humanmusic.ini heads
-
-      - name: Push Database Migrations
-        if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v6
-        with:
-          target: migrations
-          push: true
-          tags: ${{ steps.docker_meta_database-migrations.outputs.tags }}
-          labels: ${{ steps.docker_meta_database-migrations.outputs.labels }}
-          cache-from: type=gha
-
-  build_nerdybot:
-    needs:
-      - changed_files
-    if: contains(needs.changed_files.outputs.changed_python, 'nerpybot') || needs.changed_files.outputs.changed_docker == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Docker Container Meta
-        id: docker_meta_nerpybot
+      - name: Docker metadata
+        id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
-            type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Set up QEMU
+        if: github.event_name != 'pull_request'
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Github Container Registry
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Nerpybot
+      - name: Build (PR smoke test)
+        if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v6
         with:
+          context: .
           target: bot
           load: true
           tags: nerpybot:smoke-test
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Smoke test Nerpybot
+      - name: Smoke test NerpyBot
+        if: github.event_name == 'pull_request'
         run: |
           docker run --rm nerpybot:smoke-test python -c "from NerdyPy import NerpyBot; print('OK')"
 
-      - name: Push Nerpybot
+      - name: Build and push (multi-arch)
         if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
         with:
+          context: .
           target: bot
+          platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.docker_meta_nerpybot.outputs.tags }}
-          labels: ${{ steps.docker_meta_nerpybot.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify pushed image
+        if: github.event_name != 'pull_request'
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_SHA::7}"
+          docker pull "${IMAGE}"
+          docker run --rm "${IMAGE}" python -c "from NerdyPy import NerpyBot; print('OK')"
+          echo "✅ NerpyBot image verified"
+
+  build-migrations:
+    name: Build Migrations Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-database-migrations
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Set up QEMU
+        if: github.event_name != 'pull_request'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build (PR smoke test)
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: migrations
+          load: true
+          tags: nerpybot-migrations:smoke-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test migrations
+        if: github.event_name == 'pull_request'
+        run: |
+          docker run --rm nerpybot-migrations:smoke-test alembic -c alembic-nerpybot.ini heads
+          docker run --rm -e ALEMBIC_CONFIG=alembic-humanmusic.ini nerpybot-migrations:smoke-test alembic -c alembic-humanmusic.ini heads
+
+      - name: Build and push (multi-arch)
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: migrations
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify pushed image
+        if: github.event_name != 'pull_request'
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-database-migrations:${GITHUB_SHA::7}"
+          docker pull "${IMAGE}"
+          docker run --rm "${IMAGE}" alembic -c alembic-nerpybot.ini heads
+          echo "✅ Migrations image verified"
