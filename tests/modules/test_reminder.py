@@ -391,3 +391,127 @@ class TestReminderList:
             mock_send.assert_called_once()
             output = mock_send.call_args[0][1]
             assert "10:00 UTC" in output
+
+
+class TestReminderEdit:
+    """Tests for /reminder edit command."""
+
+    def _make_reminder(self, db_session, **overrides):
+        """Helper to create a reminder with sensible defaults."""
+        now = datetime.now(UTC)
+        defaults = dict(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="general",
+            CreateDate=now,
+            Author="A",
+            ScheduleType="interval",
+            IntervalSeconds=3600,
+            NextFire=now + timedelta(hours=1),
+            Message="Original",
+            Count=0,
+            Enabled=True,
+        )
+        defaults.update(overrides)
+        r = ReminderMessage(**defaults)
+        db_session.add(r)
+        db_session.commit()
+        return r
+
+    @pytest.mark.asyncio
+    async def test_edit_not_found(self, reminder_cog, mock_interaction, db_session):
+        mock_interaction.guild.id = 123
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=99999,
+            message=None,
+            channel=None,
+            delay=None,
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+        call_args = str(mock_interaction.response.send_message.call_args)
+        assert "not found" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_edit_nothing_to_change(self, reminder_cog, mock_interaction, db_session):
+        mock_interaction.guild.id = 123
+        r = self._make_reminder(db_session)
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay=None,
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+        call_args = str(mock_interaction.response.send_message.call_args)
+        assert "nothing to change" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_edit_reject_delay_on_daily(self, reminder_cog, mock_interaction, db_session):
+        mock_interaction.guild.id = 123
+        r = self._make_reminder(db_session, ScheduleType="daily", IntervalSeconds=None, ScheduleTime=time(9, 0))
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay="2h",
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+        call_args = str(mock_interaction.response.send_message.call_args)
+        assert "delay" in call_args.lower()
+        assert "interval" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_edit_reject_time_of_day_on_interval(self, reminder_cog, mock_interaction, db_session):
+        mock_interaction.guild.id = 123
+        r = self._make_reminder(db_session, ScheduleType="interval")
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay=None,
+            time_of_day="10:00",
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+        call_args = str(mock_interaction.response.send_message.call_args)
+        assert "time_of_day" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_edit_reject_day_of_week_on_daily(self, reminder_cog, mock_interaction, db_session):
+        mock_interaction.guild.id = 123
+        dow = MagicMock()
+        dow.value = 0
+        r = self._make_reminder(db_session, ScheduleType="daily", IntervalSeconds=None, ScheduleTime=time(9, 0))
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay=None,
+            time_of_day=None,
+            day_of_week=dow,
+            day_of_month=None,
+            timezone=None,
+        )
+        call_args = str(mock_interaction.response.send_message.call_args)
+        assert "day_of_week" in call_args.lower()
+        assert "weekly" in call_args.lower()
