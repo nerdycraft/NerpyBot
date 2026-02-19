@@ -1,0 +1,74 @@
+name: Validate Docker Build (PR)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "NerdyPy/**"
+      - "database-migrations/**"
+      - "alembic-*.ini"
+      - ".github/workflows/docker-pr.yml"
+
+jobs:
+  validate-bot:
+    name: Validate NerpyBot Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build NerpyBot image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: bot
+          load: true
+          tags: nerpybot:smoke-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test NerpyBot
+        run: |
+          docker run --rm nerpybot:smoke-test python -c "from NerdyPy import NerpyBot; print('OK')"
+
+  validate-migrations:
+    name: Validate Migrations Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Migrations image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: migrations
+          load: true
+          tags: nerpybot-migrations:smoke-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test migrations
+        run: |
+          docker run --rm nerpybot-migrations:smoke-test alembic -c alembic-nerpybot.ini heads
+          docker run --rm -e ALEMBIC_CONFIG=alembic-humanmusic.ini nerpybot-migrations:smoke-test alembic -c alembic-humanmusic.ini heads
