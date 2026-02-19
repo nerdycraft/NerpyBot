@@ -20,6 +20,10 @@ Sets the bot-moderator role. Members with this role gain elevated bot permission
 
 Removes the bot-moderator role configuration.
 
+### `!help`
+
+Lists all available operator commands with descriptions. Auto-discovers commands tagged `[operator]`. **Prefix-only, DM-only, operator-only** (user ID must be in `config.bot.ops`).
+
 ### `!sync`
 
 Syncs slash commands with Discord. **Prefix-only, DM-only, operator-only.**
@@ -70,7 +74,7 @@ Manage error notification throttling and suppression. **Prefix-only, DM-only, op
 
 | Subcommand       | Description                                                  |
 | ---------------- | ------------------------------------------------------------ |
-| _(none)_         | Show usage help                                              |
+| _(none)_         | Defaults to `status`                                         |
 | `status`         | Show current throttle state with per-bucket error details    |
 | `suppress <dur>` | Suppress all error DMs for duration (e.g. `30m`, `2h`, `1d`) |
 | `resume`         | Cancel suppression and resume notifications                  |
@@ -91,9 +95,9 @@ Disable a module at runtime. All its slash commands will respond with an ephemer
 
 **State is in-memory only** — all modules are re-enabled on bot restart.
 
-### `!enable <module>`
+### `!enable [module]`
 
-Re-enable a previously disabled module. **Prefix-only, DM-only, operator-only** (user ID must be in `config.bot.ops`).
+Re-enable a previously disabled module, or **all disabled modules** if no argument is given. **Prefix-only, DM-only, operator-only** (user ID must be in `config.bot.ops`).
 
 ### `!disabled`
 

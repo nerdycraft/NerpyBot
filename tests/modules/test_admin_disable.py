@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests for admin !disable / !enable / !disabled operator commands."""
+"""Tests for admin !disable / !enable / !disabled / !help operator commands."""
 
 from unittest.mock import AsyncMock, MagicMock
 
@@ -80,6 +80,22 @@ class TestEnableCommand:
         msg = operator_ctx.send.call_args[0][0]
         assert "not disabled" in msg.lower()
 
+    @pytest.mark.asyncio
+    async def test_enable_all_clears_disabled_set(self, admin_cog, operator_ctx):
+        admin_cog.bot.disabled_modules = {"wow", "league"}
+        await admin_cog._enable.callback(admin_cog, operator_ctx, module=None)
+        assert len(admin_cog.bot.disabled_modules) == 0
+        msg = operator_ctx.send.call_args[0][0]
+        assert "all modules" in msg.lower()
+        assert "wow" in msg
+        assert "league" in msg
+
+    @pytest.mark.asyncio
+    async def test_enable_all_when_none_disabled(self, admin_cog, operator_ctx):
+        await admin_cog._enable.callback(admin_cog, operator_ctx, module=None)
+        msg = operator_ctx.send.call_args[0][0]
+        assert "no modules" in msg.lower()
+
 
 class TestDisabledCommand:
     @pytest.mark.asyncio
@@ -95,3 +111,65 @@ class TestDisabledCommand:
         await admin_cog._disabled.callback(admin_cog, operator_ctx)
         msg = operator_ctx.send.call_args[0][0]
         assert "no modules" in msg.lower() or "all modules" in msg.lower()
+
+
+class TestHelpCommand:
+    @pytest.mark.asyncio
+    async def test_lists_operator_commands(self, admin_cog, operator_ctx):
+        cmd_disable = MagicMock()
+        cmd_disable.qualified_name = "disable"
+        cmd_disable.help = "Disable a module at runtime. [operator]"
+        cmd_disable.short_doc = "Disable a module at runtime. [operator]"
+
+        cmd_ping = MagicMock()
+        cmd_ping.qualified_name = "ping"
+        cmd_ping.help = "Pong."
+        cmd_ping.short_doc = "Pong."
+
+        admin_cog.bot.commands = [cmd_disable, cmd_ping]
+
+        await admin_cog._help.callback(admin_cog, operator_ctx, name=None)
+        msg = operator_ctx.send.call_args[0][0]
+        assert "!disable" in msg
+        assert "ping" not in msg  # ping has no [operator] tag
+        assert "!help <command>" in msg
+
+    @pytest.mark.asyncio
+    async def test_shows_header(self, admin_cog, operator_ctx):
+        admin_cog.bot.commands = []
+        await admin_cog._help.callback(admin_cog, operator_ctx, name=None)
+        msg = operator_ctx.send.call_args[0][0]
+        assert "Operator Commands" in msg
+
+    @pytest.mark.asyncio
+    async def test_detail_view_shows_full_docstring(self, admin_cog, operator_ctx):
+        cmd_errors = MagicMock()
+        cmd_errors.qualified_name = "errors"
+        cmd_errors.help = "Manage error notifications. [operator]\n\nSubcommands:\n  status — Show status"
+
+        admin_cog.bot.get_command = MagicMock(return_value=cmd_errors)
+
+        await admin_cog._help.callback(admin_cog, operator_ctx, name="errors")
+        msg = operator_ctx.send.call_args[0][0]
+        assert "!errors" in msg
+        assert "Subcommands" in msg
+        assert "status" in msg
+
+    @pytest.mark.asyncio
+    async def test_detail_view_unknown_command(self, admin_cog, operator_ctx):
+        admin_cog.bot.get_command = MagicMock(return_value=None)
+
+        await admin_cog._help.callback(admin_cog, operator_ctx, name="nope")
+        msg = operator_ctx.send.call_args[0][0]
+        assert "Unknown" in msg
+
+    @pytest.mark.asyncio
+    async def test_detail_view_rejects_non_operator_command(self, admin_cog, operator_ctx):
+        cmd_ping = MagicMock()
+        cmd_ping.help = "Pong."
+
+        admin_cog.bot.get_command = MagicMock(return_value=cmd_ping)
+
+        await admin_cog._help.callback(admin_cog, operator_ctx, name="ping")
+        msg = operator_ctx.send.call_args[0][0]
+        assert "Unknown" in msg

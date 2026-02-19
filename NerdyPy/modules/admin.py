@@ -136,11 +136,41 @@ class Admin(Cog):
         latency = round(self.bot.latency * 1000)
         await ctx.send(f"\U0001f3d3 Pong! **{latency}ms**")
 
+    @command(name="help")
+    async def _help(self, ctx: Context, *, name: str = None) -> None:
+        """Show available operator commands, or details for a specific one. [operator]"""
+        require_operator(ctx)
+
+        if name is not None:
+            cmd = self.bot.get_command(name.lower())
+            if cmd is None or not cmd.help or "[operator]" not in cmd.help:
+                await ctx.send(f"Unknown operator command `{name}`. Use `!help` to list all.")
+                return
+            detail = cmd.help.replace("[operator]", "").strip()
+            await ctx.send(f"**`!{cmd.qualified_name}`**\n{detail}")
+            return
+
+        lines = ["\U0001f4cb **Operator Commands**\n"]
+        for cmd in sorted(self.bot.commands, key=lambda c: c.qualified_name):
+            if cmd.help and "[operator]" in cmd.help:
+                desc = cmd.short_doc.replace("[operator]", "").strip().rstrip(".")
+                lines.append(f"`!{cmd.qualified_name}` — {desc}")
+        lines.append("\nUse `!help <command>` for details.")
+
+        await ctx.send("\n".join(lines))
+
     @command(name="sync")
     async def sync(
         self, ctx: Context, guilds: Greedy[Object], spec: Optional[Literal["local", "copy", "clear"]] = None
     ) -> None:
-        """Sync commands globally or to a specific guild. [operator]"""
+        """Sync commands globally or to a specific guild. [operator]
+
+        Usage:
+          `!sync`                — Sync globally
+          `!sync <guild_id> ...` — Sync to specific guild(s)
+          `!sync local`          — Sync current guild's commands
+          `!sync copy`           — Copy global commands to current guild
+          `!sync clear`          — Clear commands from current guild"""
         if not guilds:
             if spec in ("local", "copy", "clear") and ctx.guild is None:
                 await ctx.send(f"The `{spec}` option requires a server context.")
@@ -235,18 +265,14 @@ class Admin(Cog):
         return f"{m}m" if m else f"{seconds}s"
 
     @command(name="errors")
-    async def _errors(self, ctx: Context, action: str = None, *, arg: str = None) -> None:
-        """Manage error notifications. [operator]"""
-        require_operator(ctx)
+    async def _errors(self, ctx: Context, action: str = "status", *, arg: str = None) -> None:
+        """Manage error notifications. [operator]
 
-        if action is None:
-            await ctx.send(
-                "⚙️ **Error Notification Management**\n\n"
-                "`!errors status`           — Show current throttle & suppression state\n"
-                "`!errors suppress <dur>`   — Suppress all error DMs (e.g. 30m, 2h, 1d)\n"
-                "`!errors resume`           — Cancel suppression and resume notifications"
-            )
-            return
+        Subcommands:
+          `status`         — Show current throttle & suppression state (default)
+          `suppress <dur>` — Suppress all error DMs (e.g. `30m`, `2h`, `1d`)
+          `resume`         — Cancel suppression and resume notifications"""
+        require_operator(ctx)
 
         action = action.lower()
 
@@ -293,11 +319,16 @@ class Admin(Cog):
             await ctx.send("🔔 Error notifications resumed.")
 
         else:
-            await ctx.send(f"Unknown action `{action}`. Use `!errors` to see available commands.")
+            await ctx.send(f"Unknown action `{action}`. Use `!help errors` for usage.")
 
     @command(name="disable")
     async def _disable(self, ctx: Context, *, module: str) -> None:
-        """Disable a module at runtime. [operator]"""
+        """Disable a module at runtime. [operator]
+
+        Disables all slash commands in a module. Users will see an ephemeral
+        "disabled for maintenance" message. Protected: `admin`, `voicecontrol`.
+
+        Usage: `!disable <module>` (e.g. `!disable wow`)"""
         require_operator(ctx)
 
         module = module.lower()
@@ -318,9 +349,23 @@ class Admin(Cog):
         )
 
     @command(name="enable")
-    async def _enable(self, ctx: Context, *, module: str) -> None:
-        """Re-enable a previously disabled module. [operator]"""
+    async def _enable(self, ctx: Context, *, module: str = None) -> None:
+        """Re-enable a disabled module, or all if none specified. [operator]
+
+        Usage:
+          `!enable <module>` — Re-enable a specific module
+          `!enable`          — Re-enable all disabled modules at once"""
         require_operator(ctx)
+
+        if module is None:
+            if not self.bot.disabled_modules:
+                await ctx.send("No modules are currently disabled.")
+                return
+            names = ", ".join(f"`{m}`" for m in sorted(self.bot.disabled_modules))
+            self.bot.disabled_modules.clear()
+            self.bot.log.warning(f"All modules re-enabled by {ctx.author}")
+            await ctx.send(f"\U0001f513 All modules re-enabled: {names}")
+            return
 
         module = module.lower()
         if module not in self.bot.disabled_modules:
