@@ -1206,7 +1206,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                     config_record.AccountGroupData = json.dumps(temporal_data)
 
         if initial_sync and not rate_limited.is_set():
-            self.bot.log.info(
+            self.bot.log.debug(
                 f"Guild news #{config_id}: initial sync finished in {batch_num} batches — "
                 f"baselined={total_stats['baselined']}, skipped_inactive={total_stats['skipped_inactive']}, "
                 f"skipped_error={total_stats['skipped_error']}, skipped_degraded={total_stats['skipped_degraded']}, "
