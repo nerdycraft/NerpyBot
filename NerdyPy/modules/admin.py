@@ -17,6 +17,8 @@ from utils.checks import is_admin_or_operator, require_operator
 from utils.errors import NerpyException
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 
+PROTECTED_MODULES = frozenset({"admin", "voicecontrol"})
+
 
 @app_commands.default_permissions(administrator=True)
 class Admin(Cog):
@@ -292,6 +294,54 @@ class Admin(Cog):
 
         else:
             await ctx.send(f"Unknown action `{action}`. Use `!errors` to see available commands.")
+
+    @command(name="disable")
+    async def _disable(self, ctx: Context, *, module: str) -> None:
+        """Disable a module at runtime. [operator]"""
+        require_operator(ctx)
+
+        module = module.lower()
+        if f"modules.{module}" not in self.bot.extensions:
+            await ctx.send(f"Unknown or not loaded module `{module}`.")
+            return
+        if module in PROTECTED_MODULES:
+            await ctx.send(f"Cannot disable `{module}` — it is a protected module.")
+            return
+        if module in self.bot.disabled_modules:
+            await ctx.send(f"`{module}` is already disabled.")
+            return
+
+        self.bot.disabled_modules.add(module)
+        self.bot.log.warning(f"Module {module} disabled by {ctx.author}")
+        await ctx.send(
+            f"\U0001f512 Module **{module}** disabled. All its commands will respond with a maintenance message."
+        )
+
+    @command(name="enable")
+    async def _enable(self, ctx: Context, *, module: str) -> None:
+        """Re-enable a previously disabled module. [operator]"""
+        require_operator(ctx)
+
+        module = module.lower()
+        if module not in self.bot.disabled_modules:
+            await ctx.send(f"`{module}` is not disabled.")
+            return
+
+        self.bot.disabled_modules.discard(module)
+        self.bot.log.warning(f"Module {module} re-enabled by {ctx.author}")
+        await ctx.send(f"\U0001f513 Module **{module}** re-enabled.")
+
+    @command(name="disabled")
+    async def _disabled(self, ctx: Context) -> None:
+        """List currently disabled modules. [operator]"""
+        require_operator(ctx)
+
+        if not self.bot.disabled_modules:
+            await ctx.send("\u2705 All modules are enabled.")
+            return
+
+        names = ", ".join(f"`{m}`" for m in sorted(self.bot.disabled_modules))
+        await ctx.send(f"\U0001f512 Disabled modules: {names}")
 
 
 async def setup(bot):
