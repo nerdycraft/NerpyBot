@@ -167,10 +167,8 @@ docker buildx build --target migrations -t nerpybot-migrations .
 
 ## Bot Invite Links
 
-- **NerpyBot
-  ** — [Invite](https://discord.com/oauth2/authorize?client_id=246941850223640576&permissions=582632143842386&scope=bot%20applications.commands)
-- **HumanMusic
-  ** — [Invite](https://discord.com/oauth2/authorize?client_id=883656077357510697&permissions=414467975744&scope=bot%20applications.commands)
+- **NerpyBot** — [Invite](https://discord.com/oauth2/authorize?client_id=246941850223640576&permissions=582632143842386&scope=bot%20applications.commands)
+- **HumanMusic** — [Invite](https://discord.com/oauth2/authorize?client_id=883656077357510697&permissions=414467975744&scope=bot%20applications.commands)
 
 ## License
 
