@@ -60,7 +60,7 @@ List all reminders for this server. Each entry shows:
 - Status icon (enabled/paused)
 - Reminder ID, target channel, and schedule description
 - Message text (quoted)
-- Author, next fire time (relative + absolute UTC), and hit count
+- Author, next fire time (relative + absolute, displayed in the reminder's configured timezone), and hit count
 
 Schedule descriptions vary by type:
 
@@ -71,6 +71,23 @@ Schedule descriptions vary by type:
 - **monthly** — `monthly day 15 at 09:00 Europe/Berlin`
 
 Output is paginated if it exceeds Discord's embed limits.
+
+### `/reminder edit <reminder> [message] [channel] [delay] [time_of_day] [day_of_week] [day_of_month] [timezone]`
+
+Edit an existing reminder. All parameters except `reminder` are optional — only supplied values are changed.
+
+| Parameter      | Type                     | Description                                                 | Applies to                   |
+| -------------- | ------------------------ | ----------------------------------------------------------- | ---------------------------- |
+| `reminder`     | `int`                    | Reminder ID (autocompleted with status and message preview) | all                          |
+| `message`      | `str` (optional)         | New message text                                            | all                          |
+| `channel`      | `TextChannel` (optional) | New target channel                                          | all                          |
+| `delay`        | `str` (optional)         | New interval, e.g. `2h30m` (minimum 60s)                    | `interval` only              |
+| `time_of_day`  | `str` (optional)         | New time in HH:MM 24-hour format                            | `daily`, `weekly`, `monthly` |
+| `day_of_week`  | Choice (optional)        | New day of week                                             | `weekly` only                |
+| `day_of_month` | `int` (optional)         | New day of month, 1-28                                      | `monthly` only               |
+| `timezone`     | `str` (optional)         | New IANA timezone (autocomplete enabled)                    | `daily`, `weekly`, `monthly` |
+
+Parameters that don't apply to the reminder's schedule type are rejected with an error message. If any timing-related parameter is changed, `NextFire` is recalculated via `compute_next_fire()`.
 
 ### `/reminder delete <reminder_id>`
 
