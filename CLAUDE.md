@@ -111,6 +111,8 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - `download.py` - Audio downloading and ffmpeg conversion (yt-dlp)
 - `logging.py` - Dual-handler log setup (stdout for INFO/DEBUG, stderr for WARNING+)
 - `permissions.py` - Per-module bot permission requirements map and guild-level permission audit helpers
+- `duration.py` - `parse_duration()` for human-friendly duration strings (`2h30m`, `1d12h`, `1w`); wraps `pytimeparse2`
+- `schedule.py` - `compute_next_fire()` for DST-aware next-fire-time computation (interval/daily/weekly/monthly)
 
 ### Gotchas
 
@@ -123,6 +125,10 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **Check functions accept Interaction, not Context** — All check functions in `checks.py` were converted to accept `discord.Interaction` for slash command compatibility. The `interaction_check` in admin.py uses these. The `cog_check` in admin.py has inline logic for prefix commands.
 - **admin.py modrole and botpermissions are guild_only** — The `app_commands.Group` definitions have `guild_only=True` to prevent DM invocation, since they access `interaction.guild` unconditionally.
 - **`@app_commands.guild_only()` on regular `Cog` does NOT propagate to commands** — discord.py's `Command.__init__` reads `guild_only` from the callback function, not the class. Only `GroupCog` propagates the class attribute via `Group.__init__`. For regular `Cog` classes, add `@app_commands.guild_only()` to each individual command and `guild_only=True` to each `Group()` definition.
+- **`docs/plans/` is gitignored** — Design docs and implementation plans live there but are NOT committed.
+- **Testing `@app_commands.command()` methods** — Call `.callback(cog, interaction, ...)` to bypass discord.py decorator machinery. See `tests/modules/test_reminder.py` for the pattern.
+- **`@app_commands.rename` for Python-keyword params** — Use `@app_commands.rename(python_name="discord_name")` when the Discord-facing param name is a Python keyword (e.g. `in`). `describe` references the Python name.
+- **Alembic migrations must be dialect-aware** — SQLite uses `datetime()`, PostgreSQL uses `make_interval()`, MySQL uses `DATE_ADD()`. Use `op.get_bind().dialect.name` to branch. Always use `batch_alter_table` for SQLite column operations.
 
 ## Configuration
 
