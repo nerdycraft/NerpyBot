@@ -18,7 +18,7 @@ from discord.ext import tasks
 from discord.ext.commands import GroupCog
 from models.wow import WowCharacterMounts, WowGuildNewsConfig
 from utils.errors import NerpyException
-from utils.account_resolution import build_account_groups, make_pair_key
+from utils.account_resolution import build_account_groups, make_pair_key, parse_known_mounts
 from utils.helpers import notify_error, send_paginated
 from utils.permissions import validate_channel_permissions
 
@@ -81,18 +81,19 @@ def _get_asset_url(response, key="icon"):
     return None
 
 
-def _should_update_mount_set(known_ids: set, current_ids: set) -> bool:
+def _should_update_mount_set(known_count: int, current_count: int) -> bool:
     """Check whether the stored mount set should be updated with current API data.
 
     Guards against degraded Blizzard API responses that return fewer mounts
     than reality. Small removals (e.g., Blizzard revoking bugged mounts) are
-    allowed; large drops are blocked.
+    allowed; large drops are blocked. Compares the real API counts (not the
+    union set size) to avoid false positives from accumulated variant IDs.
     """
-    if not known_ids:
+    if known_count == 0:
         return True
-    removed = known_ids - current_ids
-    threshold = max(10, int(len(known_ids) * 0.1))
-    return len(removed) <= threshold
+    dropped = known_count - current_count
+    threshold = max(10, int(known_count * 0.1))
+    return dropped <= threshold
 
 
 _FAILURE_THRESHOLD = 3
@@ -1007,26 +1008,40 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
                         ConfigId=config_id,
                         CharacterName=char_name,
                         RealmSlug=char_realm,
-                        KnownMountIds=json.dumps(sorted(current_ids)),
+                        KnownMountIds=json.dumps({"ids": sorted(current_ids), "last_count": len(current_ids)}),
                         LastChecked=datetime.now(UTC),
                     )
                     session.add(entry)
                     total_stats["baselined"] += 1
                 else:
-                    known_ids = set(json.loads(stored.KnownMountIds))
+                    known_ids, last_count = parse_known_mounts(stored.KnownMountIds)
                     new_ids = current_ids - known_ids
+                    removed_ids = known_ids - current_ids
 
                     self.bot.log.debug(
                         f"Guild news #{config_id}: {char_name} mount diff — "
-                        f"known={len(known_ids)} current={len(current_ids)} new={len(new_ids)}"
+                        f"known={len(known_ids)} current={len(current_ids)} new={len(new_ids)} "
+                        f"removed={len(removed_ids)} last_count={last_count}"
                     )
 
-                    if not _should_update_mount_set(known_ids, current_ids):
+                    # Churn detection: if IDs both appeared and disappeared with no
+                    # net count increase, it's faction variant ID swapping — not real
+                    # new mounts.
+                    if removed_ids and new_ids:
+                        net_new = len(current_ids) - last_count
+                        if net_new <= 0:
+                            self.bot.log.debug(
+                                f"Guild news #{config_id}: {char_name} ID churn detected "
+                                f"(+{len(new_ids)}/-{len(removed_ids)}, net={net_new}), "
+                                f"suppressing announcements"
+                            )
+                            new_ids = set()
+
+                    if not _should_update_mount_set(last_count, len(current_ids)):
                         self.bot.log.warning(
-                            f"Guild news #{config_id}: {char_name} mount set shrank by "
-                            f"{len(known_ids - current_ids)} (known={len(known_ids)} "
-                            f"current={len(current_ids)}) — likely degraded API response, "
-                            f"skipping update"
+                            f"Guild news #{config_id}: {char_name} mount count dropped "
+                            f"(last_count={last_count} current={len(current_ids)}) — "
+                            f"likely degraded API response, skipping update"
                         )
                         total_stats["skipped_degraded"] += 1
                         return
@@ -1087,7 +1102,12 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
 
                         total_stats["new_mounts"] += len(new_ids)
 
-                    stored.KnownMountIds = json.dumps(sorted(current_ids))
+                    stored.KnownMountIds = json.dumps(
+                        {
+                            "ids": sorted(known_ids | current_ids),
+                            "last_count": len(current_ids),
+                        }
+                    )
                     stored.LastChecked = datetime.now(UTC)
                     cycle_new_mounts[(char_name, char_realm)] = new_ids
 

@@ -12,18 +12,7 @@ on:
       - "NerdyPy/**"
       - "database-migrations/**"
       - "alembic-*.ini"
-      - ".github/workflows/build.yml"
-  pull_request:
-    branches: [main]
-    paths:
-      - "Dockerfile"
-      - ".dockerignore"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "NerdyPy/**"
-      - "database-migrations/**"
-      - "alembic-*.ini"
-      - ".github/workflows/build.yml"
+      - ".github/workflows/docker.yml"
 
 env:
   REGISTRY: ghcr.io
@@ -31,7 +20,7 @@ env:
 
 jobs:
   build-bot:
-    name: Build NerpyBot Image
+    name: Build & Push NerpyBot Image
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -57,38 +46,19 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Set up QEMU
-        if: github.event_name != 'pull_request'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build (PR smoke test)
-        if: github.event_name == 'pull_request'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: bot
-          load: true
-          tags: nerpybot:smoke-test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Smoke test NerpyBot
-        if: github.event_name == 'pull_request'
-        run: |
-          docker run --rm nerpybot:smoke-test python -c "from NerdyPy import NerpyBot; print('OK')"
-
       - name: Build and push (multi-arch)
-        if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -101,15 +71,14 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Verify pushed image
-        if: github.event_name != 'pull_request'
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_SHA::7}"
+          IMAGE="${REGISTRY}/${IMAGE_NAME,,}:${GITHUB_SHA::7}"
           docker pull "${IMAGE}"
           docker run --rm "${IMAGE}" python -c "from NerdyPy import NerpyBot; print('OK')"
           echo "✅ NerpyBot image verified"
 
   build-migrations:
-    name: Build Migrations Image
+    name: Build & Push Migrations Image
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -135,39 +104,19 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Set up QEMU
-        if: github.event_name != 'pull_request'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to Container Registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build (PR smoke test)
-        if: github.event_name == 'pull_request'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: migrations
-          load: true
-          tags: nerpybot-migrations:smoke-test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Smoke test migrations
-        if: github.event_name == 'pull_request'
-        run: |
-          docker run --rm nerpybot-migrations:smoke-test alembic -c alembic-nerpybot.ini heads
-          docker run --rm -e ALEMBIC_CONFIG=alembic-humanmusic.ini nerpybot-migrations:smoke-test alembic -c alembic-humanmusic.ini heads
-
       - name: Build and push (multi-arch)
-        if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -180,9 +129,8 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Verify pushed image
-        if: github.event_name != 'pull_request'
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-database-migrations:${GITHUB_SHA::7}"
+          IMAGE="${REGISTRY}/${IMAGE_NAME,,}-database-migrations:${GITHUB_SHA::7}"
           docker pull "${IMAGE}"
           docker run --rm "${IMAGE}" alembic -c alembic-nerpybot.ini heads
           echo "✅ Migrations image verified"

@@ -1,62 +1,82 @@
 # -*- coding: utf-8 -*-
-"""Tests for WoW mount set degradation guard."""
+"""Tests for WoW mount set degradation guard and churn detection."""
+
+import json
 
 from modules.wow import _should_update_mount_set
+from utils.account_resolution import parse_known_mounts
+
+
+class TestParseKnownMounts:
+    """Tests for parse_known_mounts — backward-compatible storage parsing."""
+
+    def test_legacy_list_format(self):
+        """Plain JSON list → set of IDs, count = list length."""
+        raw = json.dumps([1, 2, 3])
+        ids, count = parse_known_mounts(raw)
+        assert ids == {1, 2, 3}
+        assert count == 3
+
+    def test_new_dict_format(self):
+        """New dict format → IDs from 'ids' key, count from 'last_count'."""
+        raw = json.dumps({"ids": [10, 20, 30, 40], "last_count": 3})
+        ids, count = parse_known_mounts(raw)
+        assert ids == {10, 20, 30, 40}
+        assert count == 3
+
+    def test_empty_legacy(self):
+        raw = json.dumps([])
+        ids, count = parse_known_mounts(raw)
+        assert ids == set()
+        assert count == 0
+
+    def test_empty_new_format(self):
+        raw = json.dumps({"ids": [], "last_count": 0})
+        ids, count = parse_known_mounts(raw)
+        assert ids == set()
+        assert count == 0
 
 
 class TestDegradationGuard:
-    """Tests for _should_update_mount_set — guards against degraded API responses."""
+    """Tests for _should_update_mount_set — guards against degraded API responses.
+
+    Now uses count-based comparison (last_count, current_count) instead of sets.
+    """
 
     def test_normal_update_no_removals(self):
-        """Current is a superset of known — should allow update."""
-        known = {1, 2, 3}
-        current = {1, 2, 3, 4, 5}
-        assert _should_update_mount_set(known, current) is True
+        """Current has more mounts than last — should allow update."""
+        assert _should_update_mount_set(3, 5) is True
 
     def test_small_removal(self):
         """Small removal (1 mount from 200) — Blizzard revoked a bugged mount."""
-        known = set(range(200))
-        current = set(range(1, 200))  # mount 0 removed
-        assert _should_update_mount_set(known, current) is True
+        assert _should_update_mount_set(200, 199) is True
 
     def test_large_drop(self):
         """Large drop (100 of 200 gone) — degraded API response."""
-        known = set(range(200))
-        current = set(range(100))  # lost mounts 100-199
-        assert _should_update_mount_set(known, current) is False
+        assert _should_update_mount_set(200, 100) is False
 
     def test_empty_response(self):
         """API returned nothing — should block update."""
-        known = set(range(200))
-        current = set()
-        assert _should_update_mount_set(known, current) is False
+        assert _should_update_mount_set(200, 0) is False
 
     def test_threshold_boundary_at_limit(self):
-        """Removing exactly max(10, len*0.1) — at boundary, <= means allowed."""
-        known = set(range(200))
+        """Dropping exactly max(10, count*0.1) — at boundary, <= means allowed."""
         # threshold = max(10, int(200 * 0.1)) = 20
-        # remove exactly 20 mounts
-        current = set(range(200)) - set(range(20))
-        assert _should_update_mount_set(known, current) is True
+        # drop exactly 20 → 180
+        assert _should_update_mount_set(200, 180) is True
 
     def test_threshold_boundary_one_over(self):
-        """Removing one more than threshold — should block."""
-        known = set(range(200))
-        # threshold = 20, remove 21
-        current = set(range(200)) - set(range(21))
-        assert _should_update_mount_set(known, current) is False
+        """Dropping one more than threshold — should block."""
+        # threshold = 20, drop 21 → 179
+        assert _should_update_mount_set(200, 179) is False
 
     def test_empty_known_set(self):
-        """First baseline — empty known set should always allow."""
-        known = set()
-        current = {1, 2, 3}
-        assert _should_update_mount_set(known, current) is True
+        """First baseline — zero last_count should always allow."""
+        assert _should_update_mount_set(0, 3) is True
 
     def test_both_empty(self):
         """Both empty — no-op, should allow."""
-        known = set()
-        current = set()
-        assert _should_update_mount_set(known, current) is True
+        assert _should_update_mount_set(0, 0) is True
 
 
 class TestFailureTracking:
