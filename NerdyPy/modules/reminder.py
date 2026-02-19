@@ -301,7 +301,15 @@ class Reminder(GroupCog, group_name="reminder"):
                 if msg.Enabled:
                     next_fire = msg.NextFire.replace(tzinfo=UTC)
                     rel = humanize.naturaltime(next_fire, when=datetime.now(UTC))
-                    abs_time = next_fire.strftime("%Y-%m-%d %H:%M UTC")
+                    if msg.Timezone:
+                        try:
+                            tz = ZoneInfo(msg.Timezone)
+                            local_time = next_fire.astimezone(tz)
+                            abs_time = local_time.strftime("%Y-%m-%d %H:%M %Z")
+                        except (KeyError, ValueError):
+                            abs_time = next_fire.strftime("%Y-%m-%d %H:%M UTC")
+                    else:
+                        abs_time = next_fire.strftime("%Y-%m-%d %H:%M UTC")
                     timing = f"Next: {rel} ({abs_time})"
                 else:
                     timing = "paused"

@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """Tests for modules/reminder.py — Reminder cog commands."""
 
-from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from datetime import UTC, datetime, time, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -298,3 +298,96 @@ class TestReminderDelete:
         await reminder_cog._reminder_delete.callback(reminder_cog, mock_interaction, reminder_id=rid)
 
         assert ReminderMessage.get_by_id(rid, 123, db_session) is None
+
+
+class TestReminderList:
+    """Tests for /reminder list timezone display."""
+
+    @pytest.mark.asyncio
+    async def test_list_shows_timezone_aware_time(self, reminder_cog, mock_interaction, db_session):
+        """NextFire should be displayed in the reminder's configured timezone, not UTC."""
+        mock_interaction.guild.id = 123
+        now = datetime.now(UTC)
+        r = ReminderMessage(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="general",
+            CreateDate=now,
+            Author="Tester",
+            ScheduleType="daily",
+            ScheduleTime=time(9, 0),
+            # NextFire is stored as naive UTC — 08:00 UTC = 09:00 CET (Europe/Berlin, standard time)
+            NextFire=datetime(2026, 1, 15, 8, 0, 0),
+            Message="Good morning",
+            Count=0,
+            Enabled=True,
+            Timezone="Europe/Berlin",
+        )
+        db_session.add(r)
+        db_session.commit()
+
+        with patch("modules.reminder.send_paginated", new_callable=AsyncMock) as mock_send:
+            await reminder_cog._reminder_list.callback(reminder_cog, mock_interaction)
+
+            mock_send.assert_called_once()
+            output = mock_send.call_args[0][1]  # second positional arg is the text
+            # Should show 09:00 CET, not 08:00 UTC
+            assert "09:00" in output
+            assert "08:00 UTC" not in output
+
+    @pytest.mark.asyncio
+    async def test_list_shows_utc_for_no_timezone(self, reminder_cog, mock_interaction, db_session):
+        """Reminders without a timezone should display NextFire in UTC."""
+        mock_interaction.guild.id = 123
+        now = datetime.now(UTC)
+        r = ReminderMessage(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="general",
+            CreateDate=now,
+            Author="Tester",
+            ScheduleType="interval",
+            IntervalSeconds=3600,
+            NextFire=datetime(2026, 1, 15, 14, 30, 0),
+            Message="Hourly check",
+            Count=0,
+            Enabled=True,
+        )
+        db_session.add(r)
+        db_session.commit()
+
+        with patch("modules.reminder.send_paginated", new_callable=AsyncMock) as mock_send:
+            await reminder_cog._reminder_list.callback(reminder_cog, mock_interaction)
+
+            mock_send.assert_called_once()
+            output = mock_send.call_args[0][1]
+            assert "14:30 UTC" in output
+
+    @pytest.mark.asyncio
+    async def test_list_falls_back_to_utc_for_invalid_timezone(self, reminder_cog, mock_interaction, db_session):
+        """Reminders with an invalid timezone should fall back to UTC display."""
+        mock_interaction.guild.id = 123
+        now = datetime.now(UTC)
+        r = ReminderMessage(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="general",
+            CreateDate=now,
+            Author="Tester",
+            ScheduleType="daily",
+            ScheduleTime=time(10, 0),
+            NextFire=datetime(2026, 1, 15, 10, 0, 0),
+            Message="Fallback test",
+            Count=0,
+            Enabled=True,
+            Timezone="Not/A/Timezone",
+        )
+        db_session.add(r)
+        db_session.commit()
+
+        with patch("modules.reminder.send_paginated", new_callable=AsyncMock) as mock_send:
+            await reminder_cog._reminder_list.callback(reminder_cog, mock_interaction)
+
+            mock_send.assert_called_once()
+            output = mock_send.call_args[0][1]
+            assert "10:00 UTC" in output
