@@ -62,6 +62,23 @@ Shows bot version and uptime. **Prefix-only, DM-only, operator-only** (user ID m
 
 Toggles debug logging at runtime. **Prefix-only, DM-only, operator-only** (user ID must be in `config.bot.ops`).
 
+### `!errors`
+
+Manage error notification throttling and suppression. **Prefix-only, DM-only, operator-only** (user ID must be in `config.bot.ops`).
+
+**Subcommands:**
+
+| Subcommand       | Description                                                  |
+| ---------------- | ------------------------------------------------------------ |
+| _(none)_         | Show usage help                                              |
+| `status`         | Show current throttle state with per-bucket error details    |
+| `suppress <dur>` | Suppress all error DMs for duration (e.g. `30m`, `2h`, `1d`) |
+| `resume`         | Cancel suppression and resume notifications                  |
+
+**Throttling:** Errors are automatically deduplicated by exception type + context. After the first DM for a given error, identical errors are suppressed for 15 minutes before sending another notification. This is always active — no configuration needed.
+
+**Suppression:** Operators can manually suppress all error DMs for a specified duration. Useful during deployments or known maintenance windows.
+
 ## Database Models
 
 ### `BotModeratorRole`
