@@ -12,7 +12,8 @@ from pytimeparse2 import parse
 
 from models.moderation import AutoDelete, AutoKicker
 
-from utils.helpers import notify_error, send_paginated
+from utils.cog import NerpyBotCog
+from utils.helpers import notify_error, register_before_loop, send_paginated
 from utils.permissions import validate_channel_permissions
 
 # If no tzinfo is given then UTC is assumed.
@@ -20,16 +21,16 @@ LOOP_RUN_TIME = time(hour=12, minute=30, tzinfo=UTC)
 
 
 @app_commands.guild_only()
-class Moderation(Cog):
+class Moderation(NerpyBotCog, Cog):
     """cog for bot management"""
 
     autodeleter = app_commands.Group(name="autodeleter", description="Manage autodeletion per channel", guild_only=True)
     user_group = app_commands.Group(name="user", description="User moderation", guild_only=True)
 
     def __init__(self, bot):
-        bot.log.info(f"loaded {__name__}")
-
-        self.bot = bot
+        super().__init__(bot)
+        register_before_loop(bot, self._autokicker_loop, "AutoKicker")
+        register_before_loop(bot, self._autodeleter_loop, "AutoDeleter")
         self._autokicker_loop.start()
         self._autodeleter_loop.start()
 
@@ -453,16 +454,6 @@ class Moderation(Cog):
             color=Color(0xE74C3C),
         )
         await interaction.response.send_message(embed=emb, ephemeral=True)
-
-    @_autokicker_loop.before_loop
-    async def _autokicker_before_loop(self):
-        self.bot.log.info("AutoKicker: Waiting for Bot to be ready...")
-        await self.bot.wait_until_ready()
-
-    @_autodeleter_loop.before_loop
-    async def _autodeleter_before_loop(self):
-        self.bot.log.info("AutoDeleter: Waiting for Bot to be ready...")
-        await self.bot.wait_until_ready()
 
 
 async def setup(bot):

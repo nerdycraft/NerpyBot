@@ -5,22 +5,21 @@ from discord.ext.commands import GroupCog
 
 from utils.audio import QueuedSong, QueueMixin
 from utils.checks import can_stop_playback, is_connected_to_voice
+from utils.cog import NerpyBotCog
 from utils.download import download, fetch_yt_infos
 from utils.helpers import error_context, youtube
 
 
 @app_commands.guild_only()
 @app_commands.checks.bot_has_permissions(send_messages=True, speak=True)
-class Music(QueueMixin, GroupCog):
+class Music(NerpyBotCog, QueueMixin, GroupCog):
     """Command group for sound and text tags"""
 
     queue_group = app_commands.Group(name="queue", description="Manage the Playlist Queue")
     play = app_commands.Group(name="play", description="Play music from YouTube and more")
 
     def __init__(self, bot):
-        bot.log.info(f"loaded {__name__}")
-
-        self.bot = bot
+        super().__init__(bot)
         self.config = self.bot.config["music"]
         self.queue = {}
         self.audio = self.bot.audio

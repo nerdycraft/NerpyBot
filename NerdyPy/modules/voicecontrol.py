@@ -4,15 +4,12 @@ from discord import Interaction, app_commands
 from discord.ext.commands import Cog
 
 from utils.checks import can_leave_voice, can_stop_playback
+from utils.cog import NerpyBotCog
 
 
 @app_commands.guild_only()
-class VoiceControl(Cog):
+class VoiceControl(NerpyBotCog, Cog):
     """commands for controlling bot voice playback"""
-
-    def __init__(self, bot):
-        bot.log.info(f"loaded {__name__}")
-        self.bot = bot
 
     @app_commands.command(name="stop")
     @app_commands.guild_only()

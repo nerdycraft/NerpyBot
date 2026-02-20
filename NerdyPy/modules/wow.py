@@ -17,9 +17,10 @@ from discord.app_commands import checks
 from discord.ext import tasks
 from discord.ext.commands import GroupCog
 from models.wow import WowCharacterMounts, WowGuildNewsConfig
-from utils.errors import NerpyException
 from utils.account_resolution import build_account_groups, make_pair_key, parse_known_mounts
-from utils.helpers import notify_error, send_paginated
+from utils.cog import NerpyBotCog
+from utils.errors import NerpyException
+from utils.helpers import notify_error, register_before_loop, send_paginated
 from utils.permissions import validate_channel_permissions
 
 
@@ -120,15 +121,13 @@ def _clear_character_failure(failures: dict, char_name: str, char_realm: str) ->
 
 @app_commands.checks.bot_has_permissions(send_messages=True, embed_links=True)
 @app_commands.guild_only()
-class WorldofWarcraft(GroupCog, group_name="wow"):
+class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     """World of Warcraft API"""
 
     guildnews = app_commands.Group(name="guildnews", description="manage WoW guild news tracking")
 
     def __init__(self, bot):
-        bot.log.info(f"loaded {__name__}")
-
-        self.bot = bot
+        super().__init__(bot)
         self.config = bot.config
         self.client_id = self.config["wow"]["wow_id"]
         self.client_secret = self.config["wow"]["wow_secret"]
@@ -145,6 +144,7 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
         self._track_mounts = gn_config.get("track_mounts", True)
         self._default_active_days = gn_config.get("active_days", 7)
 
+        register_before_loop(bot, self._guild_news_loop, "Guild News")
         self._guild_news_loop.change_interval(minutes=self._poll_interval)
         self._guild_news_loop.start()
 
@@ -616,11 +616,6 @@ class WorldofWarcraft(GroupCog, group_name="wow"):
             self.bot.log.error(f"Guild news loop error: {ex}")
             await notify_error(self.bot, "Guild news background loop", ex)
         self.bot.log.debug("Stop Guild News Loop!")
-
-    @_guild_news_loop.before_loop
-    async def _guild_news_before_loop(self):
-        self.bot.log.info("Guild News: Waiting for Bot to be ready...")
-        await self.bot.wait_until_ready()
 
     async def _poll_single_config(self, config_id: int, *, ignore_baseline: bool = False):
         """Poll a single guild news config for activity and mounts."""

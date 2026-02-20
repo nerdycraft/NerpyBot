@@ -6,16 +6,13 @@ from discord.ext.commands import GroupCog
 
 from models.rolemanage import RoleMapping
 from utils.checks import is_role_assignable, is_role_below_bot
+from utils.cog import NerpyBotCog
 from utils.helpers import error_context, send_paginated
 
 
 @app_commands.guild_only()
-class RoleManage(GroupCog, group_name="rolemanage"):
+class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
     """cog for delegated role management — lets specific roles assign other roles"""
-
-    def __init__(self, bot):
-        bot.log.info(f"loaded {__name__}")
-        self.bot = bot
 
     def _has_source_role(self, member, mappings):
         """check if the member holds any source role from the given mappings"""
