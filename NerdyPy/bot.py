@@ -195,9 +195,13 @@ class NerpyBot(Bot):
 
         # Register persistent views so buttons on old messages keep working
         if "application" in self.modules:
-            from modules.views.application import ApplicationReviewView
+            try:
+                from modules.views.application import ApplicationReviewView
 
-            self.add_view(ApplicationReviewView(bot=self))
+                self.add_view(ApplicationReviewView(bot=self))
+            except Exception as e:
+                self.log.error(f"failed to register ApplicationReviewView. {e}")
+                self.log.debug(print_exc())
 
         # create database/tables and such stuff
         self.create_all()
