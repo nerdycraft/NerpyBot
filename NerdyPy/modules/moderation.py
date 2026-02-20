@@ -6,7 +6,7 @@ from typing import Optional
 from discord import Color, Embed, Interaction, Member, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext import tasks
-from discord.ext.commands import Cog
+from discord.ext.commands import GroupCog
 from humanize import naturaldate, naturaldelta
 from pytimeparse2 import parse
 
@@ -20,12 +20,11 @@ from utils.permissions import validate_channel_permissions
 LOOP_RUN_TIME = time(hour=12, minute=30, tzinfo=UTC)
 
 
-@app_commands.guild_only()
-class Moderation(NerpyBotCog, Cog):
+class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     """cog for bot management"""
 
-    autodeleter = app_commands.Group(name="autodeleter", description="Manage autodeletion per channel", guild_only=True)
-    user_group = app_commands.Group(name="user", description="User moderation", guild_only=True)
+    autodeleter = app_commands.Group(name="autodeleter", description="Manage autodeletion per channel")
+    user_group = app_commands.Group(name="user", description="User moderation")
 
     def __init__(self, bot):
         super().__init__(bot)
@@ -137,7 +136,6 @@ class Moderation(NerpyBotCog, Cog):
         self.bot.log.debug("Finish Autodeleter Loop!")
 
     @app_commands.command()
-    @app_commands.guild_only()
     @app_commands.rename(kick_reminder_message="reminder_message")
     @checks.has_permissions(kick_members=True)
     async def autokicker(
@@ -446,7 +444,6 @@ class Moderation(NerpyBotCog, Cog):
         await send_paginated(interaction, msg, title="\U0001f465 Members", color=0xE74C3C, ephemeral=True)
 
     @app_commands.command()
-    @app_commands.guild_only()
     async def membercount(self, interaction: Interaction):
         """displays the current membercount of the server [bot-moderator]"""
         emb = Embed(
