@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from discord import Interaction, Role, TextChannel, app_commands
+from discord import Forbidden, Interaction, NotFound, Role, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext.commands import Cog, GroupCog
 
@@ -151,7 +151,8 @@ class ReactionRole(GroupCog, group_name="reactionrole"):
 
         try:
             discord_msg = await channel.fetch_message(msg_id)
-        except Exception:
+        except (NotFound, Forbidden) as ex:
+            self.bot.log.warning(f"{error_context(interaction)}: fetch_message({msg_id}) in #{channel.name}: {ex}")
             await interaction.response.send_message(
                 f"Could not find message `{msg_id}` in {channel.mention}.", ephemeral=True
             )

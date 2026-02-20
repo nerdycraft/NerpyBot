@@ -218,7 +218,7 @@ class Audio:
         if self._has_buffer(guild_id):
             if self.buffer[guild_id].get(BufferKey.QUEUE) is not None:
                 return list(self.buffer[guild_id].get(BufferKey.QUEUE).queue)
-        return None
+        return []
 
     def stop(self, guild_id):
         """Stops current audio from playing"""
