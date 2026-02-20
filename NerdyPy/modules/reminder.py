@@ -28,6 +28,8 @@ WEEKDAY_MAP = {
     "Sunday": 6,
 }
 
+_WEEKDAY_NAMES = list(WEEKDAY_MAP.keys())
+
 # Pre-sorted timezone list for autocomplete
 _TZ_NAMES = sorted(available_timezones())
 
@@ -351,7 +353,7 @@ class Reminder(GroupCog, group_name="reminder"):
                 elif (
                     msg.ScheduleType == "weekly" and msg.ScheduleTime is not None and msg.ScheduleDayOfWeek is not None
                 ):
-                    day_name = list(WEEKDAY_MAP.keys())[msg.ScheduleDayOfWeek]
+                    day_name = _WEEKDAY_NAMES[msg.ScheduleDayOfWeek]
                     tz_label = msg.Timezone or "UTC"
                     schedule_info = f"weekly {day_name} at {msg.ScheduleTime.strftime('%H:%M')} {tz_label}"
                 elif (
@@ -481,7 +483,7 @@ class Reminder(GroupCog, group_name="reminder"):
 
             if day_of_week is not None:
                 msg.ScheduleDayOfWeek = day_of_week.value
-                day_name = list(WEEKDAY_MAP.keys())[day_of_week.value]
+                day_name = _WEEKDAY_NAMES[day_of_week.value]
                 changes.append(f"day → {day_name}")
                 timing_changed = True
 

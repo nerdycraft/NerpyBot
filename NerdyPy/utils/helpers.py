@@ -4,6 +4,7 @@ import logging
 from traceback import format_exception
 
 from discord import Color, Embed, Interaction
+from discord.ext.commands import Context
 from googleapiclient.discovery import build
 
 log = logging.getLogger("nerpybot")
@@ -18,7 +19,7 @@ def parse_id(value: int | str) -> int:
     return int(value)
 
 
-async def send_hidden_message(interaction: Interaction, msg: str = None, **kwargs):
+async def send_hidden_message(interaction: Interaction, msg: str | None = None, **kwargs) -> None:
     """Send an ephemeral message via slash command interaction."""
     if not interaction.response.is_done():
         return await interaction.response.send_message(msg, ephemeral=True, **kwargs)
@@ -37,9 +38,9 @@ async def send_paginated(
     title: str = None,
     color: Color | int = None,
     ephemeral: bool = False,
-    delims=None,
-    page_length=None,
-):
+    delims: list[str] | None = None,
+    page_length: int | None = None,
+) -> None:
     """Paginate text into Discord embed messages.
 
     Uses ``response.send_message`` for the first page and ``followup.send``
@@ -73,7 +74,7 @@ async def send_paginated(
             await interaction.followup.send(embed=embed, ephemeral=ephemeral)
 
 
-def error_context(source) -> str:
+def error_context(source: Context | Interaction) -> str:
     """Build a log prefix with command, user, and guild info.
 
     Accepts both Interaction (slash) and Context (prefix fallback).
@@ -120,7 +121,7 @@ async def notify_error(bot, context: str, error: Exception) -> None:
             log.debug(f"Could not DM error notification to {uid}: {dm_err}")
 
 
-def youtube(yt_key, return_type, query):
+def youtube(yt_key: str, return_type: str, query: str) -> str | None:
     yt = build("youtube", "v3", developerKey=yt_key)
     search_response = yt.search().list(q=query, part="id,snippet", type="video", maxResults=1).execute()
     items = search_response.get("items", [])
