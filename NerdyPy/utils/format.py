@@ -1,38 +1,40 @@
 # -*- coding: utf-8 -*-
 """discord and other format functions"""
 
+from collections.abc import Generator
 
-def box(text, lang=""):
+
+def box(text: str, lang: str = "") -> str:
     """discord format for box with optional language highlighting"""
     return f"```{lang}\n{text}\n```"
 
 
-def inline(text):
+def inline(text: str) -> str:
     """discord format for inline box"""
     return f"`{text}`"
 
 
-def italics(text):
-    """discord format for itallic text"""
+def italics(text: str) -> str:
+    """discord format for italic text"""
     return f"*{text}*"
 
 
-def bold(text):
-    """discord format for itallic text"""
+def bold(text: str) -> str:
+    """discord format for bold text"""
     return f"**{text}**"
 
 
-def strikethrough(text):
+def strikethrough(text: str) -> str:
     """discord format for strikethrough text"""
     return f"~~{text}~~"
 
 
-def underline(text):
+def underline(text: str) -> str:
     """discord format for underlining"""
     return f"__{text}__"
 
 
-def pagify(text, delims=None, page_length=2000):
+def pagify(text: str, delims: list[str] | None = None, page_length: int = 2000) -> Generator[str, None, None]:
     """DOES NOT RESPECT MARKDOWN BOXES OR INLINE CODE"""
     if delims is None:
         delims = ["\n"]
