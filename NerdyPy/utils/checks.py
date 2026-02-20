@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from discord import Interaction, app_commands
+from discord import Interaction, Role, app_commands
 from discord.ext.commands import Context
 
 from models.botmod import BotModeratorRole
@@ -101,3 +101,23 @@ async def can_leave_voice(interaction: Interaction):
 
     await _reject(interaction, "Only moderators can make the bot leave the voice channel.")
     return False
+
+
+async def is_role_assignable(interaction: Interaction, role: Role, *, action: str = "assigned to") -> bool:
+    """Return False (with ephemeral message) if the role is integration-managed."""
+    if role.managed:
+        await interaction.response.send_message(
+            f"**{role.name}** is an integration role and cannot be {action} members.", ephemeral=True
+        )
+        return False
+    return True
+
+
+async def is_role_below_bot(interaction: Interaction, role: Role) -> bool:
+    """Return False (with ephemeral message) if the role is at or above the bot's highest role."""
+    if role >= interaction.guild.me.top_role:
+        await interaction.response.send_message(
+            f"I cannot manage **{role.name}** — it is at or above my highest role.", ephemeral=True
+        )
+        return False
+    return True
