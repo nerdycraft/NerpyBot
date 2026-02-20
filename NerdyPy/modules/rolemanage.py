@@ -14,6 +14,7 @@ from utils.helpers import error_context, send_paginated
 class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
     """cog for delegated role management — lets specific roles assign other roles"""
 
+    # noinspection PyMethodMayBeStatic
     def _has_source_role(self, member, mappings):
         """check if the member holds any source role from the given mappings"""
         member_role_ids = {r.id for r in member.roles}

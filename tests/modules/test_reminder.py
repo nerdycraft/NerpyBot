@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from models.reminder import ReminderMessage
+
 from modules.reminder import _format_relative
 from modules.reminder import Reminder
 
@@ -448,6 +449,7 @@ class TestReminderList:
 class TestReminderEdit:
     """Tests for /reminder edit command."""
 
+    # noinspection PyMethodMayBeStatic
     def _make_reminder(self, db_session, **overrides):
         """Helper to create a reminder with sensible defaults."""
         now = datetime.now(UTC)

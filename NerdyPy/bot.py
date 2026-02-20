@@ -175,6 +175,7 @@ class NerpyBot(Bot):
                 self.log.error(f"failed to load extension {module}. {e}")
                 self.log.debug(print_exc())
 
+        # noinspection GrazieInspection
         # auto-load essential extensions not explicitly listed in config
         auto_load = ["admin"]
         if audio_module_loaded:
@@ -231,6 +232,7 @@ class NerpyBot(Bot):
             if missing:
                 self.log.warning(f"[{guild.name} ({guild.id})] missing permissions: {', '.join(missing)}")
                 emb = build_permissions_embed(guild, missing, self.client_id, required)
+                # noinspection PyArgumentList
                 with self.session_scope() as session:
                     subscribers = PermissionSubscriber.get_by_guild(guild.id, session)
                 for sub in subscribers:
@@ -240,6 +242,7 @@ class NerpyBot(Bot):
                     except Exception as ex:
                         self.log.debug(f"Could not DM permission alert to {sub.UserId}: {ex}")
 
+    # noinspection PyUnusedLocal
     async def on_app_command_completion(self, interaction: Interaction, command: app_commands.Command) -> None:
         """Log successful slash command invocations."""
         self.log.debug(error_context(interaction))
@@ -283,7 +286,7 @@ class NerpyBot(Bot):
             self.log.error(f"{err_ctx}: {error}")
 
     async def on_command_error(self, ctx: Context, error) -> None:
-        """Handle errors from prefix commands (sync, debug, raidplaner)."""
+        """Handle errors from prefix commands (sync, debug)."""
         if isinstance(error, CommandNotFound):
             return  # Silently ignore — DM prefix fallback only
         if isinstance(error, commands.CommandInvokeError) and isinstance(error.original, NerpyException):

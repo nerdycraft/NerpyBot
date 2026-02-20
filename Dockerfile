@@ -48,7 +48,7 @@ USER NerdyBot
 COPY --chown=${UID} --from=builder /app/.venv-bot /app/.venv
 COPY --chown=${UID} NerdyPy /app
 
-CMD ["python", "NerdyPy.py"]
+CMD ["python", "bot.py"]
 
 LABEL org.opencontainers.image.source=https://github.com/nerdycraft/NerpyBot
 LABEL org.opencontainers.image.description="NerpyBot, the nerdiest Python Bot"

@@ -144,6 +144,7 @@ class TestConversation:
     async def test_on_message_handler_can_reject(self, conversation):
         """answer handler returning False should prevent state change."""
 
+        # noinspection PyUnusedLocal
         async def rejecting_handler(msg):
             return False
 
@@ -252,6 +253,7 @@ class TestConversationManager:
         assert result is conversation
 
         # Should have called repost_state
+        # noinspection PyUnresolvedReferences
         conversation.repost_state.assert_called_once()
 
     @pytest.mark.asyncio
@@ -333,6 +335,7 @@ class TestPreConversation:
         await pre_conv.prev_conv()
 
         # Should have called repost on previous conversation
+        # noinspection PyUnresolvedReferences
         prev_conv.repost_state.assert_called_once()
 
     @pytest.mark.asyncio
@@ -341,6 +344,7 @@ class TestPreConversation:
         await pre_conv.next_conv()
 
         # Should have called repost on next conversation
+        # noinspection PyUnresolvedReferences
         next_conv.repost_state.assert_called_once()
 
 

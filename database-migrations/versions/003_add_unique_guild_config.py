@@ -5,6 +5,7 @@ Revises: 002
 Create Date: 2026-02-16
 """
 
+# noinspection PyUnresolvedReferences
 from alembic import op
 
 revision = "003"

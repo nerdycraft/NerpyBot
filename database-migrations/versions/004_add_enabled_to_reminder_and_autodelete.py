@@ -5,6 +5,7 @@ Revises: 003
 Create Date: 2026-02-18
 """
 
+# noinspection PyUnresolvedReferences
 from alembic import op
 from sqlalchemy import Boolean, Column
 

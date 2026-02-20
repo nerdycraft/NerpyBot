@@ -2,7 +2,7 @@
 """Next-fire-time computation for reminder schedules."""
 
 import calendar
-from datetime import UTC, datetime, time, timedelta, tzinfo as TzInfo
+from datetime import UTC, datetime, time, timedelta, tzinfo
 from zoneinfo import ZoneInfo
 
 
@@ -51,7 +51,7 @@ def compute_next_fire(
     raise ValueError(f"Unknown schedule type: '{schedule_type}'")
 
 
-def _next_daily(t: time, tz: TzInfo, after: datetime) -> datetime:
+def _next_daily(t: time, tz: tzinfo, after: datetime) -> datetime:
     """Next occurrence of a daily schedule at time *t* in timezone *tz*, returned as UTC."""
     local_now = after.astimezone(tz)
     candidate = local_now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
@@ -60,7 +60,7 @@ def _next_daily(t: time, tz: TzInfo, after: datetime) -> datetime:
     return candidate.astimezone(UTC).replace(tzinfo=UTC)
 
 
-def _next_weekly(t: time, day_of_week: int, tz: TzInfo, after: datetime) -> datetime:
+def _next_weekly(t: time, day_of_week: int, tz: tzinfo, after: datetime) -> datetime:
     """Next occurrence of a weekly schedule on *day_of_week* at *t*."""
     local_now = after.astimezone(tz)
     candidate = local_now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
@@ -74,7 +74,7 @@ def _next_weekly(t: time, day_of_week: int, tz: TzInfo, after: datetime) -> date
     return candidate.astimezone(UTC).replace(tzinfo=UTC)
 
 
-def _next_monthly(t: time, day_of_month: int, tz: TzInfo, after: datetime) -> datetime:
+def _next_monthly(t: time, day_of_month: int, tz: tzinfo, after: datetime) -> datetime:
     """Next occurrence of a monthly schedule on *day_of_month* at *t*."""
     local_now = after.astimezone(tz)
     year, month = local_now.year, local_now.month

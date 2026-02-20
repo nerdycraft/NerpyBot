@@ -17,10 +17,10 @@ cp NerdyPy/config.yaml.template NerdyPy/config.yaml
 # Fill in your Discord bot token, client ID, and API keys
 
 # Start the bot
-python NerdyPy/NerdyPy.py
+python NerdyPy/bot.py
 
 # Debug mode
-python NerdyPy/NerdyPy.py -l DEBUG
+python NerdyPy/bot.py -l DEBUG
 ```
 
 ## Docker Compose
@@ -112,13 +112,12 @@ The migration runner resolves the database URL in this order:
 ## Modules
 
 | Module     | Description                                           |
-| ---------- | ----------------------------------------------------- |
+|------------|-------------------------------------------------------|
 | admin      | Server management, prefix configuration, command sync |
 | league     | Riot Games API integration                            |
 | leavemsg   | Server leave message announcements                    |
 | moderation | Server moderation tools                               |
 | music      | Voice channel audio playback                          |
-| raidplaner | Guild raid scheduling                                 |
 | reminder   | Timed user reminders                                  |
 | tagging    | Audio tag management                                  |
 | wow        | Blizzard API integration                              |

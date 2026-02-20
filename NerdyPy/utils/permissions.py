@@ -28,7 +28,6 @@ REQUIRED_PERMISSIONS: dict[str, set[str]] = {
     "leavemsg": {"send_messages"},
     "moderation": {"send_messages", "kick_members", "manage_messages", "read_message_history"},
     "music": {"send_messages", "embed_links", "connect", "speak", "add_reactions", "read_message_history"},
-    "raidplaner": {"send_messages", "add_reactions", "read_message_history"},
     "reactionrole": {
         "send_messages",
         "manage_roles",

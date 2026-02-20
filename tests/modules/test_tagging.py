@@ -46,6 +46,7 @@ class TestTagTypeConverter:
 
     @pytest.mark.asyncio
     async def test_convert_case_insensitive(self, converter, mock_ctx):
+        # noinspection GrazieInspection
         """Conversion should be case insensitive."""
         assert await converter.convert(mock_ctx, "SOUND") == TagType.sound.value
         assert await converter.convert(mock_ctx, "Text") == TagType.text.value

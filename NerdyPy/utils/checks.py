@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 
+from typing import cast
+
 from discord import Interaction, Role, app_commands
 from discord.ext.commands import Context
 
+from bot import NerpyBot
 from models.botmod import BotModeratorRole
 from utils.errors import NerpyException, SilentCheckFailure
 
@@ -17,13 +20,15 @@ def require_operator(ctx_or_interaction: Context | Interaction) -> None:
         if ctx_or_interaction.author.id not in ctx_or_interaction.bot.ops:
             raise NerpyException("This command is restricted to bot operators.")
     else:
-        if ctx_or_interaction.user.id not in ctx_or_interaction.client.ops:
+        bot = cast("NerpyBot", ctx_or_interaction.client)
+        if ctx_or_interaction.user.id not in bot.ops:
             raise app_commands.CheckFailure("This command is restricted to bot operators.")
 
 
 async def is_admin_or_operator(interaction: Interaction) -> bool:
     """Return True if the user is a guild administrator or a bot operator."""
-    if interaction.user.id in interaction.client.ops:
+    bot = cast(NerpyBot, interaction.client)
+    if interaction.user.id in bot.ops:
         return True
     if interaction.guild and interaction.user.guild_permissions.administrator:
         return True
@@ -41,16 +46,12 @@ async def _reject(interaction: Interaction, msg: str):
 
 async def _is_bot_moderator(interaction: Interaction) -> bool:
     """Check if the user has bot-moderator privileges."""
+    bot = cast(NerpyBot, interaction.client)
     perms = interaction.user.guild_permissions
-    if (
-        perms.mute_members
-        or perms.manage_channels
-        or perms.administrator
-        or interaction.user.id in interaction.client.ops
-    ):
+    if perms.mute_members or perms.manage_channels or perms.administrator or interaction.user.id in bot.ops:
         return True
 
-    with interaction.client.session_scope() as session:
+    with bot.session_scope() as session:
         entry = BotModeratorRole.get(interaction.guild.id, session)
         if entry is not None:
             return any(r.id == entry.RoleId for r in interaction.user.roles)

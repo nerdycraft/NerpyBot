@@ -17,11 +17,11 @@ uv sync --group test                 # Include test dependencies
 uv sync --only-group migrations      # Migration tools only
 
 # Run the bot
-uv run python NerdyPy/NerdyPy.py                    # Start with default config
-uv run python NerdyPy/NerdyPy.py -d                 # Debug logging (no sqlalchemy noise)
-uv run python NerdyPy/NerdyPy.py -l DEBUG            # Debug mode (includes sqlalchemy)
-uv run python NerdyPy/NerdyPy.py -c path             # Custom config file
-uv run python NerdyPy/NerdyPy.py -r                  # Auto-restart on failure
+uv run python NerdyPy/bot.py                    # Start with default config
+uv run python NerdyPy/bot.py -d                 # Debug logging (no sqlalchemy noise)
+uv run python NerdyPy/bot.py -l DEBUG            # Debug mode (includes sqlalchemy)
+uv run python NerdyPy/bot.py -c path             # Custom config file
+uv run python NerdyPy/bot.py -r                  # Auto-restart on failure
 
 # Code quality
 uv run ruff check                    # Lint
@@ -55,7 +55,7 @@ act pull_request -W .github/workflows/test.yml --container-architecture linux/am
 prettier --write "docs/**/*.md" "**/*.yaml" "**/*.yml" "*.md"
 
 # Docker smoke tests (run locally to verify images work)
-docker run --rm nerpybot python -c "from NerdyPy import NerpyBot; print('OK')"
+docker run --rm nerpybot python -c "from bot import NerpyBot; print('OK')"
 docker run --rm nerpybot-migrations alembic heads  # uses alembic.ini (default)
 ```
 
@@ -67,7 +67,7 @@ docker run --rm nerpybot-migrations alembic heads  # uses alembic.ini (default)
 
 ### Entry Point
 
-`NerdyPy/NerdyPy.py` - Contains `NerpyBot` class and `main()` entry point.
+`NerdyPy/bot.py` - Contains `NerpyBot` class and `main()` entry point.
 
 ### Module System
 
@@ -78,7 +78,6 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **leavemsg** - Custom leave messages when members depart
 - **moderation** - Server moderation tools
 - **music** - Voice channel audio playback
-- **raidplaner** - Guild raid scheduling (largest module)
 - **reactionrole** - Reaction-based role assignment
 - **reminder** - Timed user reminders
 - **rolemanage** - Delegated role management (lets specific roles assign other roles via mappings)
@@ -116,7 +115,6 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **`blizzapi` does NOT auto-retry on 429** — It returns `{"code": 429}` as a dict. Check every response and handle rate limits manually.
 - **`send_hidden_message()` accepts Interaction** — It only handles `discord.Interaction` objects, using `response.send_message` or `followup.send` based on `is_done()`. Prefix commands use `ctx.send()` directly.
 - **`sync` is prefix-only** — DM-only operator command (`!sync`). Supports global sync, guild-specific sync via `Greedy[Object]`, and `local`/`copy`/`clear` spec modes.
-- **raidplaner remains prefix-only** — Uses interactive DM conversations that require message-based back-and-forth (`conversation.py` utilities).
 - **Check functions accept Interaction, not Context** — All check functions in `checks.py` were converted to accept `discord.Interaction` for slash command compatibility. The `interaction_check` in admin.py uses these. The `cog_check` in admin.py has inline logic for prefix commands.
 - **admin.py modrole and botpermissions are guild_only** — The `app_commands.Group` definitions have `guild_only=True` to prevent DM invocation, since they access `interaction.guild` unconditionally.
 - **`@app_commands.guild_only()` on regular `Cog` does NOT propagate to commands** — discord.py's `Command.__init__` reads `guild_only` from the callback function, not the class. Only `GroupCog` propagates the class attribute via `Group.__init__`. The remaining regular `Cog` classes (`admin`, `voicecontrol`) need `@app_commands.guild_only()` on each individual command and `guild_only=True` on each `Group()` definition.
