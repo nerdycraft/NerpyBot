@@ -151,7 +151,6 @@ class Admin(NerpyBotCog, Cog):
         )
 
     @hybrid_command(name="ping")
-    @app_commands.default_permissions()
     async def ping(self, ctx: Context):
         """Pong."""
         latency = round(self.bot.latency * 1000)

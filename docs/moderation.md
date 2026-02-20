@@ -1,6 +1,6 @@
 # Moderation Module
 
-Server moderation tools including automatic member kicking, message cleanup, voice control, and user info. Runs two background task loops.
+Server moderation tools including automatic member kicking, message cleanup, and user info. All commands are grouped under `/moderation`. Runs two background task loops.
 
 ## Background Tasks
 
@@ -36,7 +36,7 @@ Server moderation tools including automatic member kicking, message cleanup, voi
 
 ## Commands
 
-### `/autokicker <enable> <kick_after> [kick_reminder_message]`
+### `/moderation autokicker <enable> <kick_after> [kick_reminder_message]`
 
 Configure automatic kicking of members who don't pick a role.
 
@@ -48,7 +48,7 @@ Configure automatic kicking of members who don't pick a role.
 
 **Permission:** `kick_members`
 
-### `/autodeleter create <channel> [delete_older_than] [keep_messages] [delete_pinned_message]`
+### `/moderation autodeleter create <channel> [delete_older_than] [keep_messages] [delete_pinned_message]`
 
 Create an auto-delete policy for a channel.
 
@@ -61,37 +61,37 @@ Create an auto-delete policy for a channel.
 
 **Permission:** `manage_messages`
 
-### `/autodeleter delete <channel>`
+### `/moderation autodeleter delete <channel>`
 
 Remove the auto-delete policy for a channel.
 
 **Permission:** `manage_messages`
 
-### `/autodeleter list`
+### `/moderation autodeleter list`
 
 List all auto-delete configurations for this server.
 
 **Permission:** `manage_messages`
 
-### `/autodeleter edit <channel> [delete_older_than] [keep_messages] [delete_pinned_message]`
+### `/moderation autodeleter edit <channel> [delete_older_than] [keep_messages] [delete_pinned_message]`
 
 Modify an existing auto-delete configuration.
 
 **Permission:** `manage_messages`
 
-### `/autodeleter pause <channel>`
+### `/moderation autodeleter pause <channel>`
 
 Pause auto-deletion for a channel without removing the configuration.
 
 **Permission:** `manage_messages`
 
-### `/autodeleter resume <channel>`
+### `/moderation autodeleter resume <channel>`
 
 Resume auto-deletion for a previously paused channel.
 
 **Permission:** `manage_messages`
 
-### `/user info [member]`
+### `/moderation user info [member]`
 
 Show detailed information about a member.
 
@@ -103,7 +103,7 @@ Show detailed information about a member.
 
 **Permission:** `moderate_members`
 
-### `/user list [show_only_users_without_roles]`
+### `/moderation user list [show_only_users_without_roles]`
 
 List all server members with join dates. Paginated output.
 
@@ -113,17 +113,9 @@ List all server members with join dates. Paginated output.
 
 **Permission:** `moderate_members`
 
-### `/membercount`
+### `/moderation membercount`
 
 Shows the current server member count. No permission required.
-
-### `/stop`
-
-Stop audio playback. Uses the `can_stop_playback` check — bot-moderators can always stop; regular users can only stop if they're alone with the bot in the voice channel.
-
-### `/leave`
-
-Make the bot leave the voice channel. **Bot-moderator only.**
 
 ## Database Models
 

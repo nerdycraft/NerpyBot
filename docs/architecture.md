@@ -51,7 +51,7 @@ Modules are loaded dynamically based on `config.bot.modules`. Available modules:
 | admin        | Cog (slash + prefix)  | —                                      | —                       |
 | league       | GroupCog              | —                                      | Riot API                |
 | leavemsg     | GroupCog              | —                                      | —                       |
-| moderation   | Cog                   | AutoKicker (daily), AutoDeleter (5min) | —                       |
+| moderation   | GroupCog              | AutoKicker (daily), AutoDeleter (5min) | —                       |
 | music        | GroupCog + QueueMixin | —                                      | YouTube API, yt-dlp     |
 | raidplaner   | Cog                   | —                                      | —                       |
 | reactionrole | GroupCog              | —                                      | —                       |
