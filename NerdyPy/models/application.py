@@ -277,3 +277,20 @@ BUILT_IN_TEMPLATES = {
         "Any additional notes or questions for the organizers?",
     ],
 }
+
+
+def seed_built_in_templates(session):
+    """Seed built-in templates into DB if not already present."""
+    for name, questions in BUILT_IN_TEMPLATES.items():
+        existing = (
+            session.query(ApplicationTemplate)
+            .filter(ApplicationTemplate.Name == name, ApplicationTemplate.IsBuiltIn.is_(True))
+            .first()
+        )
+        if existing:
+            continue
+        template = ApplicationTemplate(Name=name, GuildId=None, IsBuiltIn=True)
+        session.add(template)
+        session.flush()
+        for i, q_text in enumerate(questions, start=1):
+            session.add(ApplicationTemplateQuestion(TemplateId=template.Id, QuestionText=q_text, SortOrder=i))

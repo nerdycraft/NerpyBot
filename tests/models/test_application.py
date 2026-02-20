@@ -16,6 +16,7 @@ from models.application import (
     ApplicationTemplate,
     ApplicationTemplateQuestion,
     ApplicationVote,
+    seed_built_in_templates,
 )
 
 
@@ -876,3 +877,42 @@ class TestBuiltInTemplatesConstant:
         for name, questions in BUILT_IN_TEMPLATES.items():
             for q in questions:
                 assert isinstance(q, str), f"Question in '{name}' is not a string: {q!r}"
+
+
+# ---------------------------------------------------------------------------
+# seed_built_in_templates
+# ---------------------------------------------------------------------------
+class TestBuiltInTemplateSeeding:
+    """Tests for the seed_built_in_templates() function."""
+
+    def test_seed_creates_templates(self, db_session):
+        """Should create all 3 built-in templates."""
+        seed_built_in_templates(db_session)
+        db_session.commit()
+        templates = ApplicationTemplate.get_available(123, db_session)
+        assert len(templates) == 3
+
+    def test_seed_idempotent(self, db_session):
+        """Calling seed twice should not create duplicates."""
+        seed_built_in_templates(db_session)
+        db_session.commit()
+        seed_built_in_templates(db_session)
+        db_session.commit()
+        templates = db_session.query(ApplicationTemplate).filter(ApplicationTemplate.IsBuiltIn.is_(True)).all()
+        assert len(templates) == 3
+
+    def test_seed_creates_questions(self, db_session):
+        """Each seeded template should have the correct questions."""
+        seed_built_in_templates(db_session)
+        db_session.commit()
+        tpl = ApplicationTemplate.get_by_name("Guild Membership", 123, db_session)
+        assert tpl is not None
+        assert len(tpl.questions) == 6
+
+    def test_seed_preserves_question_order(self, db_session):
+        """Questions should have correct SortOrder."""
+        seed_built_in_templates(db_session)
+        db_session.commit()
+        tpl = ApplicationTemplate.get_by_name("Event Sign-Up", 123, db_session)
+        orders = [q.SortOrder for q in tpl.questions]
+        assert orders == [1, 2, 3, 4, 5]
