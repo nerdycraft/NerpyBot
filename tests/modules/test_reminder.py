@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from models.reminder import ReminderMessage
+from modules.reminder import _format_relative
 from modules.reminder import Reminder
 
 
@@ -23,6 +24,57 @@ def reminder_cog(mock_bot):
         cog._reminder_loop.restart = MagicMock()
         cog._reminder_loop.change_interval = MagicMock()
     return cog
+
+
+class TestFormatRelative:
+    """Tests for _format_relative — calendar-day-aware relative time."""
+
+    def test_short_duration_uses_humanize(self):
+        """Under 12 hours should use humanize for precision."""
+        next_fire = datetime.now(UTC) + timedelta(hours=2)
+        result = _format_relative(next_fire)
+        assert "hour" in result
+
+    def test_same_timezone_calendar_days(self):
+        """Two calendar days in the same timezone should say '2 days from now'."""
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo("Europe/Berlin")
+        # Build a fire time 2 calendar days from now at 09:00 local
+        local_now = datetime.now(tz)
+        fire_date = (local_now + timedelta(days=2)).replace(hour=9, minute=0, second=0, microsecond=0)
+        fire_utc = fire_date.astimezone(UTC)
+        result = _format_relative(fire_utc, tz)
+        assert result == "2 days from now"
+
+    def test_different_timezones_same_calendar_day_count(self):
+        """Both Buenos Aires and Berlin should show '2 days from now' for a fire date 2 calendar days away."""
+        from zoneinfo import ZoneInfo
+
+        for tz_name in ("America/Buenos_Aires", "Europe/Berlin"):
+            tz = ZoneInfo(tz_name)
+            local_now = datetime.now(tz)
+            fire_date = (local_now + timedelta(days=2)).replace(hour=9, minute=0, second=0, microsecond=0)
+            fire_utc = fire_date.astimezone(UTC)
+            result = _format_relative(fire_utc, tz)
+            assert result == "2 days from now", f"Failed for {tz_name}: got '{result}'"
+
+    def test_one_day_from_now(self):
+        """A fire time 1 calendar day away should say 'a day from now'."""
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo("Europe/Berlin")
+        local_now = datetime.now(tz)
+        fire_date = (local_now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+        fire_utc = fire_date.astimezone(UTC)
+        result = _format_relative(fire_utc, tz)
+        assert result == "a day from now"
+
+    def test_no_timezone_defaults_to_utc(self):
+        """With no timezone, should use UTC for calendar day calculation."""
+        next_fire = datetime.now(UTC) + timedelta(days=3, hours=1)
+        result = _format_relative(next_fire)
+        assert result == "3 days from now"
 
 
 class TestReminderCreate:

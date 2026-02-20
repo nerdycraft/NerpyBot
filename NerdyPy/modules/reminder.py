@@ -32,6 +32,30 @@ WEEKDAY_MAP = {
 _TZ_NAMES = sorted(available_timezones())
 
 
+def _format_relative(next_fire_utc: datetime, tz: ZoneInfo | None = None) -> str:
+    """Format a human-friendly relative time string.
+
+    For short durations (< 12 hours) uses humanize for precision (e.g. "in 2 hours").
+    For longer durations uses calendar days in the display timezone so "Feb 22"
+    when today is "Feb 20" always shows "2 days from now", regardless of the
+    exact hour offset that can cause humanize to round down.
+    """
+    now_utc = datetime.now(UTC)
+    delta_seconds = (next_fire_utc - now_utc).total_seconds()
+
+    if delta_seconds < 43200:  # < 12 hours: use humanize for hour/minute precision
+        return humanize.naturaltime(next_fire_utc, when=now_utc)
+
+    display_tz = tz or UTC
+    local_fire = next_fire_utc.astimezone(display_tz).date()
+    local_now = datetime.now(display_tz).date()
+    day_diff = (local_fire - local_now).days
+
+    if day_diff == 1:
+        return "a day from now"
+    return f"{day_diff} days from now"
+
+
 @app_commands.guild_only()
 class Reminder(GroupCog, group_name="reminder"):
     def __init__(self, bot):
@@ -171,7 +195,7 @@ class Reminder(GroupCog, group_name="reminder"):
             session.add(reminder)
 
         self._reschedule()
-        rel = humanize.naturaltime(next_fire, when=datetime.now(UTC))
+        rel = _format_relative(next_fire)
         await interaction.response.send_message(f"Reminder created — next fire {rel}.", ephemeral=True)
 
     # -- /reminder schedule --------------------------------------------
@@ -275,7 +299,8 @@ class Reminder(GroupCog, group_name="reminder"):
             session.add(reminder)
 
         self._reschedule()
-        rel = humanize.naturaltime(next_fire, when=datetime.now(UTC))
+        tz_obj = ZoneInfo(timezone) if timezone else None
+        rel = _format_relative(next_fire, tz_obj)
         await interaction.response.send_message(f"Scheduled reminder created — next fire {rel}.", ephemeral=True)
 
     async def _timezone_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
@@ -300,16 +325,17 @@ class Reminder(GroupCog, group_name="reminder"):
                 status = "\u2705" if msg.Enabled else "\u23f8\ufe0f"
                 if msg.Enabled:
                     next_fire = msg.NextFire.replace(tzinfo=UTC)
-                    rel = humanize.naturaltime(next_fire, when=datetime.now(UTC))
+                    display_tz = None
                     if msg.Timezone:
                         try:
-                            tz = ZoneInfo(msg.Timezone)
-                            local_time = next_fire.astimezone(tz)
+                            display_tz = ZoneInfo(msg.Timezone)
+                            local_time = next_fire.astimezone(display_tz)
                             abs_time = local_time.strftime("%Y-%m-%d %H:%M %Z")
                         except (KeyError, ValueError):
                             abs_time = next_fire.strftime("%Y-%m-%d %H:%M UTC")
                     else:
                         abs_time = next_fire.strftime("%Y-%m-%d %H:%M UTC")
+                    rel = _format_relative(next_fire, display_tz)
                     timing = f"Next: {rel} ({abs_time})"
                 else:
                     timing = "paused"
@@ -493,7 +519,8 @@ class Reminder(GroupCog, group_name="reminder"):
 
             summary = ", ".join(changes)
             next_fire_utc = msg.NextFire.replace(tzinfo=UTC)
-            rel = humanize.naturaltime(next_fire_utc, when=datetime.now(UTC))
+            edit_tz = ZoneInfo(msg.Timezone) if msg.Timezone else None
+            rel = _format_relative(next_fire_utc, edit_tz)
             await interaction.response.send_message(
                 f"Updated reminder **#{reminder_id}**: {summary}. Next fire {rel}.",
                 ephemeral=True,
