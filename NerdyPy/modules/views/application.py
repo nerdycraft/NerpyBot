@@ -16,7 +16,7 @@ from models.application import ApplicationForm, ApplicationGuildConfig, Applicat
 # ---------------------------------------------------------------------------
 
 
-def _check_permission(interaction: discord.Interaction, bot) -> bool:
+def check_application_permission(interaction: discord.Interaction, bot) -> bool:
     """Return *True* if the user is an admin or holds the application manager role."""
     if interaction.user.guild_permissions.administrator:
         return True
@@ -273,7 +273,7 @@ class ApplicationReviewView(discord.ui.View):
 
     @discord.ui.button(label="Approve", style=discord.ButtonStyle.green, custom_id="app_review_approve")
     async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not _check_permission(interaction, self.bot):
+        if not check_application_permission(interaction, self.bot):
             await interaction.response.send_message(
                 "You do not have permission to review applications.", ephemeral=True
             )
@@ -317,7 +317,7 @@ class ApplicationReviewView(discord.ui.View):
 
     @discord.ui.button(label="Deny", style=discord.ButtonStyle.red, custom_id="app_review_deny")
     async def deny(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not _check_permission(interaction, self.bot):
+        if not check_application_permission(interaction, self.bot):
             await interaction.response.send_message(
                 "You do not have permission to review applications.", ephemeral=True
             )
@@ -355,7 +355,7 @@ class ApplicationReviewView(discord.ui.View):
 
     @discord.ui.button(label="Message", style=discord.ButtonStyle.grey, custom_id="app_review_message")
     async def message_applicant(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not _check_permission(interaction, self.bot):
+        if not check_application_permission(interaction, self.bot):
             await interaction.response.send_message(
                 "You do not have permission to review applications.", ephemeral=True
             )
