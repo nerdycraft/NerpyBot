@@ -1,0 +1,279 @@
+# -*- coding: utf-8 -*-
+"""Application form database models"""
+
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Unicode, UnicodeText
+from sqlalchemy.orm import relationship
+from utils import database as db
+
+
+class ApplicationGuildConfig(db.BASE):
+    """Per-guild configuration for the application module."""
+
+    __tablename__ = "ApplicationGuildConfig"
+
+    GuildId = Column(BigInteger, primary_key=True)
+    ManagerRoleId = Column(BigInteger, nullable=True)
+
+    @classmethod
+    def get(cls, guild_id, session):
+        """Returns the config for the given guild."""
+        return session.query(cls).filter(cls.GuildId == guild_id).first()
+
+    @classmethod
+    def delete(cls, guild_id, session):
+        """Deletes the config for the given guild."""
+        entry = cls.get(guild_id, session)
+        if entry is not None:
+            session.delete(entry)
+
+
+class ApplicationForm(db.BASE):
+    """Database entity model for an application form."""
+
+    __tablename__ = "ApplicationForm"
+    __table_args__ = (
+        Index("ApplicationForm_GuildId", "GuildId"),
+        Index("ApplicationForm_Name_GuildId", "Name", "GuildId", unique=True),
+    )
+
+    Id = Column(Integer, primary_key=True)
+    GuildId = Column(BigInteger)
+    Name = Column(Unicode(100))
+    ReviewChannelId = Column(BigInteger, nullable=True)
+    RequiredApprovals = Column(Integer, default=1)
+    RequiredDenials = Column(Integer, default=1)
+    ApprovalMessage = Column(UnicodeText, nullable=True)
+    DenialMessage = Column(UnicodeText, nullable=True)
+
+    questions = relationship(
+        "ApplicationQuestion",
+        back_populates="form",
+        cascade="all, delete, delete-orphan",
+        order_by="ApplicationQuestion.SortOrder",
+        lazy="joined",
+    )
+    submissions = relationship(
+        "ApplicationSubmission",
+        back_populates="form",
+        cascade="all, delete, delete-orphan",
+    )
+
+    @classmethod
+    def get(cls, name, guild_id, session):
+        """Returns a form by name and guild."""
+        return session.query(cls).filter(cls.Name == name, cls.GuildId == guild_id).first()
+
+    @classmethod
+    def get_by_id(cls, form_id, session):
+        """Returns a form by its primary key."""
+        return session.query(cls).filter(cls.Id == form_id).first()
+
+    @classmethod
+    def get_all_by_guild(cls, guild_id, session):
+        """Returns all forms for a guild."""
+        return session.query(cls).filter(cls.GuildId == guild_id).order_by(cls.Name).all()
+
+    @classmethod
+    def get_ready_by_guild(cls, guild_id, session):
+        """Returns forms that have a ReviewChannelId set (ready to accept submissions)."""
+        return (
+            session.query(cls).filter(cls.GuildId == guild_id, cls.ReviewChannelId.isnot(None)).order_by(cls.Name).all()
+        )
+
+    @classmethod
+    def delete_by_name(cls, name, guild_id, session):
+        """Deletes a form by name and guild."""
+        form = cls.get(name, guild_id, session)
+        if form is not None:
+            session.delete(form)
+
+
+class ApplicationQuestion(db.BASE):
+    """Database entity model for a question within an application form."""
+
+    __tablename__ = "ApplicationQuestion"
+    __table_args__ = (Index("ApplicationQuestion_FormId", "FormId"),)
+
+    Id = Column(Integer, primary_key=True)
+    FormId = Column(Integer, ForeignKey("ApplicationForm.Id"))
+    QuestionText = Column(UnicodeText)
+    SortOrder = Column(Integer)
+
+    form = relationship("ApplicationForm", back_populates="questions")
+
+
+class ApplicationSubmission(db.BASE):
+    """Database entity model for a user's submission to an application form."""
+
+    __tablename__ = "ApplicationSubmission"
+    __table_args__ = (
+        Index("ApplicationSubmission_GuildId", "GuildId"),
+        Index("ApplicationSubmission_FormId", "FormId"),
+    )
+
+    Id = Column(Integer, primary_key=True)
+    FormId = Column(Integer, ForeignKey("ApplicationForm.Id"))
+    GuildId = Column(BigInteger)
+    UserId = Column(BigInteger)
+    UserName = Column(Unicode(50))
+    Status = Column(String(10), default="pending")
+    SubmittedAt = Column(DateTime)
+    ReviewMessageId = Column(BigInteger, nullable=True)
+    DecisionReason = Column(UnicodeText, nullable=True)
+
+    form = relationship("ApplicationForm", back_populates="submissions")
+    answers = relationship(
+        "ApplicationAnswer",
+        back_populates="submission",
+        cascade="all, delete, delete-orphan",
+        lazy="joined",
+    )
+    votes = relationship(
+        "ApplicationVote",
+        back_populates="submission",
+        cascade="all, delete, delete-orphan",
+    )
+
+    @classmethod
+    def get_by_id(cls, submission_id, session):
+        """Returns a submission by its primary key."""
+        return session.query(cls).filter(cls.Id == submission_id).first()
+
+    @classmethod
+    def get_by_review_message(cls, message_id, session):
+        """Returns a submission by its review message ID."""
+        return session.query(cls).filter(cls.ReviewMessageId == message_id).first()
+
+    @classmethod
+    def get_by_guild(cls, guild_id, session):
+        """Returns all submissions for a guild."""
+        return session.query(cls).filter(cls.GuildId == guild_id).all()
+
+
+class ApplicationAnswer(db.BASE):
+    """Database entity model for an answer to a question in a submission."""
+
+    __tablename__ = "ApplicationAnswer"
+    __table_args__ = (Index("ApplicationAnswer_SubmissionId", "SubmissionId"),)
+
+    Id = Column(Integer, primary_key=True)
+    SubmissionId = Column(Integer, ForeignKey("ApplicationSubmission.Id"))
+    QuestionId = Column(Integer, ForeignKey("ApplicationQuestion.Id"))
+    AnswerText = Column(UnicodeText)
+
+    submission = relationship("ApplicationSubmission", back_populates="answers")
+
+
+class ApplicationVote(db.BASE):
+    """Database entity model for a reviewer's vote on a submission."""
+
+    __tablename__ = "ApplicationVote"
+    __table_args__ = (
+        Index("ApplicationVote_SubmissionId", "SubmissionId"),
+        Index("ApplicationVote_SubmissionId_UserId", "SubmissionId", "UserId", unique=True),
+    )
+
+    Id = Column(Integer, primary_key=True)
+    SubmissionId = Column(Integer, ForeignKey("ApplicationSubmission.Id"))
+    UserId = Column(BigInteger)
+    Vote = Column(String(10))
+
+    submission = relationship("ApplicationSubmission", back_populates="votes")
+
+    @classmethod
+    def get_by_submission(cls, submission_id, session):
+        """Returns all votes for a submission."""
+        return session.query(cls).filter(cls.SubmissionId == submission_id).all()
+
+    @classmethod
+    def get_user_vote(cls, submission_id, user_id, session):
+        """Returns a specific user's vote on a submission."""
+        return session.query(cls).filter(cls.SubmissionId == submission_id, cls.UserId == user_id).first()
+
+    @classmethod
+    def count_by_type(cls, submission_id, vote_type, session):
+        """Returns the count of votes of a given type for a submission."""
+        return session.query(cls).filter(cls.SubmissionId == submission_id, cls.Vote == vote_type).count()
+
+
+class ApplicationTemplate(db.BASE):
+    """Database entity model for reusable application form templates."""
+
+    __tablename__ = "ApplicationTemplate"
+    __table_args__ = (Index("ApplicationTemplate_GuildId", "GuildId"),)
+
+    Id = Column(Integer, primary_key=True)
+    GuildId = Column(BigInteger, nullable=True)
+    Name = Column(Unicode(100))
+    IsBuiltIn = Column(Boolean, default=False)
+
+    questions = relationship(
+        "ApplicationTemplateQuestion",
+        back_populates="template",
+        cascade="all, delete, delete-orphan",
+        order_by="ApplicationTemplateQuestion.SortOrder",
+        lazy="joined",
+    )
+
+    @classmethod
+    def get_available(cls, guild_id, session):
+        """Returns built-in templates plus guild-specific templates."""
+        return (
+            session.query(cls)
+            .filter((cls.IsBuiltIn.is_(True)) | (cls.GuildId == guild_id))
+            .order_by(cls.IsBuiltIn.desc(), cls.Name)
+            .all()
+        )
+
+    @classmethod
+    def get_guild_templates(cls, guild_id, session):
+        """Returns guild-specific (non-built-in) templates only."""
+        return session.query(cls).filter(cls.GuildId == guild_id, cls.IsBuiltIn.is_(False)).order_by(cls.Name).all()
+
+    @classmethod
+    def get_by_name(cls, name, guild_id, session):
+        """Returns a template by name — checks built-in and guild-specific."""
+        return (
+            session.query(cls).filter(cls.Name == name, (cls.IsBuiltIn.is_(True)) | (cls.GuildId == guild_id)).first()
+        )
+
+
+class ApplicationTemplateQuestion(db.BASE):
+    """Database entity model for a question within an application template."""
+
+    __tablename__ = "ApplicationTemplateQuestion"
+    __table_args__ = (Index("ApplicationTemplateQuestion_TemplateId", "TemplateId"),)
+
+    Id = Column(Integer, primary_key=True)
+    TemplateId = Column(Integer, ForeignKey("ApplicationTemplate.Id"))
+    QuestionText = Column(UnicodeText)
+    SortOrder = Column(Integer)
+
+    template = relationship("ApplicationTemplate", back_populates="questions")
+
+
+BUILT_IN_TEMPLATES = {
+    "Guild Membership": [
+        "What is your in-game name or main character?",
+        "How did you hear about our guild/community?",
+        "What games or activities are you most interested in?",
+        "Do you have any previous guild or community experience?",
+        "What timezone are you in, and when are you typically available?",
+        "Is there anything else you'd like us to know about you?",
+    ],
+    "Staff / Moderator": [
+        "Why are you interested in becoming a staff member or moderator?",
+        "Do you have any previous moderation or leadership experience?",
+        "How would you handle a situation where two members are in a heated argument?",
+        "How many hours per week can you dedicate to moderation duties?",
+        "What timezone are you in, and when are you typically available?",
+        "Is there anything else you'd like us to know about your qualifications?",
+    ],
+    "Event Sign-Up": [
+        "What is your in-game name or character?",
+        "Which role or class will you be playing?",
+        "Do you have any relevant experience with this type of event?",
+        "Are there any scheduling constraints we should know about?",
+        "Any additional notes or questions for the organizers?",
+    ],
+}
