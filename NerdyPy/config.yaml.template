@@ -5,6 +5,7 @@ bot:
     - "your_discord_id_here"  # quoted to prevent formatter corruption
   # admin and voicecontrol auto-load (admin always, voicecontrol with tagging/music)
   modules:
+    - application
     - league
     - leavemsg
     - moderation

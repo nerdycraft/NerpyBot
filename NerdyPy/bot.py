@@ -193,6 +193,12 @@ class NerpyBot(Bot):
                     self.log.error(f"failed to auto-load {module} extension. {e}")
                     self.log.debug(print_exc())
 
+        # Register persistent views so buttons on old messages keep working
+        if "application" in self.modules:
+            from modules.views.application import ApplicationReviewView
+
+            self.add_view(ApplicationReviewView(bot=self))
+
         # create database/tables and such stuff
         self.create_all()
 
