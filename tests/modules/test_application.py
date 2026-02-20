@@ -607,6 +607,52 @@ class TestManagerRole:
 
 
 # ---------------------------------------------------------------------------
+# /apply (top-level command)
+# ---------------------------------------------------------------------------
+
+
+class TestApplyCommand:
+    @pytest.mark.asyncio
+    async def test_apply_starts_conversation(self, app_cog, admin_interaction, db_session):
+        form = _make_form(db_session, guild_id=admin_interaction.guild.id, name="ReadyForm", review_channel_id=12345)
+        app_cog.bot.convMan = MagicMock()
+        app_cog.bot.convMan.init_conversation = AsyncMock()
+
+        await app_cog._apply(admin_interaction, form_name="ReadyForm")
+
+        app_cog.bot.convMan.init_conversation.assert_called_once()
+        conv = app_cog.bot.convMan.init_conversation.call_args[0][0]
+        assert conv.form_id == form.Id
+        assert conv.form_name == "ReadyForm"
+        assert len(conv.questions) == 1
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "DMs" in call_args
+
+    @pytest.mark.asyncio
+    async def test_apply_form_not_found(self, app_cog, admin_interaction):
+        app_cog.bot.convMan = MagicMock()
+        app_cog.bot.convMan.init_conversation = AsyncMock()
+
+        await app_cog._apply(admin_interaction, form_name="NonExistent")
+
+        app_cog.bot.convMan.init_conversation.assert_not_called()
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "not found" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_apply_form_not_ready(self, app_cog, admin_interaction, db_session):
+        _make_form(db_session, guild_id=admin_interaction.guild.id, name="NotReady")
+        app_cog.bot.convMan = MagicMock()
+        app_cog.bot.convMan.init_conversation = AsyncMock()
+
+        await app_cog._apply(admin_interaction, form_name="NotReady")
+
+        app_cog.bot.convMan.init_conversation.assert_not_called()
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "set up yet" in call_args
+
+
+# ---------------------------------------------------------------------------
 # Autocomplete methods
 # ---------------------------------------------------------------------------
 

@@ -15,7 +15,11 @@ from models.application import (
     ApplicationTemplateQuestion,
     seed_built_in_templates,
 )
-from modules.conversations.application import ApplicationCreateConversation, ApplicationEditConversation
+from modules.conversations.application import (
+    ApplicationCreateConversation,
+    ApplicationEditConversation,
+    ApplicationSubmitConversation,
+)
 from utils.cog import NerpyBotCog
 
 
@@ -31,6 +35,48 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         super().__init__(bot)
         with self.bot.session_scope() as session:
             seed_built_in_templates(session)
+
+    # -- Top-level /apply command --------------------------------------------
+
+    async def cog_load(self):
+        self._apply_command = app_commands.Command(
+            name="apply",
+            description="Submit an application",
+            callback=self._apply,
+            guild_only=True,
+        )
+        self._apply_command.autocomplete("form_name")(self._ready_form_autocomplete)
+        self.bot.tree.add_command(self._apply_command)
+
+    async def cog_unload(self):
+        self.bot.tree.remove_command("apply")
+
+    @app_commands.guild_only()
+    @app_commands.describe(form_name="Application form to fill out")
+    async def _apply(self, interaction: Interaction, form_name: str):
+        """Submit an application via DM conversation."""
+        with self.bot.session_scope() as session:
+            form = ApplicationForm.get(form_name, interaction.guild.id, session)
+            if not form:
+                await interaction.response.send_message(f"Form **{form_name}** not found.", ephemeral=True)
+                return
+            if not form.ReviewChannelId:
+                await interaction.response.send_message("This form isn't set up yet.", ephemeral=True)
+                return
+            form_id = form.Id
+            name = form.Name
+            questions = [(q.Id, q.QuestionText) for q in form.questions]
+
+        conv = ApplicationSubmitConversation(
+            self.bot,
+            interaction.user,
+            interaction.guild,
+            form_id=form_id,
+            form_name=name,
+            questions=questions,
+        )
+        await self.bot.convMan.init_conversation(conv)
+        await interaction.response.send_message("Check your DMs!", ephemeral=True)
 
     # -- Autocomplete helpers ------------------------------------------------
 
