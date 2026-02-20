@@ -88,7 +88,7 @@ The `session_scope()` context manager (`NerdyPy.py:112`) creates a session, yiel
 
 `create_all()` calls `BASE.metadata.create_all(engine)` — any model class inheriting from `db.BASE` gets its table created if missing. **No Alembic migration needed for new tables.** Alembic is only used when altering existing tables.
 
-Alembic uses two separate configs (`alembic-nerpybot.ini` and `alembic-humanmusic.ini`) with independent version directories, since HumanMusic only loads a subset of modules and its database won't have all tables.
+Alembic uses a single config (`alembic.ini`) with migrations in `database-migrations/versions/`.
 
 ### Model Base
 

@@ -16,21 +16,9 @@ services:
       - nerpybot-data:/data
       - ./config/nerpybot.yaml:/app/config.yaml:ro
 
-  humanmusic-migrations:
-    image: ghcr.io/nerdycraft/nerpybot-database-migrations:latest
-    restart: "no"
-    environment:
-      ALEMBIC_CONFIG: alembic-humanmusic.ini
-    volumes:
-      - humanmusic-data:/data
-      - ./config/humanmusic.yaml:/app/config.yaml:ro
-
   humanmusic:
     image: ghcr.io/nerdycraft/nerpybot:latest
     restart: unless-stopped
-    depends_on:
-      humanmusic-migrations:
-        condition: service_completed_successfully
     volumes:
       - humanmusic-data:/data
       - ./config/humanmusic.yaml:/app/config.yaml:ro

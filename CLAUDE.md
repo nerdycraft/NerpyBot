@@ -33,17 +33,13 @@ uv run ruff format --check           # Check formatting only
 uv run pytest                        # Run tests
 uv run pytest --cov                  # With coverage
 
-# Database migrations (two separate configs: nerpybot and humanmusic)
+# Database migrations
 uv sync --group migrations
-uv run alembic-nerpybot upgrade head                              # Apply NerpyBot migrations
-uv run alembic-nerpybot revision --autogenerate -m "description"  # Create NerpyBot migration
-uv run alembic-humanmusic upgrade head                            # Apply HumanMusic migrations
-uv run alembic-humanmusic revision --autogenerate -m "description" # Create HumanMusic migration
+uv run alembic upgrade head                              # Apply migrations
+uv run alembic revision --autogenerate -m "description"  # Create migration
 # NOTE: New tables do NOT need migrations — SQLAlchemy auto-creates missing tables at startup.
 # Only create migrations when altering existing tables (add/remove columns, change constraints).
 # When adding columns to existing tables, use server_default (not just ORM default) so existing rows get a value.
-# NerpyBot migrations: for tables used by all modules (full deployment)
-# HumanMusic migrations: only for tables shared by admin, voicecontrol, and music modules
 
 # Docker builds (two targets)
 docker buildx build --target bot -t nerpybot .
@@ -60,8 +56,7 @@ prettier --write "docs/**/*.md" "**/*.yaml" "**/*.yml" "*.md"
 
 # Docker smoke tests (run locally to verify images work)
 docker run --rm nerpybot python -c "from NerdyPy import NerpyBot; print('OK')"
-docker run --rm nerpybot-migrations alembic -c alembic-nerpybot.ini heads
-docker run --rm -e ALEMBIC_CONFIG=alembic-humanmusic.ini nerpybot-migrations alembic -c alembic-humanmusic.ini heads
+docker run --rm nerpybot-migrations alembic heads
 ```
 
 ## Architecture
@@ -72,7 +67,7 @@ docker run --rm -e ALEMBIC_CONFIG=alembic-humanmusic.ini nerpybot-migrations ale
 
 ### Entry Point
 
-`NerdyPy/NerdyPy.py` - Contains `NerpyBot` class and `main()` entry point. `cli.py` at project root provides `project.scripts` console entry points (`nerpybot`, `alembic-nerpybot`, `alembic-humanmusic`).
+`NerdyPy/NerdyPy.py` - Contains `NerpyBot` class and `main()` entry point.
 
 ### Module System
 
@@ -95,7 +90,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 
 - `NerdyPy/models/` - SQLAlchemy ORM models
 - `NerdyPy/utils/database.py` - Session management with context managers
-- `database-migrations/` - Alembic migrations (separate version dirs for `nerpybot/` and `humanmusic/`)
+- `database-migrations/` - Alembic migrations
 - Supports SQLite (default), MySQL/MariaDB, PostgreSQL
 
 ### Utilities
@@ -116,7 +111,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 
 ### Gotchas
 
-- **NerdyPy uses script-relative imports** — Internal imports like `from models.admin import ...` assume `NerdyPy/` is on `sys.path`. Entry points or external callers must add it to `sys.path` before importing (see `cli.py:bot()`).
+- **NerdyPy uses script-relative imports** — Internal imports like `from models.admin import ...` assume `NerdyPy/` is on `sys.path`.
 - **SQLite strips timezone info from DateTime columns** — Values read back are naive. Normalize with `.replace(tzinfo=UTC)` before comparing against aware datetimes.
 - **`blizzapi` does NOT auto-retry on 429** — It returns `{"code": 429}` as a dict. Check every response and handle rate limits manually.
 - **`send_hidden_message()` accepts Interaction** — It only handles `discord.Interaction` objects, using `response.send_message` or `followup.send` based on `is_done()`. Prefix commands use `ctx.send()` directly.

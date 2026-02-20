@@ -14,11 +14,6 @@ license = "GPL-3.0-or-later"
 readme = "README.md"
 requires-python = ">=3.13"
 
-[project.scripts]
-nerpybot = "cli:bot"
-alembic-nerpybot = "cli:alembic_nerpybot"
-alembic-humanmusic = "cli:alembic_humanmusic"
-
 [dependency-groups]
 bot = [
     "discord-py[voice]==2.6.4",
@@ -51,7 +46,7 @@ migrations = [
 ]
 
 [tool.setuptools]
-py-modules = ["cli"]
+packages = []
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

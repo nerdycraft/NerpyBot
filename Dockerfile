@@ -56,13 +56,12 @@ LABEL org.opencontainers.image.description="NerpyBot, the nerdiest Python Bot"
 
 # ── Migrations: minimal runtime ──
 FROM runtime AS migrations
-ENV ALEMBIC_CONFIG=alembic-nerpybot.ini
 
 COPY --chown=${UID} --from=builder /app/.venv-migrations /app/.venv
-COPY --chown=${UID} alembic-nerpybot.ini alembic-humanmusic.ini ./
+COPY --chown=${UID} alembic.ini ./
 COPY --chown=${UID} database-migrations /app/database-migrations/
 
-CMD ["sh", "-c", "alembic -c ${ALEMBIC_CONFIG} upgrade head"]
+CMD ["alembic", "upgrade", "head"]
 
 LABEL org.opencontainers.image.source=https://github.com/nerdycraft/NerpyBot
 LABEL org.opencontainers.image.description="Database migrations for the nerdiest Python Bot"
