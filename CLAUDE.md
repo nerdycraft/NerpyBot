@@ -17,11 +17,11 @@ uv sync --group test                 # Include test dependencies
 uv sync --only-group migrations      # Migration tools only
 
 # Run the bot
-uv run nerpybot                             # Start with default config
-uv run nerpybot -d                          # Debug logging (no sqlalchemy noise)
-uv run nerpybot -l DEBUG                    # Debug mode (includes sqlalchemy)
-uv run nerpybot -c path                     # Custom config file
-uv run nerpybot -r                          # Auto-restart on failure
+uv run python NerdyPy/NerdyPy.py                    # Start with default config
+uv run python NerdyPy/NerdyPy.py -d                 # Debug logging (no sqlalchemy noise)
+uv run python NerdyPy/NerdyPy.py -l DEBUG            # Debug mode (includes sqlalchemy)
+uv run python NerdyPy/NerdyPy.py -c path             # Custom config file
+uv run python NerdyPy/NerdyPy.py -r                  # Auto-restart on failure
 
 # Code quality
 uv run ruff check                    # Lint
@@ -30,8 +30,8 @@ uv run ruff format                   # Format code
 uv run ruff format --check           # Check formatting only
 
 # Testing
-uv run pytest                        # Run tests
-uv run pytest --cov                  # With coverage
+uv run python -m pytest              # Run tests
+uv run python -m pytest --cov        # With coverage
 
 # Database migrations
 uv sync --group migrations
@@ -56,7 +56,7 @@ prettier --write "docs/**/*.md" "**/*.yaml" "**/*.yml" "*.md"
 
 # Docker smoke tests (run locally to verify images work)
 docker run --rm nerpybot python -c "from NerdyPy import NerpyBot; print('OK')"
-docker run --rm nerpybot-migrations alembic heads
+docker run --rm nerpybot-migrations alembic heads  # uses alembic.ini (default)
 ```
 
 ## Architecture
@@ -124,6 +124,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **Testing `@app_commands.command()` methods** — Call `.callback(cog, interaction, ...)` to bypass discord.py decorator machinery. See `tests/modules/test_reminder.py` for the pattern.
 - **`@app_commands.rename` for Python-keyword params** — Use `@app_commands.rename(python_name="discord_name")` when the Discord-facing param name is a Python keyword (e.g. `in`). `describe` references the Python name.
 - **Alembic migrations must be dialect-aware** — SQLite uses `datetime()`, PostgreSQL uses `make_interval()`, MySQL uses `DATE_ADD()`. Use `op.get_bind().dialect.name` to branch. Always use `batch_alter_table` for SQLite column operations.
+- **`pyproject.toml` requires `packages = []`** — Without `[tool.setuptools] packages = []`, setuptools auto-discovers `config/` and `NerdyPy/` as a flat-layout conflict, breaking all `uv` commands.
 
 ## Configuration
 
