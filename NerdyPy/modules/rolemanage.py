@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from discord import Interaction, Member, Role, app_commands
+from discord import Forbidden, HTTPException, Interaction, Member, Role, app_commands
 from discord.app_commands import checks
 from discord.ext.commands import GroupCog
 
@@ -149,9 +149,20 @@ class RoleManage(GroupCog, group_name="rolemanage"):
 
         try:
             await member.add_roles(role, reason=f"Delegated role assign by {interaction.user}")
-        except Exception as ex:
-            self.bot.log.error(f"{error_context(interaction)}: failed to assign role {role.name} to {member}: {ex}")
-            await interaction.response.send_message(f"Failed to assign role: {ex}", ephemeral=True)
+        except Forbidden:
+            self.bot.log.error(f"{error_context(interaction)}: forbidden assigning {role.name} to {member}")
+            await interaction.response.send_message(
+                f"I don't have permission to assign **{role.name}**. "
+                "Make sure I have the `Manage Roles` permission and my highest role is above that role.",
+                ephemeral=True,
+            )
+            return
+        except HTTPException as ex:
+            self.bot.log.error(f"{error_context(interaction)}: failed to assign {role.name} to {member}: {ex}")
+            await interaction.response.send_message(
+                f"Discord error while assigning role (HTTP {ex.status}). Please try again.",
+                ephemeral=True,
+            )
             return
 
         await interaction.response.send_message(
@@ -197,9 +208,20 @@ class RoleManage(GroupCog, group_name="rolemanage"):
 
         try:
             await member.remove_roles(role, reason=f"Delegated role remove by {interaction.user}")
-        except Exception as ex:
-            self.bot.log.error(f"{error_context(interaction)}: failed to remove role {role.name} from {member}: {ex}")
-            await interaction.response.send_message(f"Failed to remove role: {ex}", ephemeral=True)
+        except Forbidden:
+            self.bot.log.error(f"{error_context(interaction)}: forbidden removing {role.name} from {member}")
+            await interaction.response.send_message(
+                f"I don't have permission to remove **{role.name}**. "
+                "Make sure I have the `Manage Roles` permission and my highest role is above that role.",
+                ephemeral=True,
+            )
+            return
+        except HTTPException as ex:
+            self.bot.log.error(f"{error_context(interaction)}: failed to remove {role.name} from {member}: {ex}")
+            await interaction.response.send_message(
+                f"Discord error while removing role (HTTP {ex.status}). Please try again.",
+                ephemeral=True,
+            )
             return
 
         await interaction.response.send_message(
