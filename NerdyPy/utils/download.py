@@ -4,8 +4,9 @@ download and conversion method for Audio Content
 """
 
 import logging
-import os
+import tempfile
 from io import BytesIO
+from pathlib import Path
 
 import ffmpeg
 import requests
@@ -19,13 +20,12 @@ LOG = logging.getLogger("nerpybot")
 FFMPEG_OPTIONS = {"options": "-vn"}
 CACHE = TTLCache(maxsize=100, ttl=600)
 
-DL_DIR = "tmp"
-if not os.path.exists(DL_DIR):
-    os.makedirs(DL_DIR)
+DL_DIR = Path(tempfile.gettempdir()) / "nerpybot-dl"
+DL_DIR.mkdir(exist_ok=True)
 
 YTDL_ARGS = {
     "format": "bestaudio/best",
-    "outtmpl": os.path.join(DL_DIR, "%(id)s"),
+    "outtmpl": str(DL_DIR / "%(id)s"),
     "restrictfilenames": True,
     "noplaylist": True,
     "nocheckcertificate": True,
@@ -59,9 +59,9 @@ def convert(source, tag=False, is_stream=True):
 
 
 def lookup_file(file_name):
-    for file in os.listdir(f"{DL_DIR}"):
-        if file.startswith(file_name):
-            return os.path.join(DL_DIR, file)
+    for file in DL_DIR.iterdir():
+        if file.name.startswith(file_name):
+            return str(file)
     return None
 
 

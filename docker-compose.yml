@@ -15,8 +15,6 @@ services:
     volumes:
       - nerpybot-data:/data
       - ./config/nerpybot.yaml:/app/config.yaml:ro
-    tmpfs:
-      - /app/tmp:mode=0770,uid=10001
 
   humanmusic-migrations:
     image: ghcr.io/nerdycraft/nerpybot-database-migrations:latest
@@ -36,8 +34,6 @@ services:
     volumes:
       - humanmusic-data:/data
       - ./config/humanmusic.yaml:/app/config.yaml:ro
-    tmpfs:
-      - /app/tmp:mode=0770,uid=10001
 
 volumes:
   nerpybot-data:
