@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from modules.admin import Admin
+from modules.admin import Admin, _format_remaining, _parse_duration
 
 
 @pytest.fixture
@@ -133,36 +133,36 @@ class TestErrorsUnknownAction:
 
 class TestParseDuration:
     def test_minutes(self):
-        assert Admin._parse_duration("30m") == 1800
+        assert _parse_duration("30m") == 1800
 
     def test_hours(self):
-        assert Admin._parse_duration("2h") == 7200
+        assert _parse_duration("2h") == 7200
 
     def test_days(self):
-        assert Admin._parse_duration("1d") == 86400
+        assert _parse_duration("1d") == 86400
 
     def test_with_spaces(self):
-        assert Admin._parse_duration(" 15 m ") == 900
+        assert _parse_duration(" 15 m ") == 900
 
     def test_invalid_returns_none(self):
-        assert Admin._parse_duration("banana") is None
+        assert _parse_duration("banana") is None
 
     def test_empty_returns_none(self):
-        assert Admin._parse_duration("") is None
+        assert _parse_duration("") is None
 
 
 class TestFormatRemaining:
     def test_seconds(self):
-        assert Admin._format_remaining(45) == "45s"
+        assert _format_remaining(45) == "45s"
 
     def test_minutes(self):
-        assert Admin._format_remaining(300) == "5m"
+        assert _format_remaining(300) == "5m"
 
     def test_hours_and_minutes(self):
-        assert Admin._format_remaining(4980) == "1h 23m"
+        assert _format_remaining(4980) == "1h 23m"
 
     def test_days_and_hours(self):
-        assert Admin._format_remaining(90000) == "1d 1h"
+        assert _format_remaining(90000) == "1d 1h"
 
     def test_exact_hour(self):
-        assert Admin._format_remaining(3600) == "1h"
+        assert _format_remaining(3600) == "1h"
