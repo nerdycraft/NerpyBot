@@ -11,7 +11,7 @@ on:
       - "uv.lock"
       - "NerdyPy/**"
       - "database-migrations/**"
-      - "alembic-*.ini"
+      - "alembic.ini"
       - ".github/workflows/docker.yml"
 
 env:
@@ -132,5 +132,5 @@ jobs:
         run: |
           IMAGE="${REGISTRY}/${IMAGE_NAME,,}-database-migrations:${GITHUB_SHA::7}"
           docker pull "${IMAGE}"
-          docker run --rm "${IMAGE}" alembic -c alembic-nerpybot.ini heads
+          docker run --rm "${IMAGE}" alembic heads
           echo "✅ Migrations image verified"

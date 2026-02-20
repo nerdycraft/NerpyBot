@@ -9,13 +9,6 @@ services:
       context: .
       target: bot
 
-  humanmusic-migrations:
-    build:
-      context: .
-      target: migrations
-    environment:
-      ALEMBIC_CONFIG: alembic-humanmusic.ini
-
   humanmusic:
     build:
       context: .
