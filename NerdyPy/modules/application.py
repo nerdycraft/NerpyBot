@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 """Application form management cog — admin commands, templates, and manager role."""
 
+import asyncio
+import io
+import json
 from typing import Optional
 
+import discord
 from discord import Embed, Interaction, Role, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext.commands import GroupCog
@@ -414,6 +418,122 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             session.delete(tpl)
 
         await interaction.response.send_message(f"Template **{template_name}** deleted.", ephemeral=True)
+
+    # -- /application export -------------------------------------------------
+
+    @app_commands.command(name="export")
+    @app_commands.describe(name="Name of the form to export")
+    @app_commands.autocomplete(name=_form_name_autocomplete)
+    async def _export(self, interaction: Interaction, name: str):
+        """Export an application form as a JSON file via DM."""
+        if not self._has_manage_permission(interaction):
+            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            return
+
+        with self.bot.session_scope() as session:
+            form = ApplicationForm.get(name, interaction.guild.id, session)
+            if not form:
+                await interaction.response.send_message(f"Form **{name}** not found.", ephemeral=True)
+                return
+
+            form_dict = {
+                "name": form.Name,
+                "required_approvals": form.RequiredApprovals,
+                "required_denials": form.RequiredDenials,
+                "approval_message": form.ApprovalMessage,
+                "denial_message": form.DenialMessage,
+                "questions": [{"text": q.QuestionText, "order": q.SortOrder} for q in form.questions],
+            }
+
+        data = json.dumps(form_dict, indent=2)
+        file = discord.File(io.BytesIO(data.encode()), filename=f"{name}.json")
+
+        try:
+            await interaction.user.send(file=file)
+        except (discord.Forbidden, discord.NotFound):
+            await interaction.response.send_message(
+                "I couldn't DM you. Please enable DMs from server members and try again.", ephemeral=True
+            )
+            return
+
+        await interaction.response.send_message("Check your DMs!", ephemeral=True)
+
+    # -- /application import -------------------------------------------------
+
+    @app_commands.command(name="import")
+    async def _import_form(self, interaction: Interaction):
+        """Import an application form from a JSON file via DM."""
+        if not self._has_manage_permission(interaction):
+            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            return
+
+        try:
+            await interaction.user.send("Please upload a JSON file to import as an application form.")
+        except (discord.Forbidden, discord.NotFound):
+            await interaction.response.send_message(
+                "I couldn't DM you. Please enable DMs from server members and try again.", ephemeral=True
+            )
+            return
+
+        await interaction.response.send_message("Check your DMs!", ephemeral=True)
+
+        def check(msg):
+            return msg.author.id == interaction.user.id and msg.guild is None and msg.attachments
+
+        try:
+            msg = await self.bot.wait_for("message", check=check, timeout=120)
+        except asyncio.TimeoutError:
+            await interaction.user.send("Import cancelled — timed out.")
+            return
+
+        attachment = msg.attachments[0]
+        try:
+            raw = await attachment.read()
+            form_data = json.loads(raw.decode())
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            await interaction.user.send("Invalid JSON file. Please check the format and try again.")
+            return
+
+        # Validate required fields
+        if not isinstance(form_data.get("name"), str) or not form_data["name"].strip():
+            await interaction.user.send("Invalid format: missing or empty `name` field.")
+            return
+
+        questions = form_data.get("questions")
+        if not isinstance(questions, list) or len(questions) == 0:
+            await interaction.user.send("Invalid format: `questions` must be a non-empty list.")
+            return
+
+        for i, q in enumerate(questions):
+            if not isinstance(q, dict) or not isinstance(q.get("text"), str) or not q["text"].strip():
+                await interaction.user.send(f"Invalid format: question {i + 1} is missing a `text` field.")
+                return
+
+        form_name = form_data["name"].strip()
+
+        with self.bot.session_scope() as session:
+            existing = ApplicationForm.get(form_name, interaction.guild.id, session)
+            if existing:
+                await interaction.user.send(f"A form named **{form_name}** already exists in this server.")
+                return
+
+            form = ApplicationForm(
+                GuildId=interaction.guild.id,
+                Name=form_name,
+                RequiredApprovals=form_data.get("required_approvals", 1),
+                RequiredDenials=form_data.get("required_denials", 1),
+                ApprovalMessage=form_data.get("approval_message"),
+                DenialMessage=form_data.get("denial_message"),
+            )
+            session.add(form)
+            session.flush()
+
+            for i, q in enumerate(questions):
+                session.add(
+                    ApplicationQuestion(FormId=form.Id, QuestionText=q["text"].strip(), SortOrder=q.get("order", i + 1))
+                )
+
+        await interaction.user.send(f"Form **{form_name}** imported successfully with {len(questions)} question(s).")
 
     # -- /application managerole set -----------------------------------------
 
