@@ -9,6 +9,7 @@ strings so the view survives bot restarts.
 from datetime import UTC
 
 import discord
+from sqlalchemy.exc import IntegrityError
 
 from models.application import ApplicationForm, ApplicationGuildConfig, ApplicationSubmission, ApplicationVote
 
@@ -190,7 +191,12 @@ class DenyReasonModal(discord.ui.Modal, title="Deny Application"):
             # Record the deny vote
             vote = ApplicationVote(SubmissionId=self.submission_id, UserId=interaction.user.id, Vote="deny")
             session.add(vote)
-            session.flush()
+            try:
+                session.flush()
+            except IntegrityError:
+                session.rollback()
+                await interaction.response.send_message("You have already voted on this application.", ephemeral=True)
+                return
 
             deny_count = ApplicationVote.count_by_type(self.submission_id, "deny", session)
             form = ApplicationForm.get_by_id(submission.FormId, session)
@@ -301,7 +307,12 @@ class ApplicationReviewView(discord.ui.View):
 
             vote = ApplicationVote(SubmissionId=submission.Id, UserId=interaction.user.id, Vote="approve")
             session.add(vote)
-            session.flush()
+            try:
+                session.flush()
+            except IntegrityError:
+                session.rollback()
+                await interaction.response.send_message("You have already voted on this application.", ephemeral=True)
+                return
 
             approve_count = ApplicationVote.count_by_type(submission.Id, "approve", session)
             form = ApplicationForm.get_by_id(submission.FormId, session)
