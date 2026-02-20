@@ -32,6 +32,30 @@ WEEKDAY_MAP = {
 _TZ_NAMES = sorted(available_timezones())
 
 
+def _format_relative(next_fire_utc: datetime, tz: ZoneInfo | None = None) -> str:
+    """Format a human-friendly relative time string.
+
+    For short durations (< 12 hours) uses humanize for precision (e.g. "in 2 hours").
+    For longer durations uses calendar days in the display timezone so "Feb 22"
+    when today is "Feb 20" always shows "2 days from now", regardless of the
+    exact hour offset that can cause humanize to round down.
+    """
+    now_utc = datetime.now(UTC)
+    delta_seconds = (next_fire_utc - now_utc).total_seconds()
+
+    if delta_seconds < 43200:  # < 12 hours: use humanize for hour/minute precision
+        return humanize.naturaltime(next_fire_utc, when=now_utc)
+
+    display_tz = tz or UTC
+    local_fire = next_fire_utc.astimezone(display_tz).date()
+    local_now = datetime.now(display_tz).date()
+    day_diff = (local_fire - local_now).days
+
+    if day_diff == 1:
+        return "a day from now"
+    return f"{day_diff} days from now"
+
+
 @app_commands.guild_only()
 class Reminder(GroupCog, group_name="reminder"):
     def __init__(self, bot):
@@ -171,7 +195,7 @@ class Reminder(GroupCog, group_name="reminder"):
             session.add(reminder)
 
         self._reschedule()
-        rel = humanize.naturaltime(next_fire, when=datetime.now(UTC))
+        rel = _format_relative(next_fire)
         await interaction.response.send_message(f"Reminder created — next fire {rel}.", ephemeral=True)
 
     # -- /reminder schedule --------------------------------------------
@@ -275,7 +299,8 @@ class Reminder(GroupCog, group_name="reminder"):
             session.add(reminder)
 
         self._reschedule()
-        rel = humanize.naturaltime(next_fire, when=datetime.now(UTC))
+        tz_obj = ZoneInfo(timezone) if timezone else None
+        rel = _format_relative(next_fire, tz_obj)
         await interaction.response.send_message(f"Scheduled reminder created — next fire {rel}.", ephemeral=True)
 
     async def _timezone_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
@@ -300,8 +325,17 @@ class Reminder(GroupCog, group_name="reminder"):
                 status = "\u2705" if msg.Enabled else "\u23f8\ufe0f"
                 if msg.Enabled:
                     next_fire = msg.NextFire.replace(tzinfo=UTC)
-                    rel = humanize.naturaltime(next_fire, when=datetime.now(UTC))
-                    abs_time = next_fire.strftime("%Y-%m-%d %H:%M UTC")
+                    display_tz = None
+                    if msg.Timezone:
+                        try:
+                            display_tz = ZoneInfo(msg.Timezone)
+                            local_time = next_fire.astimezone(display_tz)
+                            abs_time = local_time.strftime("%Y-%m-%d %H:%M %Z")
+                        except (KeyError, ValueError):
+                            abs_time = next_fire.strftime("%Y-%m-%d %H:%M UTC")
+                    else:
+                        abs_time = next_fire.strftime("%Y-%m-%d %H:%M UTC")
+                    rel = _format_relative(next_fire, display_tz)
                     timing = f"Next: {rel} ({abs_time})"
                 else:
                     timing = "paused"
@@ -336,6 +370,164 @@ class Reminder(GroupCog, group_name="reminder"):
 
             await send_paginated(interaction, to_send, title="\u23f0 Reminders", color=0xF39C12, ephemeral=True)
 
+    # -- /reminder edit ------------------------------------------------
+
+    # Which timing params are allowed per ScheduleType
+    _EDIT_ALLOWED: dict[str, set[str]] = {
+        "once": set(),
+        "interval": {"delay"},
+        "daily": {"time_of_day", "timezone"},
+        "weekly": {"time_of_day", "day_of_week", "timezone"},
+        "monthly": {"time_of_day", "day_of_month", "timezone"},
+    }
+
+    @app_commands.command(name="edit")
+    @app_commands.rename(reminder_id="reminder")
+    @app_commands.describe(
+        reminder_id="Reminder to edit",
+        message="New message text",
+        channel="New target channel",
+        delay="New interval, e.g. 2h30m (interval reminders only)",
+        time_of_day="New time in HH:MM 24h format (schedule reminders only)",
+        day_of_week="New day of week (weekly reminders only)",
+        day_of_month="New day of month 1-28 (monthly reminders only)",
+        timezone="New IANA timezone (schedule reminders only)",
+    )
+    @app_commands.choices(
+        day_of_week=[app_commands.Choice(name=name, value=val) for name, val in WEEKDAY_MAP.items()],
+    )
+    async def _reminder_edit(
+        self,
+        interaction: Interaction,
+        reminder_id: int,
+        message: Optional[str] = None,
+        channel: Optional[TextChannel] = None,
+        delay: Optional[str] = None,
+        time_of_day: Optional[str] = None,
+        day_of_week: Optional[app_commands.Choice[int]] = None,
+        day_of_month: Optional[int] = None,
+        timezone: Optional[str] = None,
+    ):
+        """Edit an existing reminder's message, channel, or timing."""
+        with self.bot.session_scope() as session:
+            msg = ReminderMessage.get_by_id(reminder_id, interaction.guild.id, session)
+            if msg is None:
+                await interaction.response.send_message("Reminder not found.", ephemeral=True)
+                return
+
+            # Collect which timing params the user supplied
+            timing_params = {
+                "delay": delay,
+                "time_of_day": time_of_day,
+                "day_of_week": day_of_week,
+                "day_of_month": day_of_month,
+                "timezone": timezone,
+            }
+            supplied_timing = {k for k, v in timing_params.items() if v is not None}
+
+            # Check if anything was supplied at all
+            if not supplied_timing and message is None and channel is None:
+                await interaction.response.send_message("Nothing to change.", ephemeral=True)
+                return
+
+            # Validate param applicability against ScheduleType
+            allowed = self._EDIT_ALLOWED.get(msg.ScheduleType, set())
+            for param in supplied_timing:
+                if param not in allowed:
+                    allowed_types = [st for st, params in self._EDIT_ALLOWED.items() if param in params]
+                    await interaction.response.send_message(
+                        f"`{param}` only applies to {', '.join(allowed_types)} reminders, not {msg.ScheduleType}.",
+                        ephemeral=True,
+                    )
+                    return
+
+            changes = []
+            timing_changed = False
+
+            # -- Apply message/channel changes --
+            if message is not None:
+                msg.Message = message
+                changes.append("message")
+
+            if channel is not None:
+                validate_channel_permissions(channel, interaction.guild, "view_channel", "send_messages")
+                msg.ChannelId = channel.id
+                msg.ChannelName = channel.name
+                changes.append(f"channel → #{channel.name}")
+
+            # -- Apply timing changes --
+            if delay is not None:
+                try:
+                    td = parse_duration(delay)
+                except ValueError as e:
+                    await interaction.response.send_message(str(e), ephemeral=True)
+                    return
+                msg.IntervalSeconds = int(td.total_seconds())
+                changes.append(f"interval → {humanize.naturaldelta(td)}")
+                timing_changed = True
+
+            if time_of_day is not None:
+                try:
+                    parts = time_of_day.split(":")
+                    sched_time = time(int(parts[0]), int(parts[1]))
+                except (ValueError, IndexError):
+                    await interaction.response.send_message(
+                        "Invalid time format. Use HH:MM (e.g. 09:00).", ephemeral=True
+                    )
+                    return
+                msg.ScheduleTime = sched_time
+                changes.append(f"time → {sched_time.strftime('%H:%M')}")
+                timing_changed = True
+
+            if day_of_week is not None:
+                msg.ScheduleDayOfWeek = day_of_week.value
+                day_name = list(WEEKDAY_MAP.keys())[day_of_week.value]
+                changes.append(f"day → {day_name}")
+                timing_changed = True
+
+            if day_of_month is not None:
+                if not 1 <= day_of_month <= 28:
+                    await interaction.response.send_message("day_of_month must be between 1 and 28.", ephemeral=True)
+                    return
+                msg.ScheduleDayOfMonth = day_of_month
+                changes.append(f"day → {day_of_month}")
+                timing_changed = True
+
+            if timezone is not None:
+                try:
+                    ZoneInfo(timezone)
+                except (KeyError, ValueError):
+                    await interaction.response.send_message(f"Unknown timezone: {timezone}", ephemeral=True)
+                    return
+                msg.Timezone = timezone
+                changes.append(f"timezone → {timezone}")
+                timing_changed = True
+
+            # -- Recalculate NextFire if timing changed --
+            if timing_changed:
+                tz = ZoneInfo(msg.Timezone) if msg.Timezone else None
+                next_fire = compute_next_fire(
+                    msg.ScheduleType,
+                    interval_seconds=msg.IntervalSeconds,
+                    schedule_time=msg.ScheduleTime,
+                    schedule_day_of_week=msg.ScheduleDayOfWeek,
+                    schedule_day_of_month=msg.ScheduleDayOfMonth,
+                    timezone=tz,
+                )
+                if next_fire is not None:
+                    msg.NextFire = next_fire
+
+            summary = ", ".join(changes)
+            next_fire_utc = msg.NextFire.replace(tzinfo=UTC)
+            edit_tz = ZoneInfo(msg.Timezone) if msg.Timezone else None
+            rel = _format_relative(next_fire_utc, edit_tz)
+            await interaction.response.send_message(
+                f"Updated reminder **#{reminder_id}**: {summary}. Next fire {rel}.",
+                ephemeral=True,
+            )
+
+        self._reschedule()
+
     # -- Autocomplete helper -------------------------------------------
 
     async def _reminder_id_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[int]]:
@@ -349,6 +541,10 @@ class Reminder(GroupCog, group_name="reminder"):
                     continue
                 choices.append(app_commands.Choice(name=label[:100], value=msg.Id))
             return choices[:25]
+
+    _reminder_edit = app_commands.autocomplete(reminder_id=_reminder_id_autocomplete, timezone=_timezone_autocomplete)(
+        _reminder_edit
+    )
 
     # -- /reminder delete ----------------------------------------------
 

@@ -2,12 +2,13 @@
 # -*- coding: utf-8 -*-
 """Tests for modules/reminder.py — Reminder cog commands."""
 
-from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from datetime import UTC, datetime, time, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from models.reminder import ReminderMessage
+from modules.reminder import _format_relative
 from modules.reminder import Reminder
 
 
@@ -23,6 +24,57 @@ def reminder_cog(mock_bot):
         cog._reminder_loop.restart = MagicMock()
         cog._reminder_loop.change_interval = MagicMock()
     return cog
+
+
+class TestFormatRelative:
+    """Tests for _format_relative — calendar-day-aware relative time."""
+
+    def test_short_duration_uses_humanize(self):
+        """Under 12 hours should use humanize for precision."""
+        next_fire = datetime.now(UTC) + timedelta(hours=2)
+        result = _format_relative(next_fire)
+        assert "hour" in result
+
+    def test_same_timezone_calendar_days(self):
+        """Two calendar days in the same timezone should say '2 days from now'."""
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo("Europe/Berlin")
+        # Build a fire time 2 calendar days from now at 09:00 local
+        local_now = datetime.now(tz)
+        fire_date = (local_now + timedelta(days=2)).replace(hour=9, minute=0, second=0, microsecond=0)
+        fire_utc = fire_date.astimezone(UTC)
+        result = _format_relative(fire_utc, tz)
+        assert result == "2 days from now"
+
+    def test_different_timezones_same_calendar_day_count(self):
+        """Both Buenos Aires and Berlin should show '2 days from now' for a fire date 2 calendar days away."""
+        from zoneinfo import ZoneInfo
+
+        for tz_name in ("America/Buenos_Aires", "Europe/Berlin"):
+            tz = ZoneInfo(tz_name)
+            local_now = datetime.now(tz)
+            fire_date = (local_now + timedelta(days=2)).replace(hour=9, minute=0, second=0, microsecond=0)
+            fire_utc = fire_date.astimezone(UTC)
+            result = _format_relative(fire_utc, tz)
+            assert result == "2 days from now", f"Failed for {tz_name}: got '{result}'"
+
+    def test_one_day_from_now(self):
+        """A fire time 1 calendar day away should say 'a day from now'."""
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo("Europe/Berlin")
+        local_now = datetime.now(tz)
+        fire_date = (local_now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+        fire_utc = fire_date.astimezone(UTC)
+        result = _format_relative(fire_utc, tz)
+        assert result == "a day from now"
+
+    def test_no_timezone_defaults_to_utc(self):
+        """With no timezone, should use UTC for calendar day calculation."""
+        next_fire = datetime.now(UTC) + timedelta(days=3, hours=1)
+        result = _format_relative(next_fire)
+        assert result == "3 days from now"
 
 
 class TestReminderCreate:
@@ -298,3 +350,384 @@ class TestReminderDelete:
         await reminder_cog._reminder_delete.callback(reminder_cog, mock_interaction, reminder_id=rid)
 
         assert ReminderMessage.get_by_id(rid, 123, db_session) is None
+
+
+class TestReminderList:
+    """Tests for /reminder list timezone display."""
+
+    @pytest.mark.asyncio
+    async def test_list_shows_timezone_aware_time(self, reminder_cog, mock_interaction, db_session):
+        """NextFire should be displayed in the reminder's configured timezone, not UTC."""
+        mock_interaction.guild.id = 123
+        now = datetime.now(UTC)
+        r = ReminderMessage(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="general",
+            CreateDate=now,
+            Author="Tester",
+            ScheduleType="daily",
+            ScheduleTime=time(9, 0),
+            # NextFire is stored as naive UTC — 08:00 UTC = 09:00 CET (Europe/Berlin, standard time)
+            NextFire=datetime(2026, 1, 15, 8, 0, 0),
+            Message="Good morning",
+            Count=0,
+            Enabled=True,
+            Timezone="Europe/Berlin",
+        )
+        db_session.add(r)
+        db_session.commit()
+
+        with patch("modules.reminder.send_paginated", new_callable=AsyncMock) as mock_send:
+            await reminder_cog._reminder_list.callback(reminder_cog, mock_interaction)
+
+            mock_send.assert_called_once()
+            output = mock_send.call_args[0][1]  # second positional arg is the text
+            # Should show 09:00 CET, not 08:00 UTC
+            assert "09:00" in output
+            assert "08:00 UTC" not in output
+
+    @pytest.mark.asyncio
+    async def test_list_shows_utc_for_no_timezone(self, reminder_cog, mock_interaction, db_session):
+        """Reminders without a timezone should display NextFire in UTC."""
+        mock_interaction.guild.id = 123
+        now = datetime.now(UTC)
+        r = ReminderMessage(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="general",
+            CreateDate=now,
+            Author="Tester",
+            ScheduleType="interval",
+            IntervalSeconds=3600,
+            NextFire=datetime(2026, 1, 15, 14, 30, 0),
+            Message="Hourly check",
+            Count=0,
+            Enabled=True,
+        )
+        db_session.add(r)
+        db_session.commit()
+
+        with patch("modules.reminder.send_paginated", new_callable=AsyncMock) as mock_send:
+            await reminder_cog._reminder_list.callback(reminder_cog, mock_interaction)
+
+            mock_send.assert_called_once()
+            output = mock_send.call_args[0][1]
+            assert "14:30 UTC" in output
+
+    @pytest.mark.asyncio
+    async def test_list_falls_back_to_utc_for_invalid_timezone(self, reminder_cog, mock_interaction, db_session):
+        """Reminders with an invalid timezone should fall back to UTC display."""
+        mock_interaction.guild.id = 123
+        now = datetime.now(UTC)
+        r = ReminderMessage(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="general",
+            CreateDate=now,
+            Author="Tester",
+            ScheduleType="daily",
+            ScheduleTime=time(10, 0),
+            NextFire=datetime(2026, 1, 15, 10, 0, 0),
+            Message="Fallback test",
+            Count=0,
+            Enabled=True,
+            Timezone="Not/A/Timezone",
+        )
+        db_session.add(r)
+        db_session.commit()
+
+        with patch("modules.reminder.send_paginated", new_callable=AsyncMock) as mock_send:
+            await reminder_cog._reminder_list.callback(reminder_cog, mock_interaction)
+
+            mock_send.assert_called_once()
+            output = mock_send.call_args[0][1]
+            assert "10:00 UTC" in output
+
+
+class TestReminderEdit:
+    """Tests for /reminder edit command."""
+
+    def _make_reminder(self, db_session, **overrides):
+        """Helper to create a reminder with sensible defaults."""
+        now = datetime.now(UTC)
+        defaults = dict(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="general",
+            CreateDate=now,
+            Author="A",
+            ScheduleType="interval",
+            IntervalSeconds=3600,
+            NextFire=now + timedelta(hours=1),
+            Message="Original",
+            Count=0,
+            Enabled=True,
+        )
+        defaults.update(overrides)
+        r = ReminderMessage(**defaults)
+        db_session.add(r)
+        db_session.commit()
+        return r
+
+    @pytest.mark.asyncio
+    async def test_edit_not_found(self, reminder_cog, mock_interaction, db_session):
+        mock_interaction.guild.id = 123
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=99999,
+            message=None,
+            channel=None,
+            delay=None,
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+        call_args = str(mock_interaction.response.send_message.call_args)
+        assert "not found" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_edit_nothing_to_change(self, reminder_cog, mock_interaction, db_session):
+        mock_interaction.guild.id = 123
+        r = self._make_reminder(db_session)
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay=None,
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+        call_args = str(mock_interaction.response.send_message.call_args)
+        assert "nothing to change" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_edit_reject_delay_on_daily(self, reminder_cog, mock_interaction, db_session):
+        mock_interaction.guild.id = 123
+        r = self._make_reminder(db_session, ScheduleType="daily", IntervalSeconds=None, ScheduleTime=time(9, 0))
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay="2h",
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+        call_args = str(mock_interaction.response.send_message.call_args)
+        assert "delay" in call_args.lower()
+        assert "interval" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_edit_reject_time_of_day_on_interval(self, reminder_cog, mock_interaction, db_session):
+        mock_interaction.guild.id = 123
+        r = self._make_reminder(db_session, ScheduleType="interval")
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay=None,
+            time_of_day="10:00",
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+        call_args = str(mock_interaction.response.send_message.call_args)
+        assert "time_of_day" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_edit_reject_day_of_week_on_daily(self, reminder_cog, mock_interaction, db_session):
+        mock_interaction.guild.id = 123
+        dow = MagicMock()
+        dow.value = 0
+        r = self._make_reminder(db_session, ScheduleType="daily", IntervalSeconds=None, ScheduleTime=time(9, 0))
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay=None,
+            time_of_day=None,
+            day_of_week=dow,
+            day_of_month=None,
+            timezone=None,
+        )
+        call_args = str(mock_interaction.response.send_message.call_args)
+        assert "day_of_week" in call_args.lower()
+        assert "weekly" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_edit_message_only(self, reminder_cog, mock_interaction, db_session):
+        """Edit only the message on an interval reminder — timing should remain unchanged."""
+        mock_interaction.guild.id = 123
+        r = self._make_reminder(db_session)
+        original_next_fire = r.NextFire
+
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message="Updated text",
+            channel=None,
+            delay=None,
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+
+        assert r.Message == "Updated text"
+        assert r.NextFire == original_next_fire
+        call_args = str(mock_interaction.response.send_message.call_args)
+        assert "message" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_edit_channel(self, reminder_cog, mock_interaction, db_session):
+        """Edit the channel — ChannelId and ChannelName should update."""
+        mock_interaction.guild.id = 123
+        r = self._make_reminder(db_session)
+
+        new_channel = MagicMock()
+        new_channel.id = 789
+        new_channel.name = "announcements"
+        new_channel.permissions_for = MagicMock(return_value=MagicMock(view_channel=True, send_messages=True))
+
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=new_channel,
+            delay=None,
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+
+        assert r.ChannelId == 789
+        assert r.ChannelName == "announcements"
+
+    @pytest.mark.asyncio
+    async def test_edit_delay_recalculates(self, reminder_cog, mock_interaction, db_session):
+        """Edit delay on an interval reminder — IntervalSeconds and NextFire should change."""
+        mock_interaction.guild.id = 123
+        r = self._make_reminder(db_session)  # default IntervalSeconds=3600
+        original_next_fire = r.NextFire
+
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay="2h",
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+
+        assert r.IntervalSeconds == 7200
+        assert r.NextFire != original_next_fire
+
+    @pytest.mark.asyncio
+    async def test_edit_time_of_day_on_daily(self, reminder_cog, mock_interaction, db_session):
+        """Edit time_of_day on a daily reminder — ScheduleTime should update."""
+        mock_interaction.guild.id = 123
+        r = self._make_reminder(db_session, ScheduleType="daily", IntervalSeconds=None, ScheduleTime=time(9, 0))
+
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay=None,
+            time_of_day="14:30",
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+
+        assert r.ScheduleTime.hour == 14
+        assert r.ScheduleTime.minute == 30
+
+    @pytest.mark.asyncio
+    async def test_edit_timezone_on_schedule(self, reminder_cog, mock_interaction, db_session):
+        """Edit timezone on a daily reminder — Timezone should update."""
+        mock_interaction.guild.id = 123
+        r = self._make_reminder(db_session, ScheduleType="daily", IntervalSeconds=None, ScheduleTime=time(9, 0))
+
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay=None,
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone="Europe/Berlin",
+        )
+
+        assert r.Timezone == "Europe/Berlin"
+
+    @pytest.mark.asyncio
+    async def test_edit_invalid_delay(self, reminder_cog, mock_interaction, db_session):
+        """Edit delay with unparseable string — should return error."""
+        mock_interaction.guild.id = 123
+        r = self._make_reminder(db_session)
+
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay="nope",
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+
+        call_args = str(mock_interaction.response.send_message.call_args)
+        assert "Could not parse" in call_args
+
+    @pytest.mark.asyncio
+    async def test_edit_invalid_day_of_month(self, reminder_cog, mock_interaction, db_session):
+        """Edit day_of_month=31 on a monthly reminder — should reject with range error."""
+        mock_interaction.guild.id = 123
+        r = self._make_reminder(
+            db_session, ScheduleType="monthly", IntervalSeconds=None, ScheduleTime=time(9, 0), ScheduleDayOfMonth=15
+        )
+
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            mock_interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay=None,
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=31,
+            timezone=None,
+        )
+
+        call_args = str(mock_interaction.response.send_message.call_args)
+        assert "1 and 28" in call_args
