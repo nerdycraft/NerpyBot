@@ -2,8 +2,11 @@
 # -*- coding: utf-8 -*-
 """Tests for modules/application.py — Application cog commands."""
 
+import asyncio
+import json
 from unittest.mock import AsyncMock, MagicMock
 
+import discord
 import pytest
 
 from models.application import (
@@ -604,6 +607,270 @@ class TestManagerRole:
 
         call_args = str(admin_interaction.response.send_message.call_args)
         assert "no manager role" in call_args.lower()
+
+
+# ---------------------------------------------------------------------------
+# /application export
+# ---------------------------------------------------------------------------
+
+
+class TestExport:
+    @pytest.mark.asyncio
+    async def test_export_happy_path(self, app_cog, admin_interaction, db_session):
+        """Export produces a valid JSON file and DMs it to the user."""
+        form = _make_form(db_session, guild_id=admin_interaction.guild.id, name="ExportMe")
+        # Set some custom settings
+        form.RequiredApprovals = 3
+        form.RequiredDenials = 2
+        form.ApprovalMessage = "Welcome!"
+        form.DenialMessage = "Sorry!"
+        db_session.commit()
+
+        admin_interaction.user.send = AsyncMock()
+
+        await app_cog._export.callback(app_cog, admin_interaction, name="ExportMe")
+
+        # Verify the DM was sent with a file
+        admin_interaction.user.send.assert_called_once()
+        call_kwargs = admin_interaction.user.send.call_args
+        sent_file = call_kwargs.kwargs.get("file") or call_kwargs[1].get("file")
+        assert sent_file is not None
+        assert sent_file.filename == "ExportMe.json"
+
+        # Read the file content and validate JSON
+        sent_file.fp.seek(0)
+        data = json.loads(sent_file.fp.read().decode())
+        assert data["name"] == "ExportMe"
+        assert data["required_approvals"] == 3
+        assert data["required_denials"] == 2
+        assert data["approval_message"] == "Welcome!"
+        assert data["denial_message"] == "Sorry!"
+        assert len(data["questions"]) == 1
+        assert data["questions"][0]["text"] == "What is your name?"
+        assert data["questions"][0]["order"] == 1
+
+        # Verify ephemeral response
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "DMs" in call_args
+
+    @pytest.mark.asyncio
+    async def test_export_form_not_found(self, app_cog, admin_interaction):
+        await app_cog._export.callback(app_cog, admin_interaction, name="NonExistent")
+
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "not found" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_export_permission_denied(self, app_cog, non_admin_interaction):
+        await app_cog._export.callback(app_cog, non_admin_interaction, name="Form")
+
+        call_args = str(non_admin_interaction.response.send_message.call_args)
+        assert "permission" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_export_dm_forbidden(self, app_cog, admin_interaction, db_session):
+        """If DMs are disabled, respond with an ephemeral error."""
+        _make_form(db_session, guild_id=admin_interaction.guild.id, name="NoDMs")
+        admin_interaction.user.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "Cannot send"))
+
+        await app_cog._export.callback(app_cog, admin_interaction, name="NoDMs")
+
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "dm" in call_args.lower() or "DM" in call_args
+
+
+# ---------------------------------------------------------------------------
+# /application import
+# ---------------------------------------------------------------------------
+
+
+class TestImport:
+    def _make_dm_message(self, user_id, form_data):
+        """Create a mock DM message with a JSON attachment."""
+        msg = MagicMock()
+        msg.author = MagicMock()
+        msg.author.id = user_id
+        msg.guild = None
+
+        attachment = MagicMock()
+        raw = json.dumps(form_data).encode()
+        attachment.read = AsyncMock(return_value=raw)
+        msg.attachments = [attachment]
+        return msg
+
+    @pytest.mark.asyncio
+    async def test_import_happy_path(self, app_cog, admin_interaction, db_session):
+        """Import parses JSON from attachment and creates form with questions."""
+        form_data = {
+            "name": "Imported Form",
+            "required_approvals": 2,
+            "required_denials": 3,
+            "approval_message": "Approved!",
+            "denial_message": "Denied!",
+            "questions": [
+                {"text": "First question?", "order": 1},
+                {"text": "Second question?", "order": 2},
+            ],
+        }
+        dm_msg = self._make_dm_message(admin_interaction.user.id, form_data)
+        admin_interaction.user.send = AsyncMock()
+        app_cog.bot.wait_for = AsyncMock(return_value=dm_msg)
+
+        await app_cog._import_form.callback(app_cog, admin_interaction)
+
+        # Verify ephemeral "Check your DMs"
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "DMs" in call_args
+
+        # Verify the form was created
+        form = ApplicationForm.get("Imported Form", admin_interaction.guild.id, db_session)
+        assert form is not None
+        assert form.RequiredApprovals == 2
+        assert form.RequiredDenials == 3
+        assert form.ApprovalMessage == "Approved!"
+        assert form.DenialMessage == "Denied!"
+        assert len(form.questions) == 2
+        assert form.questions[0].QuestionText == "First question?"
+        assert form.questions[1].QuestionText == "Second question?"
+
+        # Verify confirmation DM
+        last_send = admin_interaction.user.send.call_args_list[-1]
+        assert "imported successfully" in str(last_send).lower()
+
+    @pytest.mark.asyncio
+    async def test_import_invalid_json(self, app_cog, admin_interaction):
+        """Invalid JSON file produces a DM error."""
+        msg = MagicMock()
+        msg.author = MagicMock()
+        msg.author.id = admin_interaction.user.id
+        msg.guild = None
+        attachment = MagicMock()
+        attachment.read = AsyncMock(return_value=b"not valid json {{{")
+        msg.attachments = [attachment]
+
+        admin_interaction.user.send = AsyncMock()
+        app_cog.bot.wait_for = AsyncMock(return_value=msg)
+
+        await app_cog._import_form.callback(app_cog, admin_interaction)
+
+        last_send = str(admin_interaction.user.send.call_args_list[-1])
+        assert "invalid json" in last_send.lower()
+
+    @pytest.mark.asyncio
+    async def test_import_missing_name(self, app_cog, admin_interaction):
+        """Missing name field produces a DM error."""
+        form_data = {"questions": [{"text": "Question?"}]}
+        dm_msg = self._make_dm_message(admin_interaction.user.id, form_data)
+        admin_interaction.user.send = AsyncMock()
+        app_cog.bot.wait_for = AsyncMock(return_value=dm_msg)
+
+        await app_cog._import_form.callback(app_cog, admin_interaction)
+
+        last_send = str(admin_interaction.user.send.call_args_list[-1])
+        assert "name" in last_send.lower()
+
+    @pytest.mark.asyncio
+    async def test_import_missing_questions(self, app_cog, admin_interaction):
+        """Missing questions field produces a DM error."""
+        form_data = {"name": "NoQuestions"}
+        dm_msg = self._make_dm_message(admin_interaction.user.id, form_data)
+        admin_interaction.user.send = AsyncMock()
+        app_cog.bot.wait_for = AsyncMock(return_value=dm_msg)
+
+        await app_cog._import_form.callback(app_cog, admin_interaction)
+
+        last_send = str(admin_interaction.user.send.call_args_list[-1])
+        assert "questions" in last_send.lower()
+
+    @pytest.mark.asyncio
+    async def test_import_empty_questions(self, app_cog, admin_interaction):
+        """Empty questions list produces a DM error."""
+        form_data = {"name": "EmptyQ", "questions": []}
+        dm_msg = self._make_dm_message(admin_interaction.user.id, form_data)
+        admin_interaction.user.send = AsyncMock()
+        app_cog.bot.wait_for = AsyncMock(return_value=dm_msg)
+
+        await app_cog._import_form.callback(app_cog, admin_interaction)
+
+        last_send = str(admin_interaction.user.send.call_args_list[-1])
+        assert "questions" in last_send.lower()
+
+    @pytest.mark.asyncio
+    async def test_import_question_missing_text(self, app_cog, admin_interaction):
+        """Question without text field produces a DM error."""
+        form_data = {"name": "BadQ", "questions": [{"order": 1}]}
+        dm_msg = self._make_dm_message(admin_interaction.user.id, form_data)
+        admin_interaction.user.send = AsyncMock()
+        app_cog.bot.wait_for = AsyncMock(return_value=dm_msg)
+
+        await app_cog._import_form.callback(app_cog, admin_interaction)
+
+        last_send = str(admin_interaction.user.send.call_args_list[-1])
+        assert "text" in last_send.lower()
+
+    @pytest.mark.asyncio
+    async def test_import_duplicate_form_name(self, app_cog, admin_interaction, db_session):
+        """Duplicate form name produces a DM error."""
+        _make_form(db_session, guild_id=admin_interaction.guild.id, name="Existing")
+        form_data = {"name": "Existing", "questions": [{"text": "Question?"}]}
+        dm_msg = self._make_dm_message(admin_interaction.user.id, form_data)
+        admin_interaction.user.send = AsyncMock()
+        app_cog.bot.wait_for = AsyncMock(return_value=dm_msg)
+
+        await app_cog._import_form.callback(app_cog, admin_interaction)
+
+        last_send = str(admin_interaction.user.send.call_args_list[-1])
+        assert "already exists" in last_send.lower()
+
+    @pytest.mark.asyncio
+    async def test_import_timeout(self, app_cog, admin_interaction):
+        """Timeout sends a cancellation DM."""
+        admin_interaction.user.send = AsyncMock()
+        app_cog.bot.wait_for = AsyncMock(side_effect=asyncio.TimeoutError)
+
+        await app_cog._import_form.callback(app_cog, admin_interaction)
+
+        last_send = str(admin_interaction.user.send.call_args_list[-1])
+        assert "timed out" in last_send.lower()
+
+    @pytest.mark.asyncio
+    async def test_import_permission_denied(self, app_cog, non_admin_interaction):
+        await app_cog._import_form.callback(app_cog, non_admin_interaction)
+
+        call_args = str(non_admin_interaction.response.send_message.call_args)
+        assert "permission" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_import_dm_forbidden(self, app_cog, admin_interaction):
+        """If DMs are disabled, respond with an ephemeral error."""
+        admin_interaction.user.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "Cannot send"))
+
+        await app_cog._import_form.callback(app_cog, admin_interaction)
+
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "dm" in call_args.lower() or "DM" in call_args
+
+    @pytest.mark.asyncio
+    async def test_import_defaults_when_optional_fields_missing(self, app_cog, admin_interaction, db_session):
+        """Import with minimal JSON uses defaults for optional fields."""
+        form_data = {
+            "name": "Minimal",
+            "questions": [{"text": "Only question?"}],
+        }
+        dm_msg = self._make_dm_message(admin_interaction.user.id, form_data)
+        admin_interaction.user.send = AsyncMock()
+        app_cog.bot.wait_for = AsyncMock(return_value=dm_msg)
+
+        await app_cog._import_form.callback(app_cog, admin_interaction)
+
+        form = ApplicationForm.get("Minimal", admin_interaction.guild.id, db_session)
+        assert form is not None
+        assert form.RequiredApprovals == 1
+        assert form.RequiredDenials == 1
+        assert form.ApprovalMessage is None
+        assert form.DenialMessage is None
+        assert len(form.questions) == 1
+        assert form.questions[0].SortOrder == 1
 
 
 # ---------------------------------------------------------------------------
