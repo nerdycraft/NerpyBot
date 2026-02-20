@@ -669,13 +669,15 @@ class TestExport:
 
     @pytest.mark.asyncio
     async def test_export_dm_forbidden(self, app_cog, admin_interaction, db_session):
-        """If DMs are disabled, respond with an ephemeral error."""
+        """If DMs are disabled, send a followup error after the initial response."""
         _make_form(db_session, guild_id=admin_interaction.guild.id, name="NoDMs")
         admin_interaction.user.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "Cannot send"))
 
         await app_cog._export.callback(app_cog, admin_interaction, name="NoDMs")
 
-        call_args = str(admin_interaction.response.send_message.call_args)
+        # Initial response is "Check your DMs!" — then followup with the error
+        admin_interaction.response.send_message.assert_called_once()
+        call_args = str(admin_interaction.followup.send.call_args)
         assert "dm" in call_args.lower() or "DM" in call_args
 
 

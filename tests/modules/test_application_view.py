@@ -20,7 +20,7 @@ from modules.views.application import (
     ApplicationReviewView,
     DenyReasonModal,
     MessageModal,
-    _check_permission,
+    check_application_permission,
     _dm_applicant,
     build_review_embed,
 )
@@ -126,7 +126,7 @@ async def review_view(mock_bot):
 class TestPermissionCheck:
     def test_admin_passes(self, mock_bot):
         interaction = _make_reviewer_interaction(mock_bot, is_admin=True)
-        assert _check_permission(interaction, mock_bot) is True
+        assert check_application_permission(interaction, mock_bot) is True
 
     def test_manager_role_passes(self, mock_bot, db_session):
         manager_role_id = 999888777
@@ -135,11 +135,11 @@ class TestPermissionCheck:
         db_session.commit()
 
         interaction = _make_reviewer_interaction(mock_bot, is_admin=False, manager_role_id=manager_role_id)
-        assert _check_permission(interaction, mock_bot) is True
+        assert check_application_permission(interaction, mock_bot) is True
 
     def test_no_permission_fails(self, mock_bot, db_session):
         interaction = _make_reviewer_interaction(mock_bot, is_admin=False)
-        assert _check_permission(interaction, mock_bot) is False
+        assert check_application_permission(interaction, mock_bot) is False
 
     def test_wrong_role_fails(self, mock_bot, db_session):
         config = ApplicationGuildConfig(GuildId=GUILD_ID, ManagerRoleId=999888777)
@@ -148,7 +148,7 @@ class TestPermissionCheck:
 
         # User has a different role
         interaction = _make_reviewer_interaction(mock_bot, is_admin=False, manager_role_id=111111111)
-        assert _check_permission(interaction, mock_bot) is False
+        assert check_application_permission(interaction, mock_bot) is False
 
 
 # ---------------------------------------------------------------------------

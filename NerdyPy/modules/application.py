@@ -24,6 +24,7 @@ from modules.conversations.application import (
     ApplicationEditConversation,
     ApplicationSubmitConversation,
 )
+from modules.views.application import check_application_permission
 from utils.cog import NerpyBotCog
 
 
@@ -131,13 +132,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     def _has_manage_permission(self, interaction: Interaction) -> bool:
         """Return True if the user is an admin or has the guild's manager role."""
-        if interaction.user.guild_permissions.administrator:
-            return True
-        with self.bot.session_scope() as session:
-            config = ApplicationGuildConfig.get(interaction.guild.id, session)
-            if config and config.ManagerRoleId:
-                return any(r.id == config.ManagerRoleId for r in interaction.user.roles)
-        return False
+        return check_application_permission(interaction, self.bot)
 
     # -- /application create -------------------------------------------------
 
@@ -448,15 +443,14 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         data = json.dumps(form_dict, indent=2)
         file = discord.File(io.BytesIO(data.encode()), filename=f"{name}.json")
 
+        await interaction.response.send_message("Check your DMs!", ephemeral=True)
+
         try:
             await interaction.user.send(file=file)
         except (discord.Forbidden, discord.NotFound):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "I couldn't DM you. Please enable DMs from server members and try again.", ephemeral=True
             )
-            return
-
-        await interaction.response.send_message("Check your DMs!", ephemeral=True)
 
     # -- /application import -------------------------------------------------
 

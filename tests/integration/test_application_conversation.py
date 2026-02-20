@@ -25,13 +25,6 @@ from modules.conversations.application import (
 # ---------------------------------------------------------------------------
 
 
-def _make_mock_message(content: str) -> MagicMock:
-    """Create a mock discord.Message with the given content."""
-    msg = MagicMock()
-    msg.content = content
-    return msg
-
-
 def _make_send_return(user_mock):
     """Set up user.send to return a mock message with add_reaction."""
     sent = MagicMock()
@@ -72,7 +65,7 @@ class TestApplicationCreateConversation:
         _make_send_return(mock_user)
 
         # Simulate user typing a question
-        await conv.on_message(_make_mock_message("What is your name?"))
+        await conv.on_message("What is your name?")
 
         assert len(conv.questions) == 1
         assert conv.questions[0] == "What is your name?"
@@ -81,7 +74,7 @@ class TestApplicationCreateConversation:
         # Another question
         mock_user.send.reset_mock()
         _make_send_return(mock_user)
-        await conv.on_message(_make_mock_message("What is your class?"))
+        await conv.on_message("What is your class?")
 
         assert len(conv.questions) == 2
         assert conv.questions[1] == "What is your class?"
@@ -121,9 +114,9 @@ class TestApplicationCreateConversation:
 
         # Collect two questions
         _make_send_return(mock_user)
-        await conv.on_message(_make_mock_message("Question one?"))
+        await conv.on_message("Question one?")
         _make_send_return(mock_user)
-        await conv.on_message(_make_mock_message("Question two?"))
+        await conv.on_message("Question two?")
 
         # Finish
         _make_send_return(mock_user)
@@ -197,7 +190,7 @@ class TestApplicationEditConversation:
 
         # Type a new question
         _make_send_return(mock_user)
-        await conv.on_message(_make_mock_message("Third?"))
+        await conv.on_message("Third?")
 
         # Should be back at INIT with 3 questions
         assert conv.currentState == EditState.INIT
@@ -224,7 +217,7 @@ class TestApplicationEditConversation:
 
         # Type the number to remove
         _make_send_return(mock_user)
-        await conv.on_message(_make_mock_message("1"))
+        await conv.on_message("1")
 
         # Should be back at INIT
         assert conv.currentState == EditState.INIT
@@ -262,7 +255,7 @@ class TestApplicationEditConversation:
 
         # Provide new order: swap the two questions
         _make_send_return(mock_user)
-        await conv.on_message(_make_mock_message("2,1"))
+        await conv.on_message("2,1")
 
         # Should be back at INIT
         assert conv.currentState == EditState.INIT
@@ -291,7 +284,7 @@ class TestApplicationEditConversation:
 
         # Try non-numeric input
         _make_send_return(mock_user)
-        await conv.on_message(_make_mock_message("abc"))
+        await conv.on_message("abc")
 
         # Should stay in REMOVE (validation failed, waiting for valid input)
         assert conv.currentState == EditState.REMOVE
@@ -304,7 +297,7 @@ class TestApplicationEditConversation:
         # Try out-of-range number
         mock_user.send.reset_mock()
         _make_send_return(mock_user)
-        await conv.on_message(_make_mock_message("5"))
+        await conv.on_message("5")
 
         # Should still be in REMOVE
         assert conv.currentState == EditState.REMOVE
@@ -328,9 +321,18 @@ class TestApplicationSubmitConversation:
         return [(10, "What is your name?"), (20, "What is your class?"), (30, "Why do you want to join?")]
 
     @pytest.fixture
+    def mock_review_channel(self):
+        """Mock channel for review embed posting."""
+        channel = MagicMock()
+        review_msg = MagicMock()
+        review_msg.id = 888777666
+        channel.send = AsyncMock(return_value=review_msg)
+        return channel
+
+    @pytest.fixture
     def form_id(self, db_session, mock_guild):
         """Create a form in the DB for submissions."""
-        form = ApplicationForm(GuildId=mock_guild.id, Name="Submit Form")
+        form = ApplicationForm(GuildId=mock_guild.id, Name="Submit Form", ReviewChannelId=111222333)
         db_session.add(form)
         db_session.flush()
         db_session.add(ApplicationQuestion(FormId=form.Id, QuestionText="What is your name?", SortOrder=1))
@@ -347,8 +349,9 @@ class TestApplicationSubmitConversation:
         return form.Id, [(q.Id, q.QuestionText) for q in questions]
 
     @pytest.fixture
-    def conv(self, mock_bot, mock_user, mock_guild, form_id):
+    def conv(self, mock_bot, mock_user, mock_guild, form_id, mock_review_channel):
         _make_send_return(mock_user)
+        mock_bot.get_channel = MagicMock(return_value=mock_review_channel)
         fid, qs = form_id
         return ApplicationSubmitConversation(mock_bot, mock_user, mock_guild, fid, "Submit Form", qs)
 
@@ -359,17 +362,17 @@ class TestApplicationSubmitConversation:
 
         # Answer question 0
         _make_send_return(mock_user)
-        await conv.on_message(_make_mock_message("Alice"))
+        await conv.on_message("Alice")
         assert conv.currentState == "question_1"
 
         # Answer question 1
         _make_send_return(mock_user)
-        await conv.on_message(_make_mock_message("Mage"))
+        await conv.on_message("Mage")
         assert conv.currentState == "question_2"
 
         # Answer question 2
         _make_send_return(mock_user)
-        await conv.on_message(_make_mock_message("Fun guild!"))
+        await conv.on_message("Fun guild!")
         assert conv.currentState == SubmitState.CONFIRM
 
         assert len(conv.answers) == 3
@@ -381,7 +384,7 @@ class TestApplicationSubmitConversation:
 
         # Answer question 0
         _make_send_return(mock_user)
-        await conv.on_message(_make_mock_message("Alice"))
+        await conv.on_message("Alice")
 
         # Cancel on question 1
         _make_send_return(mock_user)
@@ -392,14 +395,14 @@ class TestApplicationSubmitConversation:
         assert conv.submission_id is None
 
     @pytest.mark.asyncio
-    async def test_confirm_and_submit(self, conv, mock_user, db_session):
-        """Complete all questions, confirm, and verify DB submission."""
+    async def test_confirm_and_submit(self, conv, mock_user, mock_review_channel, db_session):
+        """Complete all questions, confirm, and verify DB submission + review embed."""
         await conv.repost_state()  # INIT -> question_0
 
         # Answer all three questions
         for answer in ["Alice", "Mage", "Fun guild!"]:
             _make_send_return(mock_user)
-            await conv.on_message(_make_mock_message(answer))
+            await conv.on_message(answer)
 
         # Now at CONFIRM — react ✅ to submit
         _make_send_return(mock_user)
@@ -409,15 +412,19 @@ class TestApplicationSubmitConversation:
         assert conv.isActive is False
         assert conv.submission_id is not None
 
-        # Verify DB
+        # Verify DB submission
         submission = (
             db_session.query(ApplicationSubmission).filter(ApplicationSubmission.Id == conv.submission_id).one()
         )
         assert submission.Status == "pending"
         assert submission.UserId == 123456789
+        assert submission.ReviewMessageId == 888777666
 
         answers = db_session.query(ApplicationAnswer).filter(ApplicationAnswer.SubmissionId == submission.Id).all()
         assert len(answers) == 3
+
+        # Verify review embed was posted to the channel
+        mock_review_channel.send.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_last_activity_updated(self, conv, mock_user):
@@ -426,7 +433,7 @@ class TestApplicationSubmitConversation:
         await conv.repost_state()  # INIT -> question_0
 
         _make_send_return(mock_user)
-        await conv.on_message(_make_mock_message("Alice"))
+        await conv.on_message("Alice")
 
         assert conv.last_activity >= before
 
@@ -439,7 +446,7 @@ class TestApplicationSubmitConversation:
 
         for answer in ["Alice", "Mage", "Fun guild!"]:
             _make_send_return(mock_user)
-            await conv.on_message(_make_mock_message(answer))
+            await conv.on_message(answer)
 
         _make_send_return(mock_user)
         await conv.on_react(CONFIRM_EMOJI)

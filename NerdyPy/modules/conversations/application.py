@@ -13,6 +13,7 @@ from enum import Enum
 from discord import Embed
 
 from models.application import ApplicationAnswer, ApplicationForm, ApplicationQuestion, ApplicationSubmission
+from modules.views.application import ApplicationReviewView, build_review_embed
 from utils.conversation import Conversation
 
 
@@ -93,7 +94,7 @@ class ApplicationCreateConversation(Conversation):
         await self.send_both(emb, CreateState.COLLECT, self._handle_question, {CANCEL_EMOJI: CreateState.DONE})
 
     async def _handle_question(self, message):
-        self.questions.append(message.content)
+        self.questions.append(message)
         return True
 
     async def state_collect(self):
@@ -194,7 +195,7 @@ class ApplicationEditConversation(Conversation):
         await self.send_msg(emb, EditState.ADD_CONFIRM)
 
     async def state_add_confirm(self):
-        new_text = self.lastResponse.content
+        new_text = self.lastResponse
         with self.bot.session_scope() as session:
             form = ApplicationForm.get_by_id(self.form_id, session)
             if form is None:
@@ -215,7 +216,7 @@ class ApplicationEditConversation(Conversation):
 
     async def _validate_question_number(self, message):
         try:
-            num = int(message.content)
+            num = int(message)
         except ValueError:
             emb = Embed(title="Invalid input", description="Please enter a valid number.")
             await self.send_ns(emb)
@@ -230,7 +231,7 @@ class ApplicationEditConversation(Conversation):
         return True
 
     async def state_remove_confirm(self):
-        num = int(self.lastResponse.content)
+        num = int(self.lastResponse)
         question_id = self._db_questions[num - 1][0]
 
         with self.bot.session_scope() as session:
@@ -260,7 +261,7 @@ class ApplicationEditConversation(Conversation):
 
     async def _validate_reorder(self, message):
         try:
-            nums = [int(x.strip()) for x in message.content.split(",")]
+            nums = [int(x.strip()) for x in message.split(",")]
         except ValueError:
             emb = Embed(title="Invalid input", description="Please enter comma-separated numbers.")
             await self.send_ns(emb)
@@ -277,7 +278,7 @@ class ApplicationEditConversation(Conversation):
         return True
 
     async def state_reorder_confirm(self):
-        nums = [int(x.strip()) for x in self.lastResponse.content.split(",")]
+        nums = [int(x.strip()) for x in self.lastResponse.split(",")]
 
         with self.bot.session_scope() as session:
             form = ApplicationForm.get_by_id(self.form_id, session)
@@ -364,7 +365,7 @@ class ApplicationSubmitConversation(Conversation):
 
     async def _handle_answer(self, message):
         q_id, _ = self.questions[self._current_q_index]
-        self.answers[q_id] = message.content
+        self.answers[q_id] = message
         return True
 
     async def state_confirm(self):
@@ -395,6 +396,31 @@ class ApplicationSubmitConversation(Conversation):
 
             for q_id, answer_text in self.answers.items():
                 session.add(ApplicationAnswer(SubmissionId=submission.Id, QuestionId=q_id, AnswerText=answer_text))
+
+            form = ApplicationForm.get_by_id(self.form_id, session)
+            review_channel_id = form.ReviewChannelId if form else None
+
+        # Post review embed to the review channel
+        if review_channel_id:
+            channel = self.bot.get_channel(review_channel_id)
+            if channel is None:
+                try:
+                    channel = await self.bot.fetch_channel(review_channel_id)
+                except Exception:
+                    channel = None
+
+            if channel is not None:
+                with self.bot.session_scope() as session:
+                    submission = ApplicationSubmission.get_by_id(self.submission_id, session)
+                    form = ApplicationForm.get_by_id(self.form_id, session)
+                    embed = build_review_embed(submission, form, session)
+
+                view = ApplicationReviewView(bot=self.bot)
+                msg = await channel.send(embed=embed, view=view)
+
+                with self.bot.session_scope() as session:
+                    submission = ApplicationSubmission.get_by_id(self.submission_id, session)
+                    submission.ReviewMessageId = msg.id
 
         emb = Embed(title="Application submitted!", description="Your application has been submitted for review.")
         await self.send_ns(emb)
