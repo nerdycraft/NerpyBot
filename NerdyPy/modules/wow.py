@@ -3,21 +3,32 @@
 import asyncio
 import itertools
 import json
-from datetime import UTC, datetime
-from datetime import datetime as dt
-from datetime import timedelta as td
+from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Dict, Literal, LiteralString, Optional, Tuple
+from typing import Literal, LiteralString
 
 import discord
-import requests
 from blizzapi import Language, Region, RetailClient
-from discord import Color, Embed, Interaction, TextChannel, app_commands
+from discord import Color, Embed, HTTPException, Interaction, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext import tasks
 from discord.ext.commands import GroupCog
 from models.wow import WowCharacterMounts, WowGuildNewsConfig
-from utils.account_resolution import build_account_groups, make_pair_key, parse_known_mounts
+from utils.blizzard import (
+    RateLimited,
+    build_account_groups,
+    check_rate_limit,
+    clear_character_failure,
+    get_asset_url,
+    get_best_mythic_keys,
+    get_profile_link,
+    get_raiderio_score,
+    make_pair_key,
+    parse_known_mounts,
+    record_character_failure,
+    should_skip_character,
+    should_update_mount_set,
+)
 from utils.cog import NerpyBotCog
 from utils.errors import NerpyException
 from utils.helpers import notify_error, register_before_loop, send_paginated
@@ -60,63 +71,6 @@ _NOTIFICATION_STRINGS = {
         "boss_desc_mode": "**{name}** ({realm}) hat **{boss}** besiegt ({mode})",
     },
 }
-
-
-class _RateLimited(Exception):
-    """Raised when a Blizzard API call returns HTTP 429."""
-
-
-def _check_rate_limit(response):
-    """Raise _RateLimited if the API response indicates a 429."""
-    if isinstance(response, dict) and response.get("code") == 429:
-        raise _RateLimited()
-
-
-def _get_asset_url(response, key="icon"):
-    """Extract an asset URL from a Blizzard media response."""
-    if not isinstance(response, dict):
-        return None
-    for asset in response.get("assets", []):
-        if asset.get("key") == key:
-            return asset.get("value")
-    return None
-
-
-def _should_update_mount_set(known_count: int, current_count: int) -> bool:
-    """Check whether the stored mount set should be updated with current API data.
-
-    Guards against degraded Blizzard API responses that return fewer mounts
-    than reality. Small removals (e.g., Blizzard revoking bugged mounts) are
-    allowed; large drops are blocked. Compares the real API counts (not the
-    union set size) to avoid false positives from accumulated variant IDs.
-    """
-    if known_count == 0:
-        return True
-    dropped = known_count - current_count
-    threshold = max(10, int(known_count * 0.1))
-    return dropped <= threshold
-
-
-_FAILURE_THRESHOLD = 3
-
-
-def _record_character_failure(failures: dict, char_name: str, char_realm: str) -> None:
-    """Record a 404/403 failure for a character."""
-    key = f"{char_name}:{char_realm}"
-    entry = failures.setdefault(key, {"count": 0})
-    entry["count"] += 1
-    entry["last"] = datetime.now(UTC).isoformat()
-
-
-def _should_skip_character(failures: dict, char_name: str, char_realm: str) -> bool:
-    """Return True if the character has reached the failure threshold."""
-    entry = failures.get(f"{char_name}:{char_realm}")
-    return entry is not None and entry.get("count", 0) >= _FAILURE_THRESHOLD
-
-
-def _clear_character_failure(failures: dict, char_name: str, char_realm: str) -> None:
-    """Remove a character's failure record after a successful check."""
-    failures.pop(f"{char_name}:{char_realm}", None)
 
 
 @app_commands.checks.bot_has_permissions(send_messages=True, embed_links=True)
@@ -168,7 +122,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 try:
                     api = self._get_retailclient(region, "en")
                     data = await asyncio.to_thread(api.realms_index)
-                    _check_rate_limit(data)
+                    check_rate_limit(data)
                     for realm in data.get("realms", []):
                         slug = realm.get("slug", "")
                         name = realm.get("name", slug)
@@ -224,21 +178,6 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
         return realm_slug, region
 
-    @staticmethod
-    def _get_link(site, profile):
-        url = None
-
-        if site == "armory":
-            url = "https://worldofwarcraft.com/en-us/character"
-        elif site == "raiderio":
-            url = "https://raider.io/characters"
-        elif site == "warcraftlogs":
-            url = "https://www.warcraftlogs.com/character"
-        elif site == "wowprogress":
-            url = "https://www.wowprogress.com/character"
-
-        return f"{url}/{profile}"
-
     def _get_retailclient(self, region: str, language: str):
         if region not in self.regions:
             raise NerpyException(f"Invalid region: {region}. Valid regions are: {', '.join(self.regions)}")
@@ -261,7 +200,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         except ValueError as ex:
             raise NerpyException from ex
 
-    def _get_character(self, realm: str, region: str, name: str, language: str) -> Tuple[Dict, LiteralString]:
+    def _get_character(self, realm: str, region: str, name: str, language: str) -> tuple[dict, LiteralString]:
         """Get character profile and media from the WoW API."""
         api = self._get_retailclient(region, language)
 
@@ -272,48 +211,6 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
         return character, profile_picture
 
-    @staticmethod
-    def _get_raiderio_score(region, realm, name):
-        base_url = "https://raider.io/api/v1/characters/profile"
-        args = f"?region={region}&realm={realm}&name={name}&fields=mythic_plus_scores_by_season:current"
-
-        req = requests.get(f"{base_url}{args}")
-
-        if req.status_code == 200:
-            resp = req.json()
-
-            if len(resp["mythic_plus_scores_by_season"]) > 0:
-                return resp["mythic_plus_scores_by_season"][0]["scores"]["all"]
-            else:
-                return None
-        return None
-
-    @staticmethod
-    def _get_best_mythic_keys(region, realm, name):
-        base_url = "https://raider.io/api/v1/characters/profile"
-        args = f"?region={region}&realm={realm}&name={name}&fields=mythic_plus_best_runs"
-
-        req = requests.get(f"{base_url}{args}")
-
-        if req.status_code == 200:
-            resp = req.json()
-
-            keys = []
-            for key in resp["mythic_plus_best_runs"]:
-                base_datetime = dt(1970, 1, 1)
-                delta = td(milliseconds=key["clear_time_ms"])
-                target_date = base_datetime + delta
-                keys.append(
-                    {
-                        "dungeon": key["short_name"],
-                        "level": key["mythic_level"],
-                        "clear_time": target_date.strftime("%M:%S"),
-                    }
-                )
-
-            return keys
-        return None
-
     # ── Armory command ──────────────────────────────────────────────────
 
     @app_commands.command(name="armory")
@@ -322,7 +219,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         interaction: Interaction,
         name: str,
         realm: str,
-        language: Optional[Literal["de", "en"]] = "en",
+        language: Literal["de", "en"] | None = "en",
     ):
         """
         search for character
@@ -343,13 +240,13 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             if not isinstance(character, dict) or character.get("code") == 404:
                 raise NerpyException("No Character with this name found.")
 
-            best_keys = self._get_best_mythic_keys(region, realm_slug, name)
-            rio_score = self._get_raiderio_score(region, realm_slug, name)
+            best_keys = get_best_mythic_keys(region, realm_slug, name)
+            rio_score = get_raiderio_score(region, realm_slug, name)
 
-            armory = self._get_link("armory", profile)
-            raiderio = self._get_link("raiderio", profile)
-            warcraftlogs = self._get_link("warcraftlogs", profile)
-            wowprogress = self._get_link("wowprogress", profile)
+            armory = get_profile_link("armory", profile)
+            raiderio = get_profile_link("raiderio", profile)
+            warcraftlogs = get_profile_link("warcraftlogs", profile)
+            wowprogress = get_profile_link("wowprogress", profile)
 
             emb = Embed(
                 title=f"{character['name']} | {realm_slug.capitalize()} | {region.upper()} | {character['active_spec']['name']} {character['character_class']['name']} | {character['equipped_item_level']} ilvl",
@@ -398,8 +295,8 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         guild_name: str,
         realm: str,
         channel: TextChannel,
-        language: Optional[Literal["de", "en"]] = "en",
-        active_days: Optional[int] = None,
+        language: Literal["de", "en"] | None = "en",
+        active_days: int | None = None,
     ):
         """set up guild news tracking for a WoW guild [manage_channels]
 
@@ -529,9 +426,9 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         self,
         interaction: Interaction,
         config: int,
-        channel: Optional[TextChannel] = None,
-        language: Optional[Literal["de", "en"]] = None,
-        active_days: Optional[int] = None,
+        channel: TextChannel | None = None,
+        language: Literal["de", "en"] | None = None,
+        active_days: int | None = None,
     ):
         """edit a guild news tracking config [manage_channels]
 
@@ -675,8 +572,8 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         self.bot.log.debug(f"Guild news #{config_id}: fetching activity feed")
         try:
             activities = await asyncio.to_thread(api.guild_activity, realmSlug=realm, nameSlug=wow_guild)
-            _check_rate_limit(activities)
-        except _RateLimited:
+            check_rate_limit(activities)
+        except RateLimited:
             self.bot.log.warning(f"Guild news #{config_id}: rate limited on guild_activity, skipping")
             return
         except Exception as ex:
@@ -725,11 +622,11 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 if ach_id:
                     try:
                         media = await asyncio.to_thread(api.achievement_media, achievementId=ach_id)
-                        _check_rate_limit(media)
-                        icon_url = _get_asset_url(media, "icon")
+                        check_rate_limit(media)
+                        icon_url = get_asset_url(media, "icon")
                         if icon_url:
                             emb.set_thumbnail(url=icon_url)
-                    except _RateLimited:
+                    except RateLimited:
                         self.bot.log.warning(f"Guild news #{config_id}: rate limited fetching achievement media")
                     except Exception as ex:
                         self.bot.log.debug(f"Guild news #{config_id}: failed to fetch achievement icon: {ex}")
@@ -758,7 +655,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 if enc_id:
                     try:
                         journal = await asyncio.to_thread(api.journal_encounter, journalEncounterId=enc_id)
-                        _check_rate_limit(journal)
+                        check_rate_limit(journal)
                         creatures = journal.get("creatures", [])
                         if creatures:
                             display_id = creatures[0].get("creature_display", {}).get("id")
@@ -766,11 +663,11 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                                 display_media = await asyncio.to_thread(
                                     api.creature_display_media, creatureDisplayId=display_id
                                 )
-                                _check_rate_limit(display_media)
-                                boss_url = _get_asset_url(display_media, "zoom")
+                                check_rate_limit(display_media)
+                                boss_url = get_asset_url(display_media, "zoom")
                                 if boss_url:
                                     emb.set_thumbnail(url=boss_url)
-                    except _RateLimited:
+                    except RateLimited:
                         self.bot.log.warning(f"Guild news #{config_id}: rate limited fetching encounter media")
                     except Exception as ex:
                         self.bot.log.debug(f"Guild news #{config_id}: failed to fetch boss image: {ex}")
@@ -789,7 +686,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         for emb in reversed(embeds_to_send):
             try:
                 await channel.send(embed=emb)
-            except Exception as ex:
+            except HTTPException as ex:
                 self.bot.log.warning(f"Guild news #{config_id}: failed to send embed: {ex}")
 
         # Update last activity timestamp
@@ -812,8 +709,8 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         self.bot.log.debug(f"Guild news #{config_id}: fetching roster for mount tracking")
         try:
             roster = await asyncio.to_thread(api.guild_roster, realmSlug=realm, nameSlug=wow_guild)
-            _check_rate_limit(roster)
-        except _RateLimited:
+            check_rate_limit(roster)
+        except RateLimited:
             self.bot.log.warning(f"Guild news #{config_id}: rate limited on guild_roster, skipping mount poll")
             return
         except Exception as ex:
@@ -850,7 +747,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         )
 
         # Prune mount data for characters who left the guild over STALE_DAYS ago
-        stale_cutoff = datetime.now(UTC) - td(days=STALE_DAYS)
+        stale_cutoff = datetime.now(UTC) - timedelta(days=STALE_DAYS)
         with self.bot.session_scope() as session:
             deleted = WowCharacterMounts.delete_stale(config_id, candidate_keys, stale_cutoff, session)
             if deleted:
@@ -896,7 +793,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 f"characters not yet baselined, will process all batches"
             )
 
-        cutoff = datetime.now(UTC) - td(days=active_days)
+        cutoff = datetime.now(UTC) - timedelta(days=active_days)
         semaphore = asyncio.Semaphore(5)
         rate_limited = asyncio.Event()
         total_stats = {
@@ -917,7 +814,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             if rate_limited.is_set():
                 return
 
-            if _should_skip_character(character_failures, char_name, char_realm):
+            if should_skip_character(character_failures, char_name, char_realm):
                 total_stats["skipped_404"] += 1
                 return
 
@@ -926,8 +823,8 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                     profile = await asyncio.to_thread(
                         api.character_profile_summary, realmSlug=char_realm, characterName=char_name
                     )
-                    _check_rate_limit(profile)
-                except _RateLimited:
+                    check_rate_limit(profile)
+                except RateLimited:
                     self.bot.log.warning(f"Guild news #{config_id}: rate limited on profile for {char_name}")
                     rate_limited.set()
                     return
@@ -938,11 +835,11 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
                 if isinstance(profile, dict) and profile.get("code") in (404, 403):
                     self.bot.log.debug(f"Guild news #{config_id}: {char_name} returned {profile.get('code')}, skipping")
-                    _record_character_failure(character_failures, char_name, char_realm)
+                    record_character_failure(character_failures, char_name, char_realm)
                     total_stats["skipped_error"] += 1
                     return
 
-                _clear_character_failure(character_failures, char_name, char_realm)
+                clear_character_failure(character_failures, char_name, char_realm)
 
                 last_login_ms = profile.get("last_login_timestamp", 0)
                 if last_login_ms:
@@ -955,8 +852,8 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                     mount_data = await asyncio.to_thread(
                         api.character_mounts_collection_summary, realmSlug=char_realm, characterName=char_name
                     )
-                    _check_rate_limit(mount_data)
-                except _RateLimited:
+                    check_rate_limit(mount_data)
+                except RateLimited:
                     self.bot.log.warning(f"Guild news #{config_id}: rate limited on mounts for {char_name}")
                     rate_limited.set()
                     return
@@ -1032,7 +929,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                             )
                             new_ids = set()
 
-                    if not _should_update_mount_set(last_count, len(current_ids)):
+                    if not should_update_mount_set(last_count, len(current_ids)):
                         self.bot.log.warning(
                             f"Guild news #{config_id}: {char_name} mount count dropped "
                             f"(last_count={last_count} current={len(current_ids)}) — "
@@ -1074,7 +971,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                             )
                             try:
                                 mount_info = await asyncio.to_thread(api.mount, mountId=mid)
-                                _check_rate_limit(mount_info)
+                                check_rate_limit(mount_info)
                                 displays = mount_info.get("creature_displays", [])
                                 if displays:
                                     display_id = displays[0].get("id")
@@ -1082,17 +979,17 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                                         display_media = await asyncio.to_thread(
                                             api.creature_display_media, creatureDisplayId=display_id
                                         )
-                                        _check_rate_limit(display_media)
-                                        mount_url = _get_asset_url(display_media, "zoom")
+                                        check_rate_limit(display_media)
+                                        mount_url = get_asset_url(display_media, "zoom")
                                         if mount_url:
                                             emb.set_thumbnail(url=mount_url)
-                            except _RateLimited:
+                            except RateLimited:
                                 self.bot.log.warning(f"Guild news #{config_id}: rate limited fetching mount media")
                             except Exception as ex:
                                 self.bot.log.debug(f"Guild news #{config_id}: failed to fetch mount image: {ex}")
                             try:
                                 await channel.send(embed=emb)
-                            except Exception as ex:
+                            except HTTPException as ex:
                                 self.bot.log.warning(f"Guild news #{config_id}: failed to send mount embed: {ex}")
 
                         total_stats["new_mounts"] += len(new_ids)

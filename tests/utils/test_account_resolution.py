@@ -3,7 +3,7 @@
 
 import json
 
-from utils.account_resolution import (
+from utils.blizzard import (
     strip_diacritics,
     name_similarity_score,
     temporal_score,

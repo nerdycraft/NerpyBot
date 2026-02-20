@@ -1,13 +1,150 @@
 # -*- coding: utf-8 -*-
-"""Heuristics for grouping WoW characters by likely Battle.net account.
+"""Blizzard/WoW API utilities, account resolution, and helper functions.
 
-Uses three signals: name patterns, mount set identity, and temporal correlation.
+Consolidates all WoW-related helper logic:
+- Blizzard API response handling (rate limits, asset extraction)
+- Character failure tracking
+- Mount set comparison heuristics
+- Account grouping via name/mount/temporal signals
+- Raider.io API helpers
+- Profile URL builders
 """
 
 import difflib
 import itertools
 import json
 import unicodedata
+from datetime import UTC, datetime
+from datetime import datetime as dt
+from datetime import timedelta as td
+
+import requests
+
+
+# ── Blizzard API helpers ─────────────────────────────────────────────
+
+
+class RateLimited(Exception):
+    """Raised when a Blizzard API call returns HTTP 429."""
+
+
+def check_rate_limit(response) -> None:
+    """Raise RateLimited if the API response indicates a 429."""
+    if isinstance(response, dict) and response.get("code") == 429:
+        raise RateLimited()
+
+
+def get_asset_url(response, key: str = "icon") -> str | None:
+    """Extract an asset URL from a Blizzard media response."""
+    if not isinstance(response, dict):
+        return None
+    for asset in response.get("assets", []):
+        if asset.get("key") == key:
+            return asset.get("value")
+    return None
+
+
+# ── Mount set comparison ─────────────────────────────────────────────
+
+
+def should_update_mount_set(known_count: int, current_count: int) -> bool:
+    """Check whether the stored mount set should be updated with current API data.
+
+    Guards against degraded Blizzard API responses that return fewer mounts
+    than reality. Small removals (e.g., Blizzard revoking bugged mounts) are
+    allowed; large drops are blocked. Compares the real API counts (not the
+    union set size) to avoid false positives from accumulated variant IDs.
+    """
+    if known_count == 0:
+        return True
+    dropped = known_count - current_count
+    threshold = max(10, int(known_count * 0.1))
+    return dropped <= threshold
+
+
+# ── Character failure tracking ───────────────────────────────────────
+
+FAILURE_THRESHOLD = 3
+
+
+def record_character_failure(failures: dict, char_name: str, char_realm: str) -> None:
+    """Record a 404/403 failure for a character."""
+    key = f"{char_name}:{char_realm}"
+    entry = failures.setdefault(key, {"count": 0})
+    entry["count"] += 1
+    entry["last"] = datetime.now(UTC).isoformat()
+
+
+def should_skip_character(failures: dict, char_name: str, char_realm: str) -> bool:
+    """Return True if the character has reached the failure threshold."""
+    entry = failures.get(f"{char_name}:{char_realm}")
+    return entry is not None and entry.get("count", 0) >= FAILURE_THRESHOLD
+
+
+def clear_character_failure(failures: dict, char_name: str, char_realm: str) -> None:
+    """Remove a character's failure record after a successful check."""
+    failures.pop(f"{char_name}:{char_realm}", None)
+
+
+# ── Raider.io helpers ────────────────────────────────────────────────
+
+_RAIDERIO_BASE_URL = "https://raider.io/api/v1/characters/profile"
+
+
+def get_raiderio_score(region: str, realm: str, name: str) -> float | None:
+    """Fetch the current Mythic+ score from Raider.io."""
+    args = f"?region={region}&realm={realm}&name={name}&fields=mythic_plus_scores_by_season:current"
+    req = requests.get(f"{_RAIDERIO_BASE_URL}{args}")
+
+    if req.status_code == 200:
+        resp = req.json()
+        if len(resp["mythic_plus_scores_by_season"]) > 0:
+            return resp["mythic_plus_scores_by_season"][0]["scores"]["all"]
+    return None
+
+
+def get_best_mythic_keys(region: str, realm: str, name: str) -> list[dict] | None:
+    """Fetch best mythic+ key runs from Raider.io."""
+    args = f"?region={region}&realm={realm}&name={name}&fields=mythic_plus_best_runs"
+    req = requests.get(f"{_RAIDERIO_BASE_URL}{args}")
+
+    if req.status_code == 200:
+        resp = req.json()
+        keys = []
+        for key in resp["mythic_plus_best_runs"]:
+            base_datetime = dt(1970, 1, 1)
+            delta = td(milliseconds=key["clear_time_ms"])
+            target_date = base_datetime + delta
+            keys.append(
+                {
+                    "dungeon": key["short_name"],
+                    "level": key["mythic_level"],
+                    "clear_time": target_date.strftime("%M:%S"),
+                }
+            )
+        return keys
+    return None
+
+
+# ── Profile URL builder ──────────────────────────────────────────────
+
+_PROFILE_SITES = {
+    "armory": "https://worldofwarcraft.com/en-us/character",
+    "raiderio": "https://raider.io/characters",
+    "warcraftlogs": "https://www.warcraftlogs.com/character",
+    "wowprogress": "https://www.wowprogress.com/character",
+}
+
+
+def get_profile_link(site: str, profile: str) -> str:
+    """Generate a URL for an external WoW profile site."""
+    base = _PROFILE_SITES.get(site)
+    return f"{base}/{profile}"
+
+
+# ── Account resolution ───────────────────────────────────────────────
+# Heuristics for grouping WoW characters by likely Battle.net account.
+# Uses three signals: name patterns, mount set identity, and temporal correlation.
 
 
 def parse_known_mounts(raw: str) -> tuple[set[int], int]:
@@ -31,7 +168,7 @@ def parse_known_mounts(raw: str) -> tuple[set[int], int]:
 def strip_diacritics(name: str) -> str:
     """Normalize a character name for comparison by removing diacritics.
 
-    Examples: 'Morza\u0302' -> 'morza', 'MorzA' -> 'morza'
+    Examples: 'Morzâ' -> 'morza', 'MorzA' -> 'morza'
     """
     nfkd = unicodedata.normalize("NFKD", name.lower())
     return "".join(c for c in nfkd if not unicodedata.combining(c))
