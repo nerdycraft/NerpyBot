@@ -5,6 +5,7 @@ from discord.app_commands import checks
 from discord.ext.commands import Cog, GroupCog
 
 from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
+from utils.cog import NerpyBotCog
 
 from utils.checks import is_role_below_bot
 from utils.helpers import error_context, notify_error, send_paginated
@@ -13,12 +14,8 @@ from utils.permissions import validate_channel_permissions
 
 @app_commands.default_permissions(manage_roles=True)
 @app_commands.guild_only()
-class ReactionRole(GroupCog, group_name="reactionrole"):
+class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
     """cog for managing reaction-based role assignment"""
-
-    def __init__(self, bot):
-        bot.log.info(f"loaded {__name__}")
-        self.bot = bot
 
     async def _message_id_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         with self.bot.session_scope() as session:

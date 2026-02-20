@@ -11,6 +11,7 @@ from models.tagging import Tag, TagType
 
 from utils.audio import QueuedSong, QueueMixin
 from utils.checks import can_stop_playback, is_connected_to_voice
+from utils.cog import NerpyBotCog
 from utils.download import download
 from utils.errors import NerpyException
 from utils.helpers import error_context, send_paginated
@@ -18,15 +19,13 @@ from utils.helpers import error_context, send_paginated
 
 @app_commands.guild_only()
 @app_commands.checks.bot_has_permissions(send_messages=True)
-class Tagging(QueueMixin, GroupCog, group_name="tag"):
+class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     """Command group for sound and text tags"""
 
     queue_group = app_commands.Group(name="queue", description="Manage the Tag Queue")
 
     def __init__(self, bot):
-        bot.log.info(f"loaded {__name__}")
-
-        self.bot = bot
+        super().__init__(bot)
         self.queue = {}
         self.audio = self.bot.audio
 

@@ -14,6 +14,7 @@ from models.botmod import BotModeratorRole
 from models.permissions import PermissionSubscriber
 
 from utils.checks import is_admin_or_operator, require_operator
+from utils.cog import NerpyBotCog
 from utils.errors import NerpyException
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 
@@ -46,18 +47,13 @@ def _format_remaining(seconds: float) -> str:
 
 
 @app_commands.default_permissions(administrator=True)
-class Admin(Cog):
+class Admin(NerpyBotCog, Cog):
     """cog for administrative usage"""
 
     modrole = app_commands.Group(
         name="modrole", description="Manage the bot-moderator role for this server", guild_only=True
     )
     botpermissions = app_commands.Group(name="botpermissions", description="Check bot permissions", guild_only=True)
-
-    def __init__(self, bot):
-        bot.log.info(f"loaded {__name__}")
-
-        self.bot = bot
 
     async def interaction_check(self, interaction: Interaction) -> bool:
         """Allow administrators and bot operators to use all admin slash commands."""

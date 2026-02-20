@@ -5,6 +5,7 @@ from discord import Interaction, Member, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext.commands import Cog, GroupCog
 from models.leavemsg import LeaveMessage
+from utils.cog import NerpyBotCog
 
 from utils.errors import NerpyException
 from utils.permissions import validate_channel_permissions
@@ -15,12 +16,8 @@ DEFAULT_LEAVE_MESSAGE = "{member} left the server :("
 
 @app_commands.default_permissions(administrator=True)
 @app_commands.guild_only()
-class LeaveMsg(GroupCog, group_name="leavemsg"):
+class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
     """Cog for managing server leave messages"""
-
-    def __init__(self, bot):
-        bot.log.info(f"loaded {__name__}")
-        self.bot = bot
 
     @Cog.listener()
     async def on_member_remove(self, member: Member) -> None:

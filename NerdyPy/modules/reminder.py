@@ -10,8 +10,9 @@ from discord import Interaction, TextChannel, app_commands
 from discord.ext import tasks
 from discord.ext.commands import GroupCog
 from models.reminder import ReminderMessage
+from utils.cog import NerpyBotCog
 from utils.duration import parse_duration
-from utils.helpers import notify_error, send_paginated
+from utils.helpers import notify_error, register_before_loop, send_paginated
 from utils.permissions import validate_channel_permissions
 from utils.schedule import compute_next_fire
 
@@ -59,10 +60,10 @@ def _format_relative(next_fire_utc: datetime, tz: ZoneInfo | None = None) -> str
 
 
 @app_commands.guild_only()
-class Reminder(GroupCog, group_name="reminder"):
+class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
     def __init__(self, bot):
-        bot.log.info(f"loaded {__name__}")
-        self.bot = bot
+        super().__init__(bot)
+        register_before_loop(bot, self._reminder_loop, "Reminder")
         self._reminder_loop.start()
 
     def cog_unload(self):
@@ -142,11 +143,6 @@ class Reminder(GroupCog, group_name="reminder"):
     def _reschedule(self):
         """Restart the loop so it immediately re-evaluates timing."""
         self._reminder_loop.restart()
-
-    @_reminder_loop.before_loop
-    async def _reminder_before_loop(self):
-        self.bot.log.info("Reminder: Waiting for Bot to be ready...")
-        await self.bot.wait_until_ready()
 
     # -- /reminder create ----------------------------------------------
 

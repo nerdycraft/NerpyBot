@@ -6,6 +6,7 @@ from typing import Literal
 from aiohttp import ClientSession
 from discord import Color, Embed, Interaction, app_commands
 from discord.ext.commands import GroupCog
+from utils.cog import NerpyBotCog
 from utils.errors import NerpyException
 from utils.helpers import error_context
 
@@ -19,13 +20,11 @@ class LeagueCommand(Enum):
 
 @app_commands.guild_only()
 @app_commands.checks.bot_has_permissions(send_messages=True, embed_links=True)
-class League(GroupCog):
+class League(NerpyBotCog, GroupCog):
     """league of legends related stuff"""
 
     def __init__(self, bot):
-        bot.log.info(f"loaded {__name__}")
-
-        self.bot = bot
+        super().__init__(bot)
         self.version = None
         self.config = self.bot.config["league"]
 

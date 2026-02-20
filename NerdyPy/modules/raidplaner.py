@@ -6,16 +6,12 @@ from enum import Enum
 from discord import Embed
 from discord.ext.commands import Cog, Context, command
 from models.raidplaner import RaidEncounter, RaidEncounterRole, RaidEvent, RaidTemplate
+from utils.cog import NerpyBotCog
 from utils.conversation import Conversation
 
 
-class RaidPlaner(Cog):
+class RaidPlaner(NerpyBotCog, Cog):
     """cog for administrative usage"""
-
-    def __init__(self, bot):
-        bot.log.info(f"loaded {__name__}")
-
-        self.bot = bot
 
     @command()
     async def raidplaner(self, ctx: Context):

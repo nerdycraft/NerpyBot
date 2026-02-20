@@ -121,6 +121,15 @@ async def notify_error(bot, context: str, error: Exception) -> None:
             log.debug(f"Could not DM error notification to {uid}: {dm_err}")
 
 
+def register_before_loop(bot, loop, label: str):
+    """Register a standard before_loop handler that waits for the bot to be ready."""
+
+    @loop.before_loop
+    async def _before(*_args):
+        bot.log.info(f"{label}: Waiting for Bot to be ready...")
+        await bot.wait_until_ready()
+
+
 def youtube(yt_key: str, return_type: str, query: str) -> str | None:
     yt = build("youtube", "v3", developerKey=yt_key)
     search_response = yt.search().list(q=query, part="id,snippet", type="video", maxResults=1).execute()
