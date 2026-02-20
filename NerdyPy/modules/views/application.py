@@ -6,6 +6,8 @@ review embeds in the review channel.  Uses ``timeout=None`` and fixed ``custom_i
 strings so the view survives bot restarts.
 """
 
+from datetime import UTC
+
 import discord
 
 from models.application import ApplicationForm, ApplicationGuildConfig, ApplicationSubmission, ApplicationVote
@@ -39,7 +41,10 @@ def build_review_embed(submission, form, session) -> discord.Embed:
 
     embed = discord.Embed(title=f"\U0001f4cb {form.Name}", colour=_status_colour(submission.Status))
     embed.add_field(name="Applicant", value=f"<@{submission.UserId}> ({submission.UserName})", inline=True)
-    embed.add_field(name="Submitted", value=discord.utils.format_dt(submission.SubmittedAt, style="R"), inline=True)
+    submitted_at = submission.SubmittedAt
+    if submitted_at.tzinfo is None:
+        submitted_at = submitted_at.replace(tzinfo=UTC)
+    embed.add_field(name="Submitted", value=discord.utils.format_dt(submitted_at, style="R"), inline=True)
 
     for answer in submission.answers:
         # Look up question text — answers are joined-loaded via the submission
