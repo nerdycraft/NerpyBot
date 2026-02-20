@@ -19,6 +19,31 @@ from utils.permissions import build_permissions_embed, check_guild_permissions, 
 
 PROTECTED_MODULES = frozenset({"admin", "voicecontrol"})
 
+_DURATION_MULTIPLIERS = {"m": 60, "h": 3600, "d": 86400}
+
+
+def _parse_duration(text: str) -> int | None:
+    """Parse a human duration string like '30m', '2h', '1d' into seconds."""
+    match = re.fullmatch(r"(\d+)\s*([mhd])", text.strip().lower())
+    if not match:
+        return None
+    return int(match.group(1)) * _DURATION_MULTIPLIERS[match.group(2)]
+
+
+def _format_remaining(seconds: float) -> str:
+    """Format seconds into a human-readable string like '1h 23m'."""
+    total = int(seconds)
+    if total >= 86400:
+        days = total // 86400
+        hours = (total % 86400) // 3600
+        return f"{days}d {hours}h" if hours else f"{days}d"
+    if total >= 3600:
+        hours = total // 3600
+        minutes = (total % 3600) // 60
+        return f"{hours}h {minutes}m" if minutes else f"{hours}h"
+    minutes = total // 60
+    return f"{minutes}m" if minutes else f"{total}s"
+
 
 @app_commands.default_permissions(administrator=True)
 class Admin(Cog):
@@ -238,32 +263,6 @@ class Admin(Cog):
 
         self.bot.log.info(f"debug logging toggled to {self.bot.debug} by {ctx.author}")
 
-    @staticmethod
-    def _parse_duration(text: str) -> int | None:
-        """Parse a human duration string like '30m', '2h', '1d' into seconds."""
-        m = re.fullmatch(r"(\d+)\s*([mhd])", text.strip().lower())
-        if not m:
-            return None
-        value = int(m.group(1))
-        unit = m.group(2)
-        multipliers = {"m": 60, "h": 3600, "d": 86400}
-        return value * multipliers[unit]
-
-    @staticmethod
-    def _format_remaining(seconds: float) -> str:
-        """Format seconds into a human-readable string like '1h 23m'."""
-        seconds = int(seconds)
-        if seconds >= 86400:
-            d = seconds // 86400
-            h = (seconds % 86400) // 3600
-            return f"{d}d {h}h" if h else f"{d}d"
-        if seconds >= 3600:
-            h = seconds // 3600
-            m = (seconds % 3600) // 60
-            return f"{h}h {m}m" if m else f"{h}h"
-        m = seconds // 60
-        return f"{m}m" if m else f"{seconds}s"
-
     @command(name="errors")
     async def _errors(self, ctx: Context, action: str = "status", *, arg: str = None) -> None:
         """Manage error notifications. [operator]
@@ -280,7 +279,7 @@ class Admin(Cog):
             status = self.bot.error_throttle.get_status()
 
             if status["is_suppressed"]:
-                remaining = self._format_remaining(status["suppressed_remaining"])
+                remaining = _format_remaining(status["suppressed_remaining"])
                 header = f"🔇 Error notifications suppressed for {remaining} remaining"
             else:
                 header = "🔔 Error notifications active"
@@ -292,7 +291,7 @@ class Admin(Cog):
                 lines.append("  No errors tracked yet.")
             else:
                 for key, info in status["buckets"].items():
-                    ago = self._format_remaining(info["last_notified_ago"])
+                    ago = _format_remaining(info["last_notified_ago"])
                     entry = f"  • {key} — last {ago} ago"
                     if info["suppressed_count"]:
                         entry += f" ({info['suppressed_count']} suppressed)"
@@ -304,12 +303,12 @@ class Admin(Cog):
             if not arg:
                 await ctx.send("Usage: `!errors suppress <duration>` (e.g. 30m, 2h, 1d)")
                 return
-            seconds = self._parse_duration(arg)
+            seconds = _parse_duration(arg)
             if seconds is None:
                 await ctx.send("Invalid duration. Use `<number><m|h|d>`, e.g. `30m`, `2h`, `1d`.")
                 return
             self.bot.error_throttle.suppress(seconds)
-            await ctx.send(f"🔇 Error notifications suppressed for {self._format_remaining(seconds)}.")
+            await ctx.send(f"🔇 Error notifications suppressed for {_format_remaining(seconds)}.")
 
         elif action == "resume":
             if not self.bot.error_throttle.is_suppressed:
