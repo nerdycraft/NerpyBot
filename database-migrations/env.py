@@ -3,6 +3,8 @@ from logging.config import fileConfig
 from pathlib import Path
 
 import yaml
+
+# noinspection PyUnresolvedReferences
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
@@ -19,7 +21,7 @@ if config.config_file_name is not None:
 def _build_url_from_bot_config(bot_config: dict) -> str | None:
     """Build a SQLAlchemy URL from the bot's config.yaml database section.
 
-    Mirrors the URL construction logic in NerdyPy.py.
+    Mirrors the URL construction logic in bot.py.
     """
     database_config = bot_config.get("database")
     if not database_config:

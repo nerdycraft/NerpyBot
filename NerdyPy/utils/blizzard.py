@@ -67,7 +67,7 @@ def should_update_mount_set(known_count: int, current_count: int) -> bool:
 FAILURE_THRESHOLD = 3
 
 
-def record_character_failure(failures: dict, char_name: str, char_realm: str) -> None:
+def record_character_failure(failures: dict[str, dict[str, int | str]], char_name: str, char_realm: str) -> None:
     """Record a 404/403 failure for a character."""
     key = f"{char_name}:{char_realm}"
     entry = failures.setdefault(key, {"count": 0})
@@ -75,13 +75,13 @@ def record_character_failure(failures: dict, char_name: str, char_realm: str) ->
     entry["last"] = datetime.now(UTC).isoformat()
 
 
-def should_skip_character(failures: dict, char_name: str, char_realm: str) -> bool:
+def should_skip_character(failures: dict[str, dict[str, int | str]], char_name: str, char_realm: str) -> bool:
     """Return True if the character has reached the failure threshold."""
     entry = failures.get(f"{char_name}:{char_realm}")
     return entry is not None and entry.get("count", 0) >= FAILURE_THRESHOLD
 
 
-def clear_character_failure(failures: dict, char_name: str, char_realm: str) -> None:
+def clear_character_failure(failures: dict[str, dict[str, int | str]], char_name: str, char_realm: str) -> None:
     """Remove a character's failure record after a successful check."""
     failures.pop(f"{char_name}:{char_realm}", None)
 
@@ -103,6 +103,7 @@ def get_raiderio_score(region: str, realm: str, name: str) -> float | None:
     return None
 
 
+# noinspection GrazieInspection
 def get_best_mythic_keys(region: str, realm: str, name: str) -> list[dict] | None:
     """Fetch best mythic+ key runs from Raider.io."""
     args = f"?region={region}&realm={realm}&name={name}&fields=mythic_plus_best_runs"
@@ -229,8 +230,10 @@ def account_confidence(
     """Combine all signals into a single same-account confidence score.
 
     Args:
-        name_a, name_b: Lowercased character names.
-        mounts_a, mounts_b: JSON-encoded mount ID lists (or None if no stored data).
+        name_a: Lowercased character name (first).
+        name_b: Lowercased character name (second).
+        mounts_a: JSON-encoded mount ID list (or None if no stored data).
+        mounts_b: JSON-encoded mount ID list (or None if no stored data).
         temporal_data: Dict with 'correlated' and 'uncorrelated' counts (or None).
 
     Returns: 0.0-1.0 confidence score.

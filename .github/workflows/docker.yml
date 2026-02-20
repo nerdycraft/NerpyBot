@@ -74,7 +74,7 @@ jobs:
         run: |
           IMAGE="${REGISTRY}/${IMAGE_NAME,,}:${GITHUB_SHA::7}"
           docker pull "${IMAGE}"
-          docker run --rm "${IMAGE}" python -c "from NerdyPy import NerpyBot; print('OK')"
+          docker run --rm "${IMAGE}" python -c "from bot import NerpyBot; print('OK')"
           echo "✅ NerpyBot image verified"
 
   build-migrations:

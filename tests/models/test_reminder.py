@@ -57,6 +57,7 @@ class TestReminderMessageGetDue:
 
     def test_returns_only_due_and_enabled(self, db_session):
         now = datetime.now(UTC)
+        # noinspection GrazieInspection
         # Due and enabled
         r1 = ReminderMessage(
             GuildId=123,
@@ -71,6 +72,7 @@ class TestReminderMessageGetDue:
             Count=0,
             Enabled=True,
         )
+        # noinspection GrazieInspection
         # Due but disabled
         r2 = ReminderMessage(
             GuildId=123,

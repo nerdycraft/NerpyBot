@@ -71,4 +71,4 @@ class AutoKicker(db.BASE):
     @classmethod
     def delete(cls, guild_id: int, session):
         """deletes an entry with given name for given guild"""
-        session.delete(AutoKicker.get(guild_id, session))
+        session.delete(AutoKicker.get_by_guild(guild_id, session))

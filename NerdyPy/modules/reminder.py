@@ -16,8 +16,8 @@ from utils.helpers import notify_error, register_before_loop, send_paginated
 from utils.permissions import validate_channel_permissions
 from utils.schedule import compute_next_fire
 
-LOOP_MAX_SECONDS = 60
-LOOP_MIN_SECONDS = 5
+LOOP_MAX_SECONDS = 60.0
+LOOP_MIN_SECONDS = 5.0
 
 WEEKDAY_MAP = {
     "Monday": 0,
@@ -301,6 +301,7 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
         rel = _format_relative(next_fire, tz_obj)
         await interaction.response.send_message(f"Scheduled reminder created — next fire {rel}.", ephemeral=True)
 
+    # noinspection PyMethodMayBeStatic,PyUnusedLocal
     async def _timezone_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         current_lower = current.lower()
         return [app_commands.Choice(name=tz, value=tz) for tz in _TZ_NAMES if current_lower in tz.lower()][:25]

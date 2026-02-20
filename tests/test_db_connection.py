@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for NerpyBot.build_connection_string."""
 
-from NerdyPy.NerdyPy import NerpyBot
+from NerdyPy.bot import NerpyBot
 
 
 class TestBuildConnectionString:

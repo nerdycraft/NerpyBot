@@ -9,7 +9,7 @@ import logging
 import queue
 from datetime import datetime
 
-from discord import Interaction, VoiceChannel
+from discord import Interaction, VoiceChannel, VoiceClient
 from discord.ext import tasks
 from utils.helpers import send_paginated
 
@@ -137,10 +137,11 @@ class Audio:
 
     async def _join_channel(self, channel: VoiceChannel):
         try:
-            if channel.guild.voice_client is not None and channel.guild.voice_client.is_connected():
+            vc = channel.guild.voice_client
+            if isinstance(vc, VoiceClient) and vc.is_connected():
                 if self.buffer[channel.guild.id][BufferKey.CHANNEL].id != channel.id:
                     self.bot.log.debug(f"Moving to channel {channel}")
-                    await channel.guild.voice_client.move_to(channel)
+                    await vc.move_to(channel)
             else:
                 self.bot.log.debug(f"Connecting to channel {channel}")
                 try:

@@ -4,7 +4,7 @@ NerpyBot is a Discord bot built with discord.py using the Cog extension system. 
 
 ## Entry Point
 
-**File:** `NerdyPy/NerdyPy.py` — `NerpyBot(Bot)`
+**File:** `NerdyPy/bot.py` — `NerpyBot(Bot)`
 
 ### Startup Flow
 
@@ -64,7 +64,7 @@ Modules are loaded dynamically based on `config.bot.modules`. Available modules:
 
 ### Connection
 
-**File:** `NerdyPy/NerdyPy.py` (connection setup in `NerpyBot.__init__`)
+**File:** `NerdyPy/bot.py` (connection setup in `NerpyBot.__init__`)
 
 Supports SQLite, MySQL/MariaDB, and PostgreSQL via SQLAlchemy connection strings:
 
@@ -80,7 +80,7 @@ with self.bot.session_scope() as session:
     # auto-commits on exit, rolls back on SQLAlchemy errors
 ```
 
-The `session_scope()` context manager (`NerdyPy.py:112`) creates a session, yields it, commits on success, rolls back on error, and always closes.
+The `session_scope()` context manager (`bot.py:112`) creates a session, yields it, commits on success, rolls back on error, and always closes.
 
 **Key property:** `expire_on_commit=False` — objects remain usable after the session closes. This allows snapshotting values for use outside the session scope.
 

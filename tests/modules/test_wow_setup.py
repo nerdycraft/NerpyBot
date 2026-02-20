@@ -10,6 +10,7 @@ from models.wow import WowGuildNewsConfig
 class TestUniqueGuildConfig:
     """Verify unique constraint on (GuildId, WowGuildName, WowRealmSlug, Region)."""
 
+    # noinspection PyMethodMayBeStatic
     def _make_config(self, **overrides):
         defaults = {
             "GuildId": 123456,

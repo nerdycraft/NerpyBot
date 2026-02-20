@@ -39,6 +39,7 @@ YTDL_ARGS = {
     "default_search": "auto",
     "source_address": "0.0.0.0",  # bind to ipv4 since ipv6 addresses cause issues sometimes
 }
+# noinspection PyTypeChecker
 YTDL = YoutubeDL(YTDL_ARGS)
 
 

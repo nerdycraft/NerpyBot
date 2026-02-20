@@ -105,6 +105,29 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     def cog_unload(self):
         self._guild_news_loop.cancel()
 
+    async def _call_api(self, api_method, config_id, label, *args, rate_limited_event=None, stats=None, **kwargs):
+        """Call a Blizzard API method with standard rate-limit and error handling.
+
+        Returns the result on success, or None on failure (already logged).
+        Sets rate_limited_event and increments stats["skipped_error"] when provided.
+        """
+        self.bot.log.debug(f"Guild news #{config_id}: {label}")
+        try:
+            result = await asyncio.to_thread(api_method, *args, **kwargs)
+            check_rate_limit(result)
+            return result
+        except RateLimited:
+            self.bot.log.warning(f"Guild news #{config_id}: rate limited on {label}")
+            if rate_limited_event:
+                rate_limited_event.set()
+            return None
+        except Exception as ex:
+            log_fn = self.bot.log.debug if stats is not None else self.bot.log.warning
+            log_fn(f"Guild news #{config_id}: {label} failed: {ex}")
+            if stats is not None:
+                stats["skipped_error"] += 1
+            return None
+
     # ── Realm cache & autocomplete ─────────────────────────────────────
 
     async def _ensure_realm_cache(self):
@@ -134,6 +157,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             self._realm_cache = cache
             self.bot.log.info(f"Realm cache populated with {len(cache)} entries")
 
+    # noinspection PyUnusedLocal
     async def _realm_autocomplete(
         self, interaction: discord.Interaction, current: str
     ) -> list[discord.app_commands.Choice[str]]:
@@ -306,6 +330,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         """
         try:
             await interaction.response.defer(ephemeral=True)
+            language = language or "en"
             realm_slug, region = await self._parse_realm(realm)
             name_slug = guild_name.lower().replace(" ", "-")
 
@@ -526,7 +551,6 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 return
 
             # Snapshot config values so we can use them outside the session
-            guild_id = config.GuildId
             channel_id = config.ChannelId
             wow_guild = config.WowGuildName
             realm = config.WowRealmSlug
@@ -555,7 +579,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         api = self._get_retailclient(region, language)
 
         # ── Phase 1: Guild Activity Feed ────────────────────────────
-        await self._poll_activity(api, cfg_id, guild_id, wow_guild, realm, last_activity_ts, channel, language)
+        await self._poll_activity(api, cfg_id, wow_guild, realm, last_activity_ts, channel, language)
 
         # ── Phase 2: Mount Tracking ─────────────────────────────────
         if self._track_mounts:
@@ -565,19 +589,16 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
         self.bot.log.debug(f"Guild news #{cfg_id}: poll complete")
 
-    async def _poll_activity(
-        self, api, config_id, guild_id, wow_guild, realm, last_activity_ts, channel, language="en"
-    ):
+    async def _poll_activity(self, api, config_id, wow_guild, realm, last_activity_ts, channel, language="en"):
         """Fetch guild_activity and post new achievements/encounters."""
-        self.bot.log.debug(f"Guild news #{config_id}: fetching activity feed")
-        try:
-            activities = await asyncio.to_thread(api.guild_activity, realmSlug=realm, nameSlug=wow_guild)
-            check_rate_limit(activities)
-        except RateLimited:
-            self.bot.log.warning(f"Guild news #{config_id}: rate limited on guild_activity, skipping")
-            return
-        except Exception as ex:
-            self.bot.log.warning(f"Guild news #{config_id}: guild_activity call failed: {ex}")
+        activities = await self._call_api(
+            api.guild_activity,
+            config_id,
+            "fetching activity feed",
+            realmSlug=realm,
+            nameSlug=wow_guild,
+        )
+        if activities is None:
             return
 
         if not isinstance(activities, dict) or "activities" not in activities:
@@ -706,15 +727,14 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         Detects character renames via the profile API and migrates stored data.
         Backs off on Blizzard 429 rate limits.
         """
-        self.bot.log.debug(f"Guild news #{config_id}: fetching roster for mount tracking")
-        try:
-            roster = await asyncio.to_thread(api.guild_roster, realmSlug=realm, nameSlug=wow_guild)
-            check_rate_limit(roster)
-        except RateLimited:
-            self.bot.log.warning(f"Guild news #{config_id}: rate limited on guild_roster, skipping mount poll")
-            return
-        except Exception as ex:
-            self.bot.log.warning(f"Guild news #{config_id}: guild_roster call failed: {ex}")
+        roster = await self._call_api(
+            api.guild_roster,
+            config_id,
+            "fetching roster for mount tracking",
+            realmSlug=realm,
+            nameSlug=wow_guild,
+        )
+        if roster is None:
             return
 
         if not isinstance(roster, dict) or "members" not in roster:
@@ -731,12 +751,12 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             if level < min_level:
                 continue
 
-            char_name = char.get("name", "").lower()
-            char_realm = char.get("realm", {}).get("slug", realm)
-            key = (char_name, char_realm)
+            member_name = char.get("name", "").lower()
+            member_realm = char.get("realm", {}).get("slug", realm)
+            key = (member_name, member_realm)
 
             if key not in candidates or level > candidates[key]["level"]:
-                candidates[key] = {"name": char_name, "realm": char_realm, "level": level}
+                candidates[key] = {"name": member_name, "realm": member_realm, "level": level}
 
         candidate_list = sorted(candidates.values(), key=lambda c: c["name"])
         candidate_keys = {(c["name"], c["realm"]) for c in candidate_list}
@@ -819,18 +839,16 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 return
 
             async with semaphore:
-                try:
-                    profile = await asyncio.to_thread(
-                        api.character_profile_summary, realmSlug=char_realm, characterName=char_name
-                    )
-                    check_rate_limit(profile)
-                except RateLimited:
-                    self.bot.log.warning(f"Guild news #{config_id}: rate limited on profile for {char_name}")
-                    rate_limited.set()
-                    return
-                except Exception as ex:
-                    self.bot.log.debug(f"Guild news #{config_id}: profile fetch failed for {char_name}: {ex}")
-                    total_stats["skipped_error"] += 1
+                profile = await self._call_api(
+                    api.character_profile_summary,
+                    config_id,
+                    f"profile for {char_name}",
+                    realmSlug=char_realm,
+                    characterName=char_name,
+                    rate_limited_event=rate_limited,
+                    stats=total_stats,
+                )
+                if profile is None:
                     return
 
                 if isinstance(profile, dict) and profile.get("code") in (404, 403):
@@ -848,18 +866,16 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                         total_stats["skipped_inactive"] += 1
                         return
 
-                try:
-                    mount_data = await asyncio.to_thread(
-                        api.character_mounts_collection_summary, realmSlug=char_realm, characterName=char_name
-                    )
-                    check_rate_limit(mount_data)
-                except RateLimited:
-                    self.bot.log.warning(f"Guild news #{config_id}: rate limited on mounts for {char_name}")
-                    rate_limited.set()
-                    return
-                except Exception as ex:
-                    self.bot.log.debug(f"Guild news #{config_id}: mount fetch failed for {char_name}: {ex}")
-                    total_stats["skipped_error"] += 1
+                mount_data = await self._call_api(
+                    api.character_mounts_collection_summary,
+                    config_id,
+                    f"mounts for {char_name}",
+                    realmSlug=char_realm,
+                    characterName=char_name,
+                    rate_limited_event=rate_limited,
+                    stats=total_stats,
+                )
+                if mount_data is None:
                     return
 
                 if not isinstance(mount_data, dict) or "mounts" not in mount_data:
@@ -879,6 +895,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             # the old name with the same mount set, migrate it.
             api_name = profile.get("name", "").lower()
 
+            # noinspection PyShadowingNames
             with self.bot.session_scope() as session:
                 stored = WowCharacterMounts.get_by_character(config_id, char_name, char_realm, session)
 
@@ -896,6 +913,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
                 if stored is None:
                     self.bot.log.debug(f"Guild news #{config_id}: baseline for {char_name} — {len(current_ids)} mounts")
+                    # noinspection PyShadowingNames
                     entry = WowCharacterMounts(
                         ConfigId=config_id,
                         CharacterName=char_name,
@@ -985,12 +1003,12 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                                             emb.set_thumbnail(url=mount_url)
                             except RateLimited:
                                 self.bot.log.warning(f"Guild news #{config_id}: rate limited fetching mount media")
-                            except Exception as ex:
-                                self.bot.log.debug(f"Guild news #{config_id}: failed to fetch mount image: {ex}")
+                            except Exception as exc:
+                                self.bot.log.debug(f"Guild news #{config_id}: failed to fetch mount image: {exc}")
                             try:
                                 await channel.send(embed=emb)
-                            except HTTPException as ex:
-                                self.bot.log.warning(f"Guild news #{config_id}: failed to send mount embed: {ex}")
+                            except HTTPException as exc:
+                                self.bot.log.warning(f"Guild news #{config_id}: failed to send mount embed: {exc}")
 
                         total_stats["new_mounts"] += len(new_ids)
 

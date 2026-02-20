@@ -9,6 +9,7 @@ Create Date: 2026-02-15
 import logging
 from typing import Sequence, Union
 
+# noinspection PyUnresolvedReferences
 from alembic import context, op
 import sqlalchemy as sa
 

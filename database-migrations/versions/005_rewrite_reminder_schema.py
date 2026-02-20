@@ -6,6 +6,8 @@ Create Date: 2026-02-18
 """
 
 import sqlalchemy as sa
+
+# noinspection PyUnresolvedReferences
 from alembic import op
 from sqlalchemy import Column, DateTime, Integer, String, Time, text
 

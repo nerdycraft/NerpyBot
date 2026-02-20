@@ -45,14 +45,14 @@ class TestGlobalInteractionCheck:
     """Tests for NerpyBot._global_interaction_check"""
 
     async def test_allows_command_when_module_not_disabled(self, mock_interaction_for_disable):
-        from NerdyPy.NerdyPy import NerpyBot
+        from NerdyPy.bot import NerpyBot
 
         bot = mock_interaction_for_disable.client
         result = await NerpyBot._global_interaction_check(bot, mock_interaction_for_disable)
         assert result is True
 
     async def test_blocks_command_when_module_disabled(self, mock_interaction_for_disable):
-        from NerdyPy.NerdyPy import NerpyBot
+        from NerdyPy.bot import NerpyBot
 
         bot = mock_interaction_for_disable.client
         bot.disabled_modules = {"wow"}
@@ -66,7 +66,7 @@ class TestGlobalInteractionCheck:
         assert "maintenance" in msg
 
     async def test_blocks_uses_followup_when_response_done(self, mock_interaction_for_disable):
-        from NerdyPy.NerdyPy import NerpyBot
+        from NerdyPy.bot import NerpyBot
 
         bot = mock_interaction_for_disable.client
         bot.disabled_modules = {"wow"}
@@ -79,7 +79,7 @@ class TestGlobalInteractionCheck:
 
     async def test_allows_command_when_no_cog(self, mock_interaction_for_disable):
         """Commands without a cog binding (e.g. tree commands) should pass."""
-        from NerdyPy.NerdyPy import NerpyBot
+        from NerdyPy.bot import NerpyBot
 
         bot = mock_interaction_for_disable.client
         bot.disabled_modules = {"wow"}
@@ -90,7 +90,7 @@ class TestGlobalInteractionCheck:
 
     async def test_allows_command_when_no_command(self, mock_interaction_for_disable):
         """Autocomplete interactions have no command -- should pass."""
-        from NerdyPy.NerdyPy import NerpyBot
+        from NerdyPy.bot import NerpyBot
 
         bot = mock_interaction_for_disable.client
         bot.disabled_modules = {"wow"}

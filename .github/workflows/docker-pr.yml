@@ -41,7 +41,7 @@ jobs:
 
       - name: Smoke test NerpyBot
         run: |
-          docker run --rm nerpybot:smoke-test python -c "from NerdyPy import NerpyBot; print('OK')"
+          docker run --rm nerpybot:smoke-test python -c "from bot import NerpyBot; print('OK')"
 
   validate-migrations:
     name: Validate Migrations Image

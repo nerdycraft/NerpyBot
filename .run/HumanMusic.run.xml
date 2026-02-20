@@ -23,7 +23,7 @@
       </ENTRIES>
     </EXTENSION>
     <option name="RUN_TOOL" value="true" />
-    <option name="SCRIPT_NAME" value="NerdyPy.py" />
+    <option name="SCRIPT_NAME" value="bot.py" />
     <option name="PARAMETERS" value="-d -c config_humanmusic.yaml" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
