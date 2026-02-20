@@ -6,6 +6,7 @@ from discord.ext.commands import Cog, GroupCog
 
 from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 
+from utils.checks import is_role_below_bot
 from utils.helpers import error_context, notify_error, send_paginated
 from utils.permissions import validate_channel_permissions
 
@@ -139,10 +140,7 @@ class ReactionRole(GroupCog, group_name="reactionrole"):
         """
         msg_id = int(message_id)
 
-        if role >= interaction.guild.me.top_role:
-            await interaction.response.send_message(
-                f"I cannot assign **{role.name}** — it is at or above my highest role.", ephemeral=True
-            )
+        if not await is_role_below_bot(interaction, role):
             return
 
         validate_channel_permissions(

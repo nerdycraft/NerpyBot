@@ -5,6 +5,7 @@ from discord.app_commands import checks
 from discord.ext.commands import GroupCog
 
 from models.rolemanage import RoleMapping
+from utils.checks import is_role_assignable, is_role_below_bot
 from utils.helpers import error_context, send_paginated
 
 
@@ -34,16 +35,9 @@ class RoleManage(GroupCog, group_name="rolemanage"):
         target_role: discord.Role
             The role that can be assigned
         """
-        if target_role.managed:
-            await interaction.response.send_message(
-                f"**{target_role.name}** is an integration role and cannot be assigned to members.", ephemeral=True
-            )
+        if not await is_role_assignable(interaction, target_role):
             return
-
-        if target_role >= interaction.guild.me.top_role:
-            await interaction.response.send_message(
-                f"I cannot manage **{target_role.name}** — it is at or above my highest role.", ephemeral=True
-            )
+        if not await is_role_below_bot(interaction, target_role):
             return
 
         with self.bot.session_scope() as session:
@@ -122,16 +116,9 @@ class RoleManage(GroupCog, group_name="rolemanage"):
         role: discord.Role
             The role to assign
         """
-        if role.managed:
-            await interaction.response.send_message(
-                f"**{role.name}** is an integration role and cannot be assigned to members.", ephemeral=True
-            )
+        if not await is_role_assignable(interaction, role):
             return
-
-        if role >= interaction.guild.me.top_role:
-            await interaction.response.send_message(
-                f"I cannot manage **{role.name}** — it is at or above my highest role.", ephemeral=True
-            )
+        if not await is_role_below_bot(interaction, role):
             return
 
         with self.bot.session_scope() as session:
@@ -170,16 +157,9 @@ class RoleManage(GroupCog, group_name="rolemanage"):
         role: discord.Role
             The role to remove
         """
-        if role.managed:
-            await interaction.response.send_message(
-                f"**{role.name}** is an integration role and cannot be removed from members.", ephemeral=True
-            )
+        if not await is_role_assignable(interaction, role, action="removed from"):
             return
-
-        if role >= interaction.guild.me.top_role:
-            await interaction.response.send_message(
-                f"I cannot manage **{role.name}** — it is at or above my highest role.", ephemeral=True
-            )
+        if not await is_role_below_bot(interaction, role):
             return
 
         with self.bot.session_scope() as session:
