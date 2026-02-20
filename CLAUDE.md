@@ -74,6 +74,7 @@ docker run --rm nerpybot-migrations alembic heads  # uses alembic.ini (default)
 Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamically based on `config.yaml`:
 
 - **admin** - Server management, moderator role config, command sync (always auto-loaded)
+- **application** - Custom application/form system with DM conversations and button-based review
 - **league** - Riot API integration
 - **leavemsg** - Custom leave messages when members depart
 - **moderation** - Server moderation tools
