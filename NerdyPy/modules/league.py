@@ -7,7 +7,7 @@ from aiohttp import ClientSession
 from discord import Color, Embed, Interaction, app_commands
 from discord.ext.commands import GroupCog
 from utils.cog import NerpyBotCog
-from utils.errors import NerpyException, NerpyInfraException
+from utils.errors import NerpyInfraException
 from utils.helpers import error_context
 
 
@@ -97,4 +97,4 @@ async def setup(bot):
     if "league" in bot.config:
         await bot.add_cog(League(bot))
     else:
-        raise NerpyException("Config not found.")
+        raise NerpyInfraException("Config not found.")
