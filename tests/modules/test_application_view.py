@@ -15,11 +15,16 @@ from models.application import (
     ApplicationQuestion,
     ApplicationSubmission,
     ApplicationVote,
+    SubmissionStatus,
+    VoteType,
 )
 from modules.views.application import (
     ApproveMessageModal,
     ApplicationReviewView,
     DenyReasonModal,
+    EditApproveModal,
+    EditDenyModal,
+    EditVoteSelectView,
     MessageModal,
     VoteSelectView,
     _dm_applicant,
@@ -1041,3 +1046,258 @@ class TestReviewerRolePermission:
         db_session.commit()
         interaction = _make_reviewer_only_interaction(mock_bot, reviewer_role_id=999)
         assert check_application_permission(interaction, mock_bot) is False
+
+
+# ---------------------------------------------------------------------------
+# EditVoteSelectView tests
+# ---------------------------------------------------------------------------
+
+
+class TestEditVoteSelectView:
+    @pytest.mark.asyncio
+    async def test_approve_current_vote_sets_default(self, mock_bot):
+        view = EditVoteSelectView(
+            submission_id=1,
+            bot=mock_bot,
+            current_vote=VoteType.APPROVE,
+            review_channel_id=111,
+            review_message_id=222,
+        )
+        approve_opt = next(o for o in view.vote_select.options if o.value == "approve")
+        deny_opt = next(o for o in view.vote_select.options if o.value == "deny")
+        assert approve_opt.default is True
+        assert deny_opt.default is False
+
+    @pytest.mark.asyncio
+    async def test_deny_current_vote_sets_default(self, mock_bot):
+        view = EditVoteSelectView(
+            submission_id=1,
+            bot=mock_bot,
+            current_vote=VoteType.DENY,
+            review_channel_id=111,
+            review_message_id=222,
+        )
+        approve_opt = next(o for o in view.vote_select.options if o.value == "approve")
+        deny_opt = next(o for o in view.vote_select.options if o.value == "deny")
+        assert approve_opt.default is False
+        assert deny_opt.default is True
+
+    @pytest.mark.asyncio
+    async def test_selecting_same_vote_returns_error(self, mock_bot):
+        view = EditVoteSelectView(
+            submission_id=1,
+            bot=mock_bot,
+            current_vote=VoteType.APPROVE,
+            review_channel_id=111,
+            review_message_id=222,
+        )
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.response = AsyncMock()
+        view.vote_select._values = ["approve"]  # same as current
+        await view.vote_select.callback(interaction)
+        interaction.response.send_message.assert_called_once()
+        msg = str(interaction.response.send_message.call_args).lower()
+        assert "same" in msg or "already" in msg
+
+    @pytest.mark.asyncio
+    async def test_selecting_approve_opens_edit_approve_modal(self, mock_bot):
+        view = EditVoteSelectView(
+            submission_id=1,
+            bot=mock_bot,
+            current_vote=VoteType.DENY,
+            review_channel_id=111,
+            review_message_id=222,
+        )
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.response = AsyncMock()
+        view.vote_select._values = ["approve"]
+        await view.vote_select.callback(interaction)
+        interaction.response.send_modal.assert_called_once()
+        assert isinstance(interaction.response.send_modal.call_args[0][0], EditApproveModal)
+
+    @pytest.mark.asyncio
+    async def test_selecting_deny_opens_edit_deny_modal(self, mock_bot):
+        view = EditVoteSelectView(
+            submission_id=1,
+            bot=mock_bot,
+            current_vote=VoteType.APPROVE,
+            review_channel_id=111,
+            review_message_id=222,
+        )
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.response = AsyncMock()
+        view.vote_select._values = ["deny"]
+        await view.vote_select.callback(interaction)
+        interaction.response.send_modal.assert_called_once()
+        assert isinstance(interaction.response.send_modal.call_args[0][0], EditDenyModal)
+
+
+# ---------------------------------------------------------------------------
+# EditApproveModal tests
+# ---------------------------------------------------------------------------
+
+
+class TestEditApproveModal:
+    def _make_thread_mock(self, mock_bot):
+        mock_thread = AsyncMock()
+        mock_bot.get_channel.return_value = AsyncMock(
+            fetch_message=AsyncMock(return_value=AsyncMock(thread=mock_thread))
+        )
+        return mock_thread
+
+    @pytest.mark.asyncio
+    async def test_changes_vote_from_deny_to_approve(self, mock_bot, db_session):
+        form, submission = _seed_form_and_submission(db_session)
+        vote = ApplicationVote(SubmissionId=submission.Id, UserId=REVIEWER_USER_ID, Vote=VoteType.DENY)
+        db_session.add(vote)
+        db_session.commit()
+        self._make_thread_mock(mock_bot)
+
+        modal = EditApproveModal(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            previous_vote=VoteType.DENY,
+            review_channel_id=111,
+            review_message_id=222,
+        )
+        modal.message._value = "Looks good after all"
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.followup = AsyncMock()
+        await modal.on_submit(interaction)
+
+        with mock_bot.session_scope() as session:
+            new_vote = ApplicationVote.get_user_vote(submission.Id, REVIEWER_USER_ID, session)
+        assert new_vote.Vote == VoteType.APPROVE
+
+    @pytest.mark.asyncio
+    async def test_thread_message_has_change_emojis(self, mock_bot, db_session):
+        form, submission = _seed_form_and_submission(db_session)
+        vote = ApplicationVote(SubmissionId=submission.Id, UserId=REVIEWER_USER_ID, Vote=VoteType.DENY)
+        db_session.add(vote)
+        db_session.commit()
+        mock_thread = self._make_thread_mock(mock_bot)
+
+        modal = EditApproveModal(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            previous_vote=VoteType.DENY,
+            review_channel_id=111,
+            review_message_id=222,
+        )
+        modal.message._value = "changed mind"
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.followup = AsyncMock()
+        await modal.on_submit(interaction)
+
+        thread_msg = mock_thread.send.call_args[0][0]
+        assert "🔄" in thread_msg
+        assert "❌" in thread_msg  # previous deny
+        assert "✅" in thread_msg  # new approve
+
+    @pytest.mark.asyncio
+    async def test_threshold_reached_sets_approved(self, mock_bot, db_session):
+        form, submission = _seed_form_and_submission(db_session)
+        vote = ApplicationVote(SubmissionId=submission.Id, UserId=REVIEWER_USER_ID, Vote=VoteType.DENY)
+        db_session.add(vote)
+        db_session.commit()
+        self._make_thread_mock(mock_bot)
+
+        modal = EditApproveModal(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            previous_vote=VoteType.DENY,
+            review_channel_id=111,
+            review_message_id=222,
+        )
+        modal.message._value = "on second thought, yes"
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.followup = AsyncMock()
+        await modal.on_submit(interaction)
+
+        with mock_bot.session_scope() as session:
+            sub = ApplicationSubmission.get_by_id(submission.Id, session)
+        assert sub.Status == SubmissionStatus.APPROVED
+
+    @pytest.mark.asyncio
+    async def test_not_pending_aborts(self, mock_bot, db_session):
+        form, submission = _seed_form_and_submission(db_session)
+        submission.Status = SubmissionStatus.APPROVED
+        db_session.commit()
+
+        modal = EditApproveModal(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            previous_vote=VoteType.DENY,
+            review_channel_id=111,
+            review_message_id=222,
+        )
+        modal.message._value = "some note"
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.followup = AsyncMock()
+        await modal.on_submit(interaction)
+
+        msg = str(interaction.followup.send.call_args).lower()
+        assert "pending" in msg or "decided" in msg
+
+
+# ---------------------------------------------------------------------------
+# EditDenyModal tests
+# ---------------------------------------------------------------------------
+
+
+class TestEditDenyModal:
+    def _make_thread_mock(self, mock_bot):
+        mock_thread = AsyncMock()
+        mock_bot.get_channel.return_value = AsyncMock(
+            fetch_message=AsyncMock(return_value=AsyncMock(thread=mock_thread))
+        )
+        return mock_thread
+
+    @pytest.mark.asyncio
+    async def test_changes_vote_from_approve_to_deny(self, mock_bot, db_session):
+        form, submission = _seed_form_and_submission(db_session)
+        vote = ApplicationVote(SubmissionId=submission.Id, UserId=REVIEWER_USER_ID, Vote=VoteType.APPROVE)
+        db_session.add(vote)
+        db_session.commit()
+        self._make_thread_mock(mock_bot)
+
+        modal = EditDenyModal(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            previous_vote=VoteType.APPROVE,
+            review_channel_id=111,
+            review_message_id=222,
+        )
+        modal.message._value = "actually not good"
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.followup = AsyncMock()
+        await modal.on_submit(interaction)
+
+        with mock_bot.session_scope() as session:
+            new_vote = ApplicationVote.get_user_vote(submission.Id, REVIEWER_USER_ID, session)
+        assert new_vote.Vote == VoteType.DENY
+
+    @pytest.mark.asyncio
+    async def test_thread_message_has_change_emojis(self, mock_bot, db_session):
+        form, submission = _seed_form_and_submission(db_session)
+        vote = ApplicationVote(SubmissionId=submission.Id, UserId=REVIEWER_USER_ID, Vote=VoteType.APPROVE)
+        db_session.add(vote)
+        db_session.commit()
+        mock_thread = self._make_thread_mock(mock_bot)
+
+        modal = EditDenyModal(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            previous_vote=VoteType.APPROVE,
+            review_channel_id=111,
+            review_message_id=222,
+        )
+        modal.message._value = "nope"
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.followup = AsyncMock()
+        await modal.on_submit(interaction)
+
+        thread_msg = mock_thread.send.call_args[0][0]
+        assert "🔄" in thread_msg
+        assert "✅" in thread_msg  # previous approve
+        assert "❌" in thread_msg  # new deny

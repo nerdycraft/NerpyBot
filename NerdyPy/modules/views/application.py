@@ -507,6 +507,216 @@ class VoteSelectView(discord.ui.View):
 
 
 # ---------------------------------------------------------------------------
+# Edit-vote select view and modals (ephemeral, per-session)
+# ---------------------------------------------------------------------------
+
+
+class EditVoteSelectView(discord.ui.View):
+    """Ephemeral view for changing an existing vote — pre-selects the reviewer's current vote."""
+
+    def __init__(
+        self,
+        submission_id: int,
+        bot,
+        current_vote: VoteType,
+        review_channel_id: int,
+        review_message_id: int,
+    ):
+        super().__init__(timeout=60)
+        self.submission_id = submission_id
+        self.bot = bot
+        self.current_vote = current_vote
+        self.review_channel_id = review_channel_id
+        self.review_message_id = review_message_id
+        # Override class-level options to mark the current vote as default
+        self.vote_select.options = [
+            discord.SelectOption(
+                label="Approve", value="approve", emoji="✅", default=(current_vote == VoteType.APPROVE)
+            ),
+            discord.SelectOption(label="Deny", value="deny", emoji="❌", default=(current_vote == VoteType.DENY)),
+        ]
+
+    @discord.ui.select(
+        placeholder="Change your vote...",
+        options=[
+            discord.SelectOption(label="Approve", value="approve", emoji="✅"),
+            discord.SelectOption(label="Deny", value="deny", emoji="❌"),
+        ],
+    )
+    async def vote_select(self, interaction: discord.Interaction, select: discord.ui.Select):
+        vote_type = VoteType.APPROVE if select.values[0] == "approve" else VoteType.DENY
+        if vote_type == self.current_vote:
+            await interaction.response.send_message(
+                "You already cast this vote. Select a different option to change it.", ephemeral=True
+            )
+            return
+        if vote_type == VoteType.APPROVE:
+            modal = EditApproveModal(
+                submission_id=self.submission_id,
+                bot=self.bot,
+                previous_vote=self.current_vote,
+                review_channel_id=self.review_channel_id,
+                review_message_id=self.review_message_id,
+            )
+        else:
+            modal = EditDenyModal(
+                submission_id=self.submission_id,
+                bot=self.bot,
+                previous_vote=self.current_vote,
+                review_channel_id=self.review_channel_id,
+                review_message_id=self.review_message_id,
+            )
+        await interaction.response.send_modal(modal)
+
+
+class EditApproveModal(discord.ui.Modal, title="Change Vote — Approve"):
+    """Modal for changing an existing vote to Approve."""
+
+    message = discord.ui.TextInput(
+        label="Review note", style=discord.TextStyle.paragraph, required=True, max_length=1000
+    )
+
+    def __init__(
+        self,
+        submission_id: int,
+        bot,
+        previous_vote: VoteType,
+        review_channel_id: int = 0,
+        review_message_id: int = 0,
+    ):
+        super().__init__()
+        self.submission_id = submission_id
+        self.bot = bot
+        self.previous_vote = previous_vote
+        self.review_channel_id = review_channel_id
+        self.review_message_id = review_message_id
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        message_text = self.message.value
+
+        with self.bot.session_scope() as session:
+            submission = ApplicationSubmission.get_by_id(self.submission_id, session)
+            if submission is None or submission.Status != SubmissionStatus.PENDING:
+                await interaction.followup.send("This submission is no longer pending.", ephemeral=True)
+                return
+
+            old_vote = ApplicationVote.get_user_vote(self.submission_id, interaction.user.id, session)
+            if old_vote:
+                session.delete(old_vote)
+                session.flush()
+            session.add(
+                ApplicationVote(SubmissionId=self.submission_id, UserId=interaction.user.id, Vote=VoteType.APPROVE)
+            )
+            session.flush()
+
+            approve_count = ApplicationVote.count_by_type(self.submission_id, VoteType.APPROVE, session)
+            form = ApplicationForm.get_by_id(submission.FormId, session)
+            if approve_count >= form.RequiredApprovals:
+                submission.Status = SubmissionStatus.APPROVED
+                session.flush()
+
+        await interaction.followup.send("Your vote has been changed to Approve.", ephemeral=True)
+
+        prev_emoji = "✅" if self.previous_vote == VoteType.APPROVE else "❌"
+        try:
+            thread = await _get_or_create_review_thread(self.bot, self.review_channel_id, self.review_message_id)
+            await thread.send(f"🔄 **{interaction.user.display_name}** changed vote {prev_emoji}→✅: {message_text}")
+        except discord.HTTPException:
+            self.bot.log.error("application: failed to post edit-vote message to review thread", exc_info=True)
+
+        try:
+            await _update_review_embed(
+                self.bot,
+                review_channel_id=self.review_channel_id,
+                review_message_id=self.review_message_id,
+            )
+        except discord.HTTPException:
+            self.bot.log.error("application: failed to update review embed after edit vote", exc_info=True)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        self.bot.log.error("Error in EditApproveModal: %s", error, exc_info=error)
+        if not interaction.response.is_done():
+            await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
+        else:
+            await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
+
+
+class EditDenyModal(discord.ui.Modal, title="Change Vote — Deny"):
+    """Modal for changing an existing vote to Deny."""
+
+    message = discord.ui.TextInput(
+        label="Review note", style=discord.TextStyle.paragraph, required=True, max_length=1000
+    )
+
+    def __init__(
+        self,
+        submission_id: int,
+        bot,
+        previous_vote: VoteType,
+        review_channel_id: int = 0,
+        review_message_id: int = 0,
+    ):
+        super().__init__()
+        self.submission_id = submission_id
+        self.bot = bot
+        self.previous_vote = previous_vote
+        self.review_channel_id = review_channel_id
+        self.review_message_id = review_message_id
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        message_text = self.message.value
+
+        with self.bot.session_scope() as session:
+            submission = ApplicationSubmission.get_by_id(self.submission_id, session)
+            if submission is None or submission.Status != SubmissionStatus.PENDING:
+                await interaction.followup.send("This submission is no longer pending.", ephemeral=True)
+                return
+
+            old_vote = ApplicationVote.get_user_vote(self.submission_id, interaction.user.id, session)
+            if old_vote:
+                session.delete(old_vote)
+                session.flush()
+            session.add(
+                ApplicationVote(SubmissionId=self.submission_id, UserId=interaction.user.id, Vote=VoteType.DENY)
+            )
+            session.flush()
+
+            deny_count = ApplicationVote.count_by_type(self.submission_id, VoteType.DENY, session)
+            form = ApplicationForm.get_by_id(submission.FormId, session)
+            if deny_count >= form.RequiredDenials:
+                submission.Status = SubmissionStatus.DENIED
+                submission.DecisionReason = message_text
+                session.flush()
+
+        await interaction.followup.send("Your vote has been changed to Deny.", ephemeral=True)
+
+        prev_emoji = "✅" if self.previous_vote == VoteType.APPROVE else "❌"
+        try:
+            thread = await _get_or_create_review_thread(self.bot, self.review_channel_id, self.review_message_id)
+            await thread.send(f"🔄 **{interaction.user.display_name}** changed vote {prev_emoji}→❌: {message_text}")
+        except discord.HTTPException:
+            self.bot.log.error("application: failed to post edit-vote message to review thread", exc_info=True)
+
+        try:
+            await _update_review_embed(
+                self.bot,
+                review_channel_id=self.review_channel_id,
+                review_message_id=self.review_message_id,
+            )
+        except discord.HTTPException:
+            self.bot.log.error("application: failed to update review embed after edit vote", exc_info=True)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        self.bot.log.error("Error in EditDenyModal: %s", error, exc_info=error)
+        if not interaction.response.is_done():
+            await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
+        else:
+            await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
+
+
+# ---------------------------------------------------------------------------
 # Persistent review view
 # ---------------------------------------------------------------------------
 
