@@ -81,8 +81,24 @@ def _questions_embed(title: str, questions: list[str], description: str | None =
 class ApplicationCreateConversation(Conversation):
     """Walk an admin through creating a form by collecting questions one by one."""
 
-    def __init__(self, bot, user, guild, form_name: str):
+    def __init__(
+        self,
+        bot,
+        user,
+        guild,
+        form_name: str,
+        review_channel_id: int,
+        required_approvals: int | None = None,
+        required_denials: int | None = None,
+        approval_message: str | None = None,
+        denial_message: str | None = None,
+    ):
         self.form_name = form_name
+        self.review_channel_id = review_channel_id
+        self.required_approvals = required_approvals
+        self.required_denials = required_denials
+        self.approval_message = approval_message
+        self.denial_message = denial_message
         self.questions: list[str] = []
         super().__init__(bot, user, guild)
 
@@ -120,7 +136,17 @@ class ApplicationCreateConversation(Conversation):
             return
 
         with self.bot.session_scope() as session:
-            form = ApplicationForm(GuildId=self.guild.id, Name=self.form_name)
+            form = ApplicationForm(
+                GuildId=self.guild.id,
+                Name=self.form_name,
+                ReviewChannelId=self.review_channel_id,
+                ApprovalMessage=self.approval_message,
+                DenialMessage=self.denial_message,
+            )
+            if self.required_approvals is not None:
+                form.RequiredApprovals = self.required_approvals
+            if self.required_denials is not None:
+                form.RequiredDenials = self.required_denials
             session.add(form)
             session.flush()
             for i, q_text in enumerate(self.questions, start=1):

@@ -46,7 +46,7 @@ class TestApplicationCreateConversation:
     @pytest.fixture
     def conv(self, mock_bot, mock_user, mock_guild):
         _make_send_return(mock_user)
-        return ApplicationCreateConversation(mock_bot, mock_user, mock_guild, "Test Form")
+        return ApplicationCreateConversation(mock_bot, mock_user, mock_guild, "Test Form", review_channel_id=123)
 
     @pytest.mark.asyncio
     async def test_initial_state_sends_dm(self, conv, mock_user):
@@ -129,6 +129,9 @@ class TestApplicationCreateConversation:
         form = db_session.query(ApplicationForm).filter(ApplicationForm.Name == "Test Form").first()
         assert form is not None
         assert form.GuildId == 987654321
+        assert form.ReviewChannelId == 123
+        assert form.RequiredApprovals == 1  # ORM default preserved when not passed
+        assert form.RequiredDenials == 1  # ORM default preserved when not passed
 
         questions = (
             db_session.query(ApplicationQuestion)
@@ -141,6 +144,49 @@ class TestApplicationCreateConversation:
         assert questions[0].SortOrder == 1
         assert questions[1].QuestionText == "Question two?"
         assert questions[1].SortOrder == 2
+
+    @pytest.mark.asyncio
+    async def test_done_saves_review_channel_id(self, mock_bot, mock_user, mock_guild, db_session):
+        """Form is created with ReviewChannelId passed to the conversation."""
+        _make_send_return(mock_user)
+        conv = ApplicationCreateConversation(mock_bot, mock_user, mock_guild, "Chan Form", review_channel_id=42)
+        await conv.repost_state()
+        _make_send_return(mock_user)
+        await conv.on_message("Question?")
+        _make_send_return(mock_user)
+        await conv.on_react(CANCEL_EMOJI)
+
+        form = db_session.query(ApplicationForm).filter(ApplicationForm.Name == "Chan Form").first()
+        assert form is not None
+        assert form.ReviewChannelId == 42
+
+    @pytest.mark.asyncio
+    async def test_done_saves_optional_settings(self, mock_bot, mock_user, mock_guild, db_session):
+        """Optional settings passed to conversation are written to the form."""
+        _make_send_return(mock_user)
+        conv = ApplicationCreateConversation(
+            mock_bot,
+            mock_user,
+            mock_guild,
+            "Settings Form",
+            review_channel_id=55,
+            required_approvals=3,
+            required_denials=2,
+            approval_message="Welcome!",
+            denial_message="Sorry.",
+        )
+        await conv.repost_state()
+        _make_send_return(mock_user)
+        await conv.on_message("Question?")
+        _make_send_return(mock_user)
+        await conv.on_react(CANCEL_EMOJI)
+
+        form = db_session.query(ApplicationForm).filter(ApplicationForm.Name == "Settings Form").first()
+        assert form.ReviewChannelId == 55
+        assert form.RequiredApprovals == 3
+        assert form.RequiredDenials == 2
+        assert form.ApprovalMessage == "Welcome!"
+        assert form.DenialMessage == "Sorry."
 
 
 # ---------------------------------------------------------------------------

@@ -193,7 +193,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 await interaction.response.send_message(f"A form named **{name}** already exists.", ephemeral=True)
                 return
 
-        conv = ApplicationCreateConversation(self.bot, interaction.user, interaction.guild, name)
+        conv = ApplicationCreateConversation(self.bot, interaction.user, interaction.guild, name, review_channel_id=0)
         await interaction.response.defer(ephemeral=True)
         try:
             await self.bot.convMan.init_conversation(conv)
