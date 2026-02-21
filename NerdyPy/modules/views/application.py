@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Persistent discord.ui views and modals for the application review system.
 
-ApplicationReviewView — three-button view (Approve / Deny / Message) attached to
+ApplicationReviewView — four-button view (Vote / Edit Vote / Message / Override) attached to
 review embeds in the review channel.  Uses ``timeout=None`` and fixed ``custom_id``
 strings so the view survives bot restarts.
 """
