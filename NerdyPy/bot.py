@@ -219,7 +219,7 @@ class NerpyBot(Bot):
 
     async def on_ready(self) -> None:
         """calls when successfully logged in"""
-        from models.permissions import PermissionSubscriber
+        from models.admin import PermissionSubscriber
 
         self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
 
