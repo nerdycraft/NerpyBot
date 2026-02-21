@@ -154,6 +154,7 @@ class ApplicationSubmission(db.BASE):
     SubmittedAt = Column(DateTime, nullable=False)
     ReviewMessageId = Column(BigInteger, nullable=True)
     DecisionReason = Column(UnicodeText, nullable=True)
+    ApplicantNotified = Column(Boolean, nullable=False, default=False, server_default="0")
 
     form = relationship("ApplicationForm", back_populates="submissions")
     answers = relationship(
@@ -182,6 +183,16 @@ class ApplicationSubmission(db.BASE):
     def get_by_guild(cls, guild_id, session):
         """Returns all submissions for a guild."""
         return session.query(cls).filter(cls.GuildId == guild_id).all()
+
+    @classmethod
+    def get_by_user_and_form(cls, user_id: int, form_id: int, session):
+        """Returns the most recent submission by a user for a given form, or None."""
+        return (
+            session.query(cls)
+            .filter(cls.UserId == user_id, cls.FormId == form_id)
+            .order_by(cls.Id.desc())
+            .first()
+        )
 
 
 class ApplicationAnswer(db.BASE):

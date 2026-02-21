@@ -476,7 +476,7 @@ class ApplicationSubmitConversation(Conversation):
                 ),
             )
             await owner.send(embed=emb)
-        except Exception:
+        except (discord.Forbidden, discord.NotFound):
             self.bot.log.error(
                 "application: could not DM guild owner %d about inaccessible review channel %d",
                 self.guild.owner_id,

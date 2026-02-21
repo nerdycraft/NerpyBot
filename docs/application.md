@@ -32,9 +32,10 @@ Custom application/form system where admins create questionnaires, users submit 
 ### Review
 
 1. Reviewers click **Approve** or **Deny** on the review embed
-2. Deny opens a modal for an optional reason
-3. When the required threshold is reached, the submission status changes and the applicant is DM'd
-4. The **Message** button lets reviewers DM the applicant freeform text at any time
+2. Deny opens a modal for an optional reason; the reason is stored and shown in the review embed
+3. When the required threshold is reached, the submission status changes; Approve and Deny are disabled
+4. The **Message** button remains active so reviewers can notify the applicant at any time
+5. After a decision the Message field is pre-filled with the configured approval or denial message (if set); successfully sending that post-decision message disables the button to prevent duplicate notifications
 
 ## Commands
 
@@ -151,13 +152,13 @@ Remove the manager role configuration.
 
 ### User Command
 
-#### `/apply <form_name>`
+#### `/apply <form>`
 
 Submit an application via DM. This is a top-level command (not under `/application`). Autocomplete only shows forms that have a review channel configured.
 
-| Parameter   | Type  | Description                     |
-| ----------- | ----- | ------------------------------- |
-| `form_name` | `str` | Form to apply to (autocomplete) |
+| Parameter | Type  | Description                     |
+| --------- | ----- | ------------------------------- |
+| `form`    | `str` | Form to apply to (autocomplete) |
 
 ## Import/Export JSON Format
 
@@ -220,17 +221,18 @@ Guild/channel IDs are intentionally excluded so forms are portable across server
 
 ### `ApplicationSubmission`
 
-| Column          | Type         | Purpose                            |
-| --------------- | ------------ | ---------------------------------- |
-| Id              | Integer (PK) | Auto-increment                     |
-| FormId          | Integer (FK) | Parent form                        |
-| GuildId         | BigInteger   | Discord guild ID                   |
-| UserId          | BigInteger   | Applicant's Discord ID             |
-| UserName        | Unicode(50)  | Applicant's username               |
-| Status          | String(10)   | `pending`, `approved`, or `denied` |
-| SubmittedAt     | DateTime     | Submission timestamp (UTC)         |
-| ReviewMessageId | BigInteger   | Message ID of the review embed     |
-| DecisionReason  | UnicodeText  | Reason provided on denial          |
+| Column             | Type         | Purpose                                                   |
+| ------------------ | ------------ | --------------------------------------------------------- |
+| Id                 | Integer (PK) | Auto-increment                                            |
+| FormId             | Integer (FK) | Parent form                                               |
+| GuildId            | BigInteger   | Discord guild ID                                          |
+| UserId             | BigInteger   | Applicant's Discord ID                                    |
+| UserName           | Unicode(50)  | Applicant's username                                      |
+| Status             | String(10)   | `pending`, `approved`, or `denied`                        |
+| SubmittedAt        | DateTime     | Submission timestamp (UTC)                                |
+| ReviewMessageId    | BigInteger   | Message ID of the review embed                            |
+| DecisionReason     | UnicodeText  | Reason provided on denial (shown in the review embed)     |
+| ApplicantNotified  | Boolean      | True once a reviewer successfully DMs the applicant post-decision; disables the Message button |
 
 **Indexes:** `ApplicationSubmission_GuildId`, `ApplicationSubmission_FormId`
 

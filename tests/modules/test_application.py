@@ -9,10 +9,13 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
+from datetime import UTC, datetime
+
 from models.application import (
     ApplicationForm,
     ApplicationGuildConfig,
     ApplicationQuestion,
+    ApplicationSubmission,
     ApplicationTemplate,
     seed_built_in_templates,
 )
@@ -922,6 +925,84 @@ class TestApplyCommand:
         app_cog.bot.convMan.init_conversation.assert_not_called()
         call_args = str(admin_interaction.response.send_message.call_args)
         assert "set up yet" in call_args
+
+    @pytest.mark.asyncio
+    async def test_apply_blocked_when_pending(self, app_cog, admin_interaction, db_session):
+        """User with a pending submission must be blocked from applying again."""
+        form = _make_form(
+            db_session, guild_id=admin_interaction.guild.id, name="ActiveForm", review_channel_id=12345
+        )
+        db_session.add(
+            ApplicationSubmission(
+                FormId=form.Id,
+                GuildId=admin_interaction.guild.id,
+                UserId=admin_interaction.user.id,
+                UserName="Applicant",
+                Status="pending",
+                SubmittedAt=datetime.now(UTC),
+            )
+        )
+        db_session.commit()
+        app_cog.bot.convMan = MagicMock()
+        app_cog.bot.convMan.init_conversation = AsyncMock()
+
+        await app_cog._apply(admin_interaction, form_name="ActiveForm")
+
+        app_cog.bot.convMan.init_conversation.assert_not_called()
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "already applied" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_apply_blocked_when_approved(self, app_cog, admin_interaction, db_session):
+        """User with an approved submission must be blocked from applying again."""
+        form = _make_form(
+            db_session, guild_id=admin_interaction.guild.id, name="ApprovedForm", review_channel_id=12345
+        )
+        db_session.add(
+            ApplicationSubmission(
+                FormId=form.Id,
+                GuildId=admin_interaction.guild.id,
+                UserId=admin_interaction.user.id,
+                UserName="Applicant",
+                Status="approved",
+                SubmittedAt=datetime.now(UTC),
+            )
+        )
+        db_session.commit()
+        app_cog.bot.convMan = MagicMock()
+        app_cog.bot.convMan.init_conversation = AsyncMock()
+
+        await app_cog._apply(admin_interaction, form_name="ApprovedForm")
+
+        app_cog.bot.convMan.init_conversation.assert_not_called()
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "already applied" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_apply_blocked_when_denied(self, app_cog, admin_interaction, db_session):
+        """User with a denied submission must be blocked from applying again."""
+        form = _make_form(
+            db_session, guild_id=admin_interaction.guild.id, name="DeniedForm", review_channel_id=12345
+        )
+        db_session.add(
+            ApplicationSubmission(
+                FormId=form.Id,
+                GuildId=admin_interaction.guild.id,
+                UserId=admin_interaction.user.id,
+                UserName="Applicant",
+                Status="denied",
+                SubmittedAt=datetime.now(UTC),
+            )
+        )
+        db_session.commit()
+        app_cog.bot.convMan = MagicMock()
+        app_cog.bot.convMan.init_conversation = AsyncMock()
+
+        await app_cog._apply(admin_interaction, form_name="DeniedForm")
+
+        app_cog.bot.convMan.init_conversation.assert_not_called()
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "already applied" in call_args.lower()
 
 
 # ---------------------------------------------------------------------------

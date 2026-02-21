@@ -3,7 +3,7 @@
 """Tests for modules/views/application.py — ApplicationReviewView buttons and modals."""
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pytest
@@ -17,11 +17,13 @@ from models.application import (
     ApplicationVote,
 )
 from modules.views.application import (
+    ApproveMessageModal,
     ApplicationReviewView,
     DenyReasonModal,
     MessageModal,
-    check_application_permission,
+    VoteSelectView,
     _dm_applicant,
+    check_application_permission,
     build_review_embed,
 )
 
@@ -157,182 +159,340 @@ class TestPermissionCheck:
 # ---------------------------------------------------------------------------
 
 
-class TestApproveButton:
+class TestVoteButton:
     @pytest.mark.asyncio
-    async def test_approve_records_vote(self, review_view, mock_bot, db_session):
-        form, submission = _seed_form_and_submission(db_session, required_approvals=2)
+    async def test_vote_sends_select_view(self, review_view, mock_bot, db_session):
+        """Vote button should send an ephemeral message containing VoteSelectView."""
+        _seed_form_and_submission(db_session)
         interaction = _make_reviewer_interaction(mock_bot)
 
-        with patch("modules.views.application._dm_applicant", new_callable=AsyncMock):
-            await review_view.approve.callback(interaction)
+        await review_view.vote.callback(interaction)
 
-        vote = ApplicationVote.get_user_vote(submission.Id, REVIEWER_USER_ID, db_session)
-        assert vote is not None
-        assert vote.Vote == "approve"
+        interaction.response.send_message.assert_called_once()
+        call_kwargs = interaction.response.send_message.call_args[1]
+        assert call_kwargs.get("ephemeral") is True
+        assert isinstance(call_kwargs.get("view"), VoteSelectView)
 
     @pytest.mark.asyncio
-    async def test_approve_duplicate_vote_rejected(self, review_view, mock_bot, db_session):
-        form, submission = _seed_form_and_submission(db_session, required_approvals=2)
-
-        # Pre-existing vote
-        db_session.add(ApplicationVote(SubmissionId=submission.Id, UserId=REVIEWER_USER_ID, Vote="approve"))
+    async def test_vote_no_prefill(self, review_view, mock_bot, db_session):
+        """Vote modals are never pre-filled — review notes are internal and not tied to applicant messages."""
+        form, submission = _seed_form_and_submission(db_session)
+        form.ApprovalMessage = "Welcome!"
+        form.DenialMessage = "Not this time."
         db_session.commit()
 
         interaction = _make_reviewer_interaction(mock_bot)
-        await review_view.approve.callback(interaction)
+        await review_view.vote.callback(interaction)
 
-        call_args = str(interaction.followup.send.call_args)
-        assert "already voted" in call_args.lower()
-
-    @pytest.mark.asyncio
-    async def test_approve_threshold_reached(self, review_view, mock_bot, db_session):
-        form, submission = _seed_form_and_submission(db_session, required_approvals=1)
-        interaction = _make_reviewer_interaction(mock_bot)
-
-        with patch("modules.views.application._dm_applicant", new_callable=AsyncMock) as mock_dm:
-            await review_view.approve.callback(interaction)
-
-        # Submission should now be approved
-        refreshed = ApplicationSubmission.get_by_id(submission.Id, db_session)
-        assert refreshed.Status == "approved"
-        mock_dm.assert_called_once()
+        view = interaction.response.send_message.call_args[1]["view"]
+        assert view.approve_prefill is None
+        assert view.deny_prefill is None
 
     @pytest.mark.asyncio
-    async def test_approve_no_permission(self, review_view, mock_bot, db_session):
+    async def test_vote_no_permission(self, review_view, mock_bot, db_session):
         _seed_form_and_submission(db_session)
         interaction = _make_reviewer_interaction(mock_bot, is_admin=False)
 
-        await review_view.approve.callback(interaction)
+        await review_view.vote.callback(interaction)
 
         call_args = str(interaction.response.send_message.call_args)
         assert "permission" in call_args.lower()
 
     @pytest.mark.asyncio
-    async def test_approve_already_decided(self, review_view, mock_bot, db_session):
+    async def test_vote_already_decided(self, review_view, mock_bot, db_session):
         form, submission = _seed_form_and_submission(db_session)
         submission.Status = "denied"
         db_session.commit()
 
         interaction = _make_reviewer_interaction(mock_bot)
-        await review_view.approve.callback(interaction)
+        await review_view.vote.callback(interaction)
 
-        call_args = str(interaction.followup.send.call_args)
+        call_args = str(interaction.response.send_message.call_args)
         assert "already been decided" in call_args.lower()
 
     @pytest.mark.asyncio
-    async def test_approve_submission_not_found(self, review_view, mock_bot, db_session):
+    async def test_vote_submission_not_found(self, review_view, mock_bot, db_session):
         interaction = _make_reviewer_interaction(mock_bot, message_id=999999999)
-        await review_view.approve.callback(interaction)
+        await review_view.vote.callback(interaction)
 
-        call_args = str(interaction.followup.send.call_args)
+        call_args = str(interaction.response.send_message.call_args)
         assert "not found" in call_args.lower()
 
     @pytest.mark.asyncio
-    async def test_approve_responds_before_editing_review(self, review_view, mock_bot, db_session):
-        """Approve should respond to the interaction BEFORE editing the review message."""
-        _seed_form_and_submission(db_session, required_approvals=2)
-        interaction = _make_reviewer_interaction(mock_bot)
-
-        call_order = []
-
-        async def track_defer(*args, **kwargs):
-            call_order.append("response")
-
-        async def track_edit(*args, **kwargs):
-            call_order.append("edit")
-
-        interaction.response.defer = AsyncMock(side_effect=track_defer)
-        interaction.message.edit = AsyncMock(side_effect=track_edit)
-
-        with patch("modules.views.application._dm_applicant", new_callable=AsyncMock):
-            await review_view.approve.callback(interaction)
-
-        assert call_order == ["response", "edit"]
-
-    @pytest.mark.asyncio
-    async def test_approve_updates_embed_with_vote_counts(self, review_view, mock_bot, db_session):
-        """After approving, the review embed should be updated with vote count labels."""
-        _seed_form_and_submission(db_session, required_approvals=3)
-        interaction = _make_reviewer_interaction(mock_bot)
-
-        with patch("modules.views.application._dm_applicant", new_callable=AsyncMock):
-            await review_view.approve.callback(interaction)
-
-        # The message.edit call should have a view with updated labels
-        interaction.message.edit.assert_called_once()
-        call_kwargs = interaction.message.edit.call_args[1]
-        view = call_kwargs["view"]
-        approve_btn = next(c for c in view.children if c.custom_id == "app_review_approve")
-        deny_btn = next(c for c in view.children if c.custom_id == "app_review_deny")
-        assert "1/3" in approve_btn.label
-        assert "0/1" in deny_btn.label
-
-
-# ---------------------------------------------------------------------------
-# Deny button tests
-# ---------------------------------------------------------------------------
-
-
-class TestDenyButton:
-    @pytest.mark.asyncio
-    async def test_deny_sends_modal(self, review_view, mock_bot, db_session):
-        _seed_form_and_submission(db_session)
-        interaction = _make_reviewer_interaction(mock_bot)
-
-        await review_view.deny.callback(interaction)
-
-        interaction.response.send_modal.assert_called_once()
-        modal = interaction.response.send_modal.call_args[0][0]
-        assert isinstance(modal, DenyReasonModal)
-
-    @pytest.mark.asyncio
-    async def test_deny_modal_receives_message_coordinates(self, review_view, mock_bot, db_session):
-        """The DenyReasonModal should receive the review message channel and message IDs."""
-        _seed_form_and_submission(db_session)
-        interaction = _make_reviewer_interaction(mock_bot)
-
-        await review_view.deny.callback(interaction)
-
-        modal = interaction.response.send_modal.call_args[0][0]
-        assert modal.review_channel_id == REVIEW_CHANNEL_ID
-        assert modal.review_message_id == REVIEW_MSG_ID
-
-    @pytest.mark.asyncio
-    async def test_deny_duplicate_vote_rejected(self, review_view, mock_bot, db_session):
-        form, submission = _seed_form_and_submission(db_session)
-
-        db_session.add(ApplicationVote(SubmissionId=submission.Id, UserId=REVIEWER_USER_ID, Vote="deny"))
+    async def test_vote_duplicate_vote_rejected(self, review_view, mock_bot, db_session):
+        form, submission = _seed_form_and_submission(db_session, required_approvals=2)
+        db_session.add(ApplicationVote(SubmissionId=submission.Id, UserId=REVIEWER_USER_ID, Vote="approve"))
         db_session.commit()
 
         interaction = _make_reviewer_interaction(mock_bot)
-        await review_view.deny.callback(interaction)
+        await review_view.vote.callback(interaction)
 
         call_args = str(interaction.response.send_message.call_args)
         assert "already voted" in call_args.lower()
 
     @pytest.mark.asyncio
-    async def test_deny_no_permission(self, review_view, mock_bot, db_session):
-        _seed_form_and_submission(db_session)
-        interaction = _make_reviewer_interaction(mock_bot, is_admin=False)
-
-        await review_view.deny.callback(interaction)
-
-        call_args = str(interaction.response.send_message.call_args)
-        assert "permission" in call_args.lower()
-
-    @pytest.mark.asyncio
-    async def test_deny_already_decided(self, review_view, mock_bot, db_session):
-        form, submission = _seed_form_and_submission(db_session)
+    async def test_message_button_disabled_after_applicant_notified(self, review_view, mock_bot, db_session):
+        """Once ApplicantNotified is True on a decided submission, Message is also disabled."""
+        form, submission = _seed_form_and_submission(db_session, required_approvals=1)
         submission.Status = "approved"
+        submission.ApplicantNotified = True
         db_session.commit()
 
-        interaction = _make_reviewer_interaction(mock_bot)
-        await review_view.deny.callback(interaction)
+        # Simulate the embed rebuild triggered by a subsequent button click
+        mock_channel = MagicMock()
+        mock_message = MagicMock()
+        mock_message.edit = AsyncMock()
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_bot.get_channel = MagicMock(return_value=mock_channel)
 
-        # Should reject without opening the modal
-        interaction.response.send_modal.assert_not_called()
-        call_args = str(interaction.response.send_message.call_args)
-        assert "already been decided" in call_args.lower()
+        from modules.views.application import _update_review_embed
+
+        await _update_review_embed(mock_bot, review_channel_id=REVIEW_CHANNEL_ID, review_message_id=REVIEW_MSG_ID)
+
+        call_kwargs = mock_message.edit.call_args[1]
+        view = call_kwargs["view"]
+        msg_btn = next(c for c in view.children if c.custom_id == "app_review_message")
+        assert msg_btn.disabled is True
+
+
+# ---------------------------------------------------------------------------
+# ApproveMessageModal tests
+# ---------------------------------------------------------------------------
+
+
+class TestApproveMessageModal:
+    def _make_mock_channel(self, mock_bot, *, has_thread=True):
+        """Return (mock_channel, mock_message, mock_thread) with thread already attached or absent."""
+        mock_thread = MagicMock()
+        mock_thread.send = AsyncMock()
+
+        mock_message = MagicMock()
+        mock_message.edit = AsyncMock()
+        if has_thread:
+            mock_message.thread = mock_thread
+        else:
+            mock_message.thread = None
+            mock_message.create_thread = AsyncMock(return_value=mock_thread)
+
+        mock_channel = MagicMock()
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_bot.get_channel = MagicMock(return_value=mock_channel)
+
+        return mock_channel, mock_message, mock_thread
+
+    @pytest.mark.asyncio
+    async def test_approve_modal_records_vote(self, mock_bot, db_session):
+        """on_submit records a vote; status stays pending when threshold not reached."""
+        form, submission = _seed_form_and_submission(db_session, required_approvals=2)
+        self._make_mock_channel(mock_bot)
+
+        modal = ApproveMessageModal(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            review_channel_id=REVIEW_CHANNEL_ID,
+            review_message_id=REVIEW_MSG_ID,
+        )
+        modal.message._value = "Looking forward to having you!"
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.message = None
+        await modal.on_submit(interaction)
+
+        vote = ApplicationVote.get_user_vote(submission.Id, REVIEWER_USER_ID, db_session)
+        assert vote is not None
+        assert vote.Vote == "approve"
+
+        refreshed = ApplicationSubmission.get_by_id(submission.Id, db_session)
+        assert refreshed.Status == "pending"
+
+    @pytest.mark.asyncio
+    async def test_approve_modal_threshold_reached(self, mock_bot, db_session):
+        """When threshold is met, submission status becomes approved."""
+        form, submission = _seed_form_and_submission(db_session, required_approvals=1)
+        self._make_mock_channel(mock_bot)
+
+        modal = ApproveMessageModal(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            review_channel_id=REVIEW_CHANNEL_ID,
+            review_message_id=REVIEW_MSG_ID,
+        )
+        modal.message._value = "Approved!"
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.message = None
+        await modal.on_submit(interaction)
+
+        refreshed = ApplicationSubmission.get_by_id(submission.Id, db_session)
+        assert refreshed.Status == "approved"
+
+    @pytest.mark.asyncio
+    async def test_approve_modal_posts_to_existing_thread(self, mock_bot, db_session):
+        """on_submit posts the reviewer's message with ✅ prefix to an existing thread."""
+        form, submission = _seed_form_and_submission(db_session, required_approvals=2)
+        _, _, mock_thread = self._make_mock_channel(mock_bot, has_thread=True)
+
+        modal = ApproveMessageModal(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            review_channel_id=REVIEW_CHANNEL_ID,
+            review_message_id=REVIEW_MSG_ID,
+        )
+        modal.message._value = "Great application!"
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.message = None
+        await modal.on_submit(interaction)
+
+        mock_thread.send.assert_called_once()
+        posted = mock_thread.send.call_args[0][0]
+        assert "✅" in posted
+        assert "Great application!" in posted
+
+    @pytest.mark.asyncio
+    async def test_approve_modal_creates_thread_when_none(self, mock_bot, db_session):
+        """If no thread exists, on_submit creates one then posts to it."""
+        form, submission = _seed_form_and_submission(db_session, required_approvals=2)
+        _, mock_message, mock_thread = self._make_mock_channel(mock_bot, has_thread=False)
+
+        modal = ApproveMessageModal(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            review_channel_id=REVIEW_CHANNEL_ID,
+            review_message_id=REVIEW_MSG_ID,
+        )
+        modal.message._value = "Welcome!"
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.message = None
+        await modal.on_submit(interaction)
+
+        mock_message.create_thread.assert_called_once()
+        mock_thread.send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_approve_modal_responds_before_editing(self, mock_bot, db_session):
+        """defer (the user response) must happen before message.edit (embed rebuild)."""
+        form, submission = _seed_form_and_submission(db_session, required_approvals=2)
+        _, mock_message, _ = self._make_mock_channel(mock_bot)
+
+        modal = ApproveMessageModal(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            review_channel_id=REVIEW_CHANNEL_ID,
+            review_message_id=REVIEW_MSG_ID,
+        )
+        modal.message._value = "Nice!"
+
+        call_order = []
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.message = None
+        interaction.response.defer = AsyncMock(side_effect=lambda *a, **kw: call_order.append("response"))
+        mock_message.edit = AsyncMock(side_effect=lambda *a, **kw: call_order.append("edit"))
+
+        await modal.on_submit(interaction)
+
+        assert call_order == ["response", "edit"]
+
+    @pytest.mark.asyncio
+    async def test_approve_modal_duplicate_vote_rejected(self, mock_bot, db_session):
+        """IntegrityError on flush → followup.send 'already voted'."""
+        form, submission = _seed_form_and_submission(db_session, required_approvals=2)
+        db_session.add(ApplicationVote(SubmissionId=submission.Id, UserId=REVIEWER_USER_ID, Vote="approve"))
+        db_session.commit()
+
+        modal = ApproveMessageModal(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            review_channel_id=REVIEW_CHANNEL_ID,
+            review_message_id=REVIEW_MSG_ID,
+        )
+        modal.message._value = "Vote again!"
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.message = None
+        await modal.on_submit(interaction)
+
+        call_args = str(interaction.followup.send.call_args)
+        assert "already voted" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_approve_modal_disables_vote_button_but_not_message(self, mock_bot, db_session):
+        """When approval threshold is reached, Vote is disabled; Message stays enabled."""
+        form, submission = _seed_form_and_submission(db_session, required_approvals=1)
+        _, mock_message, _ = self._make_mock_channel(mock_bot)
+
+        modal = ApproveMessageModal(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            review_channel_id=REVIEW_CHANNEL_ID,
+            review_message_id=REVIEW_MSG_ID,
+        )
+        modal.message._value = "Congrats!"
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.message = None
+        await modal.on_submit(interaction)
+
+        call_kwargs = mock_message.edit.call_args[1]
+        view = call_kwargs["view"]
+        vote_btn = next(c for c in view.children if c.custom_id == "app_review_vote")
+        msg_btn = next(c for c in view.children if c.custom_id == "app_review_message")
+        assert vote_btn.disabled is True
+        assert msg_btn.disabled is False  # not yet notified
+
+
+# ---------------------------------------------------------------------------
+# VoteSelectView tests
+# ---------------------------------------------------------------------------
+
+
+class TestVoteSelectView:
+    @pytest.mark.asyncio
+    async def test_select_approve_opens_approve_modal(self, mock_bot, db_session):
+        """Selecting 'approve' from the dropdown should open ApproveMessageModal."""
+        form, submission = _seed_form_and_submission(db_session)
+
+        view = VoteSelectView(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            approve_prefill="Welcome!",
+            deny_prefill="Sorry.",
+            review_channel_id=REVIEW_CHANNEL_ID,
+            review_message_id=REVIEW_MSG_ID,
+        )
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        view.vote_select._values = ["approve"]
+        await view.vote_select.callback(interaction)
+
+        interaction.response.send_modal.assert_called_once()
+        modal = interaction.response.send_modal.call_args[0][0]
+        assert isinstance(modal, ApproveMessageModal)
+        assert modal.message.default == "Welcome!"
+
+    @pytest.mark.asyncio
+    async def test_select_deny_opens_deny_modal(self, mock_bot, db_session):
+        """Selecting 'deny' from the dropdown should open DenyReasonModal."""
+        form, submission = _seed_form_and_submission(db_session)
+
+        view = VoteSelectView(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            approve_prefill="Welcome!",
+            deny_prefill="Sorry.",
+            review_channel_id=REVIEW_CHANNEL_ID,
+            review_message_id=REVIEW_MSG_ID,
+        )
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        view.vote_select._values = ["deny"]
+        await view.vote_select.callback(interaction)
+
+        interaction.response.send_modal.assert_called_once()
+        modal = interaction.response.send_modal.call_args[0][0]
+        assert isinstance(modal, DenyReasonModal)
+        assert modal.message.default == "Sorry."
 
 
 # ---------------------------------------------------------------------------
@@ -341,15 +501,22 @@ class TestDenyButton:
 
 
 class TestDenyReasonModal:
+    def _make_thread_mocks(self, mock_bot):
+        """Return (mock_channel, mock_message, mock_thread) with an attached thread."""
+        mock_thread = MagicMock()
+        mock_thread.send = AsyncMock()
+        mock_message = MagicMock()
+        mock_message.edit = AsyncMock()
+        mock_message.thread = mock_thread
+        mock_channel = MagicMock()
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_bot.get_channel = MagicMock(return_value=mock_channel)
+        return mock_channel, mock_message, mock_thread
+
     @pytest.mark.asyncio
     async def test_deny_modal_records_vote_and_denies(self, mock_bot, db_session):
         form, submission = _seed_form_and_submission(db_session, required_denials=1)
-
-        mock_channel = MagicMock()
-        mock_message = MagicMock()
-        mock_message.edit = AsyncMock()
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
-        mock_bot.get_channel = MagicMock(return_value=mock_channel)
+        self._make_thread_mocks(mock_bot)
 
         modal = DenyReasonModal(
             submission_id=submission.Id,
@@ -357,14 +524,11 @@ class TestDenyReasonModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.reason._value = "Not a good fit"
+        modal.message._value = "Not a good fit"
 
         interaction = _make_reviewer_interaction(mock_bot)
-        # Modal interactions do NOT have interaction.message
         interaction.message = None
-
-        with patch("modules.views.application._dm_applicant", new_callable=AsyncMock) as mock_dm:
-            await modal.on_submit(interaction)
+        await modal.on_submit(interaction)
 
         vote = ApplicationVote.get_user_vote(submission.Id, REVIEWER_USER_ID, db_session)
         assert vote is not None
@@ -373,18 +537,12 @@ class TestDenyReasonModal:
         refreshed = ApplicationSubmission.get_by_id(submission.Id, db_session)
         assert refreshed.Status == "denied"
         assert refreshed.DecisionReason == "Not a good fit"
-        mock_dm.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_deny_modal_responds_before_editing_review(self, mock_bot, db_session):
-        """Modal on_submit should respond to the interaction BEFORE editing the review message."""
-        form, submission = _seed_form_and_submission(db_session, required_denials=3)
-
-        mock_channel = MagicMock()
-        mock_message = MagicMock()
-        mock_message.edit = AsyncMock()
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
-        mock_bot.get_channel = MagicMock(return_value=mock_channel)
+    async def test_deny_modal_posts_to_thread(self, mock_bot, db_session):
+        """on_submit posts the denial message with ❌ prefix to the review thread."""
+        form, submission = _seed_form_and_submission(db_session, required_denials=2)
+        _, _, mock_thread = self._make_thread_mocks(mock_bot)
 
         modal = DenyReasonModal(
             submission_id=submission.Id,
@@ -392,35 +550,45 @@ class TestDenyReasonModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.reason._value = ""
-
-        call_order = []
-
-        async def track_defer(*args, **kwargs):
-            call_order.append("response")
-
-        async def track_edit(*args, **kwargs):
-            call_order.append("edit")
+        modal.message._value = "Does not meet requirements."
 
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.message = None
-        interaction.response.defer = AsyncMock(side_effect=track_defer)
-        mock_message.edit = AsyncMock(side_effect=track_edit)
+        await modal.on_submit(interaction)
 
-        with patch("modules.views.application._dm_applicant", new_callable=AsyncMock):
-            await modal.on_submit(interaction)
+        mock_thread.send.assert_called_once()
+        posted = mock_thread.send.call_args[0][0]
+        assert "❌" in posted
+        assert "Does not meet requirements." in posted
+
+    @pytest.mark.asyncio
+    async def test_deny_modal_responds_before_editing_review(self, mock_bot, db_session):
+        """Modal on_submit should respond to the interaction BEFORE editing the review message."""
+        form, submission = _seed_form_and_submission(db_session, required_denials=3)
+        _, mock_message, _ = self._make_thread_mocks(mock_bot)
+
+        modal = DenyReasonModal(
+            submission_id=submission.Id,
+            bot=mock_bot,
+            review_channel_id=REVIEW_CHANNEL_ID,
+            review_message_id=REVIEW_MSG_ID,
+        )
+        modal.message._value = "Not this time."
+
+        call_order = []
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.message = None
+        interaction.response.defer = AsyncMock(side_effect=lambda *a, **kw: call_order.append("response"))
+        mock_message.edit = AsyncMock(side_effect=lambda *a, **kw: call_order.append("edit"))
+
+        await modal.on_submit(interaction)
 
         assert call_order == ["response", "edit"]
 
     @pytest.mark.asyncio
     async def test_deny_modal_below_threshold(self, mock_bot, db_session):
         form, submission = _seed_form_and_submission(db_session, required_denials=3)
-
-        mock_channel = MagicMock()
-        mock_message = MagicMock()
-        mock_message.edit = AsyncMock()
-        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
-        mock_bot.get_channel = MagicMock(return_value=mock_channel)
+        self._make_thread_mocks(mock_bot)
 
         modal = DenyReasonModal(
             submission_id=submission.Id,
@@ -428,18 +596,14 @@ class TestDenyReasonModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.reason._value = ""
+        modal.message._value = "Not yet."
 
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.message = None
+        await modal.on_submit(interaction)
 
-        with patch("modules.views.application._dm_applicant", new_callable=AsyncMock) as mock_dm:
-            await modal.on_submit(interaction)
-
-        # Should still be pending
         refreshed = ApplicationSubmission.get_by_id(submission.Id, db_session)
         assert refreshed.Status == "pending"
-        mock_dm.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_deny_modal_submission_already_decided(self, mock_bot, db_session):
@@ -453,7 +617,7 @@ class TestDenyReasonModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.reason._value = "Too late"
+        modal.message._value = "Too late"
 
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.message = None
@@ -498,6 +662,77 @@ class TestMessageButton:
 
         call_args = str(interaction.response.send_message.call_args)
         assert "not found" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_message_button_prefills_approval_message(self, review_view, mock_bot, db_session):
+        """When the submission is approved and a default message is configured, pre-fill the modal."""
+        form, submission = _seed_form_and_submission(db_session)
+        form.ApprovalMessage = "Welcome to the team!"
+        submission.Status = "approved"
+        db_session.commit()
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        await review_view.message_applicant.callback(interaction)
+
+        modal = interaction.response.send_modal.call_args[0][0]
+        assert modal.message.default == "Welcome to the team!"
+
+    @pytest.mark.asyncio
+    async def test_message_button_no_prefill_when_pending(self, review_view, mock_bot, db_session):
+        """When the submission is still pending, the modal message field is not pre-filled."""
+        _seed_form_and_submission(db_session)
+        interaction = _make_reviewer_interaction(mock_bot)
+
+        await review_view.message_applicant.callback(interaction)
+
+        modal = interaction.response.send_modal.call_args[0][0]
+        assert modal.message.default is None
+
+    @pytest.mark.asyncio
+    async def test_message_button_uses_default_approval_message_when_none_configured(
+        self, review_view, mock_bot, db_session
+    ):
+        """Approved submission without a configured ApprovalMessage: fall back to the default string."""
+        form, submission = _seed_form_and_submission(db_session)
+        submission.Status = "approved"
+        db_session.commit()
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        await review_view.message_applicant.callback(interaction)
+
+        modal = interaction.response.send_modal.call_args[0][0]
+        assert modal.message.default is not None
+        assert "approved" in modal.message.default.lower()
+
+    @pytest.mark.asyncio
+    async def test_message_button_uses_default_denial_message_when_none_configured(
+        self, review_view, mock_bot, db_session
+    ):
+        """Denied submission without a configured DenialMessage: fall back to the default string."""
+        form, submission = _seed_form_and_submission(db_session)
+        submission.Status = "denied"
+        db_session.commit()
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        await review_view.message_applicant.callback(interaction)
+
+        modal = interaction.response.send_modal.call_args[0][0]
+        assert modal.message.default is not None
+        assert "denied" in modal.message.default.lower()
+
+    @pytest.mark.asyncio
+    async def test_message_button_prefills_denial_message(self, review_view, mock_bot, db_session):
+        """When the submission is denied and a default denial message is configured, pre-fill the modal."""
+        form, submission = _seed_form_and_submission(db_session)
+        form.DenialMessage = "Unfortunately you do not meet our requirements."
+        submission.Status = "denied"
+        db_session.commit()
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        await review_view.message_applicant.callback(interaction)
+
+        modal = interaction.response.send_modal.call_args[0][0]
+        assert modal.message.default == "Unfortunately you do not meet our requirements."
 
 
 # ---------------------------------------------------------------------------
@@ -548,6 +783,103 @@ class TestMessageModal:
 
         call_args = str(interaction.response.send_message.call_args)
         assert "could not dm" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_message_modal_empty_skips_dm(self, mock_bot):
+        """Submitting the modal with an empty message should not DM the applicant."""
+        mock_bot.fetch_user = AsyncMock()
+
+        modal = MessageModal(user_id=APPLICANT_USER_ID, bot=mock_bot)
+        modal.message._value = ""
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        await modal.on_submit(interaction)
+
+        mock_bot.fetch_user.assert_not_called()
+        call_args = str(interaction.response.send_message.call_args)
+        assert "no message sent" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_message_modal_prefill_stored(self, mock_bot):
+        """Prefill string should be set as the TextInput default."""
+        modal = MessageModal(user_id=APPLICANT_USER_ID, bot=mock_bot, prefill="Welcome aboard!")
+        assert modal.message.default == "Welcome aboard!"
+
+    @pytest.mark.asyncio
+    async def test_message_modal_sets_notified_on_decided_submission(self, mock_bot, db_session):
+        """Successful DM on a decided submission must flip ApplicantNotified to True."""
+        form, submission = _seed_form_and_submission(db_session)
+        submission.Status = "approved"
+        db_session.commit()
+
+        mock_user = MagicMock()
+        mock_user.send = AsyncMock()
+        mock_bot.fetch_user = AsyncMock(return_value=mock_user)
+
+        mock_channel = MagicMock()
+        mock_message = MagicMock()
+        mock_message.edit = AsyncMock()
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        mock_bot.get_channel = MagicMock(return_value=mock_channel)
+
+        modal = MessageModal(
+            user_id=APPLICANT_USER_ID,
+            bot=mock_bot,
+            submission_id=submission.Id,
+            review_channel_id=REVIEW_CHANNEL_ID,
+            review_message_id=REVIEW_MSG_ID,
+        )
+        modal.message._value = "Congratulations!"
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        await modal.on_submit(interaction)
+
+        refreshed = db_session.get(type(submission), submission.Id)
+        assert refreshed.ApplicantNotified is True
+
+    @pytest.mark.asyncio
+    async def test_message_modal_does_not_set_notified_on_pending_submission(self, mock_bot, db_session):
+        """Successful DM while submission is still pending must not set ApplicantNotified."""
+        form, submission = _seed_form_and_submission(db_session)
+
+        mock_user = MagicMock()
+        mock_user.send = AsyncMock()
+        mock_bot.fetch_user = AsyncMock(return_value=mock_user)
+
+        modal = MessageModal(
+            user_id=APPLICANT_USER_ID,
+            bot=mock_bot,
+            submission_id=submission.Id,
+        )
+        modal.message._value = "Could you clarify your experience?"
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        await modal.on_submit(interaction)
+
+        refreshed = db_session.get(type(submission), submission.Id)
+        assert refreshed.ApplicantNotified is False
+
+    @pytest.mark.asyncio
+    async def test_message_modal_failed_dm_does_not_set_notified(self, mock_bot, db_session):
+        """If the DM fails, ApplicantNotified must stay False."""
+        form, submission = _seed_form_and_submission(db_session)
+        submission.Status = "approved"
+        db_session.commit()
+
+        mock_bot.fetch_user = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "Cannot DM"))
+
+        modal = MessageModal(
+            user_id=APPLICANT_USER_ID,
+            bot=mock_bot,
+            submission_id=submission.Id,
+        )
+        modal.message._value = "Welcome!"
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        await modal.on_submit(interaction)
+
+        refreshed = db_session.get(type(submission), submission.Id)
+        assert refreshed.ApplicantNotified is False
 
 
 # ---------------------------------------------------------------------------
@@ -631,25 +963,17 @@ class TestBuildReviewEmbed:
 
 
 # ---------------------------------------------------------------------------
-# Vote count label tests
+# View structure tests
 # ---------------------------------------------------------------------------
 
 
-class TestVoteCountLabels:
+class TestReviewViewStructure:
     @pytest.mark.asyncio
-    async def test_default_labels(self):
-        """Persistent registration uses plain labels without counts."""
+    async def test_view_has_vote_and_message_buttons(self):
+        """Persistent review view should have exactly a Vote and a Message button."""
         view = ApplicationReviewView(bot=None)
-        approve_btn = next(c for c in view.children if c.custom_id == "app_review_approve")
-        deny_btn = next(c for c in view.children if c.custom_id == "app_review_deny")
-        assert approve_btn.label == "Approve"
-        assert deny_btn.label == "Deny"
-
-    @pytest.mark.asyncio
-    async def test_custom_labels_with_counts(self):
-        """When vote counts are passed, labels should reflect them."""
-        view = ApplicationReviewView(bot=None, approve_label="Approve (2/3)", deny_label="Deny (1/2)")
-        approve_btn = next(c for c in view.children if c.custom_id == "app_review_approve")
-        deny_btn = next(c for c in view.children if c.custom_id == "app_review_deny")
-        assert approve_btn.label == "Approve (2/3)"
-        assert deny_btn.label == "Deny (1/2)"
+        custom_ids = {c.custom_id for c in view.children}
+        assert "app_review_vote" in custom_ids
+        assert "app_review_message" in custom_ids
+        assert "app_review_approve" not in custom_ids
+        assert "app_review_deny" not in custom_ids

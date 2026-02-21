@@ -10,11 +10,13 @@ import discord
 from discord import Embed, Interaction, Role, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext.commands import GroupCog
+from sqlalchemy.exc import SQLAlchemyError
 
 from models.application import (
     ApplicationForm,
     ApplicationGuildConfig,
     ApplicationQuestion,
+    ApplicationSubmission,
     ApplicationTemplate,
     ApplicationTemplateQuestion,
     seed_built_in_templates,
@@ -49,7 +51,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         try:
             with self.bot.session_scope() as session:
                 seed_built_in_templates(session)
-        except Exception:
+        except SQLAlchemyError:
             self.bot.log.error("application: failed to seed built-in templates", exc_info=True)
 
         # guild_only is already set on _apply via @app_commands.guild_only();
@@ -66,6 +68,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         self.bot.tree.remove_command("apply")
 
     @app_commands.guild_only()
+    @app_commands.rename(form_name="form")
     @app_commands.describe(form_name="Application form to fill out")
     async def _apply(self, interaction: Interaction, form_name: str):
         """Submit an application via DM conversation."""
@@ -76,6 +79,12 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 return
             if not form.ReviewChannelId:
                 await interaction.response.send_message("This form isn't set up yet.", ephemeral=True)
+                return
+            existing = ApplicationSubmission.get_by_user_and_form(interaction.user.id, form.Id, session)
+            if existing:
+                await interaction.response.send_message(
+                    f"You have already applied for **{form.Name}**.", ephemeral=True
+                )
                 return
             form_id = form.Id
             name = form.Name
