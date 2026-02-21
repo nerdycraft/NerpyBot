@@ -6,7 +6,7 @@ Custom application/form system where admins create questionnaires, users submit 
 
 **Forms** are named questionnaires owned by a guild. Each has ordered questions, a review channel, approval/denial thresholds, and optional custom messages. A form is "ready" once a review channel is assigned.
 
-**Templates** are reusable question sets. Three built-in templates are seeded at startup (Guild Membership, Staff/Moderator, Event Sign-Up). Guilds can save their own forms as custom templates.
+**Templates** are reusable question sets. Five built-in templates are seeded at startup (Guild Membership, Staff/Moderator, Partnership / Collaboration, Volunteer, Community Access). Guilds can save their own forms as custom templates.
 
 **Submissions** are created when a user completes an `/apply` conversation. The bot posts a review embed in the form's review channel with Approve, Deny, and Message buttons.
 
@@ -16,7 +16,7 @@ Custom application/form system where admins create questionnaires, users submit 
 
 ### Form Creation
 
-1. Admin runs `/application create <name>`
+1. Admin runs `/application create <name> <channel>`
 2. Bot starts a DM conversation collecting questions one by one
 3. Admin reacts with a cross mark to finish
 4. Form is saved to the database
@@ -41,13 +41,14 @@ Custom application/form system where admins create questionnaires, users submit 
 
 ### Admin Commands (`/application ...`)
 
-#### `/application create <name>`
+#### `/application create <name> <channel>`
 
-Create a new application form via DM conversation.
+Create a new application form via DM conversation. The review channel is required at creation time.
 
-| Parameter | Type  | Description           |
-| --------- | ----- | --------------------- |
-| `name`    | `str` | Name for the new form |
+| Parameter | Type          | Description                              |
+| --------- | ------------- | ---------------------------------------- |
+| `name`    | `str`         | Name for the new form                    |
+| `channel` | `TextChannel` | Channel to send review embeds to         |
 
 #### `/application delete <name>`
 
@@ -69,26 +70,18 @@ Edit a form's questions via DM conversation (add, remove, reorder).
 | --------- | ----- | ------------------------------------------- |
 | `name`    | `str` | Form name (autocomplete from guild's forms) |
 
-#### `/application channel <name> <channel>`
-
-Set the review channel where submission embeds are posted.
-
-| Parameter | Type          | Description                                 |
-| --------- | ------------- | ------------------------------------------- |
-| `name`    | `str`         | Form name (autocomplete from guild's forms) |
-| `channel` | `TextChannel` | Channel to send review embeds to            |
-
-#### `/application settings <name> [approvals] [denials] [approval_message] [denial_message]`
+#### `/application settings <name> [approvals] [denials] [approval_message] [denial_message] [channel]`
 
 Configure form thresholds and custom messages.
 
-| Parameter          | Type       | Description                              |
-| ------------------ | ---------- | ---------------------------------------- |
-| `name`             | `str`      | Form name (autocomplete)                 |
-| `approvals`        | `int` >= 1 | Required approval votes (optional)       |
-| `denials`          | `int` >= 1 | Required denial votes (optional)         |
-| `approval_message` | `str`      | Custom DM message on approval (optional) |
-| `denial_message`   | `str`      | Custom DM message on denial (optional)   |
+| Parameter          | Type          | Description                              |
+| ------------------ | ------------- | ---------------------------------------- |
+| `name`             | `str`         | Form name (autocomplete)                 |
+| `approvals`        | `int` >= 1    | Required approval votes (optional)       |
+| `denials`          | `int` >= 1    | Required denial votes (optional)         |
+| `approval_message` | `str`         | Custom DM message on approval (optional) |
+| `denial_message`   | `str`         | Custom DM message on denial (optional)   |
+| `channel`          | `TextChannel` | Review channel (optional)                |
 
 #### `/application export <name>`
 
@@ -108,14 +101,15 @@ Import a form from a JSON file. The bot DMs the user and waits 120 seconds for a
 
 Show all available templates (built-in + guild custom).
 
-#### `/application template use <template> <name>`
+#### `/application template use <template> <name> <channel>`
 
 Create a new form from a template.
 
-| Parameter  | Type  | Description                  |
-| ---------- | ----- | ---------------------------- |
-| `template` | `str` | Template name (autocomplete) |
-| `name`     | `str` | Name for the new form        |
+| Parameter  | Type          | Description                              |
+| ---------- | ------------- | ---------------------------------------- |
+| `template` | `str`         | Template name (autocomplete)             |
+| `name`     | `str`         | Name for the new form                    |
+| `channel`  | `TextChannel` | Channel to send review embeds to         |
 
 #### `/application template save <form> <template_name>`
 
@@ -292,4 +286,6 @@ Seeded on cog load (idempotent):
 
 - **Guild Membership** — 6 questions about the applicant's background and availability
 - **Staff / Moderator** — 6 questions about moderation experience and availability
-- **Event Sign-Up** — 5 questions about the applicant's character and scheduling
+- **Partnership / Collaboration** — 5 questions: Tell us about your community or project — what do you do? / How many active members or participants do you have? / What kind of collaboration are you looking for? / What value would this partnership bring to both communities? / Who is the primary point of contact, and how can we reach them?
+- **Volunteer** — 5 questions: What areas or tasks are you most interested in volunteering for? / How many hours per week can you commit? / Do you have any relevant skills or experience? / What timezone are you in, and when are you typically available? / Why do you want to volunteer with us?
+- **Community Access** — 4 questions: Which channel or area are you requesting access to, and why? / How long have you been a member of this server? / Have you read and agreed to the server rules? / How do you plan to use this access?
