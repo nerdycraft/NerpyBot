@@ -12,6 +12,7 @@ import pytest
 from datetime import UTC, datetime
 
 from models.application import (
+    BUILT_IN_TEMPLATES,
     ApplicationForm,
     ApplicationGuildConfig,
     ApplicationQuestion,
@@ -54,6 +55,46 @@ def _make_form(db_session, guild_id=987654321, name="TestForm", review_channel_i
     db_session.add(ApplicationQuestion(FormId=form.Id, QuestionText="What is your name?", SortOrder=1))
     db_session.commit()
     return form
+
+
+# ---------------------------------------------------------------------------
+# seed_built_in_templates
+# ---------------------------------------------------------------------------
+
+
+class TestBuiltInTemplates:
+    def test_new_templates_seeded(self, db_session):
+        seed_built_in_templates(db_session)
+        db_session.commit()
+        names = {
+            t.Name for t in db_session.query(ApplicationTemplate).filter(ApplicationTemplate.IsBuiltIn.is_(True)).all()
+        }
+        assert names == set(BUILT_IN_TEMPLATES)
+        assert "Event Sign-Up" not in names
+
+    def test_stale_template_removed(self, db_session):
+        stale = ApplicationTemplate(Name="Event Sign-Up", GuildId=None, IsBuiltIn=True)
+        db_session.add(stale)
+        db_session.flush()
+
+        seed_built_in_templates(db_session)
+        db_session.commit()
+
+        result = (
+            db_session.query(ApplicationTemplate)
+            .filter(ApplicationTemplate.Name == "Event Sign-Up", ApplicationTemplate.IsBuiltIn.is_(True))
+            .first()
+        )
+        assert result is None
+
+    def test_seed_is_idempotent(self, db_session):
+        seed_built_in_templates(db_session)
+        db_session.commit()
+        seed_built_in_templates(db_session)
+        db_session.commit()
+
+        count = db_session.query(ApplicationTemplate).filter(ApplicationTemplate.IsBuiltIn.is_(True)).count()
+        assert count == len(BUILT_IN_TEMPLATES)
 
 
 # ---------------------------------------------------------------------------

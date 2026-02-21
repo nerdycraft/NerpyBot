@@ -861,8 +861,8 @@ class TestGuildIsolation:
 class TestBuiltInTemplatesConstant:
     """Tests for the BUILT_IN_TEMPLATES dict."""
 
-    def test_has_three_templates(self):
-        assert len(BUILT_IN_TEMPLATES) == 3
+    def test_has_five_templates(self):
+        assert len(BUILT_IN_TEMPLATES) == 5
 
     def test_guild_membership_has_six_questions(self):
         assert len(BUILT_IN_TEMPLATES["Guild Membership"]) == 6
@@ -870,8 +870,8 @@ class TestBuiltInTemplatesConstant:
     def test_staff_moderator_has_six_questions(self):
         assert len(BUILT_IN_TEMPLATES["Staff / Moderator"]) == 6
 
-    def test_event_signup_has_five_questions(self):
-        assert len(BUILT_IN_TEMPLATES["Event Sign-Up"]) == 5
+    def test_community_access_has_four_questions(self):
+        assert len(BUILT_IN_TEMPLATES["Community Access"]) == 4
 
     def test_all_questions_are_strings(self):
         for name, questions in BUILT_IN_TEMPLATES.items():
@@ -886,11 +886,11 @@ class TestBuiltInTemplateSeeding:
     """Tests for the seed_built_in_templates() function."""
 
     def test_seed_creates_templates(self, db_session):
-        """Should create all 3 built-in templates."""
+        """Should create all 5 built-in templates."""
         seed_built_in_templates(db_session)
         db_session.commit()
         templates = ApplicationTemplate.get_available(123, db_session)
-        assert len(templates) == 3
+        assert len(templates) == 5
 
     def test_seed_idempotent(self, db_session):
         """Calling seed twice should not create duplicates."""
@@ -899,7 +899,7 @@ class TestBuiltInTemplateSeeding:
         seed_built_in_templates(db_session)
         db_session.commit()
         templates = db_session.query(ApplicationTemplate).filter(ApplicationTemplate.IsBuiltIn.is_(True)).all()
-        assert len(templates) == 3
+        assert len(templates) == 5
 
     def test_seed_creates_questions(self, db_session):
         """Each seeded template should have the correct questions."""
@@ -913,6 +913,6 @@ class TestBuiltInTemplateSeeding:
         """Questions should have correct SortOrder."""
         seed_built_in_templates(db_session)
         db_session.commit()
-        tpl = ApplicationTemplate.get_by_name("Event Sign-Up", 123, db_session)
+        tpl = ApplicationTemplate.get_by_name("Community Access", 123, db_session)
         orders = [q.SortOrder for q in tpl.questions]
-        assert orders == [1, 2, 3, 4, 5]
+        assert orders == [1, 2, 3, 4]
