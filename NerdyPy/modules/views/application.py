@@ -723,7 +723,7 @@ class EditDenyModal(discord.ui.Modal, title="Change Vote — Deny"):
 
 
 class ApplicationReviewView(discord.ui.View):
-    """Two-button persistent view attached to every review embed.
+    """Three-button persistent view attached to every review embed (Vote, Edit Vote, Message).
 
     One view instance (registered in ``setup_hook``) handles ALL review embeds
     across all guilds — the submission is looked up via ``interaction.message.id``.
