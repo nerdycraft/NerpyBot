@@ -717,13 +717,80 @@ class EditDenyModal(discord.ui.Modal, title="Change Vote — Deny"):
             await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
 
 
+class OverrideModal(discord.ui.Modal):
+    """Admin/manager modal to flip a decided application APPROVED↔DENIED."""
+
+    reason = discord.ui.TextInput(
+        label="Reason for override", style=discord.TextStyle.paragraph, required=True, max_length=1000
+    )
+
+    def __init__(
+        self,
+        current_status: SubmissionStatus,
+        submission_id: int,
+        bot,
+        review_channel_id: int = 0,
+        review_message_id: int = 0,
+    ):
+        new_status = (
+            SubmissionStatus.DENIED if current_status == SubmissionStatus.APPROVED else SubmissionStatus.APPROVED
+        )
+        old_label = current_status.value.capitalize()
+        new_label = new_status.value.capitalize()
+        super().__init__(title=f"Override: {old_label} → {new_label}")
+        self.current_status = current_status
+        self.new_status = new_status
+        self.submission_id = submission_id
+        self.bot = bot
+        self.review_channel_id = review_channel_id
+        self.review_message_id = review_message_id
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        reason_text = self.reason.value
+
+        with self.bot.session_scope() as session:
+            submission = ApplicationSubmission.get_by_id(self.submission_id, session)
+            if submission is None or submission.Status == SubmissionStatus.PENDING:
+                await interaction.followup.send("Cannot override a pending application.", ephemeral=True)
+                return
+            submission.Status = self.new_status
+            session.flush()
+
+        await interaction.followup.send("Decision overridden.", ephemeral=True)
+
+        old_label = self.current_status.value.capitalize()
+        new_label = self.new_status.value.capitalize()
+        try:
+            thread = await _get_or_create_review_thread(self.bot, self.review_channel_id, self.review_message_id)
+            await thread.send(
+                f"🔄 **{interaction.user.display_name}** overrode decision: {old_label} → {new_label} — {reason_text}"
+            )
+        except discord.HTTPException:
+            self.bot.log.error("application: failed to post override message to review thread", exc_info=True)
+
+        try:
+            await _update_review_embed(
+                self.bot, review_channel_id=self.review_channel_id, review_message_id=self.review_message_id
+            )
+        except discord.HTTPException:
+            self.bot.log.error("application: failed to update review embed after override", exc_info=True)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        self.bot.log.error("Error in OverrideModal: %s", error, exc_info=error)
+        if not interaction.response.is_done():
+            await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
+        else:
+            await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
+
+
 # ---------------------------------------------------------------------------
 # Persistent review view
 # ---------------------------------------------------------------------------
 
 
 class ApplicationReviewView(discord.ui.View):
-    """Three-button persistent view attached to every review embed (Vote, Edit Vote, Message).
+    """Four-button persistent view attached to every review embed (Vote, Edit Vote, Message, Override).
 
     One view instance (registered in ``setup_hook``) handles ALL review embeds
     across all guilds — the submission is looked up via ``interaction.message.id``.
@@ -856,6 +923,39 @@ class ApplicationReviewView(discord.ui.View):
                 bot=self.bot,
                 prefill=prefill,
                 submission_id=submission_id,
+                review_channel_id=interaction.message.channel.id,
+                review_message_id=interaction.message.id,
+            )
+        )
+
+    # -- Override ----------------------------------------------------------
+
+    @discord.ui.button(label="Override", style=discord.ButtonStyle.danger, custom_id="app_review_override")
+    async def override(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not check_override_permission(interaction, self.bot):
+            await interaction.response.send_message("You do not have permission to override decisions.", ephemeral=True)
+            return
+
+        with self.bot.session_scope() as session:
+            submission = ApplicationSubmission.get_by_review_message(interaction.message.id, session)
+            if submission is None:
+                await interaction.response.send_message("Submission not found.", ephemeral=True)
+                return
+
+            if submission.Status == SubmissionStatus.PENDING:
+                await interaction.response.send_message(
+                    "This application is still pending — there is no decision to override.", ephemeral=True
+                )
+                return
+
+            submission_id = submission.Id
+            current_status = submission.Status
+
+        await interaction.response.send_modal(
+            OverrideModal(
+                current_status=current_status,
+                submission_id=submission_id,
+                bot=self.bot,
                 review_channel_id=interaction.message.channel.id,
                 review_message_id=interaction.message.id,
             )

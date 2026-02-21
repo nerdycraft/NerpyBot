@@ -26,6 +26,7 @@ from modules.views.application import (
     EditDenyModal,
     EditVoteSelectView,
     MessageModal,
+    OverrideModal,
     VoteSelectView,
     _dm_applicant,
     check_application_permission,
@@ -989,12 +990,13 @@ class TestBuildReviewEmbed:
 class TestReviewViewStructure:
     @pytest.mark.asyncio
     async def test_view_has_vote_and_message_buttons(self):
-        """Persistent review view should have Vote, Edit Vote, and Message buttons."""
+        """Persistent review view should have Vote, Edit Vote, Message, and Override buttons."""
         view = ApplicationReviewView(bot=None)
         custom_ids = {c.custom_id for c in view.children}
         assert "app_review_vote" in custom_ids
         assert "app_review_edit_vote" in custom_ids
         assert "app_review_message" in custom_ids
+        assert "app_review_override" in custom_ids
         assert "app_review_approve" not in custom_ids
         assert "app_review_deny" not in custom_ids
 
@@ -1356,3 +1358,180 @@ class TestEditVoteButton:
 
         msg = str(interaction.response.send_message.call_args).lower()
         assert "decided" in msg or "pending" in msg
+
+
+# ---------------------------------------------------------------------------
+# OverrideModal tests
+# ---------------------------------------------------------------------------
+
+
+class TestOverrideModal:
+    def _make_thread_mock(self, mock_bot):
+        mock_thread = AsyncMock()
+        mock_bot.get_channel.return_value = AsyncMock(
+            fetch_message=AsyncMock(return_value=AsyncMock(thread=mock_thread))
+        )
+        return mock_thread
+
+    @pytest.mark.asyncio
+    async def test_modal_title_approved_to_denied(self, mock_bot):
+        modal = OverrideModal(
+            current_status=SubmissionStatus.APPROVED,
+            submission_id=1,
+            bot=mock_bot,
+            review_channel_id=0,
+            review_message_id=0,
+        )
+        assert "Approved" in modal.title
+        assert "Denied" in modal.title
+
+    @pytest.mark.asyncio
+    async def test_modal_title_denied_to_approved(self, mock_bot):
+        modal = OverrideModal(
+            current_status=SubmissionStatus.DENIED,
+            submission_id=1,
+            bot=mock_bot,
+            review_channel_id=0,
+            review_message_id=0,
+        )
+        assert "Denied" in modal.title
+        assert "Approved" in modal.title
+
+    @pytest.mark.asyncio
+    async def test_flips_approved_to_denied(self, mock_bot, db_session):
+        form, submission = _seed_form_and_submission(db_session)
+        submission.Status = SubmissionStatus.APPROVED
+        db_session.commit()
+        self._make_thread_mock(mock_bot)
+
+        modal = OverrideModal(
+            current_status=SubmissionStatus.APPROVED,
+            submission_id=submission.Id,
+            bot=mock_bot,
+            review_channel_id=111,
+            review_message_id=222,
+        )
+        modal.reason._value = "Changed due to new info"
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.followup = AsyncMock()
+        await modal.on_submit(interaction)
+
+        with mock_bot.session_scope() as session:
+            sub = ApplicationSubmission.get_by_id(submission.Id, session)
+        assert sub.Status == SubmissionStatus.DENIED
+
+    @pytest.mark.asyncio
+    async def test_flips_denied_to_approved(self, mock_bot, db_session):
+        form, submission = _seed_form_and_submission(db_session)
+        submission.Status = SubmissionStatus.DENIED
+        db_session.commit()
+        self._make_thread_mock(mock_bot)
+
+        modal = OverrideModal(
+            current_status=SubmissionStatus.DENIED,
+            submission_id=submission.Id,
+            bot=mock_bot,
+            review_channel_id=111,
+            review_message_id=222,
+        )
+        modal.reason._value = "Actually looks fine"
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.followup = AsyncMock()
+        await modal.on_submit(interaction)
+
+        with mock_bot.session_scope() as session:
+            sub = ApplicationSubmission.get_by_id(submission.Id, session)
+        assert sub.Status == SubmissionStatus.APPROVED
+
+    @pytest.mark.asyncio
+    async def test_thread_message_contains_override_info(self, mock_bot, db_session):
+        form, submission = _seed_form_and_submission(db_session)
+        submission.Status = SubmissionStatus.APPROVED
+        db_session.commit()
+        mock_thread = self._make_thread_mock(mock_bot)
+
+        modal = OverrideModal(
+            current_status=SubmissionStatus.APPROVED,
+            submission_id=submission.Id,
+            bot=mock_bot,
+            review_channel_id=111,
+            review_message_id=222,
+        )
+        modal.reason._value = "Override reason here"
+        interaction = _make_reviewer_interaction(mock_bot)
+        interaction.followup = AsyncMock()
+        await modal.on_submit(interaction)
+
+        thread_msg = mock_thread.send.call_args[0][0]
+        assert "🔄" in thread_msg
+        assert "approved" in thread_msg.lower()
+        assert "denied" in thread_msg.lower()
+        assert "Override reason here" in thread_msg
+
+
+# ---------------------------------------------------------------------------
+# Override button tests
+# ---------------------------------------------------------------------------
+
+
+class TestOverrideButton:
+    @pytest.mark.asyncio
+    async def test_admin_opens_override_modal(self, review_view, mock_bot, db_session):
+        form, submission = _seed_form_and_submission(db_session)
+        submission.Status = SubmissionStatus.APPROVED
+        db_session.commit()
+
+        interaction = _make_reviewer_interaction(mock_bot, is_admin=True)
+        await review_view.override.callback(interaction)
+
+        interaction.response.send_modal.assert_called_once()
+        assert isinstance(interaction.response.send_modal.call_args[0][0], OverrideModal)
+
+    @pytest.mark.asyncio
+    async def test_manager_role_opens_override_modal(self, review_view, mock_bot, db_session):
+        config = ApplicationGuildConfig(GuildId=GUILD_ID, ManagerRoleId=REVIEWER_USER_ID)
+        db_session.add(config)
+        form, submission = _seed_form_and_submission(db_session)
+        submission.Status = SubmissionStatus.DENIED
+        db_session.commit()
+
+        interaction = _make_reviewer_interaction(mock_bot, is_admin=False, manager_role_id=REVIEWER_USER_ID)
+        await review_view.override.callback(interaction)
+
+        interaction.response.send_modal.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_reviewer_role_cannot_override(self, review_view, mock_bot, db_session):
+        config = ApplicationGuildConfig(GuildId=GUILD_ID, ReviewerRoleId=888)
+        db_session.add(config)
+        form, submission = _seed_form_and_submission(db_session)
+        submission.Status = SubmissionStatus.APPROVED
+        db_session.commit()
+
+        interaction = _make_reviewer_only_interaction(mock_bot, reviewer_role_id=888)
+        await review_view.override.callback(interaction)
+
+        msg = str(interaction.response.send_message.call_args).lower()
+        assert "permission" in msg
+
+    @pytest.mark.asyncio
+    async def test_pending_submission_rejected(self, review_view, mock_bot, db_session):
+        _seed_form_and_submission(db_session)
+        interaction = _make_reviewer_interaction(mock_bot, is_admin=True)
+        await review_view.override.callback(interaction)
+
+        msg = str(interaction.response.send_message.call_args).lower()
+        assert "pending" in msg
+
+    @pytest.mark.asyncio
+    async def test_modal_receives_correct_flip_direction(self, review_view, mock_bot, db_session):
+        form, submission = _seed_form_and_submission(db_session)
+        submission.Status = SubmissionStatus.DENIED
+        db_session.commit()
+
+        interaction = _make_reviewer_interaction(mock_bot, is_admin=True)
+        await review_view.override.callback(interaction)
+
+        modal = interaction.response.send_modal.call_args[0][0]
+        assert modal.current_status == SubmissionStatus.DENIED
+        assert modal.new_status == SubmissionStatus.APPROVED
