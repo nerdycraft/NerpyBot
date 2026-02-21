@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from models.tagging import Tag, TagType, TagTypeConverter
-from utils.errors import NerpyException
+from utils.errors import NerpyValidationError
 
 
 class TestTagTypeConverter:
@@ -54,14 +54,14 @@ class TestTagTypeConverter:
 
     @pytest.mark.asyncio
     async def test_convert_invalid_type_raises(self, converter, mock_ctx):
-        """Invalid type should raise NerpyException."""
-        with pytest.raises(NerpyException, match="TagType invalid was not found"):
+        """Invalid type should raise NerpyValidationError."""
+        with pytest.raises(NerpyValidationError, match="TagType invalid was not found"):
             await converter.convert(mock_ctx, "invalid")
 
     @pytest.mark.asyncio
     async def test_convert_empty_string_raises(self, converter, mock_ctx):
-        """Empty string should raise NerpyException."""
-        with pytest.raises(NerpyException):
+        """Empty string should raise NerpyValidationError."""
+        with pytest.raises(NerpyValidationError):
             await converter.convert(mock_ctx, "")
 
 
