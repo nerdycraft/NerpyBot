@@ -19,9 +19,9 @@ from models.application import (
     VoteType,
 )
 from modules.views.application import (
-    ApproveMessageModal,
+    ApproveVoteModal,
     ApplicationReviewView,
-    DenyReasonModal,
+    DenyVoteModal,
     EditApproveModal,
     EditDenyModal,
     EditVoteSelectView,
@@ -275,11 +275,11 @@ class TestVoteButton:
 
 
 # ---------------------------------------------------------------------------
-# ApproveMessageModal tests
+# ApproveVoteModal tests
 # ---------------------------------------------------------------------------
 
 
-class TestApproveMessageModal:
+class TestApproveVoteModal:
     def _make_mock_channel(self, mock_bot, *, has_thread=True):
         """Return (mock_channel, mock_message, mock_thread) with thread already attached or absent."""
         mock_thread = MagicMock()
@@ -305,7 +305,7 @@ class TestApproveMessageModal:
         form, submission = _seed_form_and_submission(db_session, required_approvals=2)
         self._make_mock_channel(mock_bot)
 
-        modal = ApproveMessageModal(
+        modal = ApproveVoteModal(
             submission_id=submission.Id,
             bot=mock_bot,
             review_channel_id=REVIEW_CHANNEL_ID,
@@ -330,7 +330,7 @@ class TestApproveMessageModal:
         form, submission = _seed_form_and_submission(db_session, required_approvals=1)
         self._make_mock_channel(mock_bot)
 
-        modal = ApproveMessageModal(
+        modal = ApproveVoteModal(
             submission_id=submission.Id,
             bot=mock_bot,
             review_channel_id=REVIEW_CHANNEL_ID,
@@ -351,7 +351,7 @@ class TestApproveMessageModal:
         form, submission = _seed_form_and_submission(db_session, required_approvals=2)
         _, _, mock_thread = self._make_mock_channel(mock_bot, has_thread=True)
 
-        modal = ApproveMessageModal(
+        modal = ApproveVoteModal(
             submission_id=submission.Id,
             bot=mock_bot,
             review_channel_id=REVIEW_CHANNEL_ID,
@@ -374,7 +374,7 @@ class TestApproveMessageModal:
         form, submission = _seed_form_and_submission(db_session, required_approvals=2)
         _, mock_message, mock_thread = self._make_mock_channel(mock_bot, has_thread=False)
 
-        modal = ApproveMessageModal(
+        modal = ApproveVoteModal(
             submission_id=submission.Id,
             bot=mock_bot,
             review_channel_id=REVIEW_CHANNEL_ID,
@@ -395,7 +395,7 @@ class TestApproveMessageModal:
         form, submission = _seed_form_and_submission(db_session, required_approvals=2)
         _, mock_message, _ = self._make_mock_channel(mock_bot)
 
-        modal = ApproveMessageModal(
+        modal = ApproveVoteModal(
             submission_id=submission.Id,
             bot=mock_bot,
             review_channel_id=REVIEW_CHANNEL_ID,
@@ -420,7 +420,7 @@ class TestApproveMessageModal:
         db_session.add(ApplicationVote(SubmissionId=submission.Id, UserId=REVIEWER_USER_ID, Vote="approve"))
         db_session.commit()
 
-        modal = ApproveMessageModal(
+        modal = ApproveVoteModal(
             submission_id=submission.Id,
             bot=mock_bot,
             review_channel_id=REVIEW_CHANNEL_ID,
@@ -441,7 +441,7 @@ class TestApproveMessageModal:
         form, submission = _seed_form_and_submission(db_session, required_approvals=1)
         _, mock_message, _ = self._make_mock_channel(mock_bot)
 
-        modal = ApproveMessageModal(
+        modal = ApproveVoteModal(
             submission_id=submission.Id,
             bot=mock_bot,
             review_channel_id=REVIEW_CHANNEL_ID,
@@ -469,7 +469,7 @@ class TestApproveMessageModal:
 class TestVoteSelectView:
     @pytest.mark.asyncio
     async def test_select_approve_opens_approve_modal(self, mock_bot, db_session):
-        """Selecting 'approve' from the dropdown should open ApproveMessageModal."""
+        """Selecting 'approve' from the dropdown should open ApproveVoteModal."""
         form, submission = _seed_form_and_submission(db_session)
 
         view = VoteSelectView(
@@ -485,11 +485,11 @@ class TestVoteSelectView:
 
         interaction.response.send_modal.assert_called_once()
         modal = interaction.response.send_modal.call_args[0][0]
-        assert isinstance(modal, ApproveMessageModal)
+        assert isinstance(modal, ApproveVoteModal)
 
     @pytest.mark.asyncio
     async def test_select_deny_opens_deny_modal(self, mock_bot, db_session):
-        """Selecting 'deny' from the dropdown should open DenyReasonModal."""
+        """Selecting 'deny' from the dropdown should open DenyVoteModal."""
         form, submission = _seed_form_and_submission(db_session)
 
         view = VoteSelectView(
@@ -505,15 +505,15 @@ class TestVoteSelectView:
 
         interaction.response.send_modal.assert_called_once()
         modal = interaction.response.send_modal.call_args[0][0]
-        assert isinstance(modal, DenyReasonModal)
+        assert isinstance(modal, DenyVoteModal)
 
 
 # ---------------------------------------------------------------------------
-# DenyReasonModal tests
+# DenyVoteModal tests
 # ---------------------------------------------------------------------------
 
 
-class TestDenyReasonModal:
+class TestDenyVoteModal:
     def _make_thread_mocks(self, mock_bot):
         """Return (mock_channel, mock_message, mock_thread) with an attached thread."""
         mock_thread = MagicMock()
@@ -531,7 +531,7 @@ class TestDenyReasonModal:
         form, submission = _seed_form_and_submission(db_session, required_denials=1)
         self._make_thread_mocks(mock_bot)
 
-        modal = DenyReasonModal(
+        modal = DenyVoteModal(
             submission_id=submission.Id,
             bot=mock_bot,
             review_channel_id=REVIEW_CHANNEL_ID,
@@ -557,7 +557,7 @@ class TestDenyReasonModal:
         form, submission = _seed_form_and_submission(db_session, required_denials=2)
         _, _, mock_thread = self._make_thread_mocks(mock_bot)
 
-        modal = DenyReasonModal(
+        modal = DenyVoteModal(
             submission_id=submission.Id,
             bot=mock_bot,
             review_channel_id=REVIEW_CHANNEL_ID,
@@ -580,7 +580,7 @@ class TestDenyReasonModal:
         form, submission = _seed_form_and_submission(db_session, required_denials=3)
         _, mock_message, _ = self._make_thread_mocks(mock_bot)
 
-        modal = DenyReasonModal(
+        modal = DenyVoteModal(
             submission_id=submission.Id,
             bot=mock_bot,
             review_channel_id=REVIEW_CHANNEL_ID,
@@ -603,7 +603,7 @@ class TestDenyReasonModal:
         form, submission = _seed_form_and_submission(db_session, required_denials=3)
         self._make_thread_mocks(mock_bot)
 
-        modal = DenyReasonModal(
+        modal = DenyVoteModal(
             submission_id=submission.Id,
             bot=mock_bot,
             review_channel_id=REVIEW_CHANNEL_ID,
@@ -624,7 +624,7 @@ class TestDenyReasonModal:
         submission.Status = "approved"
         db_session.commit()
 
-        modal = DenyReasonModal(
+        modal = DenyVoteModal(
             submission_id=submission.Id,
             bot=mock_bot,
             review_channel_id=REVIEW_CHANNEL_ID,

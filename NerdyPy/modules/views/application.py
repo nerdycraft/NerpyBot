@@ -215,7 +215,7 @@ def _decision_embed(form_name: str, status: str, custom_message: str | None, rea
 # ---------------------------------------------------------------------------
 
 
-class DenyReasonModal(discord.ui.Modal, title="Deny Application"):
+class DenyVoteModal(discord.ui.Modal, title="Deny Application"):
     """Modal that collects a required message when denying an application."""
 
     message = discord.ui.TextInput(
@@ -290,14 +290,14 @@ class DenyReasonModal(discord.ui.Modal, title="Deny Application"):
             self.bot.log.error("application: failed to update review embed after deny vote", exc_info=True)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        self.bot.log.error("Error in DenyReasonModal: %s", error, exc_info=error)
+        self.bot.log.error("Error in DenyVoteModal: %s", error, exc_info=error)
         if not interaction.response.is_done():
             await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
         else:
             await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
 
 
-class ApproveMessageModal(discord.ui.Modal, title="Approve Application"):
+class ApproveVoteModal(discord.ui.Modal, title="Approve Application"):
     """Modal that collects a required message when approving an application."""
 
     message = discord.ui.TextInput(
@@ -371,7 +371,7 @@ class ApproveMessageModal(discord.ui.Modal, title="Approve Application"):
             self.bot.log.error("application: failed to update review embed after approve vote", exc_info=True)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        self.bot.log.error("Error in ApproveMessageModal: %s", error, exc_info=error)
+        self.bot.log.error("Error in ApproveVoteModal: %s", error, exc_info=error)
         if not interaction.response.is_done():
             await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
         else:
@@ -485,14 +485,14 @@ class VoteSelectView(discord.ui.View):
     async def vote_select(self, interaction: discord.Interaction, select: discord.ui.Select):
         vote_type = select.values[0]
         if vote_type == "approve":
-            modal = ApproveMessageModal(
+            modal = ApproveVoteModal(
                 submission_id=self.submission_id,
                 bot=self.bot,
                 review_channel_id=self.review_channel_id,
                 review_message_id=self.review_message_id,
             )
         else:
-            modal = DenyReasonModal(
+            modal = DenyVoteModal(
                 submission_id=self.submission_id,
                 bot=self.bot,
                 review_channel_id=self.review_channel_id,
