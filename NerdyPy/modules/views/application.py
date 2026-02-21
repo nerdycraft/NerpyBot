@@ -27,7 +27,24 @@ from models.application import (
 
 
 def check_application_permission(interaction: discord.Interaction, bot) -> bool:
-    """Return True if the user is a guild administrator or holds the application manager role."""
+    """Return True if the user is a guild administrator or holds the manager or reviewer role."""
+    if interaction.user.guild_permissions.administrator:
+        return True
+    with bot.session_scope() as session:
+        config = ApplicationGuildConfig.get(interaction.guild.id, session)
+        if config:
+            if config.ManagerRoleId and any(r.id == config.ManagerRoleId for r in interaction.user.roles):
+                return True
+            if config.ReviewerRoleId and any(r.id == config.ReviewerRoleId for r in interaction.user.roles):
+                return True
+    return False
+
+
+def check_override_permission(interaction: discord.Interaction, bot) -> bool:
+    """Return True if the user is a guild administrator or holds the manager role.
+
+    Reviewer role holders are NOT allowed to override decisions.
+    """
     if interaction.user.guild_permissions.administrator:
         return True
     with bot.session_scope() as session:
@@ -524,16 +541,12 @@ class ApplicationReviewView(discord.ui.View):
                 return
 
             if submission.Status != SubmissionStatus.PENDING:
-                await interaction.response.send_message(
-                    "This application has already been decided.", ephemeral=True
-                )
+                await interaction.response.send_message("This application has already been decided.", ephemeral=True)
                 return
 
             existing = ApplicationVote.get_user_vote(submission.Id, interaction.user.id, session)
             if existing:
-                await interaction.response.send_message(
-                    "You have already voted on this application.", ephemeral=True
-                )
+                await interaction.response.send_message("You have already voted on this application.", ephemeral=True)
                 return
 
             submission_id = submission.Id

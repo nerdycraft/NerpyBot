@@ -24,6 +24,7 @@ from modules.views.application import (
     VoteSelectView,
     _dm_applicant,
     check_application_permission,
+    check_override_permission,
     build_review_embed,
 )
 
@@ -72,6 +73,19 @@ def _seed_form_and_submission(session, *, required_approvals=1, required_denials
     session.flush()
 
     return form, submission
+
+
+def _make_reviewer_only_interaction(bot, reviewer_role_id):
+    """Interaction for a user with ONLY the reviewer role (not manager, not admin)."""
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.guild.id = GUILD_ID
+    interaction.user.guild_permissions.administrator = False
+    role = MagicMock()
+    role.id = reviewer_role_id
+    interaction.user.roles = [role]
+    interaction.response = AsyncMock()
+    interaction.followup = AsyncMock()
+    return interaction
 
 
 def _make_reviewer_interaction(mock_bot, *, is_admin=True, manager_role_id=None, message_id=REVIEW_MSG_ID):
@@ -977,3 +991,53 @@ class TestReviewViewStructure:
         assert "app_review_message" in custom_ids
         assert "app_review_approve" not in custom_ids
         assert "app_review_deny" not in custom_ids
+
+
+# ---------------------------------------------------------------------------
+# Override permission tests
+# ---------------------------------------------------------------------------
+
+
+class TestOverridePermission:
+    def test_admin_can_override(self, mock_bot, db_session):
+        interaction = _make_reviewer_interaction(mock_bot, is_admin=True)
+        assert check_override_permission(interaction, mock_bot) is True
+
+    def test_manager_role_can_override(self, mock_bot, db_session):
+        config = ApplicationGuildConfig(GuildId=GUILD_ID, ManagerRoleId=777)
+        db_session.add(config)
+        db_session.commit()
+        interaction = _make_reviewer_interaction(mock_bot, is_admin=False, manager_role_id=777)
+        assert check_override_permission(interaction, mock_bot) is True
+
+    def test_reviewer_role_cannot_override(self, mock_bot, db_session):
+        config = ApplicationGuildConfig(GuildId=GUILD_ID, ReviewerRoleId=888)
+        db_session.add(config)
+        db_session.commit()
+        interaction = _make_reviewer_only_interaction(mock_bot, reviewer_role_id=888)
+        assert check_override_permission(interaction, mock_bot) is False
+
+    def test_no_role_cannot_override(self, mock_bot, db_session):
+        interaction = _make_reviewer_interaction(mock_bot, is_admin=False)
+        assert check_override_permission(interaction, mock_bot) is False
+
+
+# ---------------------------------------------------------------------------
+# Reviewer role permission tests
+# ---------------------------------------------------------------------------
+
+
+class TestReviewerRolePermission:
+    def test_reviewer_role_can_vote(self, mock_bot, db_session):
+        config = ApplicationGuildConfig(GuildId=GUILD_ID, ReviewerRoleId=888)
+        db_session.add(config)
+        db_session.commit()
+        interaction = _make_reviewer_only_interaction(mock_bot, reviewer_role_id=888)
+        assert check_application_permission(interaction, mock_bot) is True
+
+    def test_wrong_reviewer_role_fails(self, mock_bot, db_session):
+        config = ApplicationGuildConfig(GuildId=GUILD_ID, ReviewerRoleId=888)
+        db_session.add(config)
+        db_session.commit()
+        interaction = _make_reviewer_only_interaction(mock_bot, reviewer_role_id=999)
+        assert check_application_permission(interaction, mock_bot) is False

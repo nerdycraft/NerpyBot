@@ -42,6 +42,7 @@ class ApplicationGuildConfig(db.BASE):
 
     GuildId = Column(BigInteger, primary_key=True)
     ManagerRoleId = Column(BigInteger, nullable=True)
+    ReviewerRoleId = Column(BigInteger, nullable=True)
 
     @classmethod
     def get(cls, guild_id, session):
@@ -187,12 +188,7 @@ class ApplicationSubmission(db.BASE):
     @classmethod
     def get_by_user_and_form(cls, user_id: int, form_id: int, session):
         """Returns the most recent submission by a user for a given form, or None."""
-        return (
-            session.query(cls)
-            .filter(cls.UserId == user_id, cls.FormId == form_id)
-            .order_by(cls.Id.desc())
-            .first()
-        )
+        return session.query(cls).filter(cls.UserId == user_id, cls.FormId == form_id).order_by(cls.Id.desc()).first()
 
 
 class ApplicationAnswer(db.BASE):
