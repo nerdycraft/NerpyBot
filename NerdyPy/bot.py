@@ -40,7 +40,7 @@ from utils.audio import Audio
 from utils.conversation import AnswerType, ConversationManager
 from utils.database import BASE
 from utils.error_throttle import ErrorThrottle
-from utils.errors import NerpyException, SilentCheckFailure
+from utils.errors import NerpyException, NerpyInfraException, SilentCheckFailure
 from utils.helpers import error_context, notify_error, parse_id
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 
@@ -151,7 +151,7 @@ class NerpyBot(Bot):
         except SQLAlchemyError as exc:
             session.rollback()
             self.log.error(exc)
-            raise NerpyException("There was an error with the database. Please report to Bot Author!")
+            raise NerpyInfraException("A database error occurred.") from exc
         finally:
             session.close()
 
@@ -273,6 +273,8 @@ class NerpyBot(Bot):
                     await interaction.response.send_message(err_msg, ephemeral=True)
                 else:
                     await interaction.followup.send(err_msg, ephemeral=True)
+                if isinstance(error.original, NerpyInfraException):
+                    await notify_error(self, err_ctx, error.original)
             else:
                 self.log.error(f"{err_ctx}: {error.original.__class__.__name__}: {error.original}")
                 print_tb(error.original.__traceback__)
@@ -295,6 +297,8 @@ class NerpyBot(Bot):
         if isinstance(error, commands.CommandInvokeError) and isinstance(error.original, NerpyException):
             self.log.error(f"{error_context(ctx)}: {error.original.args[0]}")
             await ctx.send(str(error.original.args[0]))
+            if isinstance(error.original, NerpyInfraException):
+                await notify_error(self, error_context(ctx), error.original)
         elif isinstance(error, CommandError):
             self.log.error(f"{error_context(ctx)}: {error}")
             await ctx.send("An error occurred.")
