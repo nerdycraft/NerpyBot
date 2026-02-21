@@ -230,7 +230,7 @@ class TestApproveButton:
     @pytest.mark.asyncio
     async def test_approve_responds_before_editing_review(self, review_view, mock_bot, db_session):
         """Approve should respond to the interaction BEFORE editing the review message."""
-        form, submission = _seed_form_and_submission(db_session, required_approvals=2)
+        _seed_form_and_submission(db_session, required_approvals=2)
         interaction = _make_reviewer_interaction(mock_bot)
 
         call_order = []
@@ -252,7 +252,7 @@ class TestApproveButton:
     @pytest.mark.asyncio
     async def test_approve_updates_embed_with_vote_counts(self, review_view, mock_bot, db_session):
         """After approving, the review embed should be updated with vote count labels."""
-        form, submission = _seed_form_and_submission(db_session, required_approvals=3)
+        _seed_form_and_submission(db_session, required_approvals=3)
         interaction = _make_reviewer_interaction(mock_bot)
 
         with patch("modules.views.application._dm_applicant", new_callable=AsyncMock):
