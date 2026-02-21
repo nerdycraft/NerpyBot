@@ -126,12 +126,13 @@ async def _update_review_embed(
         applicant_notified = submission.ApplicantNotified
 
     view = ApplicationReviewView(bot=bot)
-    if status != SubmissionStatus.PENDING:
-        for item in view.children:
-            if item.custom_id == "app_review_message":
-                item.disabled = applicant_notified
-            else:
-                item.disabled = True
+    for item in view.children:
+        if item.custom_id == "app_review_override":
+            item.disabled = status == SubmissionStatus.PENDING
+        elif item.custom_id == "app_review_message":
+            item.disabled = applicant_notified
+        else:
+            item.disabled = status != SubmissionStatus.PENDING
 
     await message.edit(embed=embed, view=view)
 
@@ -774,6 +775,48 @@ class ApplicationReviewView(discord.ui.View):
                 bot=self.bot,
                 approve_prefill=None,
                 deny_prefill=None,
+                review_channel_id=interaction.message.channel.id,
+                review_message_id=interaction.message.id,
+            ),
+            ephemeral=True,
+        )
+
+    # -- Edit Vote ---------------------------------------------------------
+
+    @discord.ui.button(label="Edit Vote", style=discord.ButtonStyle.secondary, custom_id="app_review_edit_vote")
+    async def edit_vote(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not check_application_permission(interaction, self.bot):
+            await interaction.response.send_message(
+                "You do not have permission to review applications.", ephemeral=True
+            )
+            return
+
+        with self.bot.session_scope() as session:
+            submission = ApplicationSubmission.get_by_review_message(interaction.message.id, session)
+            if submission is None:
+                await interaction.response.send_message("Submission not found.", ephemeral=True)
+                return
+
+            if submission.Status != SubmissionStatus.PENDING:
+                await interaction.response.send_message("This application has already been decided.", ephemeral=True)
+                return
+
+            existing = ApplicationVote.get_user_vote(submission.Id, interaction.user.id, session)
+            if existing is None:
+                await interaction.response.send_message(
+                    "You haven't voted yet. Use the Vote button to cast your vote.", ephemeral=True
+                )
+                return
+
+            submission_id = submission.Id
+            current_vote = existing.Vote
+
+        await interaction.response.send_message(
+            "Change your vote:",
+            view=EditVoteSelectView(
+                submission_id=submission_id,
+                bot=self.bot,
+                current_vote=current_vote,
                 review_channel_id=interaction.message.channel.id,
                 review_message_id=interaction.message.id,
             ),

@@ -989,10 +989,11 @@ class TestBuildReviewEmbed:
 class TestReviewViewStructure:
     @pytest.mark.asyncio
     async def test_view_has_vote_and_message_buttons(self):
-        """Persistent review view should have exactly a Vote and a Message button."""
+        """Persistent review view should have Vote, Edit Vote, and Message buttons."""
         view = ApplicationReviewView(bot=None)
         custom_ids = {c.custom_id for c in view.children}
         assert "app_review_vote" in custom_ids
+        assert "app_review_edit_vote" in custom_ids
         assert "app_review_message" in custom_ids
         assert "app_review_approve" not in custom_ids
         assert "app_review_deny" not in custom_ids
@@ -1301,3 +1302,57 @@ class TestEditDenyModal:
         assert "🔄" in thread_msg
         assert "✅" in thread_msg  # previous approve
         assert "❌" in thread_msg  # new deny
+
+
+# ---------------------------------------------------------------------------
+# Edit Vote button tests
+# ---------------------------------------------------------------------------
+
+
+class TestEditVoteButton:
+    @pytest.mark.asyncio
+    async def test_sends_edit_select_view_with_current_vote(self, review_view, mock_bot, db_session):
+        """When reviewer has voted, Edit Vote sends EditVoteSelectView with their current vote."""
+        form, submission = _seed_form_and_submission(db_session)
+        vote = ApplicationVote(SubmissionId=submission.Id, UserId=REVIEWER_USER_ID, Vote=VoteType.APPROVE)
+        db_session.add(vote)
+        db_session.commit()
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        await review_view.edit_vote.callback(interaction)
+
+        call_kwargs = interaction.response.send_message.call_args[1]
+        assert call_kwargs.get("ephemeral") is True
+        assert isinstance(call_kwargs.get("view"), EditVoteSelectView)
+        assert call_kwargs["view"].current_vote == VoteType.APPROVE
+
+    @pytest.mark.asyncio
+    async def test_no_prior_vote_sends_message(self, review_view, mock_bot, db_session):
+        """If reviewer has not yet voted, Edit Vote should explain and point to Vote button."""
+        _seed_form_and_submission(db_session)
+        interaction = _make_reviewer_interaction(mock_bot)
+        await review_view.edit_vote.callback(interaction)
+
+        msg = str(interaction.response.send_message.call_args).lower()
+        assert "vote button" in msg or "haven't voted" in msg
+
+    @pytest.mark.asyncio
+    async def test_no_permission_rejected(self, review_view, mock_bot, db_session):
+        _seed_form_and_submission(db_session)
+        interaction = _make_reviewer_interaction(mock_bot, is_admin=False)
+        await review_view.edit_vote.callback(interaction)
+
+        msg = str(interaction.response.send_message.call_args).lower()
+        assert "permission" in msg
+
+    @pytest.mark.asyncio
+    async def test_not_pending_rejected(self, review_view, mock_bot, db_session):
+        form, submission = _seed_form_and_submission(db_session)
+        submission.Status = SubmissionStatus.APPROVED
+        db_session.commit()
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        await review_view.edit_vote.callback(interaction)
+
+        msg = str(interaction.response.send_message.call_args).lower()
+        assert "decided" in msg or "pending" in msg
