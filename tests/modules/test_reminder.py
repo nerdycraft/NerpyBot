@@ -66,8 +66,9 @@ class TestFormatRelative:
 
         tz = ZoneInfo("Europe/Berlin")
         local_now = datetime.now(tz)
-        fire_date = (local_now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
-        fire_utc = fire_date.astimezone(UTC)
+        # Don't replace the time — timedelta(days=1) guarantees ~24h delta,
+        # always above the 12h threshold that triggers calendar-day formatting.
+        fire_utc = (local_now + timedelta(days=1)).astimezone(UTC)
         result = _format_relative(fire_utc, tz)
         assert result == "a day from now"
 
