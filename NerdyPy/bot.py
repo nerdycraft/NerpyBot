@@ -277,10 +277,13 @@ class NerpyBot(Bot):
                 self.log.error(f"{err_ctx}: {error.original.__class__.__name__}: {error.original}")
                 print_tb(error.original.__traceback__)
                 msg = "An error occurred. The bot operator has been notified."
-                if not interaction.response.is_done():
-                    await interaction.response.send_message(msg, ephemeral=True)
-                else:
-                    await interaction.followup.send(msg, ephemeral=True)
+                try:
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message(msg, ephemeral=True)
+                    else:
+                        await interaction.followup.send(msg, ephemeral=True)
+                except Exception:
+                    pass  # interaction may have expired; still notify operator
                 await notify_error(self, err_ctx, error.original)
         else:
             self.log.error(f"{err_ctx}: {error}")

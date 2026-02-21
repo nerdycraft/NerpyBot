@@ -23,6 +23,11 @@ def upgrade():
     if "ReminderMessage" not in insp.get_table_names():
         return
 
+    existing_cols = {c["name"] for c in insp.get_columns("ReminderMessage")}
+    if "NextFire" in existing_cols:
+        # Schema already at new state (fresh install via create_all) — nothing to do.
+        return
+
     # Add new columns
     op.add_column("ReminderMessage", Column("NextFire", DateTime, nullable=True))
     op.add_column("ReminderMessage", Column("ScheduleType", String(10), nullable=True))
@@ -81,6 +86,10 @@ def downgrade():
     insp = sa.inspect(conn)
     if "ReminderMessage" not in insp.get_table_names():
         return
+
+    existing_cols = {c["name"] for c in insp.get_columns("ReminderMessage")}
+    if "NextFire" not in existing_cols:
+        return  # Already at old schema — nothing to undo.
 
     op.drop_index("ReminderMessage_NextFire_Enabled", table_name="ReminderMessage")
 
