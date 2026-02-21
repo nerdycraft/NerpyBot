@@ -152,16 +152,50 @@ class TestHasManagePermission:
 
 class TestApplicationCreate:
     @pytest.mark.asyncio
-    async def test_create_starts_conversation(self, app_cog, admin_interaction):
+    async def test_create_starts_conversation_with_channel(self, app_cog, admin_interaction):
         app_cog.bot.convMan = MagicMock()
         app_cog.bot.convMan.init_conversation = AsyncMock()
 
-        await app_cog._create.callback(app_cog, admin_interaction, name="NewForm")
+        channel = MagicMock()
+        channel.id = 777
+
+        await app_cog._create.callback(app_cog, admin_interaction, name="NewForm", channel=channel)
 
         app_cog.bot.convMan.init_conversation.assert_called_once()
+        conv = app_cog.bot.convMan.init_conversation.call_args[0][0]
+        assert conv.review_channel_id == 777
+        assert conv.required_approvals is None
+        assert conv.required_denials is None
+        assert conv.approval_message is None
+        assert conv.denial_message is None
         admin_interaction.response.defer.assert_called_once()
-        call_args = str(admin_interaction.followup.send.call_args)
-        assert "DMs" in call_args
+        assert "DMs" in str(admin_interaction.followup.send.call_args)
+
+    @pytest.mark.asyncio
+    async def test_create_passes_optional_settings(self, app_cog, admin_interaction):
+        app_cog.bot.convMan = MagicMock()
+        app_cog.bot.convMan.init_conversation = AsyncMock()
+
+        channel = MagicMock()
+        channel.id = 888
+
+        await app_cog._create.callback(
+            app_cog,
+            admin_interaction,
+            name="SettingsForm",
+            channel=channel,
+            approvals=3,
+            denials=2,
+            approval_message="Welcome!",
+            denial_message="Sorry.",
+        )
+
+        conv = app_cog.bot.convMan.init_conversation.call_args[0][0]
+        assert conv.review_channel_id == 888
+        assert conv.required_approvals == 3
+        assert conv.required_denials == 2
+        assert conv.approval_message == "Welcome!"
+        assert conv.denial_message == "Sorry."
 
     @pytest.mark.asyncio
     async def test_create_rejects_duplicate_name(self, app_cog, admin_interaction, db_session):
@@ -169,18 +203,22 @@ class TestApplicationCreate:
         app_cog.bot.convMan = MagicMock()
         app_cog.bot.convMan.init_conversation = AsyncMock()
 
-        await app_cog._create.callback(app_cog, admin_interaction, name="Existing")
+        channel = MagicMock()
+        channel.id = 777
+
+        await app_cog._create.callback(app_cog, admin_interaction, name="Existing", channel=channel)
 
         app_cog.bot.convMan.init_conversation.assert_not_called()
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "already exists" in call_args
+        assert "already exists" in str(admin_interaction.response.send_message.call_args)
 
     @pytest.mark.asyncio
     async def test_create_permission_denied(self, app_cog, non_admin_interaction):
-        await app_cog._create.callback(app_cog, non_admin_interaction, name="Nope")
+        channel = MagicMock()
+        channel.id = 777
 
-        call_args = str(non_admin_interaction.response.send_message.call_args)
-        assert "permission" in call_args.lower()
+        await app_cog._create.callback(app_cog, non_admin_interaction, name="Nope", channel=channel)
+
+        assert "permission" in str(non_admin_interaction.response.send_message.call_args).lower()
 
 
 # ---------------------------------------------------------------------------

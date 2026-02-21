@@ -180,8 +180,24 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     # -- /application create -------------------------------------------------
 
     @app_commands.command(name="create")
-    @app_commands.describe(name="Name for the new application form")
-    async def _create(self, interaction: Interaction, name: str):
+    @app_commands.describe(
+        name="Name for the new application form",
+        channel="Channel where reviews will be posted",
+        approvals="Number of approvals required (default: 1)",
+        denials="Number of denials required (default: 1)",
+        approval_message="Message sent to applicant on approval",
+        denial_message="Message sent to applicant on denial",
+    )
+    async def _create(
+        self,
+        interaction: Interaction,
+        name: str,
+        channel: TextChannel,
+        approvals: Optional[app_commands.Range[int, 1]] = None,
+        denials: Optional[app_commands.Range[int, 1]] = None,
+        approval_message: Optional[str] = None,
+        denial_message: Optional[str] = None,
+    ):
         """Create a new application form via DM conversation."""
         if not self._has_manage_permission(interaction):
             await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
@@ -193,7 +209,17 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 await interaction.response.send_message(f"A form named **{name}** already exists.", ephemeral=True)
                 return
 
-        conv = ApplicationCreateConversation(self.bot, interaction.user, interaction.guild, name, review_channel_id=0)
+        conv = ApplicationCreateConversation(
+            self.bot,
+            interaction.user,
+            interaction.guild,
+            name,
+            review_channel_id=channel.id,
+            required_approvals=approvals,
+            required_denials=denials,
+            approval_message=approval_message,
+            denial_message=denial_message,
+        )
         await interaction.response.defer(ephemeral=True)
         try:
             await self.bot.convMan.init_conversation(conv)
