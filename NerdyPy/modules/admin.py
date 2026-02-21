@@ -9,8 +9,7 @@ from typing import Literal, Optional
 from discord import Embed, Forbidden, HTTPException, Interaction, Object, Role, app_commands
 from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError
 from discord.ext.commands import Cog, Context, Greedy, command, hybrid_command
-from models.admin import BotModeratorRole
-from models.permissions import PermissionSubscriber
+from models.admin import BotModeratorRole, PermissionSubscriber
 from utils.checks import is_admin_or_operator, require_operator
 from utils.cog import NerpyBotCog
 from utils.errors import NerpyInfraException, NerpyPermissionError
