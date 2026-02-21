@@ -15,7 +15,7 @@ from models.permissions import PermissionSubscriber
 
 from utils.checks import is_admin_or_operator, require_operator
 from utils.cog import NerpyBotCog
-from utils.errors import NerpyException
+from utils.errors import NerpyInfraException, NerpyPermissionError
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 
 PROTECTED_MODULES = frozenset({"admin", "voicecontrol"})
@@ -71,7 +71,7 @@ class Admin(NerpyBotCog, Cog):
             return True
         if ctx.guild and ctx.author.guild_permissions.administrator:
             return True
-        raise NerpyException("This command requires administrator permissions or bot operator status.")
+        raise NerpyPermissionError("This command requires administrator permissions or bot operator status.")
 
     @modrole.command(name="get")
     async def _modrole_get(self, interaction: Interaction):
@@ -218,7 +218,7 @@ class Admin(NerpyBotCog, Cog):
                 pass
             except (CommandSyncFailure, Forbidden, MissingApplicationID, TranslationError) as ex:
                 self.bot.log.debug(ex)
-                raise NerpyException("Could not sync commands to Discord API.")
+                raise NerpyInfraException("Could not sync commands to Discord API.")
             else:
                 ret += 1
 
