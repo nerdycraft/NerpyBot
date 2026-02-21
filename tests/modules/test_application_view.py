@@ -194,8 +194,8 @@ class TestVoteButton:
         assert isinstance(call_kwargs.get("view"), VoteSelectView)
 
     @pytest.mark.asyncio
-    async def test_vote_no_prefill(self, review_view, mock_bot, db_session):
-        """Vote modals are never pre-filled — review notes are internal and not tied to applicant messages."""
+    async def test_vote_opens_select_view(self, review_view, mock_bot, db_session):
+        """Vote button opens a VoteSelectView regardless of any form messages."""
         form, submission = _seed_form_and_submission(db_session)
         form.ApprovalMessage = "Welcome!"
         form.DenialMessage = "Not this time."
@@ -205,8 +205,7 @@ class TestVoteButton:
         await review_view.vote.callback(interaction)
 
         view = interaction.response.send_message.call_args[1]["view"]
-        assert view.approve_prefill is None
-        assert view.deny_prefill is None
+        assert isinstance(view, VoteSelectView)
 
     @pytest.mark.asyncio
     async def test_vote_no_permission(self, review_view, mock_bot, db_session):
@@ -476,8 +475,6 @@ class TestVoteSelectView:
         view = VoteSelectView(
             submission_id=submission.Id,
             bot=mock_bot,
-            approve_prefill="Welcome!",
-            deny_prefill="Sorry.",
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
@@ -489,7 +486,6 @@ class TestVoteSelectView:
         interaction.response.send_modal.assert_called_once()
         modal = interaction.response.send_modal.call_args[0][0]
         assert isinstance(modal, ApproveMessageModal)
-        assert modal.message.default == "Welcome!"
 
     @pytest.mark.asyncio
     async def test_select_deny_opens_deny_modal(self, mock_bot, db_session):
@@ -499,8 +495,6 @@ class TestVoteSelectView:
         view = VoteSelectView(
             submission_id=submission.Id,
             bot=mock_bot,
-            approve_prefill="Welcome!",
-            deny_prefill="Sorry.",
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
@@ -512,7 +506,6 @@ class TestVoteSelectView:
         interaction.response.send_modal.assert_called_once()
         modal = interaction.response.send_modal.call_args[0][0]
         assert isinstance(modal, DenyReasonModal)
-        assert modal.message.default == "Sorry."
 
 
 # ---------------------------------------------------------------------------

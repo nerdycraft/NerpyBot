@@ -466,16 +466,12 @@ class VoteSelectView(discord.ui.View):
         self,
         submission_id: int,
         bot,
-        approve_prefill: str,
-        deny_prefill: str,
         review_channel_id: int,
         review_message_id: int,
     ):
         super().__init__(timeout=60)
         self.submission_id = submission_id
         self.bot = bot
-        self.approve_prefill = approve_prefill
-        self.deny_prefill = deny_prefill
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
 
@@ -492,7 +488,6 @@ class VoteSelectView(discord.ui.View):
             modal = ApproveMessageModal(
                 submission_id=self.submission_id,
                 bot=self.bot,
-                prefill=self.approve_prefill,
                 review_channel_id=self.review_channel_id,
                 review_message_id=self.review_message_id,
             )
@@ -500,7 +495,6 @@ class VoteSelectView(discord.ui.View):
             modal = DenyReasonModal(
                 submission_id=self.submission_id,
                 bot=self.bot,
-                prefill=self.deny_prefill,
                 review_channel_id=self.review_channel_id,
                 review_message_id=self.review_message_id,
             )
@@ -840,8 +834,6 @@ class ApplicationReviewView(discord.ui.View):
             view=VoteSelectView(
                 submission_id=submission_id,
                 bot=self.bot,
-                approve_prefill=None,
-                deny_prefill=None,
                 review_channel_id=interaction.message.channel.id,
                 review_message_id=interaction.message.id,
             ),
