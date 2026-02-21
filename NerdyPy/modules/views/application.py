@@ -158,6 +158,23 @@ async def _dm_applicant(bot, user_id: int, embed: discord.Embed) -> None:
         bot.log.warning("Could not DM user %d — DMs are likely disabled or user not found", user_id)
 
 
+async def _get_or_create_review_thread(bot, review_channel_id: int, review_message_id: int) -> discord.Thread:
+    """Return the thread attached to a review embed, creating it (named after the applicant) if absent.
+
+    Raises discord.HTTPException on failure — callers must catch.
+    """
+    channel = bot.get_channel(review_channel_id)
+    if channel is None:
+        channel = await bot.fetch_channel(review_channel_id)
+    message = await channel.fetch_message(review_message_id)
+    if message.thread is not None:
+        return message.thread
+    with bot.session_scope() as session:
+        submission = ApplicationSubmission.get_by_review_message(review_message_id, session)
+        thread_name = (submission.UserName if submission else None) or "Application"
+    return await message.create_thread(name=thread_name)
+
+
 async def _post_to_review_thread(
     bot,
     review_channel_id: int,
@@ -171,18 +188,7 @@ async def _post_to_review_thread(
     Creates the thread (named after the applicant) if one does not yet exist.
     Raises discord.HTTPException on failure — callers must catch.
     """
-    channel = bot.get_channel(review_channel_id)
-    if channel is None:
-        channel = await bot.fetch_channel(review_channel_id)
-    message = await channel.fetch_message(review_message_id)
-
-    thread = message.thread
-    if thread is None:
-        with bot.session_scope() as session:
-            submission = ApplicationSubmission.get_by_review_message(review_message_id, session)
-            thread_name = (submission.UserName if submission else None) or "Application"
-        thread = await message.create_thread(name=thread_name)
-
+    thread = await _get_or_create_review_thread(bot, review_channel_id, review_message_id)
     prefix = "✅" if vote_type == VoteType.APPROVE else "❌"
     await thread.send(f"{prefix} **{reviewer.display_name}**: {message_text}")
 
