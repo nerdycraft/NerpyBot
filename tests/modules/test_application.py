@@ -1012,6 +1012,46 @@ class TestApplyCommand:
 
 
 # ---------------------------------------------------------------------------
+# /application reviewerrole set / remove
+# ---------------------------------------------------------------------------
+
+
+class TestReviewerRoleCommands:
+    @pytest.mark.asyncio
+    async def test_set_reviewer_role(self, app_cog, admin_interaction, db_session):
+        role = MagicMock()
+        role.id = 555444333
+        role.name = "Reviewer"
+
+        await app_cog._reviewerrole_set.callback(app_cog, admin_interaction, role=role)
+
+        admin_interaction.response.send_message.assert_called_once()
+        config = ApplicationGuildConfig.get(admin_interaction.guild.id, db_session)
+        assert config is not None
+        assert config.ReviewerRoleId == 555444333
+
+    @pytest.mark.asyncio
+    async def test_remove_reviewer_role(self, app_cog, admin_interaction, db_session):
+        config = ApplicationGuildConfig(GuildId=admin_interaction.guild.id, ReviewerRoleId=555444333)
+        db_session.add(config)
+        db_session.commit()
+
+        await app_cog._reviewerrole_remove.callback(app_cog, admin_interaction)
+
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "removed" in call_args.lower()
+        updated = ApplicationGuildConfig.get(admin_interaction.guild.id, db_session)
+        assert updated.ReviewerRoleId is None
+
+    @pytest.mark.asyncio
+    async def test_remove_reviewer_role_not_configured(self, app_cog, admin_interaction, db_session):
+        await app_cog._reviewerrole_remove.callback(app_cog, admin_interaction)
+
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "no" in call_args.lower() or "not configured" in call_args.lower()
+
+
+# ---------------------------------------------------------------------------
 # Autocomplete methods
 # ---------------------------------------------------------------------------
 

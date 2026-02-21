@@ -37,6 +37,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     template_group = app_commands.Group(name="template", description="Manage form templates", guild_only=True)
     managerole_group = app_commands.Group(name="managerole", description="Configure manager role", guild_only=True)
+    reviewerrole_group = app_commands.Group(name="reviewerrole", description="Configure reviewer role", guild_only=True)
 
     def __init__(self, bot):
         super().__init__(bot)
@@ -628,6 +629,37 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             config.ManagerRoleId = None
 
         await interaction.response.send_message("Application manager role removed.", ephemeral=True)
+
+    # -- /application reviewerrole set -----------------------------------------
+
+    @reviewerrole_group.command(name="set")
+    @checks.has_permissions(administrator=True)
+    @app_commands.describe(role="Role that can vote on applications")
+    async def _reviewerrole_set(self, interaction: Interaction, role: Role):
+        """Set the application reviewer role for this server."""
+        with self.bot.session_scope() as session:
+            config = ApplicationGuildConfig.get(interaction.guild.id, session)
+            if config is None:
+                config = ApplicationGuildConfig(GuildId=interaction.guild.id)
+                session.add(config)
+            config.ReviewerRoleId = role.id
+
+        await interaction.response.send_message(f"Application reviewer role set to **{role.name}**.", ephemeral=True)
+
+    # -- /application reviewerrole remove ---------------------------------------
+
+    @reviewerrole_group.command(name="remove")
+    @checks.has_permissions(administrator=True)
+    async def _reviewerrole_remove(self, interaction: Interaction):
+        """Remove the application reviewer role for this server."""
+        with self.bot.session_scope() as session:
+            config = ApplicationGuildConfig.get(interaction.guild.id, session)
+            if config is None or config.ReviewerRoleId is None:
+                await interaction.response.send_message("No reviewer role is configured.", ephemeral=True)
+                return
+            config.ReviewerRoleId = None
+
+        await interaction.response.send_message("Application reviewer role removed.", ephemeral=True)
 
 
 async def setup(bot):
