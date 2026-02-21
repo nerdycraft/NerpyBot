@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from utils.errors import NerpyException
+from utils.errors import NerpyPermissionError
 from utils.permissions import validate_channel_permissions
 
 
@@ -38,14 +38,14 @@ def test_validate_passes_when_all_permissions_present():
 def test_validate_raises_when_permission_missing():
     channel = _make_channel(send_messages=False)
     guild = _make_guild()
-    with pytest.raises(NerpyException, match="send_messages"):
+    with pytest.raises(NerpyPermissionError, match="send_messages"):
         validate_channel_permissions(channel, guild, "view_channel", "send_messages")
 
 
 def test_validate_raises_lists_all_missing():
     channel = _make_channel(view_channel=False, send_messages=False)
     guild = _make_guild()
-    with pytest.raises(NerpyException, match="view_channel") as exc_info:
+    with pytest.raises(NerpyPermissionError, match="view_channel") as exc_info:
         validate_channel_permissions(channel, guild, "view_channel", "send_messages")
     assert "send_messages" in str(exc_info.value)
 
