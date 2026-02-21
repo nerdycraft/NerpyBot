@@ -7,7 +7,7 @@ from discord.ext.commands import Cog, GroupCog
 from models.leavemsg import LeaveMessage
 from utils.cog import NerpyBotCog
 
-from utils.errors import NerpyException
+from utils.errors import NerpyValidationError
 from utils.permissions import validate_channel_permissions
 
 
@@ -90,7 +90,7 @@ class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
         with self.bot.session_scope() as session:
             leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
-                raise NerpyException("Leave messages are not configured for this server.")
+                raise NerpyValidationError("Leave messages are not configured for this server.")
             leave_config.Enabled = False
 
         await interaction.response.send_message("Leave messages disabled.", ephemeral=True)
@@ -107,12 +107,12 @@ class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
             The message template. Use {member} for the member's display name.
         """
         if "{member}" not in message:
-            raise NerpyException("Message must contain {member} placeholder for the member name.")
+            raise NerpyValidationError("Message must contain {member} placeholder for the member name.")
 
         with self.bot.session_scope() as session:
             leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
-                raise NerpyException("Please enable leave messages first using `/leavemsg enable #channel`.")
+                raise NerpyValidationError("Please enable leave messages first using `/leavemsg enable #channel`.")
             leave_config.Message = message
 
         await interaction.response.send_message(f"Leave message updated to: {message}", ephemeral=True)

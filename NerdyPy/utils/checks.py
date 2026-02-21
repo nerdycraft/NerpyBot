@@ -7,18 +7,18 @@ from discord.ext.commands import Context
 
 from bot import NerpyBot
 from models.botmod import BotModeratorRole
-from utils.errors import NerpyException, SilentCheckFailure
+from utils.errors import NerpyPermissionError, SilentCheckFailure
 
 
 def require_operator(ctx_or_interaction: Context | Interaction) -> None:
     """Raise if the command invoker is not a bot operator.
 
     Accepts both prefix-command Context and slash-command Interaction.
-    Raises NerpyException for prefix commands, CheckFailure for slash commands.
+    Raises NerpyPermissionError for prefix commands, CheckFailure for slash commands.
     """
     if isinstance(ctx_or_interaction, Context):
         if ctx_or_interaction.author.id not in ctx_or_interaction.bot.ops:
-            raise NerpyException("This command is restricted to bot operators.")
+            raise NerpyPermissionError("This command is restricted to bot operators.")
     else:
         bot = cast("NerpyBot", ctx_or_interaction.client)
         if ctx_or_interaction.user.id not in bot.ops:

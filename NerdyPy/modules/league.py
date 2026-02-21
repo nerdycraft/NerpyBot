@@ -7,7 +7,7 @@ from aiohttp import ClientSession
 from discord import Color, Embed, Interaction, app_commands
 from discord.ext.commands import GroupCog
 from utils.cog import NerpyBotCog
-from utils.errors import NerpyException
+from utils.errors import NerpyInfraException
 from utils.helpers import error_context
 
 
@@ -55,7 +55,7 @@ class League(NerpyBotCog, GroupCog):
                 data = await summoner_response.json()
                 if "status" in data:  # if query is successful there is no status key
                     self.bot.log.error(f"{error_context(interaction)}: Riot API error: {data['status']}")
-                    raise NerpyException("Could not get data from API. Please report to Bot author.")
+                    raise NerpyInfraException("Could not get data from the Riot API.")
                 else:
                     summoner_id = data.get("id")
                     name = data.get("name")
@@ -97,4 +97,4 @@ async def setup(bot):
     if "league" in bot.config:
         await bot.add_cog(League(bot))
     else:
-        raise NerpyException("Config not found.")
+        raise NerpyInfraException("Config not found.")

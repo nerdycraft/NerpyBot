@@ -8,7 +8,7 @@ from discord.ext.commands import Context, Converter
 from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Index, Integer, LargeBinary, Unicode, asc
 from sqlalchemy.orm import relationship
 from utils import database as db
-from utils.errors import NerpyException
+from utils.errors import NerpyValidationError
 
 
 class TagType(Enum):
@@ -25,7 +25,7 @@ class TagTypeConverter(Converter):
         try:
             return TagType[low].value
         except KeyError:
-            raise NerpyException(f"TagType {argument} was not found.")
+            raise NerpyValidationError(f"TagType {argument} was not found.")
 
 
 class Tag(db.BASE):

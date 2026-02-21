@@ -13,7 +13,7 @@ from utils.audio import QueuedSong, QueueMixin
 from utils.checks import can_stop_playback, is_connected_to_voice
 from utils.cog import NerpyBotCog
 from utils.download import download
-from utils.errors import NerpyException
+from utils.errors import NerpyNotFoundError
 from utils.helpers import error_context, send_paginated
 
 
@@ -216,7 +216,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
         with self.bot.session_scope() as session:
             _tag = Tag.get(tag_name, interaction.guild.id, session)
             if _tag is None:
-                raise NerpyException(f'I searched everywhere, but could not find a Tag called "{tag_name}"!')
+                raise NerpyNotFoundError(f'I searched everywhere, but could not find a Tag called "{tag_name}"!')
 
             if TagType(_tag.Type) is TagType.sound:
                 song = QueuedSong(interaction.user.voice.channel, self._fetch, tag_name, tag_name)
