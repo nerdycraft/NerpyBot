@@ -26,7 +26,7 @@ from modules.conversations.application import (
     ApplicationEditConversation,
     ApplicationSubmitConversation,
 )
-from modules.views.application import check_application_permission
+from modules.views.application import check_override_permission
 from utils.cog import NerpyBotCog
 
 
@@ -174,7 +174,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     def _has_manage_permission(self, interaction: Interaction) -> bool:
         """Return True if the user is an admin or has the guild's manager role."""
-        return check_application_permission(interaction, self.bot)
+        return check_override_permission(interaction, self.bot)
 
     # -- /application create -------------------------------------------------
 

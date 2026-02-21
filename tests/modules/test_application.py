@@ -91,6 +91,18 @@ class TestHasManagePermission:
 
         assert app_cog._has_manage_permission(non_admin_interaction) is False
 
+    def test_reviewer_role_cannot_manage(self, app_cog, non_admin_interaction, db_session):
+        """Reviewer-role holders must not be able to manage forms."""
+        config = ApplicationGuildConfig(GuildId=non_admin_interaction.guild.id, ReviewerRoleId=888)
+        db_session.add(config)
+        db_session.commit()
+
+        role = MagicMock()
+        role.id = 888
+        non_admin_interaction.user.roles = [role]
+
+        assert app_cog._has_manage_permission(non_admin_interaction) is False
+
 
 # ---------------------------------------------------------------------------
 # /application create
@@ -929,9 +941,7 @@ class TestApplyCommand:
     @pytest.mark.asyncio
     async def test_apply_blocked_when_pending(self, app_cog, admin_interaction, db_session):
         """User with a pending submission must be blocked from applying again."""
-        form = _make_form(
-            db_session, guild_id=admin_interaction.guild.id, name="ActiveForm", review_channel_id=12345
-        )
+        form = _make_form(db_session, guild_id=admin_interaction.guild.id, name="ActiveForm", review_channel_id=12345)
         db_session.add(
             ApplicationSubmission(
                 FormId=form.Id,
@@ -955,9 +965,7 @@ class TestApplyCommand:
     @pytest.mark.asyncio
     async def test_apply_blocked_when_approved(self, app_cog, admin_interaction, db_session):
         """User with an approved submission must be blocked from applying again."""
-        form = _make_form(
-            db_session, guild_id=admin_interaction.guild.id, name="ApprovedForm", review_channel_id=12345
-        )
+        form = _make_form(db_session, guild_id=admin_interaction.guild.id, name="ApprovedForm", review_channel_id=12345)
         db_session.add(
             ApplicationSubmission(
                 FormId=form.Id,
@@ -981,9 +989,7 @@ class TestApplyCommand:
     @pytest.mark.asyncio
     async def test_apply_blocked_when_denied(self, app_cog, admin_interaction, db_session):
         """User with a denied submission must be blocked from applying again."""
-        form = _make_form(
-            db_session, guild_id=admin_interaction.guild.id, name="DeniedForm", review_channel_id=12345
-        )
+        form = _make_form(db_session, guild_id=admin_interaction.guild.id, name="DeniedForm", review_channel_id=12345)
         db_session.add(
             ApplicationSubmission(
                 FormId=form.Id,
