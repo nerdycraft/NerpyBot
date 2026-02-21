@@ -5,17 +5,15 @@ from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from utils.checks import (
-    _is_bot_moderator,
-    _reject,
     can_leave_voice,
     can_stop_playback,
     is_admin_or_operator,
+    is_bot_moderator,
     is_connected_to_voice,
+    reject,
 )
 from utils.errors import SilentCheckFailure
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -71,14 +69,14 @@ def mock_interaction(db_session):
 
 
 # ---------------------------------------------------------------------------
-# _reject
+# reject
 # ---------------------------------------------------------------------------
 
 
 class TestReject:
     async def test_sends_ephemeral_when_response_not_done(self, mock_interaction):
         with pytest.raises(SilentCheckFailure):
-            await _reject(mock_interaction, "nope")
+            await reject(mock_interaction, "nope")
 
         mock_interaction.response.send_message.assert_awaited_once_with("nope", ephemeral=True)
         mock_interaction.followup.send.assert_not_awaited()
@@ -87,14 +85,14 @@ class TestReject:
         mock_interaction.response.is_done.return_value = True
 
         with pytest.raises(SilentCheckFailure):
-            await _reject(mock_interaction, "too late")
+            await reject(mock_interaction, "too late")
 
         mock_interaction.followup.send.assert_awaited_once_with("too late", ephemeral=True)
         mock_interaction.response.send_message.assert_not_awaited()
 
     async def test_exception_message_matches(self, mock_interaction):
         with pytest.raises(SilentCheckFailure, match="custom msg"):
-            await _reject(mock_interaction, "custom msg")
+            await reject(mock_interaction, "custom msg")
 
 
 # ---------------------------------------------------------------------------
@@ -126,29 +124,29 @@ class TestIsAdminOrOperator:
 
 
 # ---------------------------------------------------------------------------
-# _is_bot_moderator
+# is_bot_moderator
 # ---------------------------------------------------------------------------
 
 
 class TestIsBotModerator:
     async def test_returns_true_for_mute_members_perm(self, mock_interaction):
         mock_interaction.user.guild_permissions.mute_members = True
-        assert await _is_bot_moderator(mock_interaction) is True
+        assert await is_bot_moderator(mock_interaction) is True
 
     async def test_returns_true_for_manage_channels_perm(self, mock_interaction):
         mock_interaction.user.guild_permissions.manage_channels = True
-        assert await _is_bot_moderator(mock_interaction) is True
+        assert await is_bot_moderator(mock_interaction) is True
 
     async def test_returns_true_for_admin_perm(self, mock_interaction):
         mock_interaction.user.guild_permissions.administrator = True
-        assert await _is_bot_moderator(mock_interaction) is True
+        assert await is_bot_moderator(mock_interaction) is True
 
     async def test_returns_true_for_operator(self, mock_interaction):
         mock_interaction.client.ops = [100]
-        assert await _is_bot_moderator(mock_interaction) is True
+        assert await is_bot_moderator(mock_interaction) is True
 
     async def test_returns_true_for_configured_role(self, mock_interaction, db_session):
-        from models.botmod import BotModeratorRole
+        from models.admin import BotModeratorRole
 
         entry = BotModeratorRole(GuildId=900, RoleId=42)
         db_session.add(entry)
@@ -158,10 +156,10 @@ class TestIsBotModerator:
         role.id = 42
         mock_interaction.user.roles = [role]
 
-        assert await _is_bot_moderator(mock_interaction) is True
+        assert await is_bot_moderator(mock_interaction) is True
 
     async def test_returns_false_for_wrong_configured_role(self, mock_interaction, db_session):
-        from models.botmod import BotModeratorRole
+        from models.admin import BotModeratorRole
 
         entry = BotModeratorRole(GuildId=900, RoleId=42)
         db_session.add(entry)
@@ -171,15 +169,15 @@ class TestIsBotModerator:
         role.id = 99
         mock_interaction.user.roles = [role]
 
-        assert await _is_bot_moderator(mock_interaction) is False
+        assert await is_bot_moderator(mock_interaction) is False
 
     async def test_returns_false_for_regular_user(self, mock_interaction):
-        assert await _is_bot_moderator(mock_interaction) is False
+        assert await is_bot_moderator(mock_interaction) is False
 
     async def test_returns_false_when_no_botmod_entry(self, mock_interaction):
         """No BotModeratorRole configured for this guild — should return False."""
         mock_interaction.user.roles = [MagicMock(id=42)]
-        assert await _is_bot_moderator(mock_interaction) is False
+        assert await is_bot_moderator(mock_interaction) is False
 
 
 # ---------------------------------------------------------------------------

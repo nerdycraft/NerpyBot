@@ -2,11 +2,10 @@
 
 from typing import cast
 
+from bot import NerpyBot
 from discord import Interaction, Role, app_commands
 from discord.ext.commands import Context
-
-from bot import NerpyBot
-from models.botmod import BotModeratorRole
+from models.admin import BotModeratorRole
 from utils.errors import NerpyPermissionError, SilentCheckFailure
 
 
@@ -35,7 +34,7 @@ async def is_admin_or_operator(interaction: Interaction) -> bool:
     return False
 
 
-async def _reject(interaction: Interaction, msg: str):
+async def reject(interaction: Interaction, msg: str):
     """Send an ephemeral rejection message and raise SilentCheckFailure."""
     if not interaction.response.is_done():
         await interaction.response.send_message(msg, ephemeral=True)
@@ -44,7 +43,7 @@ async def _reject(interaction: Interaction, msg: str):
     raise SilentCheckFailure(msg)
 
 
-async def _is_bot_moderator(interaction: Interaction) -> bool:
+async def is_bot_moderator(interaction: Interaction) -> bool:
     """Check if the user has bot-moderator privileges."""
     bot = cast(NerpyBot, interaction.client)
     perms = interaction.user.guild_permissions
@@ -61,15 +60,15 @@ async def _is_bot_moderator(interaction: Interaction) -> bool:
 
 async def is_connected_to_voice(interaction: Interaction):
     if interaction.user.voice is None or interaction.user.voice.channel is None:
-        await _reject(interaction, "I don't know where you are. Please connect to a voice channel.")
+        await reject(interaction, "I don't know where you are. Please connect to a voice channel.")
         return False
     channel = interaction.user.voice.channel
     bot_perms = channel.permissions_for(interaction.guild.me)
     if not bot_perms.connect:
-        await _reject(interaction, "I'm not allowed to join you in your current channel.")
+        await reject(interaction, "I'm not allowed to join you in your current channel.")
         return False
     if not bot_perms.speak:
-        await _reject(interaction, "I don't have permission to speak in your voice channel.")
+        await reject(interaction, "I don't have permission to speak in your voice channel.")
         return False
     return True
 
@@ -78,18 +77,18 @@ async def can_stop_playback(interaction: Interaction):
     """Any user in the same voice channel as the bot, or a bot-moderator from anywhere."""
     bot_voice = interaction.guild.voice_client
     if bot_voice is None:
-        await _reject(interaction, "Nothing is playing right now.")
+        await reject(interaction, "Nothing is playing right now.")
         return False
 
-    if await _is_bot_moderator(interaction):
+    if await is_bot_moderator(interaction):
         return True
 
     if interaction.user.voice is None or interaction.user.voice.channel is None:
-        await _reject(interaction, "You need to be in a voice channel to use this command.")
+        await reject(interaction, "You need to be in a voice channel to use this command.")
         return False
 
     if interaction.user.voice.channel != bot_voice.channel:
-        await _reject(interaction, "You need to be in the same voice channel as the bot to use this command.")
+        await reject(interaction, "You need to be in the same voice channel as the bot to use this command.")
         return False
 
     return True
@@ -97,10 +96,10 @@ async def can_stop_playback(interaction: Interaction):
 
 async def can_leave_voice(interaction: Interaction):
     """Bot-moderator only."""
-    if await _is_bot_moderator(interaction):
+    if await is_bot_moderator(interaction):
         return True
 
-    await _reject(interaction, "Only moderators can make the bot leave the voice channel.")
+    await reject(interaction, "Only moderators can make the bot leave the voice channel.")
     return False
 
 
