@@ -27,7 +27,7 @@ from models.application import (
 
 
 def check_application_permission(interaction: discord.Interaction, bot) -> bool:
-    """Return *True* if the user is an admin or holds the application manager role."""
+    """Return True if the user is a guild administrator or holds the application manager role."""
     if interaction.user.guild_permissions.administrator:
         return True
     with bot.session_scope() as session:
