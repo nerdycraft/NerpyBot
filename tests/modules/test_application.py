@@ -329,48 +329,6 @@ class TestApplicationEdit:
 
 
 # ---------------------------------------------------------------------------
-# /application channel
-# ---------------------------------------------------------------------------
-
-
-class TestApplicationChannel:
-    @pytest.mark.asyncio
-    async def test_channel_sets_review_channel(self, app_cog, admin_interaction, db_session):
-        _make_form(db_session, guild_id=admin_interaction.guild.id, name="ChForm")
-
-        channel = MagicMock()
-        channel.id = 555
-        channel.mention = "#reviews"
-
-        await app_cog._channel.callback(app_cog, admin_interaction, name="ChForm", channel=channel)
-
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "review channel" in call_args.lower()
-        updated = ApplicationForm.get("ChForm", admin_interaction.guild.id, db_session)
-        assert updated.ReviewChannelId == 555
-
-    @pytest.mark.asyncio
-    async def test_channel_form_not_found(self, app_cog, admin_interaction):
-        channel = MagicMock()
-        channel.id = 555
-
-        await app_cog._channel.callback(app_cog, admin_interaction, name="Missing", channel=channel)
-
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "not found" in call_args.lower()
-
-    @pytest.mark.asyncio
-    async def test_channel_permission_denied(self, app_cog, non_admin_interaction):
-        channel = MagicMock()
-        channel.id = 555
-
-        await app_cog._channel.callback(app_cog, non_admin_interaction, name="Form", channel=channel)
-
-        call_args = str(non_admin_interaction.response.send_message.call_args)
-        assert "permission" in call_args.lower()
-
-
-# ---------------------------------------------------------------------------
 # /application settings
 # ---------------------------------------------------------------------------
 
@@ -384,6 +342,7 @@ class TestApplicationSettings:
             app_cog,
             admin_interaction,
             name="SetForm",
+            channel=None,
             approvals=3,
             denials=None,
             approval_message=None,
@@ -419,6 +378,29 @@ class TestApplicationSettings:
         assert updated.DenialMessage == "Sorry!"
 
     @pytest.mark.asyncio
+    async def test_settings_updates_channel(self, app_cog, admin_interaction, db_session):
+        _make_form(db_session, guild_id=admin_interaction.guild.id, name="ChanSettings")
+
+        channel = MagicMock()
+        channel.id = 999
+        channel.mention = "#new-reviews"
+
+        await app_cog._settings.callback(
+            app_cog,
+            admin_interaction,
+            name="ChanSettings",
+            channel=channel,
+            approvals=None,
+            denials=None,
+            approval_message=None,
+            denial_message=None,
+        )
+
+        assert "channel=#new-reviews" in str(admin_interaction.response.send_message.call_args)
+        updated = ApplicationForm.get("ChanSettings", admin_interaction.guild.id, db_session)
+        assert updated.ReviewChannelId == 999
+
+    @pytest.mark.asyncio
     async def test_settings_nothing_to_change(self, app_cog, admin_interaction, db_session):
         _make_form(db_session, guild_id=admin_interaction.guild.id, name="Nochange")
 
@@ -426,6 +408,7 @@ class TestApplicationSettings:
             app_cog,
             admin_interaction,
             name="Nochange",
+            channel=None,
             approvals=None,
             denials=None,
             approval_message=None,
@@ -519,42 +502,55 @@ class TestTemplateUse:
         seed_built_in_templates(db_session)
         db_session.commit()
 
+        channel = MagicMock()
+        channel.id = 444
+
         await app_cog._template_use.callback(
-            app_cog, admin_interaction, template="Guild Membership", name="NewFromTemplate"
+            app_cog, admin_interaction, template="Guild Membership", name="NewFromTemplate", channel=channel
         )
 
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "created from template" in call_args.lower()
+        assert "created from template" in str(admin_interaction.response.send_message.call_args).lower()
 
         form = ApplicationForm.get("NewFromTemplate", admin_interaction.guild.id, db_session)
         assert form is not None
         assert len(form.questions) == 6  # Guild Membership has 6 questions
+        assert form.ReviewChannelId == 444
 
     @pytest.mark.asyncio
     async def test_template_use_template_not_found(self, app_cog, admin_interaction):
-        await app_cog._template_use.callback(app_cog, admin_interaction, template="NonExistent", name="NewForm")
+        channel = MagicMock()
+        channel.id = 444
 
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "not found" in call_args.lower()
+        await app_cog._template_use.callback(
+            app_cog, admin_interaction, template="NonExistent", name="NewForm", channel=channel
+        )
+
+        assert "not found" in str(admin_interaction.response.send_message.call_args).lower()
 
     @pytest.mark.asyncio
     async def test_template_use_duplicate_form_name(self, app_cog, admin_interaction, db_session):
         seed_built_in_templates(db_session)
         _make_form(db_session, guild_id=admin_interaction.guild.id, name="Existing")
 
-        await app_cog._template_use.callback(app_cog, admin_interaction, template="Guild Membership", name="Existing")
+        channel = MagicMock()
+        channel.id = 444
 
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "already exists" in call_args
+        await app_cog._template_use.callback(
+            app_cog, admin_interaction, template="Guild Membership", name="Existing", channel=channel
+        )
+
+        assert "already exists" in str(admin_interaction.response.send_message.call_args)
 
     @pytest.mark.asyncio
     async def test_template_use_permission_denied(self, app_cog, non_admin_interaction):
+        channel = MagicMock()
+        channel.id = 444
+
         await app_cog._template_use.callback(
-            app_cog, non_admin_interaction, template="Guild Membership", name="NewForm"
+            app_cog, non_admin_interaction, template="Guild Membership", name="NewForm", channel=channel
         )
 
-        call_args = str(non_admin_interaction.response.send_message.call_args)
-        assert "permission" in call_args.lower()
+        assert "permission" in str(non_admin_interaction.response.send_message.call_args).lower()
 
 
 # ---------------------------------------------------------------------------

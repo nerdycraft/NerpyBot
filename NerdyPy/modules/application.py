@@ -305,33 +305,12 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             return
         await interaction.followup.send("Check your DMs!", ephemeral=True)
 
-    # -- /application channel ------------------------------------------------
-
-    @app_commands.command(name="channel")
-    @app_commands.describe(name="Name of the form", channel="Channel to send reviews to")
-    @app_commands.autocomplete(name=_form_name_autocomplete)
-    async def _channel(self, interaction: Interaction, name: str, channel: TextChannel):
-        """Set the review channel for an application form."""
-        if not self._has_manage_permission(interaction):
-            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
-            return
-
-        with self.bot.session_scope() as session:
-            form = ApplicationForm.get(name, interaction.guild.id, session)
-            if not form:
-                await interaction.response.send_message(f"Form **{name}** not found.", ephemeral=True)
-                return
-            form.ReviewChannelId = channel.id
-
-        await interaction.response.send_message(
-            f"Review channel for **{name}** set to {channel.mention}.", ephemeral=True
-        )
-
     # -- /application settings -----------------------------------------------
 
     @app_commands.command(name="settings")
     @app_commands.describe(
         name="Name of the form",
+        channel="New review channel",
         approvals="Number of approvals required",
         denials="Number of denials required",
         approval_message="Message sent on approval",
@@ -342,6 +321,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         self,
         interaction: Interaction,
         name: str,
+        channel: Optional[TextChannel] = None,
         approvals: Optional[app_commands.Range[int, 1]] = None,
         denials: Optional[app_commands.Range[int, 1]] = None,
         approval_message: Optional[str] = None,
@@ -359,6 +339,9 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 return
 
             changes = []
+            if channel is not None:
+                form.ReviewChannelId = channel.id
+                changes.append(f"channel={channel.mention}")
             if approvals is not None:
                 form.RequiredApprovals = approvals
                 changes.append(f"approvals={approvals}")
@@ -407,9 +390,9 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     # -- /application template use -------------------------------------------
 
     @template_group.command(name="use")
-    @app_commands.describe(template="Template to use", name="Name for the new form")
+    @app_commands.describe(template="Template to use", name="Name for the new form", channel="Channel for reviews")
     @app_commands.autocomplete(template=_template_autocomplete)
-    async def _template_use(self, interaction: Interaction, template: str, name: str):
+    async def _template_use(self, interaction: Interaction, template: str, name: str, channel: TextChannel):
         """Create a new form from a template."""
         if not self._has_manage_permission(interaction):
             await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
@@ -426,7 +409,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 await interaction.response.send_message(f"A form named **{name}** already exists.", ephemeral=True)
                 return
 
-            form = ApplicationForm(GuildId=interaction.guild.id, Name=name)
+            form = ApplicationForm(GuildId=interaction.guild.id, Name=name, ReviewChannelId=channel.id)
             session.add(form)
             session.flush()
 
