@@ -1,9 +1,38 @@
 # -*- coding: utf-8 -*-
 """Application form database models"""
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Unicode, UnicodeText
+import enum
+
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Unicode,
+    UnicodeText,
+)
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import relationship
 from utils import database as db
+
+
+class SubmissionStatus(str, enum.Enum):
+    """Valid status values for an application submission."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    DENIED = "denied"
+
+
+class VoteType(str, enum.Enum):
+    """Valid vote types for a reviewer's vote on a submission."""
+
+    APPROVE = "approve"
+    DENY = "deny"
 
 
 class ApplicationGuildConfig(db.BASE):
@@ -34,14 +63,16 @@ class ApplicationForm(db.BASE):
     __table_args__ = (
         Index("ApplicationForm_GuildId", "GuildId"),
         Index("ApplicationForm_Name_GuildId", "Name", "GuildId", unique=True),
+        CheckConstraint("RequiredApprovals >= 1", name="ck_form_required_approvals"),
+        CheckConstraint("RequiredDenials >= 1", name="ck_form_required_denials"),
     )
 
     Id = Column(Integer, primary_key=True)
-    GuildId = Column(BigInteger)
-    Name = Column(Unicode(100))
+    GuildId = Column(BigInteger, nullable=False)
+    Name = Column(Unicode(100), nullable=False)
     ReviewChannelId = Column(BigInteger, nullable=True)
-    RequiredApprovals = Column(Integer, default=1)
-    RequiredDenials = Column(Integer, default=1)
+    RequiredApprovals = Column(Integer, nullable=False, default=1)
+    RequiredDenials = Column(Integer, nullable=False, default=1)
     ApprovalMessage = Column(UnicodeText, nullable=True)
     DenialMessage = Column(UnicodeText, nullable=True)
 
@@ -92,12 +123,15 @@ class ApplicationQuestion(db.BASE):
     """Database entity model for a question within an application form."""
 
     __tablename__ = "ApplicationQuestion"
-    __table_args__ = (Index("ApplicationQuestion_FormId", "FormId"),)
+    __table_args__ = (
+        Index("ApplicationQuestion_FormId", "FormId"),
+        Index("ApplicationQuestion_FormId_SortOrder", "FormId", "SortOrder", unique=True),
+    )
 
     Id = Column(Integer, primary_key=True)
-    FormId = Column(Integer, ForeignKey("ApplicationForm.Id"))
-    QuestionText = Column(UnicodeText)
-    SortOrder = Column(Integer)
+    FormId = Column(Integer, ForeignKey("ApplicationForm.Id"), nullable=False)
+    QuestionText = Column(UnicodeText, nullable=False)
+    SortOrder = Column(Integer, nullable=False)
 
     form = relationship("ApplicationForm", back_populates="questions")
 
@@ -112,12 +146,12 @@ class ApplicationSubmission(db.BASE):
     )
 
     Id = Column(Integer, primary_key=True)
-    FormId = Column(Integer, ForeignKey("ApplicationForm.Id"))
-    GuildId = Column(BigInteger)
-    UserId = Column(BigInteger)
+    FormId = Column(Integer, ForeignKey("ApplicationForm.Id"), nullable=False)
+    GuildId = Column(BigInteger, nullable=False)
+    UserId = Column(BigInteger, nullable=False)
     UserName = Column(Unicode(50))
-    Status = Column(String(10), default="pending")
-    SubmittedAt = Column(DateTime)
+    Status = Column(SAEnum(SubmissionStatus), nullable=False, default=SubmissionStatus.PENDING)
+    SubmittedAt = Column(DateTime, nullable=False)
     ReviewMessageId = Column(BigInteger, nullable=True)
     DecisionReason = Column(UnicodeText, nullable=True)
 
@@ -157,11 +191,12 @@ class ApplicationAnswer(db.BASE):
     __table_args__ = (Index("ApplicationAnswer_SubmissionId", "SubmissionId"),)
 
     Id = Column(Integer, primary_key=True)
-    SubmissionId = Column(Integer, ForeignKey("ApplicationSubmission.Id"))
-    QuestionId = Column(Integer, ForeignKey("ApplicationQuestion.Id"))
-    AnswerText = Column(UnicodeText)
+    SubmissionId = Column(Integer, ForeignKey("ApplicationSubmission.Id"), nullable=False)
+    QuestionId = Column(Integer, ForeignKey("ApplicationQuestion.Id"), nullable=False)
+    AnswerText = Column(UnicodeText, nullable=False)
 
     submission = relationship("ApplicationSubmission", back_populates="answers")
+    question = relationship("ApplicationQuestion", lazy="joined")
 
 
 class ApplicationVote(db.BASE):
@@ -174,9 +209,9 @@ class ApplicationVote(db.BASE):
     )
 
     Id = Column(Integer, primary_key=True)
-    SubmissionId = Column(Integer, ForeignKey("ApplicationSubmission.Id"))
-    UserId = Column(BigInteger)
-    Vote = Column(String(10))
+    SubmissionId = Column(Integer, ForeignKey("ApplicationSubmission.Id"), nullable=False)
+    UserId = Column(BigInteger, nullable=False)
+    Vote = Column(SAEnum(VoteType), nullable=False)
 
     submission = relationship("ApplicationSubmission", back_populates="votes")
 
@@ -200,7 +235,13 @@ class ApplicationTemplate(db.BASE):
     """Database entity model for reusable application form templates."""
 
     __tablename__ = "ApplicationTemplate"
-    __table_args__ = (Index("ApplicationTemplate_GuildId", "GuildId"),)
+    __table_args__ = (
+        Index("ApplicationTemplate_GuildId", "GuildId"),
+        CheckConstraint(
+            "(IsBuiltIn = 1 AND GuildId IS NULL) OR (IsBuiltIn = 0 AND GuildId IS NOT NULL)",
+            name="ck_template_builtin_guild",
+        ),
+    )
 
     Id = Column(Integer, primary_key=True)
     GuildId = Column(BigInteger, nullable=True)
@@ -242,12 +283,15 @@ class ApplicationTemplateQuestion(db.BASE):
     """Database entity model for a question within an application template."""
 
     __tablename__ = "ApplicationTemplateQuestion"
-    __table_args__ = (Index("ApplicationTemplateQuestion_TemplateId", "TemplateId"),)
+    __table_args__ = (
+        Index("ApplicationTemplateQuestion_TemplateId", "TemplateId"),
+        Index("ApplicationTemplateQuestion_TemplateId_SortOrder", "TemplateId", "SortOrder", unique=True),
+    )
 
     Id = Column(Integer, primary_key=True)
-    TemplateId = Column(Integer, ForeignKey("ApplicationTemplate.Id"))
-    QuestionText = Column(UnicodeText)
-    SortOrder = Column(Integer)
+    TemplateId = Column(Integer, ForeignKey("ApplicationTemplate.Id"), nullable=False)
+    QuestionText = Column(UnicodeText, nullable=False)
+    SortOrder = Column(Integer, nullable=False)
 
     template = relationship("ApplicationTemplate", back_populates="questions")
 

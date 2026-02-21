@@ -3,6 +3,7 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
+import discord
 import pytest
 
 from models.application import ApplicationAnswer, ApplicationForm, ApplicationQuestion, ApplicationSubmission
@@ -306,6 +307,37 @@ class TestApplicationEditConversation:
         embeds = [c.kwargs.get("embed") for c in calls if c.kwargs.get("embed") is not None]
         assert any("between 1 and" in (e.description or "").lower() for e in embeds)
 
+    @pytest.mark.asyncio
+    async def test_reorder_invalid_input(self, conv, mock_user):
+        """Providing invalid reorder input (non-numeric or wrong number set) is rejected."""
+        await conv.repost_state()  # INIT
+
+        # React with 🔀 to go to REORDER state
+        _make_send_return(mock_user)
+        await conv.on_react(REORDER_EMOJI)
+        assert conv.currentState == EditState.REORDER
+
+        # Non-numeric input — should stay in REORDER
+        _make_send_return(mock_user)
+        await conv.on_message("abc,def")
+
+        assert conv.currentState == EditState.REORDER
+
+        calls = mock_user.send.call_args_list
+        embeds = [c.kwargs.get("embed") for c in calls if c.kwargs.get("embed") is not None]
+        assert any("comma-separated numbers" in (e.description or "").lower() for e in embeds)
+
+        # Wrong number set (only 2 questions, but provide 3) — should stay in REORDER
+        mock_user.send.reset_mock()
+        _make_send_return(mock_user)
+        await conv.on_message("1,2,3")
+
+        assert conv.currentState == EditState.REORDER
+
+        calls = mock_user.send.call_args_list
+        embeds = [c.kwargs.get("embed") for c in calls if c.kwargs.get("embed") is not None]
+        assert any("exactly once" in (e.description or "").lower() for e in embeds)
+
 
 # ---------------------------------------------------------------------------
 # TestApplicationSubmitConversation
@@ -452,3 +484,42 @@ class TestApplicationSubmitConversation:
         await conv.on_react(CONFIRM_EMOJI)
 
         assert conv.submission_id is not None
+
+    @pytest.mark.asyncio
+    async def test_submit_channel_unreachable(self, mock_bot, mock_user, mock_guild, form_id, db_session):
+        """When the review channel is unreachable, no submission is saved and the guild owner is DMed."""
+        _make_send_return(mock_user)
+
+        # Make both get_channel and fetch_channel fail — simulates deleted/forbidden channel.
+        mock_bot.get_channel = MagicMock(return_value=None)
+        mock_bot.fetch_channel = AsyncMock(side_effect=discord.NotFound(MagicMock(status=404), "Unknown Channel"))
+
+        # Track the DM sent to the guild owner.
+        mock_owner = MagicMock()
+        mock_owner.send = AsyncMock()
+        mock_bot.fetch_user = AsyncMock(return_value=mock_owner)
+        mock_guild.owner_id = 999000111
+
+        fid, qs = form_id
+        conv = ApplicationSubmitConversation(mock_bot, mock_user, mock_guild, fid, "Submit Form", qs)
+
+        await conv.repost_state()  # INIT -> question_0
+
+        for answer in ["Alice", "Mage", "Fun guild!"]:
+            _make_send_return(mock_user)
+            await conv.on_message(answer)
+
+        # React ✅ to trigger state_submit
+        _make_send_return(mock_user)
+        await conv.on_react(CONFIRM_EMOJI)
+
+        # No submission should have been saved
+        assert conv.submission_id is None
+        assert db_session.query(ApplicationSubmission).count() == 0
+
+        # User should have received an error embed
+        all_embeds = [c.kwargs.get("embed") for c in mock_user.send.call_args_list if c.kwargs.get("embed")]
+        assert any("submission error" in (e.title or "").lower() for e in all_embeds)
+
+        # Guild owner was notified
+        mock_owner.send.assert_called_once()

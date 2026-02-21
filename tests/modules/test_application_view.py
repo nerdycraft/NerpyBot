@@ -99,6 +99,7 @@ def _make_reviewer_interaction(mock_bot, *, is_admin=True, manager_role_id=None,
     interaction.response = MagicMock()
     interaction.response.send_message = AsyncMock()
     interaction.response.send_modal = AsyncMock()
+    interaction.response.defer = AsyncMock()
     interaction.response.is_done = MagicMock(return_value=False)
 
     interaction.followup = MagicMock()
@@ -180,7 +181,7 @@ class TestApproveButton:
         interaction = _make_reviewer_interaction(mock_bot)
         await review_view.approve.callback(interaction)
 
-        call_args = str(interaction.response.send_message.call_args)
+        call_args = str(interaction.followup.send.call_args)
         assert "already voted" in call_args.lower()
 
     @pytest.mark.asyncio
@@ -215,7 +216,7 @@ class TestApproveButton:
         interaction = _make_reviewer_interaction(mock_bot)
         await review_view.approve.callback(interaction)
 
-        call_args = str(interaction.response.send_message.call_args)
+        call_args = str(interaction.followup.send.call_args)
         assert "already been decided" in call_args.lower()
 
     @pytest.mark.asyncio
@@ -223,7 +224,7 @@ class TestApproveButton:
         interaction = _make_reviewer_interaction(mock_bot, message_id=999999999)
         await review_view.approve.callback(interaction)
 
-        call_args = str(interaction.response.send_message.call_args)
+        call_args = str(interaction.followup.send.call_args)
         assert "not found" in call_args.lower()
 
     @pytest.mark.asyncio
@@ -234,13 +235,13 @@ class TestApproveButton:
 
         call_order = []
 
-        async def track_send(*args, **kwargs):
+        async def track_defer(*args, **kwargs):
             call_order.append("response")
 
         async def track_edit(*args, **kwargs):
             call_order.append("edit")
 
-        interaction.response.send_message = AsyncMock(side_effect=track_send)
+        interaction.response.defer = AsyncMock(side_effect=track_defer)
         interaction.message.edit = AsyncMock(side_effect=track_edit)
 
         with patch("modules.views.application._dm_applicant", new_callable=AsyncMock):
@@ -319,6 +320,20 @@ class TestDenyButton:
         call_args = str(interaction.response.send_message.call_args)
         assert "permission" in call_args.lower()
 
+    @pytest.mark.asyncio
+    async def test_deny_already_decided(self, review_view, mock_bot, db_session):
+        form, submission = _seed_form_and_submission(db_session)
+        submission.Status = "approved"
+        db_session.commit()
+
+        interaction = _make_reviewer_interaction(mock_bot)
+        await review_view.deny.callback(interaction)
+
+        # Should reject without opening the modal
+        interaction.response.send_modal.assert_not_called()
+        call_args = str(interaction.response.send_message.call_args)
+        assert "already been decided" in call_args.lower()
+
 
 # ---------------------------------------------------------------------------
 # DenyReasonModal tests
@@ -381,7 +396,7 @@ class TestDenyReasonModal:
 
         call_order = []
 
-        async def track_send(*args, **kwargs):
+        async def track_defer(*args, **kwargs):
             call_order.append("response")
 
         async def track_edit(*args, **kwargs):
@@ -389,7 +404,7 @@ class TestDenyReasonModal:
 
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.message = None
-        interaction.response.send_message = AsyncMock(side_effect=track_send)
+        interaction.response.defer = AsyncMock(side_effect=track_defer)
         mock_message.edit = AsyncMock(side_effect=track_edit)
 
         with patch("modules.views.application._dm_applicant", new_callable=AsyncMock):
@@ -444,7 +459,7 @@ class TestDenyReasonModal:
         interaction.message = None
         await modal.on_submit(interaction)
 
-        call_args = str(interaction.response.send_message.call_args)
+        call_args = str(interaction.followup.send.call_args)
         assert "no longer pending" in call_args.lower()
 
 
@@ -599,6 +614,20 @@ class TestBuildReviewEmbed:
 
         assert "Approvals: 0/3" in embed.footer.text
         assert "Denials: 0/2" in embed.footer.text
+
+    def test_naive_submitted_at_is_normalized(self, db_session):
+        """SQLite strips tzinfo; build_review_embed should re-attach UTC before calling format_dt."""
+        form, submission = _seed_form_and_submission(db_session)
+        # Simulate what SQLite does: strip the tzinfo from the stored datetime.
+        submission.SubmittedAt = submission.SubmittedAt.replace(tzinfo=None)
+
+        # Should not raise — the guard must fire before discord.utils.format_dt.
+        embed = build_review_embed(submission, form, db_session)
+
+        submitted_field = next((f for f in embed.fields if f.name == "Submitted"), None)
+        assert submitted_field is not None
+        # discord.utils.format_dt returns a <t:TIMESTAMP:style> string.
+        assert submitted_field.value.startswith("<t:")
 
 
 # ---------------------------------------------------------------------------

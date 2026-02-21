@@ -103,7 +103,8 @@ class TestApplicationCreate:
         await app_cog._create.callback(app_cog, admin_interaction, name="NewForm")
 
         app_cog.bot.convMan.init_conversation.assert_called_once()
-        call_args = str(admin_interaction.response.send_message.call_args)
+        admin_interaction.response.defer.assert_called_once()
+        call_args = str(admin_interaction.followup.send.call_args)
         assert "DMs" in call_args
 
     @pytest.mark.asyncio
@@ -210,7 +211,8 @@ class TestApplicationEdit:
         app_cog.bot.convMan.init_conversation.assert_called_once()
         conv = app_cog.bot.convMan.init_conversation.call_args[0][0]
         assert conv.form_id == form.Id
-        call_args = str(admin_interaction.response.send_message.call_args)
+        admin_interaction.response.defer.assert_called_once()
+        call_args = str(admin_interaction.followup.send.call_args)
         assert "DMs" in call_args
 
     @pytest.mark.asyncio
@@ -894,7 +896,8 @@ class TestApplyCommand:
         assert conv.form_id == form.Id
         assert conv.form_name == "ReadyForm"
         assert len(conv.questions) == 1
-        call_args = str(admin_interaction.response.send_message.call_args)
+        admin_interaction.response.defer.assert_called_once()
+        call_args = str(admin_interaction.followup.send.call_args)
         assert "DMs" in call_args
 
     @pytest.mark.asyncio
