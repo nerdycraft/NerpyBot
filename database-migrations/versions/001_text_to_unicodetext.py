@@ -65,6 +65,13 @@ def _get_existing_tables() -> set[str] | None:
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    # SQLite stores all text as Unicode internally — utf8mb4 is a MySQL-only concern.
+    # ALTER COLUMN is also unsupported on SQLite without batch mode, so skip entirely.
+    if not context.is_offline_mode() and bind.dialect.name == "sqlite":
+        log.info("Skipping 001 upgrade — SQLite text is already Unicode")
+        return
+
     existing = _get_existing_tables()
     for table, column, unicode_type, ascii_type in ALTERATIONS:
         if existing is not None and table not in existing:
@@ -74,6 +81,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    if not context.is_offline_mode() and bind.dialect.name == "sqlite":
+        log.info("Skipping 001 downgrade — SQLite text is already Unicode")
+        return
+
     existing = _get_existing_tables()
     for table, column, unicode_type, ascii_type in ALTERATIONS:
         if existing is not None and table not in existing:
