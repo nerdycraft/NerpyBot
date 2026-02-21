@@ -12,7 +12,7 @@ import ffmpeg
 import requests
 from cachetools import TTLCache
 from discord import FFmpegOpusAudio
-from utils.errors import NerpyException
+from utils.errors import NerpyValidationError
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError
 
@@ -97,7 +97,7 @@ def download(url: str, tag: bool = False, video_id: str = None):
             audio_bytes = BytesIO(response.content)
 
         if audio_bytes is None:
-            raise NerpyException(f"Could not find a valid source in: {url}")
+            raise NerpyValidationError(f"Could not find a valid source in: {url}")
 
         return convert(audio_bytes, tag)
     else:
