@@ -30,7 +30,13 @@ from utils.blizzard import (
     should_update_mount_set,
 )
 from utils.cog import NerpyBotCog
-from utils.errors import NerpyInfraException, NerpyNotFoundError, NerpyPermissionError, NerpyUserException, NerpyValidationError
+from utils.errors import (
+    NerpyInfraException,
+    NerpyNotFoundError,
+    NerpyPermissionError,
+    NerpyUserException,
+    NerpyValidationError,
+)
 from utils.helpers import notify_error, register_before_loop, send_paginated
 from utils.permissions import validate_channel_permissions
 

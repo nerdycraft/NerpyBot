@@ -423,7 +423,7 @@ def main() -> None:
         except KeyboardInterrupt:
             bot.log.info("Received KeyboardInterrupt, shutting down.")
     else:
-        raise NerpyException("Bot config not found.")
+        raise NerpyInfraException("Bot config not found.")
 
 
 if __name__ == "__main__":
