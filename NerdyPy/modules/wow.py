@@ -30,7 +30,7 @@ from utils.blizzard import (
     should_update_mount_set,
 )
 from utils.cog import NerpyBotCog
-from utils.errors import NerpyException
+from utils.errors import NerpyInfraException, NerpyNotFoundError, NerpyPermissionError, NerpyUserException, NerpyValidationError
 from utils.helpers import notify_error, register_before_loop, send_paginated
 from utils.permissions import validate_channel_permissions
 
@@ -195,7 +195,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         await self._ensure_realm_cache()
         cache_key = f"{realm_slug}-{region}"
         if self._realm_cache and cache_key not in self._realm_cache:
-            raise NerpyException(
+            raise NerpyNotFoundError(
                 f"Unknown realm '{realm_slug}' in {region.upper()}. "
                 f"Use the autocomplete suggestions or check your spelling."
             )
@@ -204,7 +204,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
     def _get_retailclient(self, region: str, language: str):
         if region not in self.regions:
-            raise NerpyException(f"Invalid region: {region}. Valid regions are: {', '.join(self.regions)}")
+            raise ValueError(f"Invalid region: {region}. Valid regions are: {', '.join(self.regions)}")
 
         if language == "de":
             api_language = WowApiLanguage.DE.value
@@ -222,7 +222,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 language=Language(api_language),
             )
         except ValueError as ex:
-            raise NerpyException from ex
+            raise NerpyInfraException("Failed to initialise WoW API client.") from ex
 
     def _get_character(self, realm: str, region: str, name: str, language: str) -> tuple[dict, LiteralString]:
         """Get character profile and media from the WoW API."""
@@ -262,7 +262,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             character, profile_picture = self._get_character(realm_slug, region, name, language)
 
             if not isinstance(character, dict) or character.get("code") == 404:
-                raise NerpyException("No Character with this name found.")
+                raise NerpyNotFoundError("No Character with this name found.")
 
             best_keys = get_best_mythic_keys(region, realm_slug, name)
             rio_score = get_raiderio_score(region, realm_slug, name)
@@ -302,7 +302,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             )
 
             await interaction.followup.send(embed=emb)
-        except NerpyException as ex:
+        except NerpyUserException as ex:
             await interaction.followup.send(str(ex), ephemeral=True)
 
     @_wow_armory.autocomplete("realm")
@@ -339,7 +339,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             roster = await asyncio.to_thread(api.guild_roster, realmSlug=realm_slug, nameSlug=name_slug)
 
             if isinstance(roster, dict) and roster.get("code") in (404, 403):
-                raise NerpyException(f"Guild '{guild_name}' not found on {realm_slug}-{region.upper()}.")
+                raise NerpyNotFoundError(f"Guild '{guild_name}' not found on {realm_slug}-{region.upper()}.")
 
             guild_display = roster.get("guild", {}).get("name", guild_name)
 
@@ -348,7 +348,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             with self.bot.session_scope() as session:
                 existing = WowGuildNewsConfig.get_existing(interaction.guild.id, name_slug, realm_slug, region, session)
                 if existing:
-                    raise NerpyException(
+                    raise NerpyValidationError(
                         f"Guild '{guild_display}' on {realm_slug}-{region.upper()} is already tracked "
                         f"(config #{existing.Id} in <#{existing.ChannelId}>)."
                     )
@@ -372,7 +372,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 f"First scan will establish a baseline silently.",
                 ephemeral=True,
             )
-        except NerpyException as ex:
+        except NerpyUserException as ex:
             await interaction.followup.send(str(ex), ephemeral=True)
 
     @_guildnews_setup.autocomplete("realm")
@@ -498,7 +498,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     async def _guildnews_check(self, interaction: Interaction, config: int):
         """trigger an immediate poll for testing [operator]"""
         if interaction.user.id not in self.bot.ops:
-            raise NerpyException("This command is restricted to bot operators.")
+            raise NerpyPermissionError("This command is restricted to bot operators.")
         with self.bot.session_scope() as session:
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
             if not cfg:
@@ -1129,4 +1129,4 @@ async def setup(bot):
     if "wow" in bot.config:
         await bot.add_cog(WorldofWarcraft(bot))
     else:
-        raise NerpyException("Config not found.")
+        raise NerpyInfraException("Config not found.")
