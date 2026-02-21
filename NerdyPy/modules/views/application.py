@@ -11,7 +11,14 @@ from datetime import UTC
 import discord
 from sqlalchemy.exc import IntegrityError
 
-from models.application import ApplicationForm, ApplicationGuildConfig, ApplicationSubmission, ApplicationVote
+from models.application import (
+    ApplicationForm,
+    ApplicationGuildConfig,
+    ApplicationSubmission,
+    ApplicationVote,
+    SubmissionStatus,
+    VoteType,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -37,8 +44,8 @@ def check_application_permission(interaction: discord.Interaction, bot) -> bool:
 
 def build_review_embed(submission, form, session) -> discord.Embed:
     """Build the review embed shown in the review channel for a submission."""
-    approve_count = ApplicationVote.count_by_type(submission.Id, "approve", session)
-    deny_count = ApplicationVote.count_by_type(submission.Id, "deny", session)
+    approve_count = ApplicationVote.count_by_type(submission.Id, VoteType.APPROVE, session)
+    deny_count = ApplicationVote.count_by_type(submission.Id, VoteType.DENY, session)
 
     embed = discord.Embed(title=f"\U0001f4cb {form.Name}", colour=_status_colour(submission.Status))
     embed.add_field(name="Applicant", value=f"<@{submission.UserId}> ({submission.UserName})", inline=True)
@@ -48,13 +55,7 @@ def build_review_embed(submission, form, session) -> discord.Embed:
     embed.add_field(name="Submitted", value=discord.utils.format_dt(submitted_at, style="R"), inline=True)
 
     for answer in submission.answers:
-        # Look up question text — answers are joined-loaded via the submission
-        question_text = None
-        for q in form.questions:
-            if q.Id == answer.QuestionId:
-                question_text = q.QuestionText
-                break
-        label = question_text or f"Question {answer.QuestionId}"
+        label = answer.question.QuestionText if answer.question else f"Question {answer.QuestionId}"
         embed.add_field(name=label, value=answer.AnswerText or "_No answer_", inline=False)
 
     status_display = submission.Status.capitalize()
@@ -100,12 +101,13 @@ async def _update_review_embed(
     with bot.session_scope() as session:
         submission = ApplicationSubmission.get_by_review_message(msg_id, session)
         if submission is None:
-            return  # submission was deleted between button click and embed update
+            bot.log.warning("application: no submission found for review message %d — was it deleted?", msg_id)
+            return
         form = ApplicationForm.get_by_id(submission.FormId, session)
         embed = build_review_embed(submission, form, session)
 
-        approve_count = ApplicationVote.count_by_type(submission.Id, "approve", session)
-        deny_count = ApplicationVote.count_by_type(submission.Id, "deny", session)
+        approve_count = ApplicationVote.count_by_type(submission.Id, VoteType.APPROVE, session)
+        deny_count = ApplicationVote.count_by_type(submission.Id, VoteType.DENY, session)
         status = submission.Status
         required_approvals = form.RequiredApprovals
         required_denials = form.RequiredDenials
@@ -115,7 +117,7 @@ async def _update_review_embed(
         approve_label=f"Approve ({approve_count}/{required_approvals})",
         deny_label=f"Deny ({deny_count}/{required_denials})",
     )
-    if status != "pending":
+    if status != SubmissionStatus.PENDING:
         for item in view.children:
             item.disabled = True
 
@@ -127,10 +129,10 @@ async def _update_review_embed(
 # ---------------------------------------------------------------------------
 
 
-def _status_colour(status: str) -> discord.Colour:
-    if status == "approved":
+def _status_colour(status: SubmissionStatus) -> discord.Colour:
+    if status == SubmissionStatus.APPROVED:
         return discord.Colour.green()
-    if status == "denied":
+    if status == SubmissionStatus.DENIED:
         return discord.Colour.red()
     return discord.Colour.blurple()
 
@@ -146,7 +148,7 @@ async def _dm_applicant(bot, user_id: int, embed: discord.Embed) -> None:
 
 def _decision_embed(form_name: str, status: str, custom_message: str | None, reason: str | None) -> discord.Embed:
     """Build the embed sent to the applicant when a decision is made."""
-    if status == "approved":
+    if status == SubmissionStatus.APPROVED:
         title = "Application Approved"
         colour = discord.Colour.green()
         body = custom_message or f"Your application for **{form_name}** has been approved."
@@ -180,45 +182,57 @@ class DenyReasonModal(discord.ui.Modal, title="Deny Application"):
         self.review_message_id = review_message_id
 
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
         reason_text = self.reason.value or None
+        dm_embed = None
+        dm_user_id = None
 
         with self.bot.session_scope() as session:
             submission = ApplicationSubmission.get_by_id(self.submission_id, session)
-            if submission is None or submission.Status != "pending":
-                await interaction.response.send_message("This submission is no longer pending.", ephemeral=True)
+            if submission is None or submission.Status != SubmissionStatus.PENDING:
+                await interaction.followup.send("This submission is no longer pending.", ephemeral=True)
                 return
 
-            # Record the deny vote
-            vote = ApplicationVote(SubmissionId=self.submission_id, UserId=interaction.user.id, Vote="deny")
+            vote = ApplicationVote(SubmissionId=self.submission_id, UserId=interaction.user.id, Vote=VoteType.DENY)
             session.add(vote)
             try:
                 session.flush()
             except IntegrityError:
                 session.rollback()
-                await interaction.response.send_message("You have already voted on this application.", ephemeral=True)
+                await interaction.followup.send("You have already voted on this application.", ephemeral=True)
                 return
 
-            deny_count = ApplicationVote.count_by_type(self.submission_id, "deny", session)
+            deny_count = ApplicationVote.count_by_type(self.submission_id, VoteType.DENY, session)
             form = ApplicationForm.get_by_id(submission.FormId, session)
 
             if deny_count >= form.RequiredDenials:
-                submission.Status = "denied"
+                submission.Status = SubmissionStatus.DENIED
                 submission.DecisionReason = reason_text
                 session.flush()
+                dm_embed = _decision_embed(form.Name, SubmissionStatus.DENIED, form.DenialMessage, reason_text)
+                dm_user_id = submission.UserId
 
-                # DM applicant
-                embed = _decision_embed(form.Name, "denied", form.DenialMessage, reason_text)
-                await _dm_applicant(self.bot, submission.UserId, embed)
+        await interaction.followup.send("Your deny vote has been recorded.", ephemeral=True)
 
-        # Respond to the modal interaction first (modal submits have no .message)
-        await interaction.response.send_message("Your deny vote has been recorded.", ephemeral=True)
+        if dm_embed is not None:
+            await _dm_applicant(self.bot, dm_user_id, dm_embed)
 
-        # Update the review embed using stored channel/message IDs
-        await _update_review_embed(
-            self.bot,
-            review_channel_id=self.review_channel_id,
-            review_message_id=self.review_message_id,
-        )
+        try:
+            await _update_review_embed(
+                self.bot,
+                review_channel_id=self.review_channel_id,
+                review_message_id=self.review_message_id,
+            )
+        except Exception:
+            self.bot.log.error("application: failed to update review embed after deny vote", exc_info=True)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        self.bot.log.error("Error in DenyReasonModal: %s", error, exc_info=error)
+        if not interaction.response.is_done():
+            await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
+        else:
+            await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
 
 
 class MessageModal(discord.ui.Modal, title="Message Applicant"):
@@ -247,6 +261,13 @@ class MessageModal(discord.ui.Modal, title="Message Applicant"):
             await interaction.response.send_message(
                 "Could not DM the user — they may have DMs disabled.", ephemeral=True
             )
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        self.bot.log.error("Error in MessageModal: %s", error, exc_info=error)
+        if not interaction.response.is_done():
+            await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
+        else:
+            await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
 
 
 # ---------------------------------------------------------------------------
@@ -290,44 +311,53 @@ class ApplicationReviewView(discord.ui.View):
             )
             return
 
+        await interaction.response.defer(ephemeral=True)
+
+        dm_embed = None
+        dm_user_id = None
+
         with self.bot.session_scope() as session:
             submission = ApplicationSubmission.get_by_review_message(interaction.message.id, session)
             if submission is None:
-                await interaction.response.send_message("Submission not found.", ephemeral=True)
+                await interaction.followup.send("Submission not found.", ephemeral=True)
                 return
 
-            if submission.Status != "pending":
-                await interaction.response.send_message("This application has already been decided.", ephemeral=True)
+            if submission.Status != SubmissionStatus.PENDING:
+                await interaction.followup.send("This application has already been decided.", ephemeral=True)
                 return
 
             existing = ApplicationVote.get_user_vote(submission.Id, interaction.user.id, session)
             if existing:
-                await interaction.response.send_message("You have already voted on this application.", ephemeral=True)
+                await interaction.followup.send("You have already voted on this application.", ephemeral=True)
                 return
 
-            vote = ApplicationVote(SubmissionId=submission.Id, UserId=interaction.user.id, Vote="approve")
+            vote = ApplicationVote(SubmissionId=submission.Id, UserId=interaction.user.id, Vote=VoteType.APPROVE)
             session.add(vote)
             try:
                 session.flush()
             except IntegrityError:
                 session.rollback()
-                await interaction.response.send_message("You have already voted on this application.", ephemeral=True)
+                await interaction.followup.send("You have already voted on this application.", ephemeral=True)
                 return
 
-            approve_count = ApplicationVote.count_by_type(submission.Id, "approve", session)
+            approve_count = ApplicationVote.count_by_type(submission.Id, VoteType.APPROVE, session)
             form = ApplicationForm.get_by_id(submission.FormId, session)
 
             if approve_count >= form.RequiredApprovals:
-                submission.Status = "approved"
+                submission.Status = SubmissionStatus.APPROVED
                 session.flush()
+                dm_embed = _decision_embed(form.Name, SubmissionStatus.APPROVED, form.ApprovalMessage, None)
+                dm_user_id = submission.UserId
 
-                embed = _decision_embed(form.Name, "approved", form.ApprovalMessage, None)
-                await _dm_applicant(self.bot, submission.UserId, embed)
+        await interaction.followup.send("Your approval vote has been recorded.", ephemeral=True)
 
-        # Respond first to acknowledge within Discord's 3-second window,
-        # then update the review embed (message.edit uses the bot HTTP client, not the interaction).
-        await interaction.response.send_message("Your approval vote has been recorded.", ephemeral=True)
-        await _update_review_embed(self.bot, interaction=interaction)
+        if dm_embed is not None:
+            await _dm_applicant(self.bot, dm_user_id, dm_embed)
+
+        try:
+            await _update_review_embed(self.bot, interaction=interaction)
+        except Exception:
+            self.bot.log.error("application: failed to update review embed after approve vote", exc_info=True)
 
     # -- Deny --------------------------------------------------------------
 
@@ -345,7 +375,7 @@ class ApplicationReviewView(discord.ui.View):
                 await interaction.response.send_message("Submission not found.", ephemeral=True)
                 return
 
-            if submission.Status != "pending":
+            if submission.Status != SubmissionStatus.PENDING:
                 await interaction.response.send_message("This application has already been decided.", ephemeral=True)
                 return
 

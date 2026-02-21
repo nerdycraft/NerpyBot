@@ -10,9 +10,16 @@ Three conversation subclasses:
 from datetime import datetime, timezone
 from enum import Enum
 
+import discord
 from discord import Embed
 
-from models.application import ApplicationAnswer, ApplicationForm, ApplicationQuestion, ApplicationSubmission
+from models.application import (
+    ApplicationAnswer,
+    ApplicationForm,
+    ApplicationQuestion,
+    ApplicationSubmission,
+    SubmissionStatus,
+)
 from modules.views.application import ApplicationReviewView, build_review_embed
 from utils.conversation import Conversation
 
@@ -287,8 +294,15 @@ class ApplicationEditConversation(Conversation):
                 await self.send_ns(emb)
                 await self.close()
                 return
-            # Map old position (1-indexed) -> question object
+            # Map old position (1-indexed) -> question object.
+            # Use a two-phase update to avoid transient unique-constraint violations
+            # when SQLite enforces the (FormId, SortOrder) constraint row-by-row:
+            # first move all to a safe range, then assign the final positions.
             q_by_pos = {i: q for i, q in enumerate(form.questions, start=1)}
+            offset = len(form.questions) + 1
+            for q in q_by_pos.values():
+                q.SortOrder += offset
+            session.flush()
             for new_order, old_pos in enumerate(nums, start=1):
                 q_by_pos[old_pos].SortOrder = new_order
             session.flush()
@@ -381,13 +395,46 @@ class ApplicationSubmitConversation(Conversation):
         await self.send_react(emb, {CONFIRM_EMOJI: SubmitState.SUBMIT, CANCEL_EMOJI: SubmitState.CANCELLED})
 
     async def state_submit(self):
+        # Verify the review channel is still accessible before saving anything —
+        # this catches the race condition where the channel was deleted while the
+        # user was filling out the form.
+        with self.bot.session_scope() as session:
+            form = ApplicationForm.get_by_id(self.form_id, session)
+            review_channel_id = form.ReviewChannelId if form else None
+
+        channel = None
+        if review_channel_id:
+            channel = self.bot.get_channel(review_channel_id)
+            if channel is None:
+                try:
+                    channel = await self.bot.fetch_channel(review_channel_id)
+                except (discord.NotFound, discord.Forbidden) as exc:
+                    self.bot.log.error(
+                        "application: review channel %d not accessible for form %r: %s",
+                        review_channel_id,
+                        self.form_name,
+                        exc,
+                    )
+                    await self._notify_responsible(review_channel_id)
+                    emb = Embed(
+                        title="Submission error",
+                        description=(
+                            "Something went wrong reaching the review channel. "
+                            "Your answers haven't been saved — please try again in a bit."
+                        ),
+                    )
+                    await self.send_ns(emb)
+                    await self.close()
+                    return
+
+        # Channel is accessible — save the submission and answers.
         with self.bot.session_scope() as session:
             submission = ApplicationSubmission(
                 FormId=self.form_id,
                 GuildId=self.guild.id,
                 UserId=self.user.id,
                 UserName=self.user.name,
-                Status="pending",
+                Status=SubmissionStatus.PENDING,
                 SubmittedAt=datetime.now(timezone.utc),
             )
             session.add(submission)
@@ -397,34 +444,45 @@ class ApplicationSubmitConversation(Conversation):
             for q_id, answer_text in self.answers.items():
                 session.add(ApplicationAnswer(SubmissionId=submission.Id, QuestionId=q_id, AnswerText=answer_text))
 
-            form = ApplicationForm.get_by_id(self.form_id, session)
-            review_channel_id = form.ReviewChannelId if form else None
+        # Post review embed to the review channel.
+        if channel is not None:
+            with self.bot.session_scope() as session:
+                submission = ApplicationSubmission.get_by_id(self.submission_id, session)
+                form = ApplicationForm.get_by_id(self.form_id, session)
+                embed = build_review_embed(submission, form, session)
 
-        # Post review embed to the review channel
-        if review_channel_id:
-            channel = self.bot.get_channel(review_channel_id)
-            if channel is None:
-                try:
-                    channel = await self.bot.fetch_channel(review_channel_id)
-                except Exception:
-                    channel = None
+            view = ApplicationReviewView(bot=self.bot)
+            msg = await channel.send(embed=embed, view=view)
 
-            if channel is not None:
-                with self.bot.session_scope() as session:
-                    submission = ApplicationSubmission.get_by_id(self.submission_id, session)
-                    form = ApplicationForm.get_by_id(self.form_id, session)
-                    embed = build_review_embed(submission, form, session)
-
-                view = ApplicationReviewView(bot=self.bot)
-                msg = await channel.send(embed=embed, view=view)
-
-                with self.bot.session_scope() as session:
-                    submission = ApplicationSubmission.get_by_id(self.submission_id, session)
-                    submission.ReviewMessageId = msg.id
+            with self.bot.session_scope() as session:
+                submission = ApplicationSubmission.get_by_id(self.submission_id, session)
+                submission.ReviewMessageId = msg.id
 
         emb = Embed(title="Application submitted!", description="Your application has been submitted for review.")
         await self.send_ns(emb)
         await self.close()
+
+    async def _notify_responsible(self, review_channel_id: int) -> None:
+        """DM the guild owner when the review channel is unreachable mid-conversation."""
+        try:
+            owner = await self.bot.fetch_user(self.guild.owner_id)
+            emb = Embed(
+                title="Application review channel unreachable",
+                description=(
+                    f"Someone tried to submit an application for form **{self.form_name}** "
+                    f"in **{self.guild.name}**, but the review channel (ID: `{review_channel_id}`) "
+                    f"is not accessible to the bot.\n\n"
+                    "The submission was not saved. Please check the channel permissions or reconfigure the form."
+                ),
+            )
+            await owner.send(embed=emb)
+        except Exception:
+            self.bot.log.error(
+                "application: could not DM guild owner %d about inaccessible review channel %d",
+                self.guild.owner_id,
+                review_channel_id,
+                exc_info=True,
+            )
 
     async def state_cancelled(self):
         emb = Embed(title="Application cancelled", description="Your application has been cancelled.")

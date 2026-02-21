@@ -38,17 +38,26 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     def __init__(self, bot):
         super().__init__(bot)
-        with self.bot.session_scope() as session:
-            seed_built_in_templates(session)
 
     # -- Top-level /apply command --------------------------------------------
 
     async def cog_load(self):
+        # Ensure any new tables introduced by this cog exist before seeding.
+        # create_all() is idempotent: it skips tables that already exist.
+        self.bot.create_all()
+
+        try:
+            with self.bot.session_scope() as session:
+                seed_built_in_templates(session)
+        except Exception:
+            self.bot.log.error("application: failed to seed built-in templates", exc_info=True)
+
+        # guild_only is already set on _apply via @app_commands.guild_only();
+        # Command.__init__ reads it from the callback — don't pass it as a kwarg.
         self._apply_command = app_commands.Command(
             name="apply",
             description="Submit an application",
             callback=self._apply,
-            guild_only=True,
         )
         self._apply_command.autocomplete("form_name")(self._ready_form_autocomplete)
         self.bot.tree.add_command(self._apply_command)
@@ -71,6 +80,23 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             form_id = form.Id
             name = form.Name
             questions = [(q.Id, q.QuestionText) for q in form.questions]
+            review_channel_id = form.ReviewChannelId
+
+        await interaction.response.defer(ephemeral=True)
+
+        # Pre-flight: verify the review channel is actually reachable before
+        # starting the conversation, so the user isn't sent through the whole
+        # form only to fail at submission.
+        channel = self.bot.get_channel(review_channel_id)
+        if channel is None:
+            try:
+                await self.bot.fetch_channel(review_channel_id)
+            except (discord.NotFound, discord.Forbidden):
+                await interaction.followup.send(
+                    "This form's review channel is currently unavailable. Please try again later.",
+                    ephemeral=True,
+                )
+                return
 
         conv = ApplicationSubmitConversation(
             self.bot,
@@ -80,8 +106,15 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             form_name=name,
             questions=questions,
         )
-        await self.bot.convMan.init_conversation(conv)
-        await interaction.response.send_message("Check your DMs!", ephemeral=True)
+        try:
+            await self.bot.convMan.init_conversation(conv)
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "I couldn't send you a DM. Please enable DMs from server members and try again.",
+                ephemeral=True,
+            )
+            return
+        await interaction.followup.send("Check your DMs!", ephemeral=True)
 
     # -- Autocomplete helpers ------------------------------------------------
 
@@ -151,8 +184,16 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 return
 
         conv = ApplicationCreateConversation(self.bot, interaction.user, interaction.guild, name)
-        await self.bot.convMan.init_conversation(conv)
-        await interaction.response.send_message("Check your DMs!", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            await self.bot.convMan.init_conversation(conv)
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "I couldn't send you a DM. Please enable DMs from server members and try again.",
+                ephemeral=True,
+            )
+            return
+        await interaction.followup.send("Check your DMs!", ephemeral=True)
 
     # -- /application delete -------------------------------------------------
 
@@ -217,8 +258,16 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             form_id = form.Id
 
         conv = ApplicationEditConversation(self.bot, interaction.user, interaction.guild, form_id)
-        await self.bot.convMan.init_conversation(conv)
-        await interaction.response.send_message("Check your DMs!", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            await self.bot.convMan.init_conversation(conv)
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "I couldn't send you a DM. Please enable DMs from server members and try again.",
+                ephemeral=True,
+            )
+            return
+        await interaction.followup.send("Check your DMs!", ephemeral=True)
 
     # -- /application channel ------------------------------------------------
 
@@ -477,7 +526,10 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         try:
             msg = await self.bot.wait_for("message", check=check, timeout=120)
         except asyncio.TimeoutError:
-            await interaction.user.send("Import cancelled — timed out.")
+            try:
+                await interaction.user.send("Import cancelled — timed out.")
+            except (discord.Forbidden, discord.NotFound):
+                pass
             return
 
         attachment = msg.attachments[0]
@@ -503,6 +555,14 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 await interaction.user.send(f"Invalid format: question {i + 1} is missing a `text` field.")
                 return
 
+        approvals = form_data.get("required_approvals", 1)
+        denials = form_data.get("required_denials", 1)
+        if not isinstance(approvals, int) or approvals < 1 or not isinstance(denials, int) or denials < 1:
+            await interaction.user.send(
+                "Invalid format: `required_approvals` and `required_denials` must be positive integers."
+            )
+            return
+
         form_name = form_data["name"].strip()
 
         with self.bot.session_scope() as session:
@@ -514,8 +574,8 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             form = ApplicationForm(
                 GuildId=interaction.guild.id,
                 Name=form_name,
-                RequiredApprovals=form_data.get("required_approvals", 1),
-                RequiredDenials=form_data.get("required_denials", 1),
+                RequiredApprovals=approvals,
+                RequiredDenials=denials,
                 ApprovalMessage=form_data.get("approval_message"),
                 DenialMessage=form_data.get("denial_message"),
             )
