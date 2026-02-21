@@ -100,7 +100,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - `audio.py` - Voice channel audio management
 - `checks.py` - Permission check functions for voice/moderator commands
 - `conversation.py` - Interactive dialog state management
-- `errors.py` - `NerpyException` for bot-specific errors
+- `errors.py` - Exception hierarchy: `NerpyException` (base) → `NerpyUserException` → `{NerpyNotFoundError, NerpyValidationError, NerpyPermissionError}`; `NerpyInfraException` (infrastructure failures — triggers operator DM notification)
 - `format.py` - Text formatting helpers
 - `helpers.py` - General utilities (incl. `send_hidden_message` for ephemeral responses via Interaction)
 - `download.py` - Audio downloading and ffmpeg conversion (yt-dlp)
@@ -118,7 +118,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **`sync` is prefix-only** — DM-only operator command (`!sync`). Supports global sync, guild-specific sync via `Greedy[Object]`, and `local`/`copy`/`clear` spec modes.
 - **Check functions accept Interaction, not Context** — All check functions in `checks.py` were converted to accept `discord.Interaction` for slash command compatibility. The `interaction_check` in admin.py uses these. The `cog_check` in admin.py has inline logic for prefix commands.
 - **admin.py modrole and botpermissions are guild_only** — The `app_commands.Group` definitions have `guild_only=True` to prevent DM invocation, since they access `interaction.guild` unconditionally.
-- **`@app_commands.guild_only()` on regular `Cog` does NOT propagate to commands** — discord.py's `Command.__init__` reads `guild_only` from the callback function, not the class. Only `GroupCog` propagates the class attribute via `Group.__init__`. The remaining regular `Cog` classes (`admin`, `voicecontrol`) need `@app_commands.guild_only()` on each individual command and `guild_only=True` on each `Group()` definition.
+- **`@app_commands.guild_only()` on regular `Cog` does NOT propagate to commands** — discord.py's `Command.__init__` reads `guild_only` from the callback function, not the class. Only `GroupCog` propagates the class attribute via `Group.__init__`. The remaining regular `Cog` classes (`admin`, `voicecontrol`) need `@app_commands.guild_only()` on each individual command and `guild_only=True` on each `Group()` definition. Never pass `guild_only=True` to `app_commands.Command(name=..., callback=...)` directly — it raises `TypeError: Command.__init__() got an unexpected keyword argument 'guild_only'`.
 - **`docs/plans/` is gitignored** — Design docs and implementation plans live there but are NOT committed.
 - **Testing `@app_commands.command()` methods** — Call `.callback(cog, interaction, ...)` to bypass discord.py decorator machinery. See `tests/modules/test_reminder.py` for the pattern.
 - **`@app_commands.rename` for Python-keyword params** — Use `@app_commands.rename(python_name="discord_name")` when the Discord-facing param name is a Python keyword (e.g. `in`). `describe` references the Python name.
@@ -126,6 +126,9 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **All Alembic migrations must guard column/index existence, not just table existence** — `create_all()` on a fresh install already builds the latest schema; a subsequent `alembic upgrade head` must be a no-op. Before `add_column`, check `{c["name"] for c in inspect(conn).get_columns(table)}`; before `create_index`, check `{i["name"] for i in inspect(conn).get_indexes(table)}`. The return-early guard must cover both the "table absent" and "schema already current" cases.
 - **`interaction.response.is_done()` returns `False` after a failed `send_message()`** — If `send_message()` raises (e.g. 10062 Unknown interaction), `is_done()` is still `False`. In `_on_app_command_error`, wrap the user-facing response in `try/except` *before* `notify_error`, or `notify_error` will never be reached.
 - **`pyproject.toml` requires `packages = []`** — Without `[tool.setuptools] packages = []`, setuptools auto-discovers `config/` and `NerdyPy/` as a flat-layout conflict, breaking all `uv` commands.
+- **`cog_load` runs before `create_all()`** — `setup_hook` calls `load_extension()` (triggering `cog_load`) before `create_all()`. If a cog accesses new tables in `cog_load`, call `self.bot.create_all()` at the top of `cog_load` to ensure tables exist on existing databases.
+- **SQLite enforces unique constraints row-by-row, not deferred** — Swapping two values under a unique column in a single flush raises `IntegrityError`. Use a two-phase update: write temporary/offset values and flush, then write final values and flush.
+- **Module-specific permission helpers stay with the module** — Only move a permission check to `utils/checks.py` if it is purely based on Discord roles/permissions. If it queries a module-specific table (e.g. `ApplicationGuildConfig`), keep it in the module's own file.
 
 ## Configuration
 
