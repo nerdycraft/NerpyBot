@@ -165,10 +165,18 @@ class ApplicationCreateConversation(Conversation):
     async def state_back(self):
         if self.questions:
             self.questions.pop()
-        self.currentState = CreateState.COLLECT
-        await self.state_collect()
+        if self.questions:
+            self.currentState = CreateState.COLLECT
+            await self.state_collect()
+        else:
+            self.currentState = CreateState.INIT
+            await self.state_init()
 
     async def state_review(self):
+        if not self.questions:
+            self.currentState = CreateState.INIT
+            await self.state_init()
+            return
         emb = _questions_embed(
             f"Review: {self.form_name}",
             self.questions,
@@ -185,6 +193,10 @@ class ApplicationCreateConversation(Conversation):
 
     async def state_edit_q_select(self):
         total = len(self.questions)
+        if total == 0:
+            self.currentState = CreateState.INIT
+            await self.state_init()
+            return
         emb = Embed(title="Edit a question", description=f"Which question number (1–{total})?")
         await self.send_msg(emb, CreateState.EDIT_Q_SELECT, self._handle_edit_q_select)
 

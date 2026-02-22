@@ -821,6 +821,42 @@ class TestApplicationCreateConversationReview:
         assert BACK_EMOJI not in reaction_calls
 
     @pytest.mark.asyncio
+    async def test_back_on_only_question_returns_to_init(self, conv):
+        """Pressing back when only one question exists should return to INIT, not COLLECT."""
+        await conv.repost_state()  # INIT
+        await conv.on_message("Q1")  # COLLECT (Q1 added)
+        await conv.on_react(BACK_EMOJI)  # BACK → pops Q1 → should go to INIT
+        assert len(conv.questions) == 0
+        assert conv.currentState == CreateState.INIT
+
+    @pytest.mark.asyncio
+    async def test_back_on_only_question_allows_reentry(self, conv):
+        """After back from Q1, user can type a new Q1 and proceed normally."""
+        await conv.repost_state()
+        await conv.on_message("Q1")
+        await conv.on_react(BACK_EMOJI)
+        # Now back at INIT — type a new question
+        await conv.on_message("Q1 revised")
+        assert conv.currentState == CreateState.COLLECT
+        assert conv.questions == ["Q1 revised"]
+
+    @pytest.mark.asyncio
+    async def test_review_with_empty_questions_redirects_to_init(self, conv):
+        """If review is somehow reached with no questions, redirect to INIT."""
+        conv.questions = []
+        conv.currentState = CreateState.REVIEW
+        await conv.repost_state()
+        assert conv.currentState == CreateState.INIT
+
+    @pytest.mark.asyncio
+    async def test_edit_q_select_with_empty_questions_redirects_to_init(self, conv):
+        """If edit-question is reached with no questions, redirect to INIT."""
+        conv.questions = []
+        conv.currentState = CreateState.EDIT_Q_SELECT
+        await conv.repost_state()
+        assert conv.currentState == CreateState.INIT
+
+    @pytest.mark.asyncio
     async def test_review_lists_all_questions(self, conv):
         conv.questions = ["Q1", "Q2"]
         conv.currentState = CreateState.REVIEW
