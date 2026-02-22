@@ -19,6 +19,7 @@ bot = [
     "discord-py[voice]==2.6.4",
     "google-api-python-client",
     "SQLAlchemy",
+    "psycopg[binary]",
     "pymysql",
     "ffmpeg-python",
     "pytimeparse2",
@@ -39,8 +40,9 @@ test = [
     "ruff",
 ]
 migrations = [
-    "SQLAlchemy",
     "alembic",
+    "SQLAlchemy",
+    "psycopg[binary]",
     "pymysql",
     "pyyaml",
 ]
