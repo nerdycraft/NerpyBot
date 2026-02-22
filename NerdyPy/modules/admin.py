@@ -9,11 +9,12 @@ from typing import Literal, Optional
 from discord import Embed, Forbidden, HTTPException, Interaction, Object, Role, app_commands
 from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError
 from discord.ext.commands import Cog, Context, Greedy, command, hybrid_command
-from models.admin import BotModeratorRole, PermissionSubscriber
+from models.admin import BotModeratorRole, GuildLanguageConfig, PermissionSubscriber
 from utils.checks import is_admin_or_operator, require_operator
 from utils.cog import NerpyBotCog
 from utils.errors import NerpyInfraException, NerpyPermissionError
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
+from utils.strings import available_languages, get_localized_string
 
 PROTECTED_MODULES = frozenset({"admin", "voicecontrol"})
 
@@ -51,6 +52,7 @@ class Admin(NerpyBotCog, Cog):
         name="modrole", description="Manage the bot-moderator role for this server", guild_only=True
     )
     botpermissions = app_commands.Group(name="botpermissions", description="Check bot permissions", guild_only=True)
+    language = app_commands.Group(name="language", description="Manage the server language preference", guild_only=True)
 
     async def interaction_check(self, interaction: Interaction) -> bool:
         """Allow administrators and bot operators to use all admin slash commands."""
@@ -146,6 +148,66 @@ class Admin(NerpyBotCog, Cog):
         await interaction.response.send_message(
             "Unsubscribed from permission notifications for this server.", ephemeral=True
         )
+
+    @language.command(name="set")
+    @app_commands.describe(language="Language code to set for this server")
+    async def _language_set(self, interaction: Interaction, language: str):
+        """Set the server's language preference for bot responses."""
+        language = language.lower()
+        if language not in available_languages():
+            with self.bot.session_scope() as session:
+                msg = get_localized_string(
+                    interaction.guild.id,
+                    "admin.language.invalid",
+                    session,
+                    language=language,
+                    available=", ".join(sorted(available_languages())),
+                )
+            await interaction.response.send_message(msg, ephemeral=True)
+            return
+
+        with self.bot.session_scope() as session:
+            config = GuildLanguageConfig.get(interaction.guild.id, session)
+            if config is None:
+                config = GuildLanguageConfig(GuildId=interaction.guild.id)
+                session.add(config)
+            config.Language = language
+
+        # Read back with new language so confirmation is in the newly set language
+        with self.bot.session_scope() as session:
+            msg = get_localized_string(
+                interaction.guild.id,
+                "admin.language.set_success",
+                session,
+                language=language,
+            )
+        await interaction.response.send_message(msg, ephemeral=True)
+
+    @language.command(name="get")
+    async def _language_get(self, interaction: Interaction):
+        """Show the current language preference for this server."""
+        with self.bot.session_scope() as session:
+            config = GuildLanguageConfig.get(interaction.guild.id, session)
+            if config is not None:
+                msg = get_localized_string(
+                    interaction.guild.id,
+                    "admin.language.get_current",
+                    session,
+                    language=config.Language,
+                )
+            else:
+                msg = get_localized_string(interaction.guild.id, "admin.language.get_default", session)
+        await interaction.response.send_message(msg, ephemeral=True)
+
+    async def _language_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
+        """Autocomplete for available languages."""
+        return [
+            app_commands.Choice(name=lang, value=lang)
+            for lang in sorted(available_languages())
+            if current.lower() in lang.lower()
+        ][:25]
+
+    _language_set = app_commands.autocomplete(language=_language_autocomplete)(_language_set)
 
     @hybrid_command(name="ping")
     async def ping(self, ctx: Context):
