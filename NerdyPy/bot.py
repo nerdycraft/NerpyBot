@@ -43,6 +43,7 @@ from utils.error_throttle import ErrorThrottle
 from utils.errors import NerpyException, NerpyInfraException, SilentCheckFailure
 from utils.helpers import error_context, notify_error, parse_id
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
+from utils.strings import load_strings
 
 
 ACTIVITIES = [
@@ -203,6 +204,9 @@ class NerpyBot(Bot):
             except Exception as e:
                 self.log.error(f"failed to register application persistent views. {e}")
                 self.log.debug(print_exc())
+
+        # load localization strings
+        load_strings()
 
         # create database/tables and such stuff
         self.create_all()
