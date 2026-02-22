@@ -226,3 +226,47 @@ moderation:
       entry_no_roles: "**{name}** — joined: {joined}"
       entry_full: "**{name}** — created: {created} · joined: {joined}"
   membercount: "There are currently **{count}** members on this server."
+
+wow:
+  realm_not_found: "Unknown realm '{realm}' in {region}. Use the autocomplete suggestions or check your spelling."
+  armory:
+    not_found: "No character with this name found."
+    level: "Level"
+    faction: "Faction"
+    guild: "Guild"
+    best_keys: "Best M+ Keys"
+    mplus_score: "M+ Score"
+    external_sites: "External Sites"
+  guildnews:
+    config_not_found: "Config #{config} not found."
+    setup:
+      guild_not_found: "Guild '{guild}' not found on {realm_region}."
+      already_tracked: "Guild '{guild}' on {realm_region} is already tracked (config #{id} in {channel})."
+      success: "Now tracking **{guild}** ({realm_region}) in {channel}. First scan will establish a baseline silently."
+    remove:
+      success: "Removed tracking config #{config}."
+    list:
+      title: "⚔️ Guild News"
+      empty: "No guild news configs for this server."
+      status_active: "Active"
+      status_paused: "Paused"
+      entry_details: "{status} · Active Days: {active_days}"
+      entry_channel: "Channel: {channel}"
+      channel_deleted: "#{channel_id} (deleted)"
+    pause:
+      success: "Paused tracking for config #{config}."
+    resume:
+      success: "Resumed tracking for config #{config}."
+    edit:
+      nothing_to_change: "Nothing to change. Specify at least one of: channel, active_days."
+      success: "Updated config #{config} for {guild}: {changes}."
+      change_channel: "channel → {channel}"
+      change_active_days: "active_days → {active_days}"
+  notification:
+    achievement_title: "Achievement Earned!"
+    achievement_desc: "**{name}** ({realm}) has earned the achievement **{achievement}**"
+    mount_title: "New Mount Collected!"
+    mount_desc: "**{name}** ({realm}) obtained **{mount}**"
+    boss_title: "Boss Defeated!"
+    boss_desc: "**{name}** ({realm}) defeated **{boss}**"
+    boss_desc_mode: "**{name}** ({realm}) defeated **{boss}** ({mode})"

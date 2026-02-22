@@ -226,3 +226,47 @@ moderation:
       entry_no_roles: "**{name}** — beigetreten: {joined}"
       entry_full: "**{name}** — erstellt: {created} · beigetreten: {joined}"
   membercount: "Derzeit sind **{count}** Mitglieder auf diesem Server."
+
+wow:
+  realm_not_found: "Unbekanntes Realm '{realm}' in {region}. Verwende die Autovervollständigung oder überprüfe deine Schreibweise."
+  armory:
+    not_found: "Kein Charakter mit diesem Namen gefunden."
+    level: "Stufe"
+    faction: "Fraktion"
+    guild: "Gilde"
+    best_keys: "Beste M+ Schlüssel"
+    mplus_score: "M+ Wertung"
+    external_sites: "Externe Seiten"
+  guildnews:
+    config_not_found: "Konfiguration #{config} nicht gefunden."
+    setup:
+      guild_not_found: "Gilde '{guild}' auf {realm_region} nicht gefunden."
+      already_tracked: "Gilde '{guild}' auf {realm_region} wird bereits verfolgt (Konfiguration #{id} in {channel})."
+      success: "Verfolge jetzt **{guild}** ({realm_region}) in {channel}. Der erste Scan erstellt eine Baseline ohne Benachrichtigungen."
+    remove:
+      success: "Tracking-Konfiguration #{config} entfernt."
+    list:
+      title: "⚔️ Gilden-News"
+      empty: "Keine Gilden-News-Konfigurationen für diesen Server."
+      status_active: "Aktiv"
+      status_paused: "Pausiert"
+      entry_details: "{status} · Aktive Tage: {active_days}"
+      entry_channel: "Kanal: {channel}"
+      channel_deleted: "#{channel_id} (gelöscht)"
+    pause:
+      success: "Tracking für Konfiguration #{config} pausiert."
+    resume:
+      success: "Tracking für Konfiguration #{config} fortgesetzt."
+    edit:
+      nothing_to_change: "Nichts zu ändern. Gib mindestens einen der folgenden Parameter an: channel, active_days."
+      success: "Konfiguration #{config} für {guild} aktualisiert: {changes}."
+      change_channel: "Kanal → {channel}"
+      change_active_days: "Aktive Tage → {active_days}"
+  notification:
+    achievement_title: "Erfolg errungen!"
+    achievement_desc: "**{name}** ({realm}) hat den Erfolg **{achievement}** errungen"
+    mount_title: "Neues Reittier erhalten!"
+    mount_desc: "**{name}** ({realm}) hat **{mount}** erhalten"
+    boss_title: "Boss besiegt!"
+    boss_desc: "**{name}** ({realm}) hat **{boss}** besiegt"
+    boss_desc_mode: "**{name}** ({realm}) hat **{boss}** besiegt ({mode})"
