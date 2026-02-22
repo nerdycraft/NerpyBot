@@ -47,6 +47,29 @@ league:
     wins: "Wins"
     losses: "Losses"
 
+rolemanage:
+  allow:
+    success: "**{source}** can now assign **{target}**."
+    already_exists: "**{source}** can already assign **{target}**."
+  deny:
+    success: "**{source}** can no longer assign **{target}**."
+    not_found: "No matching mapping found."
+  list:
+    title: "🔗 Delegated Role Mappings"
+    empty: "No role mappings configured."
+  assign:
+    success: "Assigned **{role}** to **{member}**."
+    no_permission: "You do not have permission to assign that role."
+    already_has: "**{member}** already has **{role}**."
+    forbidden: "I don't have permission to assign **{role}**. Make sure I have the `Manage Roles` permission and my highest role is above that role."
+    discord_error: "Discord error while assigning role (HTTP {status}). Please try again."
+  remove:
+    success: "Removed **{role}** from **{member}**."
+    no_permission: "You do not have permission to remove that role."
+    does_not_have: "**{member}** does not have **{role}**."
+    forbidden: "I don't have permission to remove **{role}**. Make sure I have the `Manage Roles` permission and my highest role is above that role."
+    discord_error: "Discord error while removing role (HTTP {status}). Please try again."
+
 leavemsg:
   enable:
     success: "Leave messages enabled in {channel}."
