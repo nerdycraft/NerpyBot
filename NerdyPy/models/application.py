@@ -109,13 +109,6 @@ class ApplicationForm(db.BASE):
         return session.query(cls).filter(cls.GuildId == guild_id).order_by(cls.Name).all()
 
     @classmethod
-    def get_ready_by_guild(cls, guild_id, session):
-        """Returns forms that have a ReviewChannelId set (ready to accept submissions)."""
-        return (
-            session.query(cls).filter(cls.GuildId == guild_id, cls.ReviewChannelId.isnot(None)).order_by(cls.Name).all()
-        )
-
-    @classmethod
     def delete_by_name(cls, name, guild_id, session):
         """Deletes a form by name and guild."""
         form = cls.get(name, guild_id, session)

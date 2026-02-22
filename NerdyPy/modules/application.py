@@ -16,7 +16,6 @@ from models.application import (
     ApplicationForm,
     ApplicationGuildConfig,
     ApplicationQuestion,
-    ApplicationSubmission,
     ApplicationTemplate,
     ApplicationTemplateQuestion,
     seed_built_in_templates,
@@ -24,7 +23,6 @@ from models.application import (
 from modules.conversations.application import (
     ApplicationCreateConversation,
     ApplicationEditConversation,
-    ApplicationSubmitConversation,
 )
 from modules.views.application import check_override_permission
 from utils.cog import NerpyBotCog
@@ -42,8 +40,6 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     def __init__(self, bot):
         super().__init__(bot)
 
-    # -- Top-level /apply command --------------------------------------------
-
     async def cog_load(self):
         # Ensure any new tables introduced by this cog exist before seeding.
         # create_all() is idempotent: it skips tables that already exist.
@@ -55,92 +51,11 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         except SQLAlchemyError:
             self.bot.log.error("application: failed to seed built-in templates", exc_info=True)
 
-        # guild_only is already set on _apply via @app_commands.guild_only();
-        # Command.__init__ reads it from the callback — don't pass it as a kwarg.
-        self._apply_command = app_commands.Command(
-            name="apply",
-            description="Submit an application",
-            callback=self._apply,
-        )
-        self._apply_command.autocomplete("form_name")(self._ready_form_autocomplete)
-        self.bot.tree.add_command(self._apply_command)
-
-    async def cog_unload(self):
-        self.bot.tree.remove_command("apply")
-
-    @app_commands.guild_only()
-    @app_commands.rename(form_name="form")
-    @app_commands.describe(form_name="Application form to fill out")
-    async def _apply(self, interaction: Interaction, form_name: str):
-        """Submit an application via DM conversation."""
-        with self.bot.session_scope() as session:
-            form = ApplicationForm.get(form_name, interaction.guild.id, session)
-            if not form:
-                await interaction.response.send_message(f"Form **{form_name}** not found.", ephemeral=True)
-                return
-            if not form.ReviewChannelId:
-                await interaction.response.send_message("This form isn't set up yet.", ephemeral=True)
-                return
-            existing = ApplicationSubmission.get_by_user_and_form(interaction.user.id, form.Id, session)
-            if existing:
-                await interaction.response.send_message(
-                    f"You have already applied for **{form.Name}**.", ephemeral=True
-                )
-                return
-            form_id = form.Id
-            name = form.Name
-            questions = [(q.Id, q.QuestionText) for q in form.questions]
-            review_channel_id = form.ReviewChannelId
-
-        await interaction.response.defer(ephemeral=True)
-
-        # Pre-flight: verify the review channel is actually reachable before
-        # starting the conversation, so the user isn't sent through the whole
-        # form only to fail at submission.
-        channel = self.bot.get_channel(review_channel_id)
-        if channel is None:
-            try:
-                await self.bot.fetch_channel(review_channel_id)
-            except (discord.NotFound, discord.Forbidden):
-                await interaction.followup.send(
-                    "This form's review channel is currently unavailable. Please try again later.",
-                    ephemeral=True,
-                )
-                return
-
-        conv = ApplicationSubmitConversation(
-            self.bot,
-            interaction.user,
-            interaction.guild,
-            form_id=form_id,
-            form_name=name,
-            questions=questions,
-        )
-        try:
-            await self.bot.convMan.init_conversation(conv)
-        except discord.Forbidden:
-            await interaction.followup.send(
-                "I couldn't send you a DM. Please enable DMs from server members and try again.",
-                ephemeral=True,
-            )
-            return
-        await interaction.followup.send("Check your DMs!", ephemeral=True)
-
     # -- Autocomplete helpers ------------------------------------------------
 
     async def _form_name_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         with self.bot.session_scope() as session:
             forms = ApplicationForm.get_all_by_guild(interaction.guild.id, session)
-            choices = []
-            for form in forms:
-                if current and current.lower() not in form.Name.lower():
-                    continue
-                choices.append(app_commands.Choice(name=form.Name[:100], value=form.Name))
-            return choices[:25]
-
-    async def _ready_form_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
-        with self.bot.session_scope() as session:
-            forms = ApplicationForm.get_ready_by_guild(interaction.guild.id, session)
             choices = []
             for form in forms:
                 if current and current.lower() not in form.Name.lower():

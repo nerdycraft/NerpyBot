@@ -127,28 +127,6 @@ class TestApplicationFormGetAllByGuild:
         assert results[0].Name == "G1"
 
 
-class TestApplicationFormGetReadyByGuild:
-    """Tests for ApplicationForm.get_ready_by_guild()."""
-
-    def test_only_returns_forms_with_review_channel(self, db_session):
-        db_session.add(ApplicationForm(GuildId=111, Name="Ready", ReviewChannelId=555))
-        db_session.add(ApplicationForm(GuildId=111, Name="NotReady"))
-        db_session.commit()
-
-        results = ApplicationForm.get_ready_by_guild(111, db_session)
-        assert len(results) == 1
-        assert results[0].Name == "Ready"
-
-    def test_excludes_other_guilds(self, db_session):
-        db_session.add(ApplicationForm(GuildId=111, Name="Mine", ReviewChannelId=555))
-        db_session.add(ApplicationForm(GuildId=222, Name="Theirs", ReviewChannelId=666))
-        db_session.commit()
-
-        results = ApplicationForm.get_ready_by_guild(111, db_session)
-        assert len(results) == 1
-        assert results[0].Name == "Mine"
-
-
 class TestApplicationFormDeleteByName:
     """Tests for ApplicationForm.delete_by_name()."""
 
