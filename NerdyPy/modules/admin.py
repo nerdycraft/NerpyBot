@@ -14,7 +14,7 @@ from utils.checks import is_admin_or_operator, require_operator
 from utils.cog import NerpyBotCog
 from utils.errors import NerpyInfraException, NerpyPermissionError
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
-from utils.strings import available_languages, get_localized_string
+from utils.strings import available_languages, get_guild_language, get_localized_string, get_string
 
 PROTECTED_MODULES = frozenset({"admin", "voicecontrol"})
 
@@ -76,39 +76,40 @@ class Admin(NerpyBotCog, Cog):
     async def _modrole_get(self, interaction: Interaction):
         """Show the currently configured bot-moderator role."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             entry = BotModeratorRole.get(interaction.guild.id, session)
             if entry is not None:
                 role = interaction.guild.get_role(entry.RoleId)
                 if role is not None:
-                    await interaction.response.send_message(f"Bot-moderator role: **{role.name}**", ephemeral=True)
-                else:
                     await interaction.response.send_message(
-                        "A bot-moderator role is configured but the role no longer exists."
-                        " Use `/admin modrole delete` to clear it.",
-                        ephemeral=True,
+                        get_string(lang, "admin.modrole.get_current", role=role.name), ephemeral=True
                     )
+                else:
+                    await interaction.response.send_message(get_string(lang, "admin.modrole.get_stale"), ephemeral=True)
             else:
-                await interaction.response.send_message(
-                    "No bot-moderator role configured. Falling back to permission-based checks.", ephemeral=True
-                )
+                await interaction.response.send_message(get_string(lang, "admin.modrole.get_none"), ephemeral=True)
 
     @modrole.command(name="set")
     async def _modrole_set(self, interaction: Interaction, role: Role):
         """Set the bot-moderator role for this server."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             entry = BotModeratorRole.get(interaction.guild.id, session)
             if entry is None:
                 entry = BotModeratorRole(GuildId=interaction.guild.id)
                 session.add(entry)
             entry.RoleId = role.id
-        await interaction.response.send_message(f"Bot-moderator role set to **{role.name}**.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "admin.modrole.set_success", role=role.name), ephemeral=True
+        )
 
     @modrole.command(name="delete")
     async def _modrole_del(self, interaction: Interaction):
         """Remove the bot-moderator role configuration."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             BotModeratorRole.delete(interaction.guild.id, session)
-        await interaction.response.send_message("Bot-moderator role removed.", ephemeral=True)
+        await interaction.response.send_message(get_string(lang, "admin.modrole.delete_success"), ephemeral=True)
 
     @botpermissions.command(name="check")
     async def _botpermissions_check(self, interaction: Interaction) -> None:
@@ -122,32 +123,29 @@ class Admin(NerpyBotCog, Cog):
     async def _botpermissions_subscribe(self, interaction: Interaction) -> None:
         """Get DM notifications about missing permissions on bot restart."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             existing = PermissionSubscriber.get(interaction.guild.id, interaction.user.id, session)
             if existing is not None:
                 await interaction.response.send_message(
-                    "You are already subscribed to permission notifications.", ephemeral=True
+                    get_string(lang, "admin.botpermissions.already_subscribed"), ephemeral=True
                 )
                 return
             session.add(PermissionSubscriber(GuildId=interaction.guild.id, UserId=interaction.user.id))
-        await interaction.response.send_message(
-            "Subscribed. You will receive a DM when the bot restarts with missing permissions in this server.",
-            ephemeral=True,
-        )
+        await interaction.response.send_message(get_string(lang, "admin.botpermissions.subscribed"), ephemeral=True)
 
     @botpermissions.command(name="unsubscribe")
     async def _botpermissions_unsubscribe(self, interaction: Interaction) -> None:
         """Stop receiving DM notifications about missing permissions."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             existing = PermissionSubscriber.get(interaction.guild.id, interaction.user.id, session)
             if existing is None:
                 await interaction.response.send_message(
-                    "You are not subscribed to permission notifications.", ephemeral=True
+                    get_string(lang, "admin.botpermissions.not_subscribed"), ephemeral=True
                 )
                 return
             PermissionSubscriber.delete(interaction.guild.id, interaction.user.id, session)
-        await interaction.response.send_message(
-            "Unsubscribed from permission notifications for this server.", ephemeral=True
-        )
+        await interaction.response.send_message(get_string(lang, "admin.botpermissions.unsubscribed"), ephemeral=True)
 
     @language.command(name="set")
     @app_commands.describe(language="Language code to set for this server")

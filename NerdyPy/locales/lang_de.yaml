@@ -25,6 +25,17 @@ admin:
     get_current: "Serversprache: **{language}**"
     get_default: "Keine Sprache konfiguriert. Standard ist Englisch."
     invalid: "Nicht unterstützte Sprache: `{language}`. Verfügbar: {available}"
+  modrole:
+    get_current: "Bot-Moderator-Rolle: **{role}**"
+    get_stale: "Eine Bot-Moderator-Rolle ist konfiguriert, aber die Rolle existiert nicht mehr. Verwende `/admin modrole delete` um sie zu entfernen."
+    get_none: "Keine Bot-Moderator-Rolle konfiguriert. Es werden berechtigungsbasierte Prüfungen verwendet."
+    set_success: "Bot-Moderator-Rolle auf **{role}** gesetzt."
+    delete_success: "Bot-Moderator-Rolle entfernt."
+  botpermissions:
+    already_subscribed: "Du hast Berechtigungsbenachrichtigungen bereits abonniert."
+    subscribed: "Abonniert. Du erhältst eine DM, wenn der Bot mit fehlenden Berechtigungen auf diesem Server neu startet."
+    not_subscribed: "Du hast Berechtigungsbenachrichtigungen nicht abonniert."
+    unsubscribed: "Berechtigungsbenachrichtigungen für diesen Server abbestellt."
 
 music:
   skip:
