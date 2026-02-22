@@ -10,12 +10,17 @@ from utils.cog import NerpyBotCog
 from utils.checks import is_role_below_bot
 from utils.helpers import error_context, notify_error, send_paginated
 from utils.permissions import validate_channel_permissions
+from utils.strings import get_guild_language, get_string
 
 
 @app_commands.default_permissions(manage_roles=True)
 @app_commands.guild_only()
 class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
     """cog for managing reaction-based role assignment"""
+
+    def _lang(self, guild_id: int) -> str:
+        with self.bot.session_scope() as session:
+            return get_guild_language(guild_id, session)
 
     async def _message_id_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         with self.bot.session_scope() as session:
@@ -144,12 +149,15 @@ class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
             channel, interaction.guild, "view_channel", "add_reactions", "manage_messages", "read_message_history"
         )
 
+        lang = self._lang(interaction.guild_id)
+
         try:
             discord_msg = await channel.fetch_message(msg_id)
         except (NotFound, Forbidden) as ex:
             self.bot.log.warning(f"{error_context(interaction)}: fetch_message({msg_id}) in #{channel.name}: {ex}")
             await interaction.response.send_message(
-                f"Could not find message `{msg_id}` in {channel.mention}.", ephemeral=True
+                get_string(lang, "reactionrole.add.message_not_found", message_id=msg_id, channel=channel.mention),
+                ephemeral=True,
             )
             return
 
@@ -167,7 +175,7 @@ class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
             existing = ReactionRoleEntry.get_by_message_and_emoji(rr_msg.Id, emoji, session)
             if existing is not None:
                 await interaction.response.send_message(
-                    f"Emoji {emoji} is already mapped on that message.", ephemeral=True
+                    get_string(lang, "reactionrole.add.already_mapped", emoji=emoji), ephemeral=True
                 )
                 return
 
@@ -184,7 +192,8 @@ class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
             self.bot.log.warning(f"{error_context(interaction)}: could not add reaction to message {msg_id}: {ex}")
 
         await interaction.response.send_message(
-            f"Mapped {emoji} to **{role.name}** on message `{msg_id}`.", ephemeral=True
+            get_string(lang, "reactionrole.add.success", emoji=emoji, role=role.name, message_id=msg_id),
+            ephemeral=True,
         )
 
     @app_commands.command(name="remove")
@@ -204,17 +213,18 @@ class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
         msg_id = int(message_id)
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             rr_msg = ReactionRoleMessage.get_by_message(msg_id, session)
             if rr_msg is None:
                 await interaction.response.send_message(
-                    "No reaction role config found for that message.", ephemeral=True
+                    get_string(lang, "reactionrole.remove.no_config"), ephemeral=True
                 )
                 return
 
             entry = ReactionRoleEntry.get_by_message_and_emoji(rr_msg.Id, emoji, session)
             if entry is None:
                 await interaction.response.send_message(
-                    f"No mapping for {emoji} found on that message.", ephemeral=True
+                    get_string(lang, "reactionrole.remove.no_mapping", emoji=emoji), ephemeral=True
                 )
                 return
 
@@ -227,16 +237,19 @@ class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
                 session.delete(rr_msg)
 
         await self._clear_reaction(interaction.guild, channel_id, msg_id, emoji)
-        await interaction.response.send_message(f"Removed mapping for {emoji}.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "reactionrole.remove.success", emoji=emoji), ephemeral=True
+        )
 
     @app_commands.command(name="list")
     @checks.has_permissions(manage_roles=True)
     async def _list(self, interaction: Interaction):
         """list all reaction role configurations for this server"""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             messages = ReactionRoleMessage.get_by_guild(interaction.guild.id, session)
             if not messages:
-                await interaction.response.send_message("No reaction roles configured.", ephemeral=True)
+                await interaction.response.send_message(get_string(lang, "reactionrole.list.empty"), ephemeral=True)
                 return
 
             msg = ""
@@ -250,10 +263,12 @@ class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
                         role_name = role.name if role else f"Unknown ({entry.RoleId})"
                         msg += f"> {entry.Emoji} \u2192 {role_name}\n"
                 else:
-                    msg += "> *(no mappings)*\n"
+                    msg += f"> {get_string(lang, 'reactionrole.list.no_mappings')}\n"
                 msg += "\n"
 
-        await send_paginated(interaction, msg, title="\U0001f3ad Reaction Roles", color=0x9B59B6, ephemeral=True)
+        await send_paginated(
+            interaction, msg, title=get_string(lang, "reactionrole.list.title"), color=0x9B59B6, ephemeral=True
+        )
 
     @app_commands.command(name="clear")
     @checks.has_permissions(manage_roles=True)
@@ -270,10 +285,11 @@ class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
         msg_id = int(message_id)
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             rr_msg = ReactionRoleMessage.get_by_message(msg_id, session)
             if rr_msg is None:
                 await interaction.response.send_message(
-                    "No reaction role config found for that message.", ephemeral=True
+                    get_string(lang, "reactionrole.remove.no_config"), ephemeral=True
                 )
                 return
 
@@ -285,7 +301,7 @@ class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
             await self._clear_reaction(interaction.guild, channel_id, msg_id, emoji)
 
         await interaction.response.send_message(
-            f"Cleared all reaction role mappings from message `{msg_id}`.", ephemeral=True
+            get_string(lang, "reactionrole.clear.success", message_id=msg_id), ephemeral=True
         )
 
 

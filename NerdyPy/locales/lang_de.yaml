@@ -70,6 +70,22 @@ rolemanage:
     forbidden: "Ich habe keine Berechtigung, **{role}** zu entfernen. Stelle sicher, dass ich die Berechtigung `Rollen verwalten` habe und meine höchste Rolle über dieser Rolle liegt."
     discord_error: "Discord-Fehler beim Entfernen der Rolle (HTTP {status}). Bitte versuche es erneut."
 
+reactionrole:
+  add:
+    success: "{emoji} wurde **{role}** auf Nachricht `{message_id}` zugeordnet."
+    message_not_found: "Nachricht `{message_id}` in {channel} nicht gefunden."
+    already_mapped: "Emoji {emoji} ist auf dieser Nachricht bereits zugeordnet."
+  remove:
+    success: "Zuordnung für {emoji} entfernt."
+    no_config: "Keine Reaktionsrollen-Konfiguration für diese Nachricht gefunden."
+    no_mapping: "Keine Zuordnung für {emoji} auf dieser Nachricht gefunden."
+  list:
+    title: "🎭 Reaktionsrollen"
+    empty: "Keine Reaktionsrollen konfiguriert."
+    no_mappings: "*(keine Zuordnungen)*"
+  clear:
+    success: "Alle Reaktionsrollen-Zuordnungen von Nachricht `{message_id}` entfernt."
+
 leavemsg:
   enable:
     success: "Abschiedsnachrichten in {channel} aktiviert."

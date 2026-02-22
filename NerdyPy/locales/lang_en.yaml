@@ -70,6 +70,22 @@ rolemanage:
     forbidden: "I don't have permission to remove **{role}**. Make sure I have the `Manage Roles` permission and my highest role is above that role."
     discord_error: "Discord error while removing role (HTTP {status}). Please try again."
 
+reactionrole:
+  add:
+    success: "Mapped {emoji} to **{role}** on message `{message_id}`."
+    message_not_found: "Could not find message `{message_id}` in {channel}."
+    already_mapped: "Emoji {emoji} is already mapped on that message."
+  remove:
+    success: "Removed mapping for {emoji}."
+    no_config: "No reaction role config found for that message."
+    no_mapping: "No mapping for {emoji} found on that message."
+  list:
+    title: "🎭 Reaction Roles"
+    empty: "No reaction roles configured."
+    no_mappings: "*(no mappings)*"
+  clear:
+    success: "Cleared all reaction role mappings from message `{message_id}`."
+
 leavemsg:
   enable:
     success: "Leave messages enabled in {channel}."
