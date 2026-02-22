@@ -6,8 +6,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from models.admin import GuildLanguageConfig
 from models.tagging import Tag, TagType, TagTypeConverter
+from modules.tagging import Tagging
 from utils.errors import NerpyValidationError
+from utils.strings import load_strings
 
 
 class TestTagTypeConverter:
@@ -158,3 +161,143 @@ class TestVolumeValidation:
 
         retrieved = Tag.get("test", 123, db_session)
         assert retrieved.Volume == 200
+
+
+# ---------------------------------------------------------------------------
+# Localization tests for tagging commands
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _load_locale_strings():
+    load_strings()
+
+
+@pytest.fixture
+def tagging_cog(mock_bot):
+    cog = Tagging.__new__(Tagging)
+    cog.bot = mock_bot
+    cog.queue = {}
+    cog.audio = MagicMock()
+    cog.audio.stop = MagicMock()
+    return cog
+
+
+@pytest.fixture
+def tagging_interaction(mock_interaction):
+    mock_interaction.guild.id = 987654321
+    mock_interaction.guild_id = 987654321
+    return mock_interaction
+
+
+def _set_german(db_session):
+    db_session.add(GuildLanguageConfig(GuildId=987654321, Language="de"))
+    db_session.commit()
+
+
+class TestTagSkipLocale:
+    async def test_skip_english(self, _load_locale_strings, tagging_cog, tagging_interaction):
+        await Tagging._skip_audio.callback(tagging_cog, tagging_interaction)
+
+        msg = tagging_interaction.response.send_message.call_args[0][0]
+        assert "Skipped" in msg
+
+    async def test_skip_german(self, _load_locale_strings, tagging_cog, tagging_interaction, db_session):
+        _set_german(db_session)
+        await Tagging._skip_audio.callback(tagging_cog, tagging_interaction)
+
+        msg = tagging_interaction.response.send_message.call_args[0][0]
+        assert "Übersprungen" in msg
+
+
+class TestTagQueueDropLocale:
+    async def test_drop_english(self, _load_locale_strings, tagging_cog, tagging_interaction):
+        await Tagging._drop_queue.callback(tagging_cog, tagging_interaction)
+
+        msg = tagging_interaction.response.send_message.call_args[0][0]
+        assert "Queue dropped" in msg
+
+    async def test_drop_german(self, _load_locale_strings, tagging_cog, tagging_interaction, db_session):
+        _set_german(db_session)
+        await Tagging._drop_queue.callback(tagging_cog, tagging_interaction)
+
+        msg = tagging_interaction.response.send_message.call_args[0][0]
+        assert "Warteschlange" in msg
+
+
+class TestTagCreateLocale:
+    async def test_create_already_exists(self, _load_locale_strings, tagging_cog, tagging_interaction, monkeypatch):
+        monkeypatch.setattr("modules.tagging.Tag.exists", lambda name, gid, sess: True)
+
+        await Tagging._tag_create.callback(tagging_cog, tagging_interaction, "test", "text", "hello")
+
+        msg = tagging_interaction.response.send_message.call_args[0][0]
+        assert "already exists" in msg
+
+    async def test_create_already_exists_german(
+        self, _load_locale_strings, tagging_cog, tagging_interaction, db_session, monkeypatch
+    ):
+        _set_german(db_session)
+        monkeypatch.setattr("modules.tagging.Tag.exists", lambda name, gid, sess: True)
+
+        await Tagging._tag_create.callback(tagging_cog, tagging_interaction, "test", "text", "hello")
+
+        msg = tagging_interaction.response.send_message.call_args[0][0]
+        assert "existiert bereits" in msg
+
+
+class TestTagVolumeLocale:
+    async def test_volume_out_of_range(self, _load_locale_strings, tagging_cog, tagging_interaction):
+        await Tagging._tag_volume.callback(tagging_cog, tagging_interaction, "test", 999)
+
+        msg = tagging_interaction.response.send_message.call_args[0][0]
+        assert "between 0 and 200" in msg
+
+    async def test_volume_out_of_range_german(self, _load_locale_strings, tagging_cog, tagging_interaction, db_session):
+        _set_german(db_session)
+        await Tagging._tag_volume.callback(tagging_cog, tagging_interaction, "test", 999)
+
+        msg = tagging_interaction.response.send_message.call_args[0][0]
+        assert "zwischen 0 und 200" in msg
+
+
+class TestTagDeleteLocale:
+    async def test_delete_not_found(self, _load_locale_strings, tagging_cog, tagging_interaction, monkeypatch):
+        monkeypatch.setattr("modules.tagging.Tag.exists", lambda name, gid, sess: False)
+
+        await Tagging._tag_delete.callback(tagging_cog, tagging_interaction, "missing")
+
+        msg = tagging_interaction.response.send_message.call_args[0][0]
+        assert "doesn't exist" in msg
+
+    async def test_delete_not_found_german(
+        self, _load_locale_strings, tagging_cog, tagging_interaction, db_session, monkeypatch
+    ):
+        _set_german(db_session)
+        monkeypatch.setattr("modules.tagging.Tag.exists", lambda name, gid, sess: False)
+
+        await Tagging._tag_delete.callback(tagging_cog, tagging_interaction, "missing")
+
+        msg = tagging_interaction.response.send_message.call_args[0][0]
+        assert "existiert nicht" in msg
+
+
+class TestTagListLocale:
+    async def test_list_empty(self, _load_locale_strings, tagging_cog, tagging_interaction, monkeypatch):
+        monkeypatch.setattr("modules.tagging.Tag.get_all_from_guild", lambda gid, sess: [])
+
+        await Tagging._tag_list.callback(tagging_cog, tagging_interaction)
+
+        msg = tagging_interaction.response.send_message.call_args[0][0]
+        assert "No tags found" in msg
+
+    async def test_list_empty_german(
+        self, _load_locale_strings, tagging_cog, tagging_interaction, db_session, monkeypatch
+    ):
+        _set_german(db_session)
+        monkeypatch.setattr("modules.tagging.Tag.get_all_from_guild", lambda gid, sess: [])
+
+        await Tagging._tag_list.callback(tagging_cog, tagging_interaction)
+
+        msg = tagging_interaction.response.send_message.call_args[0][0]
+        assert "Keine Tags gefunden" in msg

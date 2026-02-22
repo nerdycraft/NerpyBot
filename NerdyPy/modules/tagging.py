@@ -15,6 +15,7 @@ from utils.cog import NerpyBotCog
 from utils.download import download
 from utils.errors import NerpyNotFoundError
 from utils.helpers import error_context, send_paginated
+from utils.strings import get_guild_language, get_string
 
 
 @app_commands.guild_only()
@@ -28,6 +29,10 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
         super().__init__(bot)
         self.queue = {}
         self.audio = self.bot.audio
+
+    def _lang(self, guild_id: int) -> str:
+        with self.bot.session_scope() as session:
+            return get_guild_language(guild_id, session)
 
     async def _tag_name_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         with self.bot.session_scope() as session:
@@ -48,7 +53,8 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     async def _skip_audio(self, interaction: Interaction):
         """skip current track"""
         self.audio.stop(interaction.guild.id)
-        await interaction.response.send_message("Skipped.", ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+        await interaction.response.send_message(get_string(lang, "tagging.skip.success"), ephemeral=True)
 
     @queue_group.command(name="list")
     async def _list_queue(self, interaction: Interaction):
@@ -60,7 +66,8 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     async def _drop_queue(self, interaction: Interaction):
         """drop the playlist entirely"""
         self._stop_and_clear_queue(interaction.guild.id)
-        await interaction.response.send_message("Queue dropped.", ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+        await interaction.response.send_message(get_string(lang, "tagging.queue.drop_success"), ephemeral=True)
 
     @app_commands.command(name="create")
     @app_commands.rename(tag_type="type")
@@ -69,8 +76,11 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     ) -> None:
         """Create Tags."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             if Tag.exists(name, interaction.guild.id, session):
-                await interaction.response.send_message(f'tag "{name}" already exists!', ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "tagging.create.already_exists", name=name), ephemeral=True
+                )
                 return
 
         await interaction.response.defer(ephemeral=True)
@@ -94,15 +104,18 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
             self._add_tag_entries(session, _tag, content)
 
         self.bot.log.info(f'{error_context(interaction)}: tag "{name}" created')
-        await interaction.followup.send(f'tag "{name}" created!', ephemeral=True)
+        await interaction.followup.send(get_string(lang, "tagging.create.success", name=name), ephemeral=True)
 
     @app_commands.command(name="add")
     @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_add(self, interaction: Interaction, name: str, content: str):
         """add an entry to an existing tag"""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             if not Tag.exists(name, interaction.guild.id, session):
-                await interaction.response.send_message(f'tag "{name}" doesn\'t exists!', ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "tagging.not_found", name=name), ephemeral=True
+                )
                 return
 
         await interaction.response.defer(ephemeral=True)
@@ -111,25 +124,30 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
             self._add_tag_entries(session, _tag, content)
 
         self.bot.log.info(f'{error_context(interaction)}: added entry to tag "{name}"')
-        await interaction.followup.send(f'Entry added to tag "{name}"!', ephemeral=True)
+        await interaction.followup.send(get_string(lang, "tagging.add.success", name=name), ephemeral=True)
 
     @app_commands.command(name="volume")
     @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_volume(self, interaction: Interaction, name: str, vol: int):
         """adjust the volume of a sound tag"""
+        lang = self._lang(interaction.guild_id)
         if not 0 <= vol <= 200:
-            await interaction.response.send_message("Volume must be between 0 and 200.", ephemeral=True)
+            await interaction.response.send_message(get_string(lang, "tagging.volume.out_of_range"), ephemeral=True)
             return
         self.bot.log.debug(f'{error_context(interaction)}: set volume of "{name}" to {vol}')
         with self.bot.session_scope() as session:
             if not Tag.exists(name, interaction.guild.id, session):
-                await interaction.response.send_message(f'tag "{name}" doesn\'t exist!', ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "tagging.not_found", name=name), ephemeral=True
+                )
                 return
 
         with self.bot.session_scope() as session:
             _tag = Tag.get(name, interaction.guild.id, session)
             _tag.Volume = vol
-        await interaction.response.send_message(f'changed volume of "{name}" to {vol}.', ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "tagging.volume.success", name=name, volume=vol), ephemeral=True
+        )
 
     @app_commands.command(name="delete")
     @app_commands.autocomplete(name=_tag_name_autocomplete)
@@ -137,12 +155,15 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
         """delete a tag?"""
         self.bot.log.info(f'{error_context(interaction)}: deleting tag "{name}"')
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             if not Tag.exists(name, interaction.guild.id, session):
-                await interaction.response.send_message(f'tag "{name}" doesn\'t exist!', ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "tagging.not_found", name=name), ephemeral=True
+                )
                 return
 
             Tag.delete(name, interaction.guild.id, session)
-        await interaction.response.send_message(f'tag "{name}" deleted!', ephemeral=True)
+        await interaction.response.send_message(get_string(lang, "tagging.delete.success", name=name), ephemeral=True)
 
     _TAG_TYPE_EMOJI = {
         TagType.sound.value: "\U0001f50a",
@@ -154,10 +175,11 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     async def _tag_list(self, interaction: Interaction):
         """a list of all available tags"""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             tags = Tag.get_all_from_guild(interaction.guild.id, session)
 
             if not tags:
-                await interaction.response.send_message("No tags found.", ephemeral=True)
+                await interaction.response.send_message(get_string(lang, "tagging.list.empty"), ephemeral=True)
                 return
 
             msg = ""
@@ -170,29 +192,31 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
                     msg += f"**{last_header}**\n"
                 emoji = self._TAG_TYPE_EMOJI.get(t.Type, "\u2753")
                 count = t.entries.count()
-                plural = "entry" if count == 1 else "entries"
-                msg += f"> {emoji} `{t.Name}` \u2014 {count} {plural}\n"
+                count_key = "tagging.list.entry_count_one" if count == 1 else "tagging.list.entry_count_other"
+                count_str = get_string(lang, count_key, count=count)
+                msg += f"> {emoji} `{t.Name}` \u2014 {count_str}\n"
 
-            await send_paginated(interaction, msg, title="\U0001f3f7\ufe0f Tags", color=0x2ECC71)
+            await send_paginated(interaction, msg, title=get_string(lang, "tagging.list.title"), color=0x2ECC71)
 
     @app_commands.command(name="info")
     @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_info(self, interaction: Interaction, name: str):
         """information about the tag"""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             t = Tag.get(name, interaction.guild.id, session)
             emoji = self._TAG_TYPE_EMOJI.get(t.Type, "\u2753")
             tag_type = TagType(t.Type).name.capitalize()
             entries = t.entries.count()
 
             emb = Embed(title=f"\U0001f3f7\ufe0f {t.Name}", color=Color(0x2ECC71))
-            emb.add_field(name="Author", value=t.Author)
-            emb.add_field(name="Type", value=f"{emoji} {tag_type}")
-            emb.add_field(name="Created", value=t.CreateDate.strftime("%Y-%m-%d %H:%M"))
-            emb.add_field(name="Hits", value=str(t.Count))
-            emb.add_field(name="Entries", value=str(entries))
+            emb.add_field(name=get_string(lang, "tagging.info.author"), value=t.Author)
+            emb.add_field(name=get_string(lang, "tagging.info.type"), value=f"{emoji} {tag_type}")
+            emb.add_field(name=get_string(lang, "tagging.info.created"), value=t.CreateDate.strftime("%Y-%m-%d %H:%M"))
+            emb.add_field(name=get_string(lang, "tagging.info.hits"), value=str(t.Count))
+            emb.add_field(name=get_string(lang, "tagging.info.entries"), value=str(entries))
             if t.Type == TagType.sound.value:
-                emb.add_field(name="Volume", value=f"{t.Volume}%")
+                emb.add_field(name=get_string(lang, "tagging.info.volume"), value=f"{t.Volume}%")
 
             await interaction.response.send_message(embed=emb)
 
@@ -201,27 +225,33 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     async def _tag_raw(self, interaction: Interaction, name: str):
         """raw tag data"""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             t = Tag.get(name, interaction.guild.id, session)
             msg = ""
             for i, entry in enumerate(t.entries.all(), start=1):
                 if entry.TextContent:
                     msg += f"`{i}` {entry.TextContent}\n"
                 else:
-                    msg += f"`{i}` *(binary audio data)*\n"
+                    msg += f"`{i}` {get_string(lang, 'tagging.raw.binary_data')}\n"
 
-            await send_paginated(interaction, msg, title=f"\U0001f3f7\ufe0f {t.Name} \u2014 Raw", color=0x2ECC71)
+            await send_paginated(
+                interaction, msg, title=get_string(lang, "tagging.raw.title", name=t.Name), color=0x2ECC71
+            )
 
     async def _send_to_queue(self, interaction: Interaction, tag_name):
         self.bot.log.info(f'{error_context(interaction)}: requesting tag "{tag_name}"')
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             _tag = Tag.get(tag_name, interaction.guild.id, session)
             if _tag is None:
-                raise NerpyNotFoundError(f'I searched everywhere, but could not find a Tag called "{tag_name}"!')
+                raise NerpyNotFoundError(get_string(lang, "tagging.get.not_found", name=tag_name))
 
             if TagType(_tag.Type) is TagType.sound:
                 song = QueuedSong(interaction.user.voice.channel, self._fetch, tag_name, tag_name)
                 await self.audio.play(interaction.guild.id, song)
-                await interaction.response.send_message(f"Playing **{tag_name}**", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "tagging.get.playing", name=tag_name), ephemeral=True
+                )
             else:
                 random_entry = _tag.get_random_entry()
                 await interaction.response.send_message(random_entry.TextContent)
