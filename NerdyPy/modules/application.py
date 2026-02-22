@@ -354,6 +354,55 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         embed = Embed(title="Application Templates", description="\n".join(lines), color=0x5865F2)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    # -- /application template create ----------------------------------------
+
+    @template_group.command(name="create")
+    @app_commands.describe(
+        name="Name for the new template",
+        approval_message="Default approval message for forms created from this template (optional)",
+        denial_message="Default denial message for forms created from this template (optional)",
+    )
+    async def _template_create(
+        self,
+        interaction: Interaction,
+        name: str,
+        approval_message: Optional[str] = None,
+        denial_message: Optional[str] = None,
+    ):
+        """Create a new guild template via DM conversation."""
+        if not self._has_manage_permission(interaction):
+            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            return
+
+        with self.bot.session_scope() as session:
+            existing = ApplicationTemplate.get_by_name(name, interaction.guild.id, session)
+            if existing and not existing.IsBuiltIn:
+                await interaction.response.send_message(
+                    f"A guild template named **{name}** already exists.", ephemeral=True
+                )
+                return
+
+        from modules.conversations.application import ApplicationTemplateCreateConversation
+
+        conv = ApplicationTemplateCreateConversation(
+            self.bot,
+            interaction.user,
+            interaction.guild,
+            template_name=name,
+            approval_message=approval_message,
+            denial_message=denial_message,
+        )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            await self.bot.convMan.init_conversation(conv)
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "I couldn't send you a DM. Please enable DMs from server members and try again.",
+                ephemeral=True,
+            )
+            return
+        await interaction.followup.send("Check your DMs!", ephemeral=True)
+
     # -- /application template use -------------------------------------------
 
     @template_group.command(name="use")

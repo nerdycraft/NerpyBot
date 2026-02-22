@@ -15,6 +15,7 @@ from modules.conversations.application import (
     ApplicationCreateConversation,
     ApplicationEditConversation,
     ApplicationSubmitConversation,
+    ApplicationTemplateCreateConversation,
     CreateState,
     EditState,
     SubmitState,
@@ -593,6 +594,59 @@ class TestApplicationSubmitConversation:
 
         # Guild owner was notified
         mock_owner.send.assert_called_once()
+
+
+class TestApplicationTemplateCreateConversation:
+    """ApplicationTemplateCreateConversation saves questions to ApplicationTemplate."""
+
+    @pytest.fixture
+    def conv(self, mock_bot, mock_user, mock_guild):
+        _make_send_return(mock_user)
+        return ApplicationTemplateCreateConversation(
+            mock_bot, mock_user, mock_guild, template_name="MyTemplate",
+        )
+
+    @pytest.mark.asyncio
+    async def test_initial_state_sends_dm(self, conv, mock_user):
+        await conv.repost_state()
+        mock_user.send.assert_called_once()
+        embed = mock_user.send.call_args.kwargs.get("embed") or mock_user.send.call_args[1]["embed"]
+        assert "MyTemplate" in embed.title
+
+    @pytest.mark.asyncio
+    async def test_saves_template_with_questions(self, conv, mock_user, db_session):
+        await conv.repost_state()
+        await conv.on_message("Question 1")
+        await conv.on_message("Question 2")
+        await conv.on_react(CANCEL_EMOJI)  # finish
+
+        from models.application import ApplicationTemplate
+        tpl = ApplicationTemplate.get_by_name("MyTemplate", conv.guild.id, db_session)
+        assert tpl is not None
+        assert len(tpl.questions) == 2
+        assert tpl.questions[0].QuestionText == "Question 1"
+
+    @pytest.mark.asyncio
+    async def test_stores_approval_denial_messages(self, mock_bot, mock_user, mock_guild, db_session):
+        _make_send_return(mock_user)
+        conv = ApplicationTemplateCreateConversation(
+            mock_bot, mock_user, mock_guild, template_name="T2",
+            approval_message="Approved!", denial_message="Denied!",
+        )
+        await conv.repost_state()
+        await conv.on_message("Q1")
+        await conv.on_react(CANCEL_EMOJI)
+
+        from models.application import ApplicationTemplate
+        tpl = ApplicationTemplate.get_by_name("T2", mock_guild.id, db_session)
+        assert tpl.ApprovalMessage == "Approved!"
+        assert tpl.DenialMessage == "Denied!"
+
+    @pytest.mark.asyncio
+    async def test_cancel_with_no_questions_closes(self, conv):
+        await conv.repost_state()
+        await conv.on_react(CANCEL_EMOJI)
+        assert not conv.isActive
 
 
 class TestSubmitConversationRoleMentions:

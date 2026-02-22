@@ -19,6 +19,8 @@ from models.application import (
     ApplicationGuildConfig,
     ApplicationQuestion,
     ApplicationSubmission,
+    ApplicationTemplate,
+    ApplicationTemplateQuestion,
     SubmissionStatus,
 )
 from modules.views.application import ApplicationReviewView, build_review_embed
@@ -52,6 +54,12 @@ class SubmitState(Enum):
     CONFIRM = "confirm"
     SUBMIT = "submit"
     CANCELLED = "cancelled"
+
+
+class TemplateCreateState(Enum):
+    INIT = "init"
+    COLLECT = "collect"
+    DONE = "done"
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +178,84 @@ class ApplicationCreateConversation(Conversation):
 
         emb = _questions_embed(
             f"Form created: {self.form_name}",
+            self.questions,
+            description=f"Added {len(self.questions)} question(s).",
+        )
+        await self.send_ns(emb)
+        await self.close()
+
+
+class ApplicationTemplateCreateConversation(Conversation):
+    """Walk an admin through creating a guild template by collecting questions one by one."""
+
+    def __init__(
+        self,
+        bot,
+        user,
+        guild,
+        template_name: str,
+        approval_message: str | None = None,
+        denial_message: str | None = None,
+    ):
+        self.template_name = template_name
+        self.approval_message = approval_message
+        self.denial_message = denial_message
+        self.questions: list[str] = []
+        super().__init__(bot, user, guild)
+
+    def create_state_handler(self):
+        return {
+            TemplateCreateState.INIT: self.state_init,
+            TemplateCreateState.COLLECT: self.state_collect,
+            TemplateCreateState.DONE: self.state_done,
+        }
+
+    async def state_init(self):
+        emb = Embed(
+            title=f"Creating template: {self.template_name}",
+            description="Type your first question, or react " + CANCEL_EMOJI + " to finish.",
+        )
+        await self.send_both(
+            emb, TemplateCreateState.COLLECT, self._handle_question, {CANCEL_EMOJI: TemplateCreateState.DONE}
+        )
+
+    async def _handle_question(self, message):
+        self.questions.append(message)
+        return True
+
+    async def state_collect(self):
+        count = len(self.questions)
+        emb = Embed(
+            title=f"Creating template: {self.template_name}",
+            description=f"Question {count} added. Type the next question, or react " + CANCEL_EMOJI + " to finish.",
+        )
+        await self.send_both(
+            emb, TemplateCreateState.COLLECT, self._handle_question, {CANCEL_EMOJI: TemplateCreateState.DONE}
+        )
+
+    async def state_done(self):
+        if not self.questions:
+            await self.send_ns(
+                Embed(title="Template creation cancelled", description="You need at least one question.")
+            )
+            await self.close()
+            return
+
+        with self.bot.session_scope() as session:
+            tpl = ApplicationTemplate(
+                GuildId=self.guild.id,
+                Name=self.template_name,
+                IsBuiltIn=False,
+                ApprovalMessage=self.approval_message,
+                DenialMessage=self.denial_message,
+            )
+            session.add(tpl)
+            session.flush()
+            for i, q_text in enumerate(self.questions, start=1):
+                session.add(ApplicationTemplateQuestion(TemplateId=tpl.Id, QuestionText=q_text, SortOrder=i))
+
+        emb = _questions_embed(
+            f"Template created: {self.template_name}",
             self.questions,
             description=f"Added {len(self.questions)} question(s).",
         )
