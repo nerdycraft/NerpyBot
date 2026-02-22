@@ -86,30 +86,15 @@ class TestApplicationCreateConversation:
         assert conv.currentState == CreateState.COLLECT
 
     @pytest.mark.asyncio
-    async def test_cancel_reaction_transitions_to_done(self, conv, mock_user):
-        """Reacting ❌ transitions to DONE and closes."""
+    async def test_cancel_reaction_transitions_to_cancel_state(self, conv, mock_user):
+        """Reacting ❌ transitions to CANCEL and closes."""
         await conv.repost_state()  # INIT
         mock_user.send.reset_mock()
         _make_send_return(mock_user)
 
-        # React ❌ — but no questions collected, so it shows error and closes
+        # React ❌ — transitions to CANCEL and closes
         await conv.on_react(CANCEL_EMOJI)
 
-        assert conv.isActive is False
-
-    @pytest.mark.asyncio
-    async def test_no_questions_shows_error(self, conv, mock_user):
-        """Reacting ❌ with zero questions sends error message and closes."""
-        await conv.repost_state()  # INIT
-        mock_user.send.reset_mock()
-        _make_send_return(mock_user)
-
-        await conv.on_react(CANCEL_EMOJI)
-
-        # Should have sent "at least one question" error via embed
-        calls = mock_user.send.call_args_list
-        embeds = [c.kwargs.get("embed") for c in calls if c.kwargs.get("embed") is not None]
-        assert any("at least one question" in (e.description or "") for e in embeds)
         assert conv.isActive is False
 
     @pytest.mark.asyncio
@@ -123,9 +108,14 @@ class TestApplicationCreateConversation:
         _make_send_return(mock_user)
         await conv.on_message("Question two?")
 
-        # Finish
+        # Go to review
         _make_send_return(mock_user)
-        await conv.on_react(CANCEL_EMOJI)
+        await conv.on_react(CONFIRM_EMOJI)
+        assert conv.currentState == CreateState.REVIEW
+
+        # Finish (save)
+        _make_send_return(mock_user)
+        await conv.on_react(CONFIRM_EMOJI)
 
         assert conv.isActive is False
 
@@ -158,7 +148,9 @@ class TestApplicationCreateConversation:
         _make_send_return(mock_user)
         await conv.on_message("Question?")
         _make_send_return(mock_user)
-        await conv.on_react(CANCEL_EMOJI)
+        await conv.on_react(CONFIRM_EMOJI)  # review
+        _make_send_return(mock_user)
+        await conv.on_react(CONFIRM_EMOJI)  # save
 
         form = db_session.query(ApplicationForm).filter(ApplicationForm.Name == "Chan Form").first()
         assert form is not None
@@ -183,7 +175,9 @@ class TestApplicationCreateConversation:
         _make_send_return(mock_user)
         await conv.on_message("Question?")
         _make_send_return(mock_user)
-        await conv.on_react(CANCEL_EMOJI)
+        await conv.on_react(CONFIRM_EMOJI)  # review
+        _make_send_return(mock_user)
+        await conv.on_react(CONFIRM_EMOJI)  # save
 
         form = db_session.query(ApplicationForm).filter(ApplicationForm.Name == "Settings Form").first()
         assert form.ReviewChannelId == 55
@@ -209,7 +203,9 @@ class TestApplicationCreateConversation:
         _make_send_return(mock_user)
         await conv.on_message("Question?")
         _make_send_return(mock_user)
-        await conv.on_react(CANCEL_EMOJI)
+        await conv.on_react(CONFIRM_EMOJI)  # review
+        _make_send_return(mock_user)
+        await conv.on_react(CONFIRM_EMOJI)  # save
 
         form = db_session.query(ApplicationForm).filter(ApplicationForm.Name == "Apply Form").first()
         assert form is not None
@@ -779,6 +775,87 @@ class TestApplicationTemplateCreateConversation:
         await conv.repost_state()
         await conv.on_react(CANCEL_EMOJI)
         assert not conv.isActive
+
+
+class TestApplicationCreateConversationReview:
+    """Back button and 3-button final review in admin form creation."""
+
+    @pytest.fixture
+    def conv(self, mock_bot, mock_user, mock_guild):
+        _make_send_return(mock_user)
+        return ApplicationCreateConversation(mock_bot, mock_user, mock_guild, "MyForm", review_channel_id=123)
+
+    @pytest.mark.asyncio
+    async def test_confirm_emoji_during_collect_goes_to_review(self, conv):
+        await conv.repost_state()  # INIT
+        await conv.on_message("Q1")  # COLLECT
+        await conv.on_react(CONFIRM_EMOJI)
+        assert conv.currentState == CreateState.REVIEW
+
+    @pytest.mark.asyncio
+    async def test_back_removes_last_question(self, conv):
+        await conv.repost_state()
+        await conv.on_message("Q1")
+        await conv.on_message("Q2")
+        assert len(conv.questions) == 2
+        await conv.on_react(BACK_EMOJI)
+        assert len(conv.questions) == 1
+        assert conv.questions[0] == "Q1"
+        assert conv.currentState == CreateState.COLLECT
+
+    @pytest.mark.asyncio
+    async def test_back_not_available_on_first_question(self, conv):
+        """INIT state (no questions yet) should not offer ⬅️."""
+        await conv.repost_state()
+        sent = conv.user.send.return_value
+        reaction_calls = [str(call.args[0]) for call in sent.add_reaction.call_args_list]
+        assert BACK_EMOJI not in reaction_calls
+
+    @pytest.mark.asyncio
+    async def test_review_lists_all_questions(self, conv):
+        conv.questions = ["Q1", "Q2"]
+        conv.currentState = CreateState.REVIEW
+        await conv.repost_state()
+        embed = conv.user.send.call_args.kwargs.get("embed") or conv.user.send.call_args[1]["embed"]
+        assert "Q1" in embed.description
+        assert "Q2" in embed.description
+
+    @pytest.mark.asyncio
+    async def test_review_edit_goes_to_edit_q_select(self, conv):
+        conv.questions = ["Q1"]
+        conv.currentState = CreateState.REVIEW
+        await conv.repost_state()
+        await conv.on_react(EDIT_EMOJI)
+        assert conv.currentState == CreateState.EDIT_Q_SELECT
+
+    @pytest.mark.asyncio
+    async def test_review_cancel_does_not_save(self, conv, db_session):
+        conv.questions = ["Q1"]
+        conv.currentState = CreateState.REVIEW
+        await conv.repost_state()
+        await conv.on_react(CANCEL_EMOJI)
+        assert not conv.isActive
+        from models.application import ApplicationForm
+
+        assert ApplicationForm.get("MyForm", conv.guild.id, db_session) is None
+
+    @pytest.mark.asyncio
+    async def test_edit_q_select_valid_number_goes_to_edit_q(self, conv):
+        conv.questions = ["Q1", "Q2"]
+        conv.currentState = CreateState.EDIT_Q_SELECT
+        await conv.repost_state()
+        await conv.on_message("1")
+        assert conv.currentState == CreateState.EDIT_Q
+
+    @pytest.mark.asyncio
+    async def test_edit_q_replaces_question_and_returns_to_review(self, conv):
+        conv.questions = ["OldQ"]
+        conv._edit_q_index = 0
+        conv.currentState = CreateState.EDIT_Q
+        await conv.repost_state()
+        await conv.on_message("NewQ")
+        assert conv.questions[0] == "NewQ"
+        assert conv.currentState == CreateState.REVIEW
 
 
 class TestSubmitConversationRoleMentions:

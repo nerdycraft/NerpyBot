@@ -35,7 +35,12 @@ from utils.conversation import Conversation
 class CreateState(Enum):
     INIT = "init"
     COLLECT = "collect"
+    BACK = "back"
+    REVIEW = "review"
+    EDIT_Q_SELECT = "edit_q_select"
+    EDIT_Q = "edit_q"
     DONE = "done"
+    CANCEL = "cancel"
 
 
 class EditState(Enum):
@@ -119,21 +124,28 @@ class ApplicationCreateConversation(Conversation):
         self.approval_message = approval_message
         self.denial_message = denial_message
         self.questions: list[str] = []
+        self._edit_q_index: int = 0
         super().__init__(bot, user, guild)
 
     def create_state_handler(self):
         return {
             CreateState.INIT: self.state_init,
             CreateState.COLLECT: self.state_collect,
+            CreateState.BACK: self.state_back,
+            CreateState.REVIEW: self.state_review,
+            CreateState.EDIT_Q_SELECT: self.state_edit_q_select,
+            CreateState.EDIT_Q: self.state_edit_q,
             CreateState.DONE: self.state_done,
+            CreateState.CANCEL: self.state_cancel,
         }
 
     async def state_init(self):
+        # No questions yet — only cancel available (no back)
         emb = Embed(
             title=f"Creating form: {self.form_name}",
-            description="Type your first question, or react " + CANCEL_EMOJI + " to finish.",
+            description=f"Type your first question, or react {CANCEL_EMOJI} to cancel.",
         )
-        await self.send_both(emb, CreateState.COLLECT, self._handle_question, {CANCEL_EMOJI: CreateState.DONE})
+        await self.send_both(emb, CreateState.COLLECT, self._handle_question, {CANCEL_EMOJI: CreateState.CANCEL})
 
     async def _handle_question(self, message):
         self.questions.append(message)
@@ -141,19 +153,67 @@ class ApplicationCreateConversation(Conversation):
 
     async def state_collect(self):
         count = len(self.questions)
+        reactions = {CONFIRM_EMOJI: CreateState.REVIEW, CANCEL_EMOJI: CreateState.CANCEL}
+        if count > 0:
+            reactions[BACK_EMOJI] = CreateState.BACK
         emb = Embed(
             title=f"Creating form: {self.form_name}",
-            description=f"Question {count} added. Type the next question, or react " + CANCEL_EMOJI + " to finish.",
+            description=(f"Question {count} added. Type the next question, or react {CONFIRM_EMOJI} to finish."),
         )
-        await self.send_both(emb, CreateState.COLLECT, self._handle_question, {CANCEL_EMOJI: CreateState.DONE})
+        await self.send_both(emb, CreateState.COLLECT, self._handle_question, reactions)
+
+    async def state_back(self):
+        if self.questions:
+            self.questions.pop()
+        self.currentState = CreateState.COLLECT
+        await self.state_collect()
+
+    async def state_review(self):
+        emb = _questions_embed(
+            f"Review: {self.form_name}",
+            self.questions,
+        )
+        emb.set_footer(text=f"{CONFIRM_EMOJI} save  |  {EDIT_EMOJI} edit a question  |  {CANCEL_EMOJI} cancel")
+        await self.send_react(
+            emb,
+            {
+                CONFIRM_EMOJI: CreateState.DONE,
+                EDIT_EMOJI: CreateState.EDIT_Q_SELECT,
+                CANCEL_EMOJI: CreateState.CANCEL,
+            },
+        )
+
+    async def state_edit_q_select(self):
+        total = len(self.questions)
+        emb = Embed(title="Edit a question", description=f"Which question number (1–{total})?")
+        await self.send_msg(emb, CreateState.EDIT_Q_SELECT, self._handle_edit_q_select)
+
+    async def _handle_edit_q_select(self, message):
+        try:
+            num = int(message)
+        except ValueError:
+            await self.send_ns(Embed(title="Invalid input", description="Enter a number."))
+            return False
+        if num < 1 or num > len(self.questions):
+            await self.send_ns(Embed(title="Invalid", description=f"Enter 1–{len(self.questions)}."))
+            return False
+        self._edit_q_index = num - 1
+        self.currentState = CreateState.EDIT_Q
+        return False
+
+    async def state_edit_q(self):
+        emb = Embed(
+            title=f"Re-enter question {self._edit_q_index + 1}",
+            description=f"Current: _{self.questions[self._edit_q_index]}_\n\nType the replacement:",
+        )
+        await self.send_msg(emb, CreateState.EDIT_Q, self._handle_edit_q)
+
+    async def _handle_edit_q(self, message):
+        self.questions[self._edit_q_index] = message
+        self.currentState = CreateState.REVIEW
+        return False
 
     async def state_done(self):
-        if not self.questions:
-            emb = Embed(title="Form creation cancelled", description="You need at least one question!")
-            await self.send_ns(emb)
-            await self.close()
-            return
-
         with self.bot.session_scope() as session:
             form = ApplicationForm(
                 GuildId=self.guild.id,
@@ -188,6 +248,10 @@ class ApplicationCreateConversation(Conversation):
             description=f"Added {len(self.questions)} question(s).",
         )
         await self.send_ns(emb)
+        await self.close()
+
+    async def state_cancel(self):
+        await self.send_ns(Embed(title="Form creation cancelled", description="No form was saved."))
         await self.close()
 
 
