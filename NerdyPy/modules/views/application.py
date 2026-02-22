@@ -976,7 +976,7 @@ def build_apply_embed(form_name: str, description: str | None) -> discord.Embed:
 # ---------------------------------------------------------------------------
 
 
-async def _delete_apply_message(bot, channel_id: int, message_id: int) -> None:
+async def delete_apply_message(bot, channel_id: int, message_id: int) -> None:
     """Best-effort delete a single apply button message."""
     try:
         channel = bot.get_channel(channel_id)
@@ -1007,7 +1007,7 @@ async def post_apply_button_message(bot, form_id: int) -> None:
 
     # Delete old message if it exists
     if old_message_id:
-        await _delete_apply_message(bot, channel_id, old_message_id)
+        await delete_apply_message(bot, channel_id, old_message_id)
 
     # Post new message
     channel = bot.get_channel(channel_id)
@@ -1038,7 +1038,7 @@ async def delete_apply_button_message(bot, form_id: int) -> None:
         message_id = form.ApplyMessageId
         form.ApplyMessageId = None
 
-    await _delete_apply_message(bot, channel_id, message_id)
+    await delete_apply_message(bot, channel_id, message_id)
 
 
 async def edit_apply_button_message(bot, form_id: int) -> None:
