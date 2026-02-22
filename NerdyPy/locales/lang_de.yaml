@@ -184,3 +184,45 @@ reminder:
   relative:
     a_day: "in einem Tag"
     days: "in {days} Tagen"
+
+moderation:
+  invalid_timespan: "Es sind nur Zeiträume bis Wochen erlaubt. Verwende keine Monate oder Jahre."
+  autokicker:
+    configured: "AutoKicker für diesen Server konfiguriert."
+    default_reminder: "Du hast keine Rolle auf {guild} gewählt. Bitte wähle eine Rolle bis {deadline}."
+  autodeleter:
+    no_config: "Keine Auto-Lösch-Konfiguration für {channel}."
+    create:
+      success: 'AutoDeleter für Kanal "{channel}" konfiguriert.'
+      already_exists: "Dieser Kanal ist bereits für AutoDelete konfiguriert. Bitte bearbeite oder lösche die bestehende Konfiguration."
+    delete:
+      success: 'Konfiguration für Kanal "{channel}" gelöscht.'
+      not_found: 'Keine Konfiguration für Kanal "{channel}" gefunden!'
+    list:
+      title: "🗑️ AutoDeleter"
+      empty: "Keine Konfiguration gefunden!"
+      entry_details: "Alterslimit: {age} · Behalten: {keep} · Angeheftete löschen: {pinned}"
+      pinned_yes: "Ja"
+      pinned_no: "Nein"
+    pause:
+      success: "Auto-Löschung für {channel} pausiert."
+      already_paused: "Auto-Löschung für {channel} ist bereits pausiert."
+    resume:
+      success: "Auto-Löschung für {channel} fortgesetzt."
+      already_active: "Auto-Löschung für {channel} ist bereits aktiv."
+    edit:
+      success: 'Konfiguration für Kanal "{channel}" aktualisiert.'
+      not_found: 'Konfiguration für Kanal "{channel}" existiert nicht. Bitte erstelle zuerst eine.'
+  user:
+    info:
+      original_name: "Originalname: {name}"
+      created: "Erstellt"
+      joined: "Beigetreten"
+      top_role: "Höchste Rolle"
+      roles: "Rollen"
+    list:
+      title: "👥 Mitglieder"
+      empty: "Keine gefunden."
+      entry_no_roles: "**{name}** — beigetreten: {joined}"
+      entry_full: "**{name}** — erstellt: {created} · beigetreten: {joined}"
+  membercount: "Derzeit sind **{count}** Mitglieder auf diesem Server."

@@ -15,6 +15,7 @@ from models.moderation import AutoDelete, AutoKicker
 from utils.cog import NerpyBotCog
 from utils.helpers import notify_error, register_before_loop, send_paginated
 from utils.permissions import validate_channel_permissions
+from utils.strings import get_guild_language, get_string
 
 # If no tzinfo is given then UTC is assumed.
 LOOP_RUN_TIME = time(hour=12, minute=30, tzinfo=UTC)
@@ -25,6 +26,11 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
 
     autodeleter = app_commands.Group(name="autodeleter", description="Manage autodeletion per channel")
     user_group = app_commands.Group(name="user", description="User moderation")
+
+    def _lang(self, guild_id):
+        """Look up the guild's language preference."""
+        with self.bot.session_scope() as session:
+            return get_guild_language(guild_id, session)
 
     def __init__(self, bot):
         super().__init__(bot)
@@ -45,6 +51,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 self.bot.log.debug("Fetching configurations")
                 configurations = AutoKicker.get_all(session)
                 self.bot.log.debug(f"Fetched {len(configurations)} configurations")
+                guild_langs = {c.GuildId: get_guild_language(c.GuildId, session) for c in configurations}
 
             for configuration in configurations:
                 if configuration is None:
@@ -54,6 +61,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                     if guild is None:
                         continue
                     self.bot.log.info(f"[{guild.name} ({guild.id})]: checking for members without role")
+                    lang = guild_langs.get(configuration.GuildId, "en")
                     for member in guild.members:
                         if len(member.roles) == 1:
                             self.bot.log.debug(
@@ -75,8 +83,12 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                                     await member.send(configuration.ReminderMessage)
                                 else:
                                     await member.send(
-                                        f"You have not selected a role on {guild.name}. "
-                                        f"Please choose a role until {naturaldate(kick_after)}."
+                                        get_string(
+                                            lang,
+                                            "moderation.autokicker.default_reminder",
+                                            guild=guild.name,
+                                            deadline=naturaldate(kick_after),
+                                        )
                                     )
         except Exception as ex:
             self.bot.log.error(f"Autokicker: {ex}")
@@ -153,12 +165,11 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         kick_reminder_message: Optional[str]
         """
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             configuration = AutoKicker.get_by_guild(interaction.guild.id, session)
             kick_time = parse(kick_after)
             if kick_time is None:
-                await interaction.response.send_message(
-                    "Only timespans up until weeks are allowed. Do not use months or years.", ephemeral=True
-                )
+                await interaction.response.send_message(get_string(lang, "moderation.invalid_timespan"), ephemeral=True)
                 return
             if configuration is not None:
                 configuration.KickAfter = kick_time
@@ -173,7 +184,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 )
                 session.add(autokicker)
 
-        await interaction.response.send_message("AutoKicker configured for this server.", ephemeral=True)
+        await interaction.response.send_message(get_string(lang, "moderation.autokicker.configured"), ephemeral=True)
 
     @autodeleter.command(name="create")
     @checks.has_permissions(manage_messages=True)
@@ -203,11 +214,11 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel_name = channel.name
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
             if configuration is not None:
                 await interaction.response.send_message(
-                    "This Channel is already configured for AutoDelete."
-                    "Please edit or delete the existing configuration.",
+                    get_string(lang, "moderation.autodeleter.create.already_exists"),
                     ephemeral=True,
                 )
                 return
@@ -222,7 +233,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                     delete = parse(delete_older_than)
                     if delete is None:
                         await interaction.response.send_message(
-                            "Only timespans up until weeks are allowed. Do not use months or years.",
+                            get_string(lang, "moderation.invalid_timespan"),
                             ephemeral=True,
                         )
                         return
@@ -237,7 +248,9 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 )
                 session.add(deleter)
 
-        await interaction.response.send_message(f'AutoDeleter configured for channel "{channel_name}".', ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "moderation.autodeleter.create.success", channel=channel_name), ephemeral=True
+        )
 
     @autodeleter.command(name="delete")
     @checks.has_permissions(manage_messages=True)
@@ -254,15 +267,16 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel_name = channel.name
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
             if configuration is not None:
                 AutoDelete.delete(interaction.guild.id, channel_id, session)
                 await interaction.response.send_message(
-                    f'Deleted configuration for channel "{channel_name}".', ephemeral=True
+                    get_string(lang, "moderation.autodeleter.delete.success", channel=channel_name), ephemeral=True
                 )
             else:
                 await interaction.response.send_message(
-                    f'No configuration for channel "{channel_name}" found!', ephemeral=True
+                    get_string(lang, "moderation.autodeleter.delete.not_found", channel=channel_name), ephemeral=True
                 )
 
     @autodeleter.command(name="list")
@@ -277,8 +291,9 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         """
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             configurations = AutoDelete.get_by_guild(interaction.guild.id, session)
-            if configurations is not None:
+            if configurations:
                 msg = ""
                 for configuration in configurations:
                     channel = interaction.guild.get_channel(configuration.ChannelId)
@@ -286,14 +301,25 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                     status = "\u2705" if configuration.Enabled else "\u23f8\ufe0f"
                     age = naturaldelta(configuration.DeleteOlderThan) if configuration.DeleteOlderThan else "\u2014"
                     keep = configuration.KeepMessages if configuration.KeepMessages else "\u2014"
-                    pinned = "Yes" if configuration.DeletePinnedMessage else "No"
+                    pinned_key = (
+                        "moderation.autodeleter.list.pinned_yes"
+                        if configuration.DeletePinnedMessage
+                        else "moderation.autodeleter.list.pinned_no"
+                    )
+                    pinned = get_string(lang, pinned_key)
                     msg += f"{status} **{channel_name}**\n"
-                    msg += f"> Age limit: {age} \u00b7 Keep: {keep} \u00b7 Delete pinned: {pinned}\n\n"
+                    msg += f"> {get_string(lang, 'moderation.autodeleter.list.entry_details', age=age, keep=keep, pinned=pinned)}\n\n"
                 await send_paginated(
-                    interaction, msg, title="\U0001f5d1\ufe0f AutoDeleter", color=0xE74C3C, ephemeral=True
+                    interaction,
+                    msg,
+                    title=get_string(lang, "moderation.autodeleter.list.title"),
+                    color=0xE74C3C,
+                    ephemeral=True,
                 )
             else:
-                await interaction.response.send_message("No configuration found!", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "moderation.autodeleter.list.empty"), ephemeral=True
+                )
 
     @autodeleter.command(name="pause")
     @checks.has_permissions(manage_messages=True)
@@ -307,17 +333,23 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             The channel to pause auto-deletion for
         """
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel.id, session)
             if configuration is None:
-                await interaction.response.send_message(f"No auto-delete config for {channel.mention}.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "moderation.autodeleter.no_config", channel=channel.mention), ephemeral=True
+                )
                 return
             if not configuration.Enabled:
                 await interaction.response.send_message(
-                    f"Auto-deletion is already paused for {channel.mention}.", ephemeral=True
+                    get_string(lang, "moderation.autodeleter.pause.already_paused", channel=channel.mention),
+                    ephemeral=True,
                 )
                 return
             configuration.Enabled = False
-        await interaction.response.send_message(f"Paused auto-deletion for {channel.mention}.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "moderation.autodeleter.pause.success", channel=channel.mention), ephemeral=True
+        )
 
     @autodeleter.command(name="resume")
     @checks.has_permissions(manage_messages=True)
@@ -331,17 +363,23 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             The channel to resume auto-deletion for
         """
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel.id, session)
             if configuration is None:
-                await interaction.response.send_message(f"No auto-delete config for {channel.mention}.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "moderation.autodeleter.no_config", channel=channel.mention), ephemeral=True
+                )
                 return
             if configuration.Enabled:
                 await interaction.response.send_message(
-                    f"Auto-deletion is already active for {channel.mention}.", ephemeral=True
+                    get_string(lang, "moderation.autodeleter.resume.already_active", channel=channel.mention),
+                    ephemeral=True,
                 )
                 return
             configuration.Enabled = True
-        await interaction.response.send_message(f"Resumed auto-deletion for {channel.mention}.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "moderation.autodeleter.resume.success", channel=channel.mention), ephemeral=True
+        )
 
     @autodeleter.command(name="edit")
     @checks.has_permissions(manage_messages=True)
@@ -371,6 +409,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel_name = channel.name
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
             if configuration is not None:
                 if delete_older_than is None:
@@ -382,11 +421,11 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 configuration.DeletePinnedMessage = delete_pinned_message
 
                 await interaction.response.send_message(
-                    f'Updated configuration for channel "{channel_name}".', ephemeral=True
+                    get_string(lang, "moderation.autodeleter.edit.success", channel=channel_name), ephemeral=True
                 )
             else:
                 await interaction.response.send_message(
-                    f'Configuration for channel "{channel_name}" does not exist. Please create one first.',
+                    get_string(lang, "moderation.autodeleter.edit.not_found", channel=channel_name),
                     ephemeral=True,
                 )
 
@@ -394,22 +433,24 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     @checks.has_permissions(moderate_members=True)
     async def _get_user_info(self, interaction: Interaction, member: Optional[Member] = None):
         """displays information about given user [bot-moderator]"""
-
+        lang = self._lang(interaction.guild.id)
         member = member or interaction.user
         created = member.created_at.strftime("%d. %B %Y - %H:%M")
         joined = member.joined_at.strftime("%d. %B %Y - %H:%M")
 
         emb = Embed(title=member.display_name, color=Color(0xE74C3C))
-        emb.description = f"Original name: {member.name}"
+        emb.description = get_string(lang, "moderation.user.info.original_name", name=member.name)
         emb.set_thumbnail(url=member.avatar.url)
-        emb.add_field(name="Created", value=created)
-        emb.add_field(name="Joined", value=joined)
-        emb.add_field(name="Top Role", value=member.top_role.name.replace("@", ""))
+        emb.add_field(name=get_string(lang, "moderation.user.info.created"), value=created)
+        emb.add_field(name=get_string(lang, "moderation.user.info.joined"), value=joined)
+        emb.add_field(
+            name=get_string(lang, "moderation.user.info.top_role"), value=member.top_role.name.replace("@", "")
+        )
         rn = []
         for r in member.roles:
             rn.append(r.name.replace("@", ""))
 
-        emb.add_field(name="Roles", value=", ".join(rn), inline=False)
+        emb.add_field(name=get_string(lang, "moderation.user.info.roles"), value=", ".join(rn), inline=False)
 
         await interaction.response.send_message(embed=emb, ephemeral=True)
 
@@ -426,28 +467,32 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         show_only_users_without_roles: Optional[bool]
             If True shows only Users without a Role. (The role everyone is not considered a given role)
         """
+        lang = self._lang(interaction.guild.id)
         msg = ""
         if show_only_users_without_roles:
             for member in interaction.guild.members:
                 if len(member.roles) == 1:
                     joined = member.joined_at.strftime("%d. %b %Y - %H:%M")
-                    msg += f"> **{member.display_name}** \u2014 joined: {joined}\n"
+                    msg += f"> {get_string(lang, 'moderation.user.list.entry_no_roles', name=member.display_name, joined=joined)}\n"
         else:
             for member in interaction.guild.members:
                 created = member.created_at.strftime("%d. %b %Y - %H:%M")
                 joined = member.joined_at.strftime("%d. %b %Y - %H:%M")
-                msg += f"> **{member.display_name}** \u2014 created: {created} \u00b7 joined: {joined}\n"
+                msg += f"> {get_string(lang, 'moderation.user.list.entry_full', name=member.display_name, created=created, joined=joined)}\n"
 
         if msg == "":
-            msg = "None found."
+            msg = get_string(lang, "moderation.user.list.empty")
 
-        await send_paginated(interaction, msg, title="\U0001f465 Members", color=0xE74C3C, ephemeral=True)
+        await send_paginated(
+            interaction, msg, title=get_string(lang, "moderation.user.list.title"), color=0xE74C3C, ephemeral=True
+        )
 
     @app_commands.command()
     async def membercount(self, interaction: Interaction):
         """displays the current membercount of the server [bot-moderator]"""
+        lang = self._lang(interaction.guild.id)
         emb = Embed(
-            description=f"There are currently **{interaction.guild.member_count}** members on this server.",
+            description=get_string(lang, "moderation.membercount", count=interaction.guild.member_count),
             color=Color(0xE74C3C),
         )
         await interaction.response.send_message(embed=emb, ephemeral=True)
