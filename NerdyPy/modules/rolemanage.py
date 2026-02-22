@@ -8,6 +8,7 @@ from models.rolemanage import RoleMapping
 from utils.checks import is_role_assignable, is_role_below_bot
 from utils.cog import NerpyBotCog
 from utils.helpers import error_context, send_paginated
+from utils.strings import get_guild_language, get_string
 
 
 @app_commands.guild_only()
@@ -39,10 +40,14 @@ class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             existing = RoleMapping.get(interaction.guild.id, source_role.id, target_role.id, session)
             if existing:
                 await interaction.response.send_message(
-                    f"**{source_role.name}** can already assign **{target_role.name}**.", ephemeral=True
+                    get_string(
+                        lang, "rolemanage.allow.already_exists", source=source_role.name, target=target_role.name
+                    ),
+                    ephemeral=True,
                 )
                 return
 
@@ -54,7 +59,8 @@ class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
             session.add(mapping)
 
         await interaction.response.send_message(
-            f"**{source_role.name}** can now assign **{target_role.name}**.", ephemeral=True
+            get_string(lang, "rolemanage.allow.success", source=source_role.name, target=target_role.name),
+            ephemeral=True,
         )
 
     @app_commands.command(name="deny")
@@ -71,23 +77,26 @@ class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
             The target role
         """
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             deleted = RoleMapping.delete(interaction.guild.id, source_role.id, target_role.id, session)
 
         if deleted:
             await interaction.response.send_message(
-                f"**{source_role.name}** can no longer assign **{target_role.name}**.", ephemeral=True
+                get_string(lang, "rolemanage.deny.success", source=source_role.name, target=target_role.name),
+                ephemeral=True,
             )
         else:
-            await interaction.response.send_message("No matching mapping found.", ephemeral=True)
+            await interaction.response.send_message(get_string(lang, "rolemanage.deny.not_found"), ephemeral=True)
 
     @app_commands.command(name="list")
     @checks.has_permissions(manage_roles=True)
     async def _list(self, interaction: Interaction):
         """list all delegated role mappings for this server [manage_roles]"""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             mappings = RoleMapping.get_by_guild(interaction.guild.id, session)
             if not mappings:
-                await interaction.response.send_message("No role mappings configured.", ephemeral=True)
+                await interaction.response.send_message(get_string(lang, "rolemanage.list.empty"), ephemeral=True)
                 return
 
             msg = ""
@@ -99,7 +108,7 @@ class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
                 msg += f"> **{source_name}** \u2192 {target_name}\n"
 
         await send_paginated(
-            interaction, msg, title="\U0001f517 Delegated Role Mappings", color=0x3498DB, ephemeral=True
+            interaction, msg, title=get_string(lang, "rolemanage.list.title"), color=0x3498DB, ephemeral=True
         )
 
     @app_commands.command(name="assign")
@@ -120,15 +129,17 @@ class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             mappings = RoleMapping.get_by_target(interaction.guild.id, role.id, session)
 
         if not mappings or not self._has_source_role(interaction.user, mappings):
-            await interaction.response.send_message("You do not have permission to assign that role.", ephemeral=True)
+            await interaction.response.send_message(get_string(lang, "rolemanage.assign.no_permission"), ephemeral=True)
             return
 
         if role in member.roles:
             await interaction.response.send_message(
-                f"**{member.display_name}** already has **{role.name}**.", ephemeral=True
+                get_string(lang, "rolemanage.assign.already_has", member=member.display_name, role=role.name),
+                ephemeral=True,
             )
             return
 
@@ -137,21 +148,18 @@ class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
         except Forbidden:
             self.bot.log.error(f"{error_context(interaction)}: forbidden assigning {role.name} to {member}")
             await interaction.response.send_message(
-                f"I don't have permission to assign **{role.name}**. "
-                "Make sure I have the `Manage Roles` permission and my highest role is above that role.",
-                ephemeral=True,
+                get_string(lang, "rolemanage.assign.forbidden", role=role.name), ephemeral=True
             )
             return
         except HTTPException as ex:
             self.bot.log.error(f"{error_context(interaction)}: failed to assign {role.name} to {member}: {ex}")
             await interaction.response.send_message(
-                f"Discord error while assigning role (HTTP {ex.status}). Please try again.",
-                ephemeral=True,
+                get_string(lang, "rolemanage.assign.discord_error", status=ex.status), ephemeral=True
             )
             return
 
         await interaction.response.send_message(
-            f"Assigned **{role.name}** to **{member.display_name}**.", ephemeral=True
+            get_string(lang, "rolemanage.assign.success", role=role.name, member=member.display_name), ephemeral=True
         )
 
     @app_commands.command(name="remove")
@@ -172,15 +180,17 @@ class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             mappings = RoleMapping.get_by_target(interaction.guild.id, role.id, session)
 
         if not mappings or not self._has_source_role(interaction.user, mappings):
-            await interaction.response.send_message("You do not have permission to remove that role.", ephemeral=True)
+            await interaction.response.send_message(get_string(lang, "rolemanage.remove.no_permission"), ephemeral=True)
             return
 
         if role not in member.roles:
             await interaction.response.send_message(
-                f"**{member.display_name}** does not have **{role.name}**.", ephemeral=True
+                get_string(lang, "rolemanage.remove.does_not_have", member=member.display_name, role=role.name),
+                ephemeral=True,
             )
             return
 
@@ -189,21 +199,18 @@ class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
         except Forbidden:
             self.bot.log.error(f"{error_context(interaction)}: forbidden removing {role.name} from {member}")
             await interaction.response.send_message(
-                f"I don't have permission to remove **{role.name}**. "
-                "Make sure I have the `Manage Roles` permission and my highest role is above that role.",
-                ephemeral=True,
+                get_string(lang, "rolemanage.remove.forbidden", role=role.name), ephemeral=True
             )
             return
         except HTTPException as ex:
             self.bot.log.error(f"{error_context(interaction)}: failed to remove {role.name} from {member}: {ex}")
             await interaction.response.send_message(
-                f"Discord error while removing role (HTTP {ex.status}). Please try again.",
-                ephemeral=True,
+                get_string(lang, "rolemanage.remove.discord_error", status=ex.status), ephemeral=True
             )
             return
 
         await interaction.response.send_message(
-            f"Removed **{role.name}** from **{member.display_name}**.", ephemeral=True
+            get_string(lang, "rolemanage.remove.success", role=role.name, member=member.display_name), ephemeral=True
         )
 
 

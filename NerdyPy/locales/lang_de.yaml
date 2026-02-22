@@ -47,6 +47,29 @@ league:
     wins: "Siege"
     losses: "Niederlagen"
 
+rolemanage:
+  allow:
+    success: "**{source}** darf jetzt **{target}** zuweisen."
+    already_exists: "**{source}** darf **{target}** bereits zuweisen."
+  deny:
+    success: "**{source}** darf **{target}** nicht mehr zuweisen."
+    not_found: "Keine passende Zuordnung gefunden."
+  list:
+    title: "🔗 Delegierte Rollenzuordnungen"
+    empty: "Keine Rollenzuordnungen konfiguriert."
+  assign:
+    success: "**{role}** wurde **{member}** zugewiesen."
+    no_permission: "Du hast keine Berechtigung, diese Rolle zuzuweisen."
+    already_has: "**{member}** hat **{role}** bereits."
+    forbidden: "Ich habe keine Berechtigung, **{role}** zuzuweisen. Stelle sicher, dass ich die Berechtigung `Rollen verwalten` habe und meine höchste Rolle über dieser Rolle liegt."
+    discord_error: "Discord-Fehler beim Zuweisen der Rolle (HTTP {status}). Bitte versuche es erneut."
+  remove:
+    success: "**{role}** wurde von **{member}** entfernt."
+    no_permission: "Du hast keine Berechtigung, diese Rolle zu entfernen."
+    does_not_have: "**{member}** hat **{role}** nicht."
+    forbidden: "Ich habe keine Berechtigung, **{role}** zu entfernen. Stelle sicher, dass ich die Berechtigung `Rollen verwalten` habe und meine höchste Rolle über dieser Rolle liegt."
+    discord_error: "Discord-Fehler beim Entfernen der Rolle (HTTP {status}). Bitte versuche es erneut."
+
 leavemsg:
   enable:
     success: "Abschiedsnachrichten in {channel} aktiviert."
