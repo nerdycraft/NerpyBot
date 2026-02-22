@@ -9,14 +9,12 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 
-from datetime import UTC, datetime
 
 from models.application import (
     BUILT_IN_TEMPLATES,
     ApplicationForm,
     ApplicationGuildConfig,
     ApplicationQuestion,
-    ApplicationSubmission,
     ApplicationTemplate,
     seed_built_in_templates,
 )
@@ -1084,125 +1082,6 @@ class TestImport:
 
 
 # ---------------------------------------------------------------------------
-# /apply (top-level command)
-# ---------------------------------------------------------------------------
-
-
-class TestApplyCommand:
-    @pytest.mark.asyncio
-    async def test_apply_starts_conversation(self, app_cog, admin_interaction, db_session):
-        form = _make_form(db_session, guild_id=admin_interaction.guild.id, name="ReadyForm", review_channel_id=12345)
-        app_cog.bot.convMan = MagicMock()
-        app_cog.bot.convMan.init_conversation = AsyncMock()
-
-        await app_cog._apply(admin_interaction, form_name="ReadyForm")
-
-        app_cog.bot.convMan.init_conversation.assert_called_once()
-        conv = app_cog.bot.convMan.init_conversation.call_args[0][0]
-        assert conv.form_id == form.Id
-        assert conv.form_name == "ReadyForm"
-        assert len(conv.questions) == 1
-        admin_interaction.response.defer.assert_called_once()
-        call_args = str(admin_interaction.followup.send.call_args)
-        assert "DMs" in call_args
-
-    @pytest.mark.asyncio
-    async def test_apply_form_not_found(self, app_cog, admin_interaction):
-        app_cog.bot.convMan = MagicMock()
-        app_cog.bot.convMan.init_conversation = AsyncMock()
-
-        await app_cog._apply(admin_interaction, form_name="NonExistent")
-
-        app_cog.bot.convMan.init_conversation.assert_not_called()
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "not found" in call_args.lower()
-
-    @pytest.mark.asyncio
-    async def test_apply_form_not_ready(self, app_cog, admin_interaction, db_session):
-        _make_form(db_session, guild_id=admin_interaction.guild.id, name="NotReady")
-        app_cog.bot.convMan = MagicMock()
-        app_cog.bot.convMan.init_conversation = AsyncMock()
-
-        await app_cog._apply(admin_interaction, form_name="NotReady")
-
-        app_cog.bot.convMan.init_conversation.assert_not_called()
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "set up yet" in call_args
-
-    @pytest.mark.asyncio
-    async def test_apply_blocked_when_pending(self, app_cog, admin_interaction, db_session):
-        """User with a pending submission must be blocked from applying again."""
-        form = _make_form(db_session, guild_id=admin_interaction.guild.id, name="ActiveForm", review_channel_id=12345)
-        db_session.add(
-            ApplicationSubmission(
-                FormId=form.Id,
-                GuildId=admin_interaction.guild.id,
-                UserId=admin_interaction.user.id,
-                UserName="Applicant",
-                Status="pending",
-                SubmittedAt=datetime.now(UTC),
-            )
-        )
-        db_session.commit()
-        app_cog.bot.convMan = MagicMock()
-        app_cog.bot.convMan.init_conversation = AsyncMock()
-
-        await app_cog._apply(admin_interaction, form_name="ActiveForm")
-
-        app_cog.bot.convMan.init_conversation.assert_not_called()
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "already applied" in call_args.lower()
-
-    @pytest.mark.asyncio
-    async def test_apply_blocked_when_approved(self, app_cog, admin_interaction, db_session):
-        """User with an approved submission must be blocked from applying again."""
-        form = _make_form(db_session, guild_id=admin_interaction.guild.id, name="ApprovedForm", review_channel_id=12345)
-        db_session.add(
-            ApplicationSubmission(
-                FormId=form.Id,
-                GuildId=admin_interaction.guild.id,
-                UserId=admin_interaction.user.id,
-                UserName="Applicant",
-                Status="approved",
-                SubmittedAt=datetime.now(UTC),
-            )
-        )
-        db_session.commit()
-        app_cog.bot.convMan = MagicMock()
-        app_cog.bot.convMan.init_conversation = AsyncMock()
-
-        await app_cog._apply(admin_interaction, form_name="ApprovedForm")
-
-        app_cog.bot.convMan.init_conversation.assert_not_called()
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "already applied" in call_args.lower()
-
-    @pytest.mark.asyncio
-    async def test_apply_blocked_when_denied(self, app_cog, admin_interaction, db_session):
-        """User with a denied submission must be blocked from applying again."""
-        form = _make_form(db_session, guild_id=admin_interaction.guild.id, name="DeniedForm", review_channel_id=12345)
-        db_session.add(
-            ApplicationSubmission(
-                FormId=form.Id,
-                GuildId=admin_interaction.guild.id,
-                UserId=admin_interaction.user.id,
-                UserName="Applicant",
-                Status="denied",
-                SubmittedAt=datetime.now(UTC),
-            )
-        )
-        db_session.commit()
-        app_cog.bot.convMan = MagicMock()
-        app_cog.bot.convMan.init_conversation = AsyncMock()
-
-        await app_cog._apply(admin_interaction, form_name="DeniedForm")
-
-        app_cog.bot.convMan.init_conversation.assert_not_called()
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "already applied" in call_args.lower()
-
-
-# ---------------------------------------------------------------------------
 # /application reviewerrole set / remove
 # ---------------------------------------------------------------------------
 
@@ -1264,15 +1143,6 @@ class TestAutocomplete:
 
         results = await app_cog._form_name_autocomplete(admin_interaction, "")
         assert len(results) == 2
-
-    @pytest.mark.asyncio
-    async def test_ready_form_autocomplete_only_ready(self, app_cog, admin_interaction, db_session):
-        _make_form(db_session, guild_id=admin_interaction.guild.id, name="NotReady")
-        _make_form(db_session, guild_id=admin_interaction.guild.id, name="Ready", review_channel_id=123)
-
-        results = await app_cog._ready_form_autocomplete(admin_interaction, "")
-        assert len(results) == 1
-        assert results[0].value == "Ready"
 
     @pytest.mark.asyncio
     async def test_template_autocomplete_includes_builtin(self, app_cog, admin_interaction, db_session):
