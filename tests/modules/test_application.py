@@ -530,11 +530,15 @@ class TestTemplateUse:
         seed_built_in_templates(db_session)
         db_session.commit()
 
-        channel = MagicMock()
-        channel.id = 444
+        review_channel = MagicMock()
+        review_channel.id = 444
 
         await app_cog._template_use.callback(
-            app_cog, admin_interaction, template="Guild Membership", name="NewFromTemplate", channel=channel
+            app_cog,
+            admin_interaction,
+            template="Guild Membership",
+            name="NewFromTemplate",
+            review_channel=review_channel,
         )
 
         assert "created from template" in str(admin_interaction.response.send_message.call_args).lower()
@@ -546,11 +550,11 @@ class TestTemplateUse:
 
     @pytest.mark.asyncio
     async def test_template_use_template_not_found(self, app_cog, admin_interaction):
-        channel = MagicMock()
-        channel.id = 444
+        review_channel = MagicMock()
+        review_channel.id = 444
 
         await app_cog._template_use.callback(
-            app_cog, admin_interaction, template="NonExistent", name="NewForm", channel=channel
+            app_cog, admin_interaction, template="NonExistent", name="NewForm", review_channel=review_channel
         )
 
         assert "not found" in str(admin_interaction.response.send_message.call_args).lower()
@@ -560,25 +564,56 @@ class TestTemplateUse:
         seed_built_in_templates(db_session)
         _make_form(db_session, guild_id=admin_interaction.guild.id, name="Existing")
 
-        channel = MagicMock()
-        channel.id = 444
+        review_channel = MagicMock()
+        review_channel.id = 444
 
         await app_cog._template_use.callback(
-            app_cog, admin_interaction, template="Guild Membership", name="Existing", channel=channel
+            app_cog, admin_interaction, template="Guild Membership", name="Existing", review_channel=review_channel
         )
 
         assert "already exists" in str(admin_interaction.response.send_message.call_args)
 
     @pytest.mark.asyncio
     async def test_template_use_permission_denied(self, app_cog, non_admin_interaction):
-        channel = MagicMock()
-        channel.id = 444
+        review_channel = MagicMock()
+        review_channel.id = 444
 
         await app_cog._template_use.callback(
-            app_cog, non_admin_interaction, template="Guild Membership", name="NewForm", channel=channel
+            app_cog, non_admin_interaction, template="Guild Membership", name="NewForm", review_channel=review_channel
         )
 
         assert "permission" in str(non_admin_interaction.response.send_message.call_args).lower()
+
+    @pytest.mark.asyncio
+    async def test_template_use_with_apply_channel(self, app_cog, admin_interaction, db_session):
+        seed_built_in_templates(db_session)
+        db_session.commit()
+
+        review_channel = MagicMock()
+        review_channel.id = 444
+        apply_channel = MagicMock()
+        apply_channel.id = 555
+
+        # Mock for apply button message posting
+        mock_msg = MagicMock()
+        mock_msg.id = 999888
+        apply_channel.send = AsyncMock(return_value=mock_msg)
+        app_cog.bot.get_channel = MagicMock(return_value=apply_channel)
+
+        await app_cog._template_use.callback(
+            app_cog,
+            admin_interaction,
+            template="Guild Membership",
+            name="WithApply",
+            review_channel=review_channel,
+            channel=apply_channel,
+            description="Apply here!",
+        )
+
+        form = ApplicationForm.get("WithApply", admin_interaction.guild.id, db_session)
+        assert form is not None
+        assert form.ApplyChannelId == 555
+        assert form.ApplyDescription == "Apply here!"
 
 
 # ---------------------------------------------------------------------------

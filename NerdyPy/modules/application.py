@@ -397,14 +397,30 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     # -- /application template use -------------------------------------------
 
     @template_group.command(name="use")
-    @app_commands.describe(template="Template to use", name="Name for the new form", channel="Channel for reviews")
+    @app_commands.rename(review_channel="review-channel")
+    @app_commands.describe(
+        template="Template to use",
+        name="Name for the new form",
+        review_channel="Channel where reviews will be posted",
+        channel="Channel where the apply button will be posted (optional)",
+        description="Description shown on the apply button embed (optional)",
+    )
     @app_commands.autocomplete(template=_template_autocomplete)
-    async def _template_use(self, interaction: Interaction, template: str, name: str, channel: TextChannel):
+    async def _template_use(
+        self,
+        interaction: Interaction,
+        template: str,
+        name: str,
+        review_channel: TextChannel,
+        channel: Optional[TextChannel] = None,
+        description: Optional[str] = None,
+    ):
         """Create a new form from a template."""
         if not self._has_manage_permission(interaction):
             await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
             return
 
+        form_id = None
         with self.bot.session_scope() as session:
             tpl = ApplicationTemplate.get_by_name(template, interaction.guild.id, session)
             if not tpl:
@@ -416,7 +432,13 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 await interaction.response.send_message(f"A form named **{name}** already exists.", ephemeral=True)
                 return
 
-            form = ApplicationForm(GuildId=interaction.guild.id, Name=name, ReviewChannelId=channel.id)
+            form = ApplicationForm(
+                GuildId=interaction.guild.id,
+                Name=name,
+                ReviewChannelId=review_channel.id,
+                ApplyChannelId=channel.id if channel else None,
+                ApplyDescription=description,
+            )
             session.add(form)
             session.flush()
 
@@ -424,10 +446,19 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 session.add(
                     ApplicationQuestion(FormId=form.Id, QuestionText=tpl_q.QuestionText, SortOrder=tpl_q.SortOrder)
                 )
+            form_id = form.Id
 
         await interaction.response.send_message(
             f"Form **{name}** created from template **{template}**.", ephemeral=True
         )
+
+        if channel and form_id:
+            from modules.views.application import post_apply_button_message
+
+            try:
+                await post_apply_button_message(self.bot, form_id)
+            except Exception:
+                self.bot.log.error("application: failed to post apply button after template use", exc_info=True)
 
     # -- /application template save ------------------------------------------
 
