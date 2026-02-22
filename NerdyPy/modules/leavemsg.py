@@ -9,6 +9,7 @@ from utils.cog import NerpyBotCog
 
 from utils.errors import NerpyValidationError
 from utils.permissions import validate_channel_permissions
+from utils.strings import get_guild_language, get_string
 
 
 DEFAULT_LEAVE_MESSAGE = "{member} left the server :("
@@ -66,6 +67,7 @@ class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
         validate_channel_permissions(channel, interaction.guild, "view_channel", "send_messages")
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
                 leave_config = LeaveMessage(
@@ -81,19 +83,22 @@ class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
                 if leave_config.Message is None:
                     leave_config.Message = DEFAULT_LEAVE_MESSAGE
 
-        await interaction.response.send_message(f"Leave messages enabled in {channel.mention}.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "leavemsg.enable.success", channel=channel.mention), ephemeral=True
+        )
 
     @app_commands.command(name="disable")
     @checks.has_permissions(administrator=True)
     async def _leavemsg_disable(self, interaction: Interaction) -> None:
         """Disable leave messages for this server. [administrator]"""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
-                raise NerpyValidationError("Leave messages are not configured for this server.")
+                raise NerpyValidationError(get_string(lang, "leavemsg.disable.not_configured"))
             leave_config.Enabled = False
 
-        await interaction.response.send_message("Leave messages disabled.", ephemeral=True)
+        await interaction.response.send_message(get_string(lang, "leavemsg.disable.success"), ephemeral=True)
 
     @app_commands.command(name="message")
     @checks.has_permissions(administrator=True)
@@ -106,26 +111,29 @@ class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
         message: str
             The message template. Use {member} for the member's display name.
         """
-        if "{member}" not in message:
-            raise NerpyValidationError("Message must contain {member} placeholder for the member name.")
-
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
+            if "{member}" not in message:
+                raise NerpyValidationError(get_string(lang, "leavemsg.message.missing_placeholder"))
             leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
-                raise NerpyValidationError("Please enable leave messages first using `/leavemsg enable #channel`.")
+                raise NerpyValidationError(get_string(lang, "leavemsg.message.not_enabled"))
             leave_config.Message = message
 
-        await interaction.response.send_message(f"Leave message updated to: {message}", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "leavemsg.message.success", message=message), ephemeral=True
+        )
 
     @app_commands.command(name="status")
     @checks.has_permissions(administrator=True)
     async def _leavemsg_status(self, interaction: Interaction) -> None:
         """Show current leave message configuration. [administrator]"""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             leave_config = LeaveMessage.get(interaction.guild.id, session)
 
         if leave_config is None or not leave_config.Enabled:
-            await interaction.response.send_message("Leave messages are not enabled for this server.", ephemeral=True)
+            await interaction.response.send_message(get_string(lang, "leavemsg.status.not_enabled"), ephemeral=True)
             return
 
         channel = interaction.guild.get_channel(leave_config.ChannelId)
@@ -133,7 +141,7 @@ class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
         message = leave_config.Message or DEFAULT_LEAVE_MESSAGE
 
         await interaction.response.send_message(
-            f"**Leave messages:** Enabled\n**Channel:** {channel_mention}\n**Message:** {message}", ephemeral=True
+            get_string(lang, "leavemsg.status.enabled", channel=channel_mention, message=message), ephemeral=True
         )
 
 

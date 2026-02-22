@@ -26,6 +26,20 @@ admin:
     get_default: "Keine Sprache konfiguriert. Standard ist Englisch."
     invalid: "Nicht unterstützte Sprache: `{language}`. Verfügbar: {available}"
 
+leavemsg:
+  enable:
+    success: "Abschiedsnachrichten in {channel} aktiviert."
+  disable:
+    success: "Abschiedsnachrichten deaktiviert."
+    not_configured: "Abschiedsnachrichten sind für diesen Server nicht konfiguriert."
+  message:
+    success: "Abschiedsnachricht aktualisiert auf: {message}"
+    missing_placeholder: "Die Nachricht muss den Platzhalter {member} für den Mitgliedsnamen enthalten."
+    not_enabled: "Bitte aktiviere zuerst Abschiedsnachrichten mit `/leavemsg enable #channel`."
+  status:
+    not_enabled: "Abschiedsnachrichten sind für diesen Server nicht aktiviert."
+    enabled: "**Abschiedsnachrichten:** Aktiviert\n**Kanal:** {channel}\n**Nachricht:** {message}"
+
 reminder:
   create:
     success: "Erinnerung erstellt — nächste Auslösung {relative_time}."
