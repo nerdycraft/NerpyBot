@@ -26,6 +26,20 @@ admin:
     get_default: "No language configured. Defaulting to English."
     invalid: "Unsupported language: `{language}`. Available: {available}"
 
+leavemsg:
+  enable:
+    success: "Leave messages enabled in {channel}."
+  disable:
+    success: "Leave messages disabled."
+    not_configured: "Leave messages are not configured for this server."
+  message:
+    success: "Leave message updated to: {message}"
+    missing_placeholder: "Message must contain {member} placeholder for the member name."
+    not_enabled: "Please enable leave messages first using `/leavemsg enable #channel`."
+  status:
+    not_enabled: "Leave messages are not enabled for this server."
+    enabled: "**Leave messages:** Enabled\n**Channel:** {channel}\n**Message:** {message}"
+
 # Example module strings — pattern for Phase 2 migration PRs
 reminder:
   create:
