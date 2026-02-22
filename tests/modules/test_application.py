@@ -279,6 +279,29 @@ class TestApplicationDelete:
         call_args = str(non_admin_interaction.response.send_message.call_args)
         assert "permission" in call_args.lower()
 
+    @pytest.mark.asyncio
+    async def test_delete_cleans_up_apply_message(self, app_cog, admin_interaction, db_session):
+        form = _make_form(
+            db_session,
+            guild_id=admin_interaction.guild.id,
+            name="WithButton",
+            review_channel_id=123,
+            apply_channel_id=456,
+        )
+        form.ApplyMessageId = 789
+        db_session.commit()
+
+        mock_channel = MagicMock()
+        mock_message = MagicMock()
+        mock_message.delete = AsyncMock()
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        app_cog.bot.get_channel = MagicMock(return_value=mock_channel)
+
+        await app_cog._delete.callback(app_cog, admin_interaction, name="WithButton")
+
+        mock_message.delete.assert_called_once()
+        assert ApplicationForm.get("WithButton", admin_interaction.guild.id, db_session) is None
+
 
 # ---------------------------------------------------------------------------
 # /application list

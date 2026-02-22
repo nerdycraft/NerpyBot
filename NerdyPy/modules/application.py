@@ -254,9 +254,19 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             if not form:
                 await interaction.response.send_message(f"Form **{name}** not found.", ephemeral=True)
                 return
+            apply_channel_id = form.ApplyChannelId
+            apply_message_id = form.ApplyMessageId
             session.delete(form)
 
         await interaction.response.send_message(f"Form **{name}** deleted.", ephemeral=True)
+
+        if apply_channel_id and apply_message_id:
+            from modules.views.application import _delete_apply_message
+
+            try:
+                await _delete_apply_message(self.bot, apply_channel_id, apply_message_id)
+            except Exception:
+                self.bot.log.error("application: failed to delete apply button message on form delete", exc_info=True)
 
     # -- /application list ---------------------------------------------------
 
