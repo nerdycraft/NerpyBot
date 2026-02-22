@@ -98,23 +98,23 @@ reactionrole:
     success: "Cleared all reaction role mappings from message `{message_id}`."
 
 tagging:
-  not_found: "Tag \"{name}\" doesn't exist!"
+  not_found: 'Tag "{name}" doesn''t exist!'
   skip:
     success: "Skipped."
   queue:
     drop_success: "Queue dropped."
   create:
-    success: "Tag \"{name}\" created!"
-    already_exists: "Tag \"{name}\" already exists!"
+    success: 'Tag "{name}" created!'
+    already_exists: 'Tag "{name}" already exists!'
   add:
-    success: "Entry added to tag \"{name}\"!"
+    success: 'Entry added to tag "{name}"!'
   volume:
-    success: "Changed volume of \"{name}\" to {volume}."
+    success: 'Changed volume of "{name}" to {volume}.'
     out_of_range: "Volume must be between 0 and 200."
   delete:
-    success: "Tag \"{name}\" deleted!"
+    success: 'Tag "{name}" deleted!'
   get:
-    not_found: "Could not find a tag called \"{name}\"."
+    not_found: 'Could not find a tag called "{name}".'
     playing: "Playing **{name}**"
   list:
     title: "🏷️ Tags"
@@ -146,17 +146,41 @@ leavemsg:
     not_enabled: "Leave messages are not enabled for this server."
     enabled: "**Leave messages:** Enabled\n**Channel:** {channel}\n**Message:** {message}"
 
-# Example module strings — pattern for Phase 2 migration PRs
 reminder:
   create:
     success: "Reminder created — next fire {relative_time}."
   schedule:
     success: "Scheduled reminder created — next fire {relative_time}."
+    invalid_time: "Invalid time format. Use HH:MM (e.g. 09:00)."
+    unknown_timezone: "Unknown timezone: {timezone}"
+    day_of_week_required: "day_of_week is required for weekly schedules."
+    day_of_month_required: "day_of_month is required for monthly schedules."
+    day_of_month_range: "day_of_month must be between 1 and 28."
+  list:
+    title: "⏰ Reminders"
+    next: "Next: {relative} ({absolute})"
+    paused: "paused"
+    one_time: "one-time"
+    every: "every {delta}"
+    daily_at: "daily at {time} {timezone}"
+    weekly_at: "weekly {day} at {time} {timezone}"
+    monthly_at: "monthly day {day} at {time} {timezone}"
+    hits: "Hits: {count}"
+  edit:
+    nothing_to_change: "Nothing to change."
+    param_not_applicable: "`{param}` only applies to {allowed_types} reminders, not {schedule_type}."
+    success: "Updated reminder **#{reminder_id}**: {summary}. Next fire {relative_time}."
   delete:
     success: "Message deleted."
   pause:
     success: "Paused reminder **#{reminder_id}**."
+    already_paused: "Reminder is already paused."
   resume:
     success: "Resumed reminder **#{reminder_id}**."
+    already_active: "Reminder is already active."
+    expired: "Reminder **#{reminder_id}** expired while paused and has been deleted."
   not_found: "Reminder not found."
   no_reminders: "No reminders set."
+  relative:
+    a_day: "a day from now"
+    days: "{days} days from now"

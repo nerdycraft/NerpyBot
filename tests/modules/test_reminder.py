@@ -7,10 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from models.admin import GuildLanguageConfig
 from models.reminder import ReminderMessage
-
-from modules.reminder import _format_relative
-from modules.reminder import Reminder
+from modules.reminder import Reminder, _format_relative
+from utils.strings import load_strings
 
 
 @pytest.fixture
@@ -734,3 +734,360 @@ class TestReminderEdit:
 
         call_args = str(mock_interaction.response.send_message.call_args)
         assert "1 and 28" in call_args
+
+
+# ---------------------------------------------------------------------------
+# Localization tests for reminder commands
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _load_locale_strings():
+    load_strings()
+
+
+def _set_german(db_session):
+    db_session.add(GuildLanguageConfig(GuildId=123, Language="de"))
+    db_session.commit()
+
+
+def _interaction_for_reminder(mock_interaction):
+    """Configure an interaction with guild_id=123 and channel permissions."""
+    mock_interaction.guild.id = 123
+    mock_interaction.guild_id = 123
+    mock_interaction.channel.id = 456
+    mock_interaction.channel.name = "general"
+    mock_interaction.channel.permissions_for = MagicMock(return_value=MagicMock(view_channel=True, send_messages=True))
+    return mock_interaction
+
+
+class TestReminderCreateLocale:
+    async def test_create_english(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        interaction = _interaction_for_reminder(mock_interaction)
+        await reminder_cog._reminder_create.callback(
+            reminder_cog, interaction, delay="2h", message="Test", channel=None, repeat=False
+        )
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "Reminder created" in msg
+
+    async def test_create_german(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        _set_german(db_session)
+        interaction = _interaction_for_reminder(mock_interaction)
+        await reminder_cog._reminder_create.callback(
+            reminder_cog, interaction, delay="2h", message="Test", channel=None, repeat=False
+        )
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "Erinnerung erstellt" in msg
+
+
+class TestReminderScheduleLocale:
+    async def test_invalid_time_english(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        interaction = _interaction_for_reminder(mock_interaction)
+        stype = MagicMock()
+        stype.value = "daily"
+        await reminder_cog._reminder_schedule.callback(
+            reminder_cog,
+            interaction,
+            schedule_type=stype,
+            time_of_day="bad",
+            message="Test",
+            channel=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "Invalid time format" in msg
+
+    async def test_invalid_time_german(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        _set_german(db_session)
+        interaction = _interaction_for_reminder(mock_interaction)
+        stype = MagicMock()
+        stype.value = "daily"
+        await reminder_cog._reminder_schedule.callback(
+            reminder_cog,
+            interaction,
+            schedule_type=stype,
+            time_of_day="bad",
+            message="Test",
+            channel=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "Ungültiges Zeitformat" in msg
+
+    async def test_day_of_week_required_german(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        _set_german(db_session)
+        interaction = _interaction_for_reminder(mock_interaction)
+        stype = MagicMock()
+        stype.value = "weekly"
+        await reminder_cog._reminder_schedule.callback(
+            reminder_cog,
+            interaction,
+            schedule_type=stype,
+            time_of_day="09:00",
+            message="Test",
+            channel=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "wöchentliche Erinnerungen" in msg
+
+
+class TestReminderListLocale:
+    async def test_no_reminders_english(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        interaction = _interaction_for_reminder(mock_interaction)
+        await reminder_cog._reminder_list.callback(reminder_cog, interaction)
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "No reminders set" in msg
+
+    async def test_no_reminders_german(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        _set_german(db_session)
+        interaction = _interaction_for_reminder(mock_interaction)
+        await reminder_cog._reminder_list.callback(reminder_cog, interaction)
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "Keine Erinnerungen gesetzt" in msg
+
+
+class TestReminderDeleteLocale:
+    async def test_delete_english(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        interaction = _interaction_for_reminder(mock_interaction)
+        now = datetime.now(UTC)
+        r = ReminderMessage(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="ch",
+            CreateDate=now,
+            Author="A",
+            ScheduleType="once",
+            NextFire=now + timedelta(hours=1),
+            Message="X",
+            Count=0,
+            Enabled=True,
+        )
+        db_session.add(r)
+        db_session.commit()
+        await reminder_cog._reminder_delete.callback(reminder_cog, interaction, reminder_id=r.Id)
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "Message deleted" in msg
+
+    async def test_delete_german(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        _set_german(db_session)
+        interaction = _interaction_for_reminder(mock_interaction)
+        now = datetime.now(UTC)
+        r = ReminderMessage(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="ch",
+            CreateDate=now,
+            Author="A",
+            ScheduleType="once",
+            NextFire=now + timedelta(hours=1),
+            Message="X",
+            Count=0,
+            Enabled=True,
+        )
+        db_session.add(r)
+        db_session.commit()
+        await reminder_cog._reminder_delete.callback(reminder_cog, interaction, reminder_id=r.Id)
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "Nachricht gelöscht" in msg
+
+
+class TestReminderPauseLocale:
+    async def test_already_paused_english(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        interaction = _interaction_for_reminder(mock_interaction)
+        now = datetime.now(UTC)
+        r = ReminderMessage(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="ch",
+            CreateDate=now,
+            Author="A",
+            ScheduleType="interval",
+            IntervalSeconds=3600,
+            NextFire=now + timedelta(hours=1),
+            Message="X",
+            Count=0,
+            Enabled=False,
+        )
+        db_session.add(r)
+        db_session.commit()
+        await reminder_cog._reminder_pause.callback(reminder_cog, interaction, reminder_id=r.Id)
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "already paused" in msg
+
+    async def test_already_paused_german(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        _set_german(db_session)
+        interaction = _interaction_for_reminder(mock_interaction)
+        now = datetime.now(UTC)
+        r = ReminderMessage(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="ch",
+            CreateDate=now,
+            Author="A",
+            ScheduleType="interval",
+            IntervalSeconds=3600,
+            NextFire=now + timedelta(hours=1),
+            Message="X",
+            Count=0,
+            Enabled=False,
+        )
+        db_session.add(r)
+        db_session.commit()
+        await reminder_cog._reminder_pause.callback(reminder_cog, interaction, reminder_id=r.Id)
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "bereits pausiert" in msg
+
+
+class TestReminderResumeLocale:
+    async def test_already_active_english(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        interaction = _interaction_for_reminder(mock_interaction)
+        now = datetime.now(UTC)
+        r = ReminderMessage(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="ch",
+            CreateDate=now,
+            Author="A",
+            ScheduleType="interval",
+            IntervalSeconds=3600,
+            NextFire=now + timedelta(hours=1),
+            Message="X",
+            Count=0,
+            Enabled=True,
+        )
+        db_session.add(r)
+        db_session.commit()
+        await reminder_cog._reminder_resume.callback(reminder_cog, interaction, reminder_id=r.Id)
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "already active" in msg
+
+    async def test_already_active_german(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        _set_german(db_session)
+        interaction = _interaction_for_reminder(mock_interaction)
+        now = datetime.now(UTC)
+        r = ReminderMessage(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="ch",
+            CreateDate=now,
+            Author="A",
+            ScheduleType="interval",
+            IntervalSeconds=3600,
+            NextFire=now + timedelta(hours=1),
+            Message="X",
+            Count=0,
+            Enabled=True,
+        )
+        db_session.add(r)
+        db_session.commit()
+        await reminder_cog._reminder_resume.callback(reminder_cog, interaction, reminder_id=r.Id)
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "bereits aktiv" in msg
+
+
+class TestReminderEditLocale:
+    # noinspection PyMethodMayBeStatic
+    def _make_reminder(self, db_session, **overrides):
+        now = datetime.now(UTC)
+        defaults = dict(
+            GuildId=123,
+            ChannelId=456,
+            ChannelName="general",
+            CreateDate=now,
+            Author="A",
+            ScheduleType="interval",
+            IntervalSeconds=3600,
+            NextFire=now + timedelta(hours=1),
+            Message="Original",
+            Count=0,
+            Enabled=True,
+        )
+        defaults.update(overrides)
+        r = ReminderMessage(**defaults)
+        db_session.add(r)
+        db_session.commit()
+        return r
+
+    async def test_nothing_to_change_english(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        interaction = _interaction_for_reminder(mock_interaction)
+        r = self._make_reminder(db_session)
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay=None,
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "Nothing to change" in msg
+
+    async def test_nothing_to_change_german(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        _set_german(db_session)
+        interaction = _interaction_for_reminder(mock_interaction)
+        r = self._make_reminder(db_session)
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay=None,
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "Nichts zu ändern" in msg
+
+    async def test_param_not_applicable_german(self, _load_locale_strings, reminder_cog, mock_interaction, db_session):
+        _set_german(db_session)
+        interaction = _interaction_for_reminder(mock_interaction)
+        r = self._make_reminder(db_session, ScheduleType="daily", IntervalSeconds=None, ScheduleTime=time(9, 0))
+        await reminder_cog._reminder_edit.callback(
+            reminder_cog,
+            interaction,
+            reminder_id=r.Id,
+            message=None,
+            channel=None,
+            delay="2h",
+            time_of_day=None,
+            day_of_week=None,
+            day_of_month=None,
+            timezone=None,
+        )
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "gilt nur für" in msg
+
+
+class TestFormatRelativeLocale:
+    def test_a_day_german(self, _load_locale_strings):
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo("Europe/Berlin")
+        local_now = datetime.now(tz)
+        fire_utc = (local_now + timedelta(days=1)).astimezone(UTC)
+        result = _format_relative(fire_utc, tz, lang="de")
+        assert result == "in einem Tag"
+
+    def test_days_german(self, _load_locale_strings):
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo("Europe/Berlin")
+        local_now = datetime.now(tz)
+        fire_date = (local_now + timedelta(days=3)).replace(hour=9, minute=0, second=0, microsecond=0)
+        fire_utc = fire_date.astimezone(UTC)
+        result = _format_relative(fire_utc, tz, lang="de")
+        assert result == "in 3 Tagen"
