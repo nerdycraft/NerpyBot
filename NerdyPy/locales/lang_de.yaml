@@ -26,6 +26,19 @@ admin:
     get_default: "Keine Sprache konfiguriert. Standard ist Englisch."
     invalid: "Nicht unterstützte Sprache: `{language}`. Verfügbar: {available}"
 
+music:
+  skip:
+    success: "Aktuellen Titel übersprungen."
+  queue:
+    drop_success: "Warteschlange geleert und Wiedergabe gestoppt."
+    added: "Zur Warteschlange hinzugefügt"
+  playlist:
+    not_a_playlist: "Das ist keine Playlist. Bitte füge ein einzelnes Video direkt mit dem Play-Befehl hinzu."
+    loading: "Bitte hab etwas Geduld. Das kann eine Weile dauern."
+    use_playlist_command: "Bitte verwende den Playlist-Befehl für Playlists."
+  search:
+    no_results: "Deine Suche hat keine Ergebnisse geliefert."
+
 leavemsg:
   enable:
     success: "Abschiedsnachrichten in {channel} aktiviert."

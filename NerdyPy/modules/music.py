@@ -8,6 +8,7 @@ from utils.checks import can_stop_playback, is_connected_to_voice
 from utils.cog import NerpyBotCog
 from utils.download import download, fetch_yt_infos
 from utils.helpers import error_context, youtube
+from utils.strings import get_guild_language, get_string
 
 
 @app_commands.guild_only()
@@ -24,12 +25,17 @@ class Music(NerpyBotCog, QueueMixin, GroupCog):
         self.queue = {}
         self.audio = self.bot.audio
 
+    def _lang(self, guild_id: int) -> str:
+        with self.bot.session_scope() as session:
+            return get_guild_language(guild_id, session)
+
     @app_commands.command(name="skip")
     @app_commands.check(can_stop_playback)
     async def _skip_audio(self, interaction: Interaction):
         """skip current track"""
         self.audio.stop(interaction.guild.id)
-        await interaction.response.send_message("Skipped current track.", ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+        await interaction.response.send_message(get_string(lang, "music.skip.success"), ephemeral=True)
 
     @queue_group.command(name="list")
     async def _list_queue(self, interaction: Interaction):
@@ -41,49 +47,53 @@ class Music(NerpyBotCog, QueueMixin, GroupCog):
     async def _drop_queue(self, interaction: Interaction):
         """drop the playlist entirely"""
         self._stop_and_clear_queue(interaction.guild.id)
-        await interaction.response.send_message("Cleared the queue and stopped playing audio.", ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+        await interaction.response.send_message(get_string(lang, "music.queue.drop_success"), ephemeral=True)
 
     @play.command(name="song")
     @app_commands.check(is_connected_to_voice)
     async def _play_song(self, interaction: Interaction, song_url: str):
         """Play a Song from URL"""
         await interaction.response.defer()
-        await self._send_to_queue(interaction, song_url)
+        lang = self._lang(interaction.guild_id)
+        await self._send_to_queue(interaction, song_url, lang)
 
     @play.command(name="playlist")
     @app_commands.check(is_connected_to_voice)
     async def _add_playlist(self, interaction: Interaction, playlist_url: str):
         """Add an entire playlist to the Queue. Currently only YouTube is supported."""
         await interaction.response.defer()
+        lang = self._lang(interaction.guild_id)
         playlist_infos = fetch_yt_infos(playlist_url)
 
         if "_type" not in playlist_infos:
             await interaction.followup.send(
-                "This is not a playlist. Please add a single video directly with the play command.",
+                get_string(lang, "music.playlist.not_a_playlist"),
                 ephemeral=True,
             )
         else:
-            await interaction.followup.send("Please bear with me. This can take a while.")
+            await interaction.followup.send(get_string(lang, "music.playlist.loading"))
             playlist_entries = playlist_infos["entries"]
             for entry in playlist_entries:
-                await self._send_to_queue(interaction, entry["webpage_url"])
+                await self._send_to_queue(interaction, entry["webpage_url"], lang)
 
     @play.command(name="search")
     @app_commands.check(is_connected_to_voice)
     async def _search_music(self, interaction: Interaction, query: str):
         """Search for music. Currently only YouTube is supported"""
         await interaction.response.defer()
+        lang = self._lang(interaction.guild_id)
         video_url = youtube(self.config["ytkey"], "url", query)
         if video_url is not None:
-            await self._send_to_queue(interaction, video_url)
+            await self._send_to_queue(interaction, video_url, lang)
         else:
-            await interaction.followup.send("Your search did not yield any results.", ephemeral=True)
+            await interaction.followup.send(get_string(lang, "music.search.no_results"), ephemeral=True)
 
-    async def _send_to_queue(self, interaction: Interaction, video_url):
+    async def _send_to_queue(self, interaction: Interaction, video_url, lang: str):
         video_infos = fetch_yt_infos(video_url)
 
         if "_type" in video_infos and video_infos.get("_type") == "playlist":
-            await interaction.followup.send("Please use the playlist command for playlists.")
+            await interaction.followup.send(get_string(lang, "music.playlist.use_playlist_command"))
             return
 
         video_title = video_infos["title"]
@@ -91,7 +101,7 @@ class Music(NerpyBotCog, QueueMixin, GroupCog):
         video_thumbnail = video_infos.get("thumbnails", [dict()])[0].get("url")
         self.bot.log.info(f'{error_context(interaction)}: requesting "{video_title}" to play')
         emb = Embed(
-            title="\U0001f3b5 Added to Queue",
+            title=f"\U0001f3b5 {get_string(lang, 'music.queue.added')}",
             color=Color(0x0099FF),
             description=f"[{video_title}]({video_url})",
         )
