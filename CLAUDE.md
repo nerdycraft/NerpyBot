@@ -73,7 +73,7 @@ docker run --rm nerpybot-migrations alembic heads  # uses alembic.ini (default)
 
 Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamically based on `config.yaml`:
 
-- **admin** - Server management, moderator role config, command sync (always auto-loaded)
+- **admin** - Server management, moderator role config, language preference, command sync (always auto-loaded)
 - **application** - Custom application/form system with DM conversations and button-based review
 - **league** - Riot API integration
 - **leavemsg** - Custom leave messages when members depart
@@ -108,6 +108,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - `permissions.py` - Per-module bot permission requirements map and guild-level permission audit helpers
 - `duration.py` - `parse_duration()` for human-friendly duration strings (`2h30m`, `1d12h`, `1w`); wraps `pytimeparse2`
 - `schedule.py` - `compute_next_fire()` for DST-aware next-fire-time computation (interval/daily/weekly/monthly)
+- `strings.py` - Localized string lookup: `load_strings()` at startup, `get_string(lang, key, **kwargs)` for templates, `get_guild_language(guild_id, session)` for DB lookup, `get_localized_string(guild_id, key, session, **kwargs)` convenience wrapper
 
 ### Gotchas
 
@@ -124,7 +125,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **`@app_commands.rename` for cleaner Discord param names** — Use `@app_commands.rename(python_name="discord_name")` whenever the Discord-facing name should differ from the Python identifier: required when the name is a keyword (e.g. `in`), and useful for readability (e.g. `form_name` → `form`). `describe`, `autocomplete`, and all internal references keep using the Python name.
 - **Alembic migrations must be dialect-aware** — SQLite uses `datetime()`, PostgreSQL uses `make_interval()`, MySQL uses `DATE_ADD()`. Use `op.get_bind().dialect.name` to branch. Always use `batch_alter_table` for SQLite column operations. Note: `op.alter_column()` **without** a `batch_alter_table` context crashes on SQLite — and type-only encoding migrations (e.g. `Text` → `UnicodeText`) can skip SQLite entirely since it stores all text as Unicode internally.
 - **All Alembic migrations must guard column/index existence, not just table existence** — `create_all()` on a fresh install already builds the latest schema; a subsequent `alembic upgrade head` must be a no-op. Before `add_column`, check `{c["name"] for c in inspect(conn).get_columns(table)}`; before `create_index`, check `{i["name"] for i in inspect(conn).get_indexes(table)}`. The return-early guard must cover both the "table absent" and "schema already current" cases.
-- **`interaction.response.is_done()` returns `False` after a failed `send_message()`** — If `send_message()` raises (e.g. 10062 Unknown interaction), `is_done()` is still `False`. In `_on_app_command_error`, wrap the user-facing response in `try/except` *before* `notify_error`, or `notify_error` will never be reached.
+- **`interaction.response.is_done()` returns `False` after a failed `send_message()`** — If `send_message()` raises (e.g. 10062 Unknown interaction), `is_done()` is still `False`. In `_on_app_command_error`, wrap the user-facing response in `try/except` _before_ `notify_error`, or `notify_error` will never be reached.
 - **`pyproject.toml` requires `packages = []`** — Without `[tool.setuptools] packages = []`, setuptools auto-discovers `config/` and `NerdyPy/` as a flat-layout conflict, breaking all `uv` commands.
 - **`cog_load` runs before `create_all()`** — `setup_hook` calls `load_extension()` (triggering `cog_load`) before `create_all()`. If a cog accesses new tables in `cog_load`, call `self.bot.create_all()` at the top of `cog_load` to ensure tables exist on existing databases.
 - **SQLite enforces unique constraints row-by-row, not deferred** — Swapping two values under a unique column in a single flush raises `IntegrityError`. Use a two-phase update: write temporary/offset values and flush, then write final values and flush.
@@ -132,6 +133,9 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **Cannot `send_modal()` after `defer()`** — Once `interaction.response.defer()` is called, `send_modal()` will raise. Design around this: if a button defers (e.g. to show a spinner), any follow-up that needs a modal must be a separate button/action.
 - **Exception narrowing conventions** — Use `SQLAlchemyError` (from `sqlalchemy.exc`) for ops inside `session_scope()`, `discord.HTTPException` for Discord API calls (fetch, edit, send to channels), and `(discord.Forbidden, discord.NotFound)` for user DM attempts.
 - **Pre-filling `discord.ui.Modal` fields** — Set `self.<field>.default = value` as an instance attribute in `__init__()` after `super().__init__()`. The class-level `TextInput` definition only sets the layout; instance-level assignment provides the pre-filled value.
+- **Localization strings vs user-defined templates** — `get_string()` only processes bot-authored strings from `NerdyPy/locales/lang_*.yaml`. User-defined content (leave messages, custom tags) must never pass through `get_string()` — format them at the call site instead.
+- **Adding a new language** — Create `NerdyPy/locales/lang_<code>.yaml`, restart the bot. No code changes needed. English keys are canonical — any missing key in other languages falls back to English automatically.
+- **Guild language is global** — `GuildLanguageConfig` is the single source of truth for a guild's language preference. Modules calling external APIs (Blizzard, Riot) should honor this setting when the API supports it, falling back to English otherwise.
 
 ## Configuration
 
