@@ -8,10 +8,12 @@ import pytest
 
 from models.application import ApplicationAnswer, ApplicationForm, ApplicationQuestion, ApplicationSubmission
 from modules.conversations.application import (
+    BACK_EMOJI,
     CANCEL_EMOJI,
     CONFIRM_EMOJI,
     REORDER_EMOJI,
     REMOVE_EMOJI,
+    RESET_EMOJI,
     ApplicationCreateConversation,
     ApplicationEditConversation,
     ApplicationSubmitConversation,
@@ -594,6 +596,74 @@ class TestApplicationSubmitConversation:
 
         # Guild owner was notified
         mock_owner.send.assert_called_once()
+
+
+class TestSubmitConversationNavigation:
+    """Back and Reset navigation in ApplicationSubmitConversation."""
+
+    @pytest.fixture
+    def conv(self, mock_bot, mock_user, mock_guild, db_session):
+        _make_send_return(mock_user)
+        form = ApplicationForm(GuildId=mock_guild.id, Name="Nav", ReviewChannelId=555)
+        db_session.add(form)
+        db_session.flush()
+        q1 = ApplicationQuestion(FormId=form.Id, QuestionText="Q1", SortOrder=1)
+        q2 = ApplicationQuestion(FormId=form.Id, QuestionText="Q2", SortOrder=2)
+        db_session.add_all([q1, q2])
+        db_session.flush()
+        return ApplicationSubmitConversation(
+            mock_bot,
+            mock_user,
+            mock_guild,
+            form_id=form.Id,
+            form_name="Nav",
+            questions=[(q1.Id, "Q1"), (q2.Id, "Q2")],
+        )
+
+    @pytest.mark.asyncio
+    async def test_back_on_question_2_goes_to_question_1(self, conv):
+        await conv.repost_state()  # INIT → question_0
+        await conv.on_message("A1")  # → question_1
+        await conv.on_react(BACK_EMOJI)
+        assert conv.currentState == "question_0"
+
+    @pytest.mark.asyncio
+    async def test_back_not_available_on_first_question(self, conv):
+        """question_0 should NOT add a ⬅️ reaction."""
+        await conv.repost_state()  # INIT → question_0
+        sent = conv.user.send.return_value
+        reaction_calls = [str(call.args[0]) for call in sent.add_reaction.call_args_list]
+        assert BACK_EMOJI not in reaction_calls
+
+    @pytest.mark.asyncio
+    async def test_back_preserves_existing_answer_in_embed(self, conv):
+        """Going back to a question shows the previously entered answer."""
+        await conv.repost_state()
+        await conv.on_message("My first answer")  # → question_1
+        await conv.on_react(BACK_EMOJI)  # → question_0
+        sent_calls = conv.user.send.call_args_list
+        last_embed = sent_calls[-1].kwargs.get("embed") or sent_calls[-1][1]["embed"]
+        assert "My first answer" in last_embed.description
+
+    @pytest.mark.asyncio
+    async def test_reset_clears_answers_and_goes_to_question_1(self, conv):
+        await conv.repost_state()
+        await conv.on_message("A1")  # question_1
+        conv.answers[conv.questions[0][0]] = "A1"  # ensure stored
+        await conv.on_react(RESET_EMOJI)
+        assert conv.currentState == "question_0"
+        assert conv.answers == {}
+
+    @pytest.mark.asyncio
+    async def test_cancel_instruction_in_footer_not_description(self, conv):
+        """Cancel hint should appear in the embed footer, not the description body."""
+        await conv.repost_state()  # INIT → question_0
+        sent_calls = conv.user.send.call_args_list
+        last_embed = sent_calls[-1].kwargs.get("embed") or sent_calls[-1][1]["embed"]
+        # Cancel emoji should NOT be the focus of the description
+        assert CANCEL_EMOJI not in (last_embed.description or "")
+        # But it should appear in the footer text
+        assert CANCEL_EMOJI in (last_embed.footer.text if last_embed.footer else "")
 
 
 class TestApplicationTemplateCreateConversation:

@@ -54,6 +54,7 @@ class SubmitState(Enum):
     CONFIRM = "confirm"
     SUBMIT = "submit"
     CANCELLED = "cancelled"
+    RESET = "reset"
 
 
 class TemplateCreateState(Enum):
@@ -68,6 +69,8 @@ class TemplateCreateState(Enum):
 
 CANCEL_EMOJI = "\u274c"  # ❌
 CONFIRM_EMOJI = "\u2705"  # ✅
+BACK_EMOJI = "\u2b05\ufe0f"  # ⬅️
+RESET_EMOJI = "\U0001f504"  # 🔄
 ADD_EMOJI = "\U0001f4dd"  # 📝
 REMOVE_EMOJI = "\U0001f5d1\ufe0f"  # 🗑️
 REORDER_EMOJI = "\U0001f500"  # 🔀
@@ -477,6 +480,7 @@ class ApplicationSubmitConversation(Conversation):
             handlers[f"question_{i}"] = lambda idx=i: self.state_question(idx)
         handlers[SubmitState.CONFIRM] = self.state_confirm
         handlers[SubmitState.SUBMIT] = self.state_submit
+        handlers[SubmitState.RESET] = self.state_reset
         handlers[SubmitState.CANCELLED] = self.state_cancelled
         return handlers
 
@@ -487,8 +491,9 @@ class ApplicationSubmitConversation(Conversation):
     async def state_init(self):
         emb = Embed(
             title=self.form_name,
-            description="I'll walk you through the questions. React " + CANCEL_EMOJI + " to cancel at any time.",
+            description="I'll walk you through the questions.",
         )
+        emb.set_footer(text=f"{CANCEL_EMOJI} cancel application")
         # Transition straight to first question
         self.currentState = "question_0"
         await self.send_ns(emb)
@@ -498,17 +503,32 @@ class ApplicationSubmitConversation(Conversation):
         self._current_q_index = index
         q_id, q_text = self.questions[index]
         total = len(self.questions)
-        emb = Embed(
-            title=f"Question {index + 1}/{total}",
-            description=q_text,
-        )
+
+        existing_answer = self.answers.get(q_id)
+        description = q_text
+        if existing_answer:
+            description += f"\n\n_Current answer: {existing_answer}_"
+
+        emb = Embed(title=f"Question {index + 1}/{total}", description=description)
+        emb.set_footer(text=f"{RESET_EMOJI} restart from Q1  |  {CANCEL_EMOJI} cancel application")
+
         next_state = f"question_{index + 1}" if index + 1 < total else SubmitState.CONFIRM
-        await self.send_both(emb, next_state, self._handle_answer, {CANCEL_EMOJI: SubmitState.CANCELLED})
+        reactions: dict = {}
+        if index > 0:
+            reactions[BACK_EMOJI] = f"question_{index - 1}"
+        reactions[RESET_EMOJI] = SubmitState.RESET
+        reactions[CANCEL_EMOJI] = SubmitState.CANCELLED
+        await self.send_both(emb, next_state, self._handle_answer, reactions)
 
     async def _handle_answer(self, message):
         q_id, _ = self.questions[self._current_q_index]
         self.answers[q_id] = message
         return True
+
+    async def state_reset(self):
+        self.answers.clear()
+        self.currentState = "question_0"
+        await self.state_question(0)
 
     async def state_confirm(self):
         lines = []
