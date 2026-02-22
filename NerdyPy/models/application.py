@@ -76,6 +76,9 @@ class ApplicationForm(db.BASE):
     RequiredDenials = Column(Integer, nullable=False, default=1)
     ApprovalMessage = Column(UnicodeText, nullable=True)
     DenialMessage = Column(UnicodeText, nullable=True)
+    ApplyChannelId = Column(BigInteger, nullable=True)
+    ApplyMessageId = Column(BigInteger, nullable=True)
+    ApplyDescription = Column(UnicodeText, nullable=True)
 
     questions = relationship(
         "ApplicationQuestion",
@@ -118,6 +121,11 @@ class ApplicationForm(db.BASE):
         form = cls.get(name, guild_id, session)
         if form is not None:
             session.delete(form)
+
+    @classmethod
+    def get_by_apply_message(cls, message_id, session):
+        """Look up a form by its apply button message ID."""
+        return session.query(cls).filter(cls.ApplyMessageId == message_id).first()
 
 
 class ApplicationQuestion(db.BASE):

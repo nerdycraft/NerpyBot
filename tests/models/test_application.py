@@ -181,6 +181,46 @@ class TestApplicationFormUniqueConstraint:
             db_session.flush()
 
 
+class TestApplicationFormApplyColumns:
+    """Tests for ApplyChannelId, ApplyMessageId, ApplyDescription columns."""
+
+    def test_apply_columns_exist(self, db_session):
+        form = ApplicationForm(GuildId=123, Name="ColTest")
+        form.ApplyChannelId = 999888777
+        form.ApplyMessageId = 111222333
+        form.ApplyDescription = "Click to apply!"
+        db_session.add(form)
+        db_session.flush()
+
+        fetched = db_session.query(ApplicationForm).filter(ApplicationForm.Id == form.Id).first()
+        assert fetched.ApplyChannelId == 999888777
+        assert fetched.ApplyMessageId == 111222333
+        assert fetched.ApplyDescription == "Click to apply!"
+
+    def test_apply_columns_default_to_none(self, db_session):
+        form = ApplicationForm(GuildId=123, Name="DefaultTest")
+        db_session.add(form)
+        db_session.flush()
+
+        fetched = db_session.query(ApplicationForm).filter(ApplicationForm.Id == form.Id).first()
+        assert fetched.ApplyChannelId is None
+        assert fetched.ApplyMessageId is None
+        assert fetched.ApplyDescription is None
+
+    def test_get_by_apply_message(self, db_session):
+        form = ApplicationForm(GuildId=123, Name="MsgLookup", ApplyMessageId=555666777)
+        db_session.add(form)
+        db_session.flush()
+
+        result = ApplicationForm.get_by_apply_message(555666777, db_session)
+        assert result is not None
+        assert result.Name == "MsgLookup"
+
+    def test_get_by_apply_message_not_found(self, db_session):
+        result = ApplicationForm.get_by_apply_message(999999, db_session)
+        assert result is None
+
+
 class TestApplicationFormDefaults:
     """Tests for default column values."""
 
