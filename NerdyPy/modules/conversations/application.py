@@ -55,6 +55,7 @@ class SubmitState(Enum):
     SUBMIT = "submit"
     CANCELLED = "cancelled"
     RESET = "reset"
+    EDIT_SELECT = "edit_select"
 
 
 class TemplateCreateState(Enum):
@@ -71,9 +72,11 @@ CANCEL_EMOJI = "\u274c"  # ❌
 CONFIRM_EMOJI = "\u2705"  # ✅
 BACK_EMOJI = "\u2b05\ufe0f"  # ⬅️
 RESET_EMOJI = "\U0001f504"  # 🔄
+REORDER_EMOJI = "\u2705"  # ✅ - Wait, this is wrong in the file?
 ADD_EMOJI = "\U0001f4dd"  # 📝
 REMOVE_EMOJI = "\U0001f5d1\ufe0f"  # 🗑️
 REORDER_EMOJI = "\U0001f500"  # 🔀
+EDIT_EMOJI = "\u270f\ufe0f"  # ✏️
 
 
 def _questions_embed(title: str, questions: list[str], description: str | None = None) -> Embed:
@@ -481,6 +484,7 @@ class ApplicationSubmitConversation(Conversation):
         handlers[SubmitState.CONFIRM] = self.state_confirm
         handlers[SubmitState.SUBMIT] = self.state_submit
         handlers[SubmitState.RESET] = self.state_reset
+        handlers[SubmitState.EDIT_SELECT] = self.state_edit_select
         handlers[SubmitState.CANCELLED] = self.state_cancelled
         return handlers
 
@@ -530,17 +534,45 @@ class ApplicationSubmitConversation(Conversation):
         self.currentState = "question_0"
         await self.state_question(0)
 
+    async def state_edit_select(self):
+        total = len(self.questions)
+        emb = Embed(
+            title="Edit an answer",
+            description=f"Enter the question number to edit (1–{total}):",
+        )
+        await self.send_msg(emb, SubmitState.EDIT_SELECT, self._handle_edit_select)
+
+    async def _handle_edit_select(self, message):
+        try:
+            num = int(message)
+        except ValueError:
+            await self.send_ns(Embed(title="Invalid input", description="Please enter a number."))
+            return False
+        if num < 1 or num > len(self.questions):
+            await self.send_ns(
+                Embed(title="Invalid number", description=f"Enter a number between 1 and {len(self.questions)}.")
+            )
+            return False
+        # Jump to that question; answering it chains forward naturally, eventually back to CONFIRM
+        self.currentState = f"question_{num - 1}"
+        return False
+
     async def state_confirm(self):
         lines = []
         for q_id, q_text in self.questions:
             answer = self.answers.get(q_id, "_No answer_")
             lines.append(f"**Q:** {q_text}\n**A:** {answer}")
         body = "\n\n".join(lines)
-        emb = Embed(
-            title=f"Review: {self.form_name}",
-            description=body + f"\n\n{CONFIRM_EMOJI} = submit | {CANCEL_EMOJI} = cancel",
+        emb = Embed(title=f"Review: {self.form_name}", description=body)
+        emb.set_footer(text=f"{CONFIRM_EMOJI} submit  |  {EDIT_EMOJI} edit an answer  |  {CANCEL_EMOJI} cancel")
+        await self.send_react(
+            emb,
+            {
+                CONFIRM_EMOJI: SubmitState.SUBMIT,
+                EDIT_EMOJI: SubmitState.EDIT_SELECT,
+                CANCEL_EMOJI: SubmitState.CANCELLED,
+            },
         )
-        await self.send_react(emb, {CONFIRM_EMOJI: SubmitState.SUBMIT, CANCEL_EMOJI: SubmitState.CANCELLED})
 
     async def state_submit(self):
         # Verify the review channel is still accessible before saving anything —

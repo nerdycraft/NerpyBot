@@ -11,6 +11,7 @@ from modules.conversations.application import (
     BACK_EMOJI,
     CANCEL_EMOJI,
     CONFIRM_EMOJI,
+    EDIT_EMOJI,
     REORDER_EMOJI,
     REMOVE_EMOJI,
     RESET_EMOJI,
@@ -664,6 +665,67 @@ class TestSubmitConversationNavigation:
         assert CANCEL_EMOJI not in (last_embed.description or "")
         # But it should appear in the footer text
         assert CANCEL_EMOJI in (last_embed.footer.text if last_embed.footer else "")
+
+
+class TestSubmitConversationEditBeforeSubmit:
+    """Users can edit an answer from the confirm screen before submitting."""
+
+    @pytest.fixture
+    def conv(self, mock_bot, mock_user, mock_guild, db_session):
+        _make_send_return(mock_user)
+        form = ApplicationForm(GuildId=mock_guild.id, Name="Edit", ReviewChannelId=555)
+        db_session.add(form)
+        db_session.flush()
+        q1 = ApplicationQuestion(FormId=form.Id, QuestionText="Q1", SortOrder=1)
+        q2 = ApplicationQuestion(FormId=form.Id, QuestionText="Q2", SortOrder=2)
+        db_session.add_all([q1, q2])
+        db_session.flush()
+        c = ApplicationSubmitConversation(
+            mock_bot,
+            mock_user,
+            mock_guild,
+            form_id=form.Id,
+            form_name="Edit",
+            questions=[(q1.Id, "Q1"), (q2.Id, "Q2")],
+        )
+        c.answers = {q1.Id: "Old A1", q2.Id: "Old A2"}
+        return c
+
+    @pytest.mark.asyncio
+    async def test_confirm_includes_edit_reaction(self, conv):
+        conv.currentState = SubmitState.CONFIRM
+        await conv.repost_state()
+        sent = conv.user.send.return_value
+        reaction_calls = [str(call.args[0]) for call in sent.add_reaction.call_args_list]
+        assert EDIT_EMOJI in reaction_calls
+
+    @pytest.mark.asyncio
+    async def test_edit_reaction_transitions_to_edit_select(self, conv):
+        conv.currentState = SubmitState.CONFIRM
+        await conv.repost_state()
+        await conv.on_react(EDIT_EMOJI)
+        assert conv.currentState == SubmitState.EDIT_SELECT
+
+    @pytest.mark.asyncio
+    async def test_edit_select_valid_number_jumps_to_question(self, conv):
+        conv.currentState = SubmitState.EDIT_SELECT
+        await conv.repost_state()
+        await conv.on_message("1")
+        assert conv.currentState == "question_0"
+
+    @pytest.mark.asyncio
+    async def test_edit_select_invalid_number_stays(self, conv):
+        conv.currentState = SubmitState.EDIT_SELECT
+        await conv.repost_state()
+        await conv.on_message("99")  # out of range
+        assert conv.currentState == SubmitState.EDIT_SELECT
+
+    @pytest.mark.asyncio
+    async def test_edit_select_non_numeric_stays(self, conv):
+        conv.currentState = SubmitState.EDIT_SELECT
+        await conv.repost_state()
+        await conv.on_message("abc")
+        assert conv.currentState == SubmitState.EDIT_SELECT
 
 
 class TestApplicationTemplateCreateConversation:
