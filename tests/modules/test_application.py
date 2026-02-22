@@ -18,7 +18,7 @@ from models.application import (
     ApplicationTemplate,
     seed_built_in_templates,
 )
-from modules.application import Application
+from modules.application import Application, _fetch_description_from_message
 
 
 @pytest.fixture
@@ -55,6 +55,107 @@ def _make_form(db_session, guild_id=987654321, name="TestForm", review_channel_i
     db_session.add(ApplicationQuestion(FormId=form.Id, QuestionText="What is your name?", SortOrder=1))
     db_session.commit()
     return form
+
+
+# ---------------------------------------------------------------------------
+# _fetch_description_from_message
+# ---------------------------------------------------------------------------
+
+
+class TestFetchDescriptionFromMessage:
+    @pytest.fixture
+    def mock_channel(self):
+        ch = MagicMock()
+        msg = MagicMock()
+        msg.content = "Hello **world**!\nThis is a rich description."
+        msg.delete = AsyncMock()
+        ch.fetch_message = AsyncMock(return_value=msg)
+        return ch, msg
+
+    @pytest.fixture
+    def mock_interaction(self):
+        interaction = MagicMock()
+        interaction.channel_id = 111
+        return interaction
+
+    @pytest.mark.asyncio
+    async def test_bare_id_uses_channel_hint(self, mock_bot, mock_channel, mock_interaction):
+        ch, msg = mock_channel
+        mock_bot.get_channel = MagicMock(return_value=ch)
+        hint = MagicMock()
+        hint.id = 222
+
+        content, error = await _fetch_description_from_message(mock_bot, "99999", hint, mock_interaction)
+
+        assert error is None
+        assert content == msg.content
+        mock_bot.get_channel.assert_called_with(222)
+        ch.fetch_message.assert_called_with(99999)
+        msg.delete.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_bare_id_falls_back_to_interaction_channel(self, mock_bot, mock_channel, mock_interaction):
+        ch, msg = mock_channel
+        mock_bot.get_channel = MagicMock(return_value=ch)
+
+        content, error = await _fetch_description_from_message(mock_bot, "99999", None, mock_interaction)
+
+        assert error is None
+        mock_bot.get_channel.assert_called_with(111)
+
+    @pytest.mark.asyncio
+    async def test_message_link_extracts_channel_and_id(self, mock_bot, mock_channel, mock_interaction):
+        ch, msg = mock_channel
+        mock_bot.get_channel = MagicMock(return_value=ch)
+        link = "https://discord.com/channels/123/456/789"
+
+        content, error = await _fetch_description_from_message(mock_bot, link, None, mock_interaction)
+
+        assert error is None
+        mock_bot.get_channel.assert_called_with(456)
+        ch.fetch_message.assert_called_with(789)
+
+    @pytest.mark.asyncio
+    async def test_invalid_ref_returns_error(self, mock_bot, mock_interaction):
+        content, error = await _fetch_description_from_message(mock_bot, "not-a-number", None, mock_interaction)
+
+        assert content is None
+        assert "Invalid" in error
+
+    @pytest.mark.asyncio
+    async def test_message_not_found_returns_error(self, mock_bot, mock_interaction):
+        ch = MagicMock()
+        ch.fetch_message = AsyncMock(side_effect=discord.NotFound(MagicMock(), "Not found"))
+        mock_bot.get_channel = MagicMock(return_value=ch)
+
+        content, error = await _fetch_description_from_message(mock_bot, "99999", None, mock_interaction)
+
+        assert content is None
+        assert "not found" in error.lower()
+
+    @pytest.mark.asyncio
+    async def test_empty_content_returns_error(self, mock_bot, mock_interaction):
+        ch = MagicMock()
+        msg = MagicMock()
+        msg.content = ""
+        ch.fetch_message = AsyncMock(return_value=msg)
+        mock_bot.get_channel = MagicMock(return_value=ch)
+
+        content, error = await _fetch_description_from_message(mock_bot, "99999", None, mock_interaction)
+
+        assert content is None
+        assert "no text" in error.lower()
+
+    @pytest.mark.asyncio
+    async def test_delete_failure_still_returns_content(self, mock_bot, mock_channel, mock_interaction):
+        ch, msg = mock_channel
+        msg.delete = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "No perms"))
+        mock_bot.get_channel = MagicMock(return_value=ch)
+
+        content, error = await _fetch_description_from_message(mock_bot, "99999", None, mock_interaction)
+
+        assert error is None
+        assert content == msg.content
 
 
 # ---------------------------------------------------------------------------

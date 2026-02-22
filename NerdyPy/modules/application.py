@@ -4,6 +4,7 @@
 import asyncio
 import io
 import json
+import re
 from typing import Optional
 
 import discord
@@ -26,6 +27,54 @@ from modules.conversations.application import (
 )
 from modules.views.application import check_override_permission
 from utils.cog import NerpyBotCog
+
+_MESSAGE_LINK_RE = re.compile(r"https?://(?:canary\.|ptb\.)?discord(?:app)?\.com/channels/\d+/(\d+)/(\d+)")
+
+
+async def _fetch_description_from_message(
+    bot, message_ref: str, channel_hint: TextChannel | None, interaction: Interaction
+) -> tuple[str | None, str | None]:
+    """Fetch message content for use as apply description, then delete the source message.
+
+    Returns ``(content, error)``. On success ``error`` is ``None``; on failure
+    ``content`` is ``None`` and ``error`` describes the problem.
+    """
+    message_ref = message_ref.strip()
+    match = _MESSAGE_LINK_RE.match(message_ref)
+    if match:
+        channel_id = int(match.group(1))
+        message_id = int(match.group(2))
+    else:
+        try:
+            message_id = int(message_ref)
+        except ValueError:
+            return None, "Invalid message reference — provide a message ID or a message link."
+        channel_id = channel_hint.id if channel_hint else interaction.channel_id
+
+    channel = bot.get_channel(channel_id)
+    if channel is None:
+        try:
+            channel = await bot.fetch_channel(channel_id)
+        except (discord.NotFound, discord.Forbidden):
+            return None, "I can't access the channel that message is in."
+
+    try:
+        msg = await channel.fetch_message(message_id)
+    except discord.NotFound:
+        return None, "Message not found — double-check the ID or link."
+    except discord.Forbidden:
+        return None, "I don't have permission to read that message."
+
+    content = msg.content
+    if not content:
+        return None, "That message has no text content."
+
+    try:
+        await msg.delete()
+    except (discord.NotFound, discord.Forbidden):
+        bot.log.debug("Could not delete description source message %d", message_id)
+
+    return content, None
 
 
 @app_commands.default_permissions(administrator=True)
@@ -95,12 +144,13 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     # -- /application create -------------------------------------------------
 
     @app_commands.command(name="create")
-    @app_commands.rename(review_channel="review-channel")
+    @app_commands.rename(review_channel="review-channel", description_message="description-message")
     @app_commands.describe(
         name="Name for the new application form",
         review_channel="Channel where reviews will be posted",
         channel="Channel where the apply button will be posted (optional)",
         description="Description shown on the apply button embed (optional)",
+        description_message="Message ID or link whose text becomes the description (message is deleted)",
         approvals="Number of approvals required (default: 1)",
         denials="Number of denials required (default: 1)",
         approval_message="Message sent to applicant on approval",
@@ -113,6 +163,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         review_channel: TextChannel,
         channel: Optional[TextChannel] = None,
         description: Optional[str] = None,
+        description_message: Optional[str] = None,
         approvals: Optional[app_commands.Range[int, 1]] = None,
         denials: Optional[app_commands.Range[int, 1]] = None,
         approval_message: Optional[str] = None,
@@ -122,6 +173,13 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         if not self._has_manage_permission(interaction):
             await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
             return
+
+        if description_message:
+            content, error = await _fetch_description_from_message(self.bot, description_message, channel, interaction)
+            if error:
+                await interaction.response.send_message(error, ephemeral=True)
+                return
+            description = content
 
         with self.bot.session_scope() as session:
             existing = ApplicationForm.get(name, interaction.guild.id, session)
@@ -240,12 +298,13 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     # -- /application settings -----------------------------------------------
 
     @app_commands.command(name="settings")
-    @app_commands.rename(review_channel="review-channel")
+    @app_commands.rename(review_channel="review-channel", description_message="description-message")
     @app_commands.describe(
         name="Name of the form",
         review_channel="New review channel",
         channel="Channel where the apply button will be posted",
         description="Description shown on the apply button embed",
+        description_message="Message ID or link whose text becomes the description (message is deleted)",
         approvals="Number of approvals required",
         denials="Number of denials required",
         approval_message="Message sent on approval",
@@ -259,6 +318,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         review_channel: Optional[TextChannel] = None,
         channel: Optional[TextChannel] = None,
         description: Optional[str] = None,
+        description_message: Optional[str] = None,
         approvals: Optional[app_commands.Range[int, 1]] = None,
         denials: Optional[app_commands.Range[int, 1]] = None,
         approval_message: Optional[str] = None,
@@ -268,6 +328,13 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         if not self._has_manage_permission(interaction):
             await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
             return
+
+        if description_message:
+            content, error = await _fetch_description_from_message(self.bot, description_message, channel, interaction)
+            if error:
+                await interaction.response.send_message(error, ephemeral=True)
+                return
+            description = content
 
         repost_apply = False
         edit_apply = False
@@ -406,13 +473,14 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     # -- /application template use -------------------------------------------
 
     @template_group.command(name="use")
-    @app_commands.rename(review_channel="review-channel")
+    @app_commands.rename(review_channel="review-channel", description_message="description-message")
     @app_commands.describe(
         template="Template to use",
         name="Name for the new form",
         review_channel="Channel where reviews will be posted",
         channel="Channel where the apply button will be posted (optional)",
         description="Description shown on the apply button embed (optional)",
+        description_message="Message ID or link whose text becomes the description (message is deleted)",
     )
     @app_commands.autocomplete(template=_template_autocomplete)
     async def _template_use(
@@ -423,11 +491,19 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         review_channel: TextChannel,
         channel: Optional[TextChannel] = None,
         description: Optional[str] = None,
+        description_message: Optional[str] = None,
     ):
         """Create a new form from a template."""
         if not self._has_manage_permission(interaction):
             await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
             return
+
+        if description_message:
+            content, error = await _fetch_description_from_message(self.bot, description_message, channel, interaction)
+            if error:
+                await interaction.response.send_message(error, ephemeral=True)
+                return
+            description = content
 
         form_id = None
         with self.bot.session_scope() as session:
