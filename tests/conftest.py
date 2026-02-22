@@ -36,6 +36,7 @@ def db_engine():
     from models.tagging import Tag, TagEntry  # noqa: F401
     from models.admin import BotModeratorRole, PermissionSubscriber, GuildLanguageConfig  # noqa: F401
     from models.leavemsg import LeaveMessage  # noqa: F401
+    from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage  # noqa: F401
     from models.rolemanage import RoleMapping  # noqa: F401
     from models.wow import WowGuildNewsConfig, WowCharacterMounts  # noqa: F401
 
