@@ -43,7 +43,7 @@ from utils.error_throttle import ErrorThrottle
 from utils.errors import NerpyException, NerpyInfraException, SilentCheckFailure
 from utils.helpers import error_context, notify_error, parse_id
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
-from utils.strings import load_strings
+from utils.strings import get_localized_string, get_string, load_strings
 
 
 ACTIVITIES = [
@@ -223,7 +223,11 @@ class NerpyBot(Bot):
 
         module_name = type(cog).__module__.rsplit(".", 1)[-1]
         if module_name in self.disabled_modules:
-            msg = f"\u26a0\ufe0f The **{module_name}** module is currently disabled for maintenance. Please try again later."
+            try:
+                with self.session_scope() as session:
+                    msg = get_localized_string(interaction.guild_id, "bot.module_disabled", session, module=module_name)
+            except Exception:
+                msg = get_string("en", "bot.module_disabled", module=module_name)
             if not interaction.response.is_done():
                 await interaction.response.send_message(msg, ephemeral=True)
             else:
@@ -297,7 +301,11 @@ class NerpyBot(Bot):
             else:
                 self.log.error(f"{err_ctx}: {error.original.__class__.__name__}: {error.original}")
                 print_tb(error.original.__traceback__)
-                msg = "An error occurred. The bot operator has been notified."
+                try:
+                    with self.session_scope() as session:
+                        msg = get_localized_string(interaction.guild_id, "common.error_generic", session)
+                except Exception:
+                    msg = get_string("en", "common.error_generic")
                 try:
                     if not interaction.response.is_done():
                         await interaction.response.send_message(msg, ephemeral=True)

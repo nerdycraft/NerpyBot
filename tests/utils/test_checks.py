@@ -11,13 +11,22 @@ from utils.checks import (
     is_admin_or_operator,
     is_bot_moderator,
     is_connected_to_voice,
+    is_role_assignable,
+    is_role_below_bot,
     reject,
 )
 from utils.errors import SilentCheckFailure
+from utils.strings import load_strings
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _load_locale_strings():
+    """Load locale YAML files before each test so localized checks work."""
+    load_strings()
 
 
 @pytest.fixture
@@ -43,6 +52,7 @@ def mock_interaction(db_session):
     guild.voice_client = None  # bot not in voice by default
     guild.me = MagicMock()
     interaction.guild = guild
+    interaction.guild_id = 900
 
     # interaction.response
     response = MagicMock()
@@ -303,3 +313,109 @@ class TestCanLeaveVoice:
             await can_leave_voice(mock_interaction)
         msg = mock_interaction.response.send_message.call_args[0][0]
         assert "moderators" in msg.lower()
+
+
+# ---------------------------------------------------------------------------
+# is_role_assignable
+# ---------------------------------------------------------------------------
+
+
+class TestIsRoleAssignable:
+    async def test_allows_non_managed_role(self, mock_interaction):
+        role = MagicMock()
+        role.managed = False
+        assert await is_role_assignable(mock_interaction, role) is True
+        mock_interaction.response.send_message.assert_not_awaited()
+
+    async def test_rejects_managed_role_assign(self, mock_interaction):
+        role = MagicMock()
+        role.managed = True
+        role.name = "BotRole"
+        assert await is_role_assignable(mock_interaction, role) is False
+        msg = mock_interaction.response.send_message.call_args[0][0]
+        assert "BotRole" in msg
+        assert "assigned" in msg
+
+    async def test_rejects_managed_role_remove(self, mock_interaction):
+        role = MagicMock()
+        role.managed = True
+        role.name = "BotRole"
+        assert await is_role_assignable(mock_interaction, role, action="removed from") is False
+        msg = mock_interaction.response.send_message.call_args[0][0]
+        assert "BotRole" in msg
+        assert "removed" in msg
+
+
+# ---------------------------------------------------------------------------
+# is_role_below_bot
+# ---------------------------------------------------------------------------
+
+
+class TestIsRoleBelowBot:
+    async def test_allows_role_below_bot(self, mock_interaction):
+        role = MagicMock()
+        role.__ge__ = MagicMock(return_value=False)
+        assert await is_role_below_bot(mock_interaction, role) is True
+        mock_interaction.response.send_message.assert_not_awaited()
+
+    async def test_rejects_role_at_or_above_bot(self, mock_interaction):
+        role = MagicMock()
+        role.name = "HighRole"
+        role.__ge__ = MagicMock(return_value=True)
+        assert await is_role_below_bot(mock_interaction, role) is False
+        msg = mock_interaction.response.send_message.call_args[0][0]
+        assert "HighRole" in msg
+        assert "highest role" in msg
+
+
+# ---------------------------------------------------------------------------
+# Localization: German guild language
+# ---------------------------------------------------------------------------
+
+
+class TestLocalization:
+    """Verify that check messages respect the guild's configured language."""
+
+    async def test_voice_check_returns_german_for_german_guild(self, mock_interaction, db_session):
+        from models.admin import GuildLanguageConfig
+
+        db_session.add(GuildLanguageConfig(GuildId=900, Language="de"))
+        db_session.commit()
+
+        mock_interaction.user.voice = None
+        with pytest.raises(SilentCheckFailure):
+            await is_connected_to_voice(mock_interaction)
+        msg = mock_interaction.response.send_message.call_args[0][0]
+        assert "Sprachkanal" in msg
+
+    async def test_stop_playback_returns_german(self, mock_interaction, db_session):
+        from models.admin import GuildLanguageConfig
+
+        db_session.add(GuildLanguageConfig(GuildId=900, Language="de"))
+        db_session.commit()
+
+        mock_interaction.guild.voice_client = None
+        with pytest.raises(SilentCheckFailure):
+            await can_stop_playback(mock_interaction)
+        msg = mock_interaction.response.send_message.call_args[0][0]
+        assert "nichts abgespielt" in msg
+
+    async def test_role_assignable_returns_german(self, mock_interaction, db_session):
+        from models.admin import GuildLanguageConfig
+
+        db_session.add(GuildLanguageConfig(GuildId=900, Language="de"))
+        db_session.commit()
+
+        role = MagicMock()
+        role.managed = True
+        role.name = "BotRole"
+        await is_role_assignable(mock_interaction, role)
+        msg = mock_interaction.response.send_message.call_args[0][0]
+        assert "Integrationsrolle" in msg
+
+    async def test_defaults_to_english_without_guild_config(self, mock_interaction):
+        mock_interaction.user.voice = None
+        with pytest.raises(SilentCheckFailure):
+            await is_connected_to_voice(mock_interaction)
+        msg = mock_interaction.response.send_message.call_args[0][0]
+        assert "connect to a voice channel" in msg

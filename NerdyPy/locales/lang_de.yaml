@@ -2,6 +2,23 @@ common:
   error_generic: "Ein Fehler ist aufgetreten. Der Bot-Betreiber wurde benachrichtigt."
   not_found: "Nicht gefunden."
 
+bot:
+  module_disabled: "Das Modul **{module}** ist derzeit für Wartungsarbeiten deaktiviert. Bitte versuche es später erneut."
+
+checks:
+  voice:
+    not_connected: "Ich weiß nicht, wo du bist. Bitte tritt einem Sprachkanal bei."
+    no_connect_permission: "Ich darf deinem aktuellen Kanal nicht beitreten."
+    no_speak_permission: "Ich habe keine Berechtigung, in deinem Sprachkanal zu sprechen."
+    nothing_playing: "Es wird gerade nichts abgespielt."
+    user_not_in_voice: "Du musst in einem Sprachkanal sein, um diesen Befehl zu verwenden."
+    user_in_different_channel: "Du musst im selben Sprachkanal wie der Bot sein, um diesen Befehl zu verwenden."
+    leave_moderator_only: "Nur Moderatoren können den Bot den Sprachkanal verlassen lassen."
+  role:
+    integration_assign: "**{role}** ist eine Integrationsrolle und kann Mitgliedern nicht zugewiesen werden."
+    integration_remove: "**{role}** ist eine Integrationsrolle und kann Mitgliedern nicht entzogen werden."
+    above_bot_role: "Ich kann **{role}** nicht verwalten — diese Rolle ist auf oder über meiner höchsten Rolle."
+
 admin:
   language:
     set_success: "Serversprache auf **{language}** gesetzt."

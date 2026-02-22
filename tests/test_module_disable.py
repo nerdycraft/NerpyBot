@@ -6,6 +6,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from utils.errors import SilentCheckFailure
+from utils.strings import load_strings
+
+
+@pytest.fixture(autouse=True)
+def _load_locale_strings():
+    """Load locale YAML files so localized messages resolve."""
+    load_strings()
 
 
 @pytest.fixture
@@ -32,6 +39,7 @@ def mock_interaction_for_disable(mock_bot_with_disable):
     command.binding = cog
     interaction.command = command
 
+    interaction.guild_id = 900
     interaction.response = MagicMock()
     interaction.response.send_message = AsyncMock()
     interaction.response.is_done = MagicMock(return_value=False)

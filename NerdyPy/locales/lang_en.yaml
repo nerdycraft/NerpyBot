@@ -2,6 +2,23 @@ common:
   error_generic: "An error occurred. The bot operator has been notified."
   not_found: "Not found."
 
+bot:
+  module_disabled: "The **{module}** module is currently disabled for maintenance. Please try again later."
+
+checks:
+  voice:
+    not_connected: "I don't know where you are. Please connect to a voice channel."
+    no_connect_permission: "I'm not allowed to join you in your current channel."
+    no_speak_permission: "I don't have permission to speak in your voice channel."
+    nothing_playing: "Nothing is playing right now."
+    user_not_in_voice: "You need to be in a voice channel to use this command."
+    user_in_different_channel: "You need to be in the same voice channel as the bot to use this command."
+    leave_moderator_only: "Only moderators can make the bot leave the voice channel."
+  role:
+    integration_assign: "**{role}** is an integration role and cannot be assigned to members."
+    integration_remove: "**{role}** is an integration role and cannot be removed from members."
+    above_bot_role: "I cannot manage **{role}** — it is at or above my highest role."
+
 admin:
   language:
     set_success: "Server language set to **{language}**."
