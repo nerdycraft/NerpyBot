@@ -60,7 +60,32 @@ class TestBuildConnectionString:
         }
         result = NerpyBot.build_connection_string(config)
         assert "charset" not in result
-        assert result.startswith("postgresql://")
+        assert result.startswith("postgresql+psycopg://")
+
+    def test_postgresql_connection_string_format(self):
+        config = {
+            "database": {
+                "db_type": "postgresql",
+                "db_name": "nerpybot",
+                "db_username": "user",
+                "db_password": "pass",
+                "db_host": "localhost",
+                "db_port": "5432",
+            }
+        }
+        result = NerpyBot.build_connection_string(config)
+        assert result == "postgresql+psycopg://user:pass@localhost:5432/nerpybot"
+
+    def test_minimal_postgresql_config(self):
+        """PostgreSQL with only required fields."""
+        config = {
+            "database": {
+                "db_type": "postgresql",
+                "db_name": "nerpybot",
+            }
+        }
+        result = NerpyBot.build_connection_string(config)
+        assert result == "postgresql+psycopg:///nerpybot"
 
     def test_mysql_connection_string_format(self):
         config = {
