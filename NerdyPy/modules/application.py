@@ -19,6 +19,7 @@ from models.application import (
     ApplicationQuestion,
     ApplicationTemplate,
     ApplicationTemplateQuestion,
+    TEMPLATE_KEY_MAP,
     seed_built_in_templates,
 )
 from modules.conversations.application import (
@@ -27,7 +28,7 @@ from modules.conversations.application import (
 )
 from modules.views.application import check_override_permission
 from utils.cog import NerpyBotCog
-from utils.strings import get_guild_language, get_string
+from utils.strings import get_guild_language, get_raw, get_string
 
 _MESSAGE_LINK_RE = re.compile(r"https?://(?:canary\.|ptb\.)?discord(?:app)?\.com/channels/\d+/(\d+)/(\d+)")
 
@@ -119,11 +120,25 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     async def _template_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             templates = ApplicationTemplate.get_available(interaction.guild.id, session)
             choices = []
             for tpl in templates:
-                label = f"{'[Built-in] ' if tpl.IsBuiltIn else ''}{tpl.Name}"
-                if current and current.lower() not in tpl.Name.lower():
+                if tpl.IsBuiltIn:
+                    yaml_key = TEMPLATE_KEY_MAP.get(tpl.Name)
+                    if yaml_key:
+                        try:
+                            localized_name = get_raw(lang, f"application.builtin_templates.{yaml_key}.name")
+                        except KeyError:
+                            localized_name = tpl.Name
+                    else:
+                        localized_name = tpl.Name
+                    prefix = get_string(lang, "application.template.list.prefix_builtin")
+                    label = f"{prefix} {localized_name}"
+                else:
+                    localized_name = tpl.Name
+                    label = tpl.Name
+                if current and current.lower() not in localized_name.lower():
                     continue
                 choices.append(app_commands.Choice(name=label[:100], value=tpl.Name))
             return choices[:25]
@@ -458,9 +473,22 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                     if tpl.IsBuiltIn
                     else get_string(lang, "application.template.list.prefix_custom")
                 )
+                if tpl.IsBuiltIn:
+                    yaml_key = TEMPLATE_KEY_MAP.get(tpl.Name)
+                    if yaml_key:
+                        try:
+                            display_name = get_raw(lang, f"application.builtin_templates.{yaml_key}.name")
+                        except KeyError:
+                            display_name = tpl.Name
+                    else:
+                        display_name = tpl.Name
+                else:
+                    display_name = tpl.Name
                 q_count = len(tpl.questions) if tpl.questions else 0
                 lines.append(
-                    get_string(lang, "application.template.list.entry", prefix=prefix, name=tpl.Name, questions=q_count)
+                    get_string(
+                        lang, "application.template.list.entry", prefix=prefix, name=display_name, questions=q_count
+                    )
                 )
 
         embed = Embed(
@@ -572,6 +600,21 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 )
                 return
 
+            # Resolve questions: for built-in templates, use localized YAML questions
+            questions = None
+            if tpl.IsBuiltIn:
+                yaml_key = TEMPLATE_KEY_MAP.get(tpl.Name)
+                if yaml_key:
+                    try:
+                        questions = get_raw(lang, f"application.builtin_templates.{yaml_key}.questions")
+                    except KeyError:
+                        self.bot.log.warning(
+                            "No YAML questions for built-in template %s (lang=%s, key=%s); falling back to DB",
+                            tpl.Name,
+                            lang,
+                            yaml_key,
+                        )
+
             form = ApplicationForm(
                 GuildId=interaction.guild.id,
                 Name=name,
@@ -584,10 +627,14 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             session.add(form)
             session.flush()
 
-            for tpl_q in tpl.questions:
-                session.add(
-                    ApplicationQuestion(FormId=form.Id, QuestionText=tpl_q.QuestionText, SortOrder=tpl_q.SortOrder)
-                )
+            if questions is not None:
+                for i, q_text in enumerate(questions, start=1):
+                    session.add(ApplicationQuestion(FormId=form.Id, QuestionText=q_text, SortOrder=i))
+            else:
+                for tpl_q in tpl.questions:
+                    session.add(
+                        ApplicationQuestion(FormId=form.Id, QuestionText=tpl_q.QuestionText, SortOrder=tpl_q.SortOrder)
+                    )
             form_id = form.Id
 
         await interaction.response.send_message(

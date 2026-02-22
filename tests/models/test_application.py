@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from models.application import (
     BUILT_IN_TEMPLATES,
+    TEMPLATE_KEY_MAP,
     ApplicationAnswer,
     ApplicationForm,
     ApplicationGuildConfig,
@@ -897,6 +898,22 @@ class TestGuildIsolation:
 # ---------------------------------------------------------------------------
 # BUILT_IN_TEMPLATES constant
 # ---------------------------------------------------------------------------
+class TestTemplateKeyMapConsistency:
+    """Tests that TEMPLATE_KEY_MAP stays in sync with BUILT_IN_TEMPLATES."""
+
+    def test_every_builtin_has_key_map_entry(self):
+        for name in BUILT_IN_TEMPLATES:
+            assert name in TEMPLATE_KEY_MAP, f"BUILT_IN_TEMPLATES key '{name}' missing from TEMPLATE_KEY_MAP"
+
+    def test_every_key_map_entry_has_builtin(self):
+        for name in TEMPLATE_KEY_MAP:
+            assert name in BUILT_IN_TEMPLATES, f"TEMPLATE_KEY_MAP key '{name}' missing from BUILT_IN_TEMPLATES"
+
+    def test_key_map_values_are_unique(self):
+        values = list(TEMPLATE_KEY_MAP.values())
+        assert len(values) == len(set(values)), "TEMPLATE_KEY_MAP has duplicate YAML keys"
+
+
 class TestBuiltInTemplatesConstant:
     """Tests for the BUILT_IN_TEMPLATES dict."""
 

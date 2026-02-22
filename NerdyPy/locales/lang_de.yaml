@@ -302,6 +302,48 @@ application:
     change_denials: "Ablehnungen={count}"
     change_approval_message: "Genehmigungsnachricht aktualisiert"
     change_denial_message: "Ablehnungsnachricht aktualisiert"
+  builtin_templates:
+    guild_membership:
+      name: "Gildenmitgliedschaft"
+      questions:
+        - "Wie lautet dein Ingame-Name oder Hauptcharakter?"
+        - "Wie hast du von unserer Gilde/Community erfahren?"
+        - "Welche Spiele oder Aktivitäten interessieren dich am meisten?"
+        - "Hast du bereits Erfahrung in einer Gilde oder Community?"
+        - "In welcher Zeitzone bist du und wann bist du normalerweise verfügbar?"
+        - "Gibt es sonst noch etwas, das du uns über dich erzählen möchtest?"
+    staff_moderator:
+      name: "Personal / Moderator"
+      questions:
+        - "Warum möchtest du Mitglied des Teams oder Moderator werden?"
+        - "Hast du bereits Erfahrung in der Moderation oder Teamleitung?"
+        - "Wie würdest du mit einer Situation umgehen, in der zwei Mitglieder sich heftig streiten?"
+        - "Wie viele Stunden pro Woche kannst du für Moderationsaufgaben aufwenden?"
+        - "In welcher Zeitzone bist du und wann bist du normalerweise verfügbar?"
+        - "Gibt es sonst noch etwas, das du uns über deine Qualifikationen erzählen möchtest?"
+    partnership_collaboration:
+      name: "Partnerschaft / Zusammenarbeit"
+      questions:
+        - "Erzähl uns von deiner Community oder deinem Projekt — was macht ihr?"
+        - "Wie viele aktive Mitglieder oder Teilnehmer habt ihr?"
+        - "Welche Art von Zusammenarbeit suchst du?"
+        - "Welchen Mehrwert würde diese Partnerschaft für beide Communities bringen?"
+        - "Wer ist der Hauptansprechpartner und wie können wir ihn/sie erreichen?"
+    volunteer:
+      name: "Freiwilligenarbeit"
+      questions:
+        - "Für welche Bereiche oder Aufgaben möchtest du dich freiwillig engagieren?"
+        - "Wie viele Stunden pro Woche kannst du aufbringen?"
+        - "Hast du relevante Fähigkeiten oder Erfahrungen?"
+        - "In welcher Zeitzone bist du und wann bist du normalerweise verfügbar?"
+        - "Warum möchtest du bei uns freiwillig mitarbeiten?"
+    community_access:
+      name: "Community-Zugang"
+      questions:
+        - "Zu welchem Kanal oder Bereich möchtest du Zugang und warum?"
+        - "Wie lange bist du schon Mitglied auf diesem Server?"
+        - "Hast du die Serverregeln gelesen und akzeptiert?"
+        - "Wie planst du diesen Zugang zu nutzen?"
   template:
     not_found: "Vorlage **{name}** nicht gefunden."
     already_exists: "Eine Vorlage mit dem Namen **{name}** existiert bereits."

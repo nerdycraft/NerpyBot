@@ -245,6 +245,23 @@ class TestTemplateListLocale:
         emb = interaction.response.send_message.call_args[1]["embed"]
         assert "[Integriert]" in emb.description
 
+    async def test_builtin_names_localized_german(self, cog, interaction, db_session):
+        _set_german(db_session)
+        seed_built_in_templates(db_session)
+        db_session.commit()
+        await Application._template_list.callback(cog, interaction)
+        emb = interaction.response.send_message.call_args[1]["embed"]
+        assert "Gildenmitgliedschaft" in emb.description
+        assert "Personal / Moderator" in emb.description
+
+    async def test_builtin_names_english_default(self, cog, interaction, db_session):
+        seed_built_in_templates(db_session)
+        db_session.commit()
+        await Application._template_list.callback(cog, interaction)
+        emb = interaction.response.send_message.call_args[1]["embed"]
+        assert "Guild Membership" in emb.description
+        assert "Staff / Moderator" in emb.description
+
 
 # ---------------------------------------------------------------------------
 # /application template use
