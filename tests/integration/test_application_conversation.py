@@ -593,3 +593,81 @@ class TestApplicationSubmitConversation:
 
         # Guild owner was notified
         mock_owner.send.assert_called_once()
+
+
+class TestSubmitConversationRoleMentions:
+    """Review embed should mention admin + configured roles in message content."""
+
+    @pytest.fixture
+    def conv(self, mock_bot, mock_user, mock_guild, db_session):
+        _make_send_return(mock_user)
+        form = ApplicationForm(GuildId=mock_guild.id, Name="F", ReviewChannelId=555)
+        db_session.add(form)
+        db_session.flush()
+        q = ApplicationQuestion(FormId=form.Id, QuestionText="Q1", SortOrder=1)
+        db_session.add(q)
+        db_session.flush()
+        return ApplicationSubmitConversation(
+            mock_bot, mock_user, mock_guild,
+            form_id=form.Id, form_name="F",
+            questions=[(q.Id, "Q1")],
+        )
+
+    @pytest.mark.asyncio
+    async def test_mentions_admin_roles(self, conv, mock_bot, mock_guild):
+        admin_role = MagicMock()
+        admin_role.id = 888
+        admin_role.permissions = MagicMock()
+        admin_role.permissions.administrator = True
+        mock_guild.roles = [admin_role]
+
+        channel = MagicMock()
+        sent_msg = MagicMock()
+        sent_msg.id = 777
+        channel.send = AsyncMock(return_value=sent_msg)
+        mock_bot.get_channel = MagicMock(return_value=channel)
+
+        conv.answers = {conv.questions[0][0]: "answer"}
+        conv.currentState = SubmitState.SUBMIT
+        await conv.repost_state()
+
+        content = channel.send.call_args.kwargs.get("content")
+        assert "<@&888>" in (content or "")
+
+    @pytest.mark.asyncio
+    async def test_mentions_configured_roles(self, conv, mock_bot, mock_guild, db_session):
+        from models.application import ApplicationGuildConfig
+        db_session.add(ApplicationGuildConfig(GuildId=mock_guild.id, ManagerRoleId=111, ReviewerRoleId=222))
+        db_session.flush()
+        mock_guild.roles = []
+
+        channel = MagicMock()
+        sent_msg = MagicMock()
+        sent_msg.id = 777
+        channel.send = AsyncMock(return_value=sent_msg)
+        mock_bot.get_channel = MagicMock(return_value=channel)
+
+        conv.answers = {conv.questions[0][0]: "answer"}
+        conv.currentState = SubmitState.SUBMIT
+        await conv.repost_state()
+
+        content = channel.send.call_args.kwargs.get("content")
+        assert "<@&111>" in (content or "")
+        assert "<@&222>" in (content or "")
+
+    @pytest.mark.asyncio
+    async def test_no_content_when_no_roles(self, conv, mock_bot, mock_guild):
+        mock_guild.roles = []  # no admin roles, no config
+
+        channel = MagicMock()
+        sent_msg = MagicMock()
+        sent_msg.id = 777
+        channel.send = AsyncMock(return_value=sent_msg)
+        mock_bot.get_channel = MagicMock(return_value=channel)
+
+        conv.answers = {conv.questions[0][0]: "answer"}
+        conv.currentState = SubmitState.SUBMIT
+        await conv.repost_state()
+
+        content = channel.send.call_args.kwargs.get("content")
+        assert not content

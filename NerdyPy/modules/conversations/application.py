@@ -16,6 +16,7 @@ from discord import Embed
 from models.application import (
     ApplicationAnswer,
     ApplicationForm,
+    ApplicationGuildConfig,
     ApplicationQuestion,
     ApplicationSubmission,
     SubmissionStatus,
@@ -493,7 +494,18 @@ class ApplicationSubmitConversation(Conversation):
                 embed = build_review_embed(submission, form, session)
 
             view = ApplicationReviewView(bot=self.bot)
-            msg = await channel.send(embed=embed, view=view)
+            # Collect role IDs to mention: admin roles + configured manager/reviewer roles
+            mention_ids: set[int] = {r.id for r in self.guild.roles if r.permissions.administrator}
+            with self.bot.session_scope() as session:
+                config = ApplicationGuildConfig.get(self.guild.id, session)
+                if config:
+                    if config.ManagerRoleId:
+                        mention_ids.add(config.ManagerRoleId)
+                    if config.ReviewerRoleId:
+                        mention_ids.add(config.ReviewerRoleId)
+            mention_content = " ".join(f"<@&{rid}>" for rid in sorted(mention_ids)) or None
+
+            msg = await channel.send(content=mention_content, embed=embed, view=view)
 
             with self.bot.session_scope() as session:
                 submission = ApplicationSubmission.get_by_id(self.submission_id, session)
