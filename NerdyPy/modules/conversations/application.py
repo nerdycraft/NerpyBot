@@ -82,6 +82,7 @@ ADD_EMOJI = "\U0001f4dd"  # 📝
 REMOVE_EMOJI = "\U0001f5d1\ufe0f"  # 🗑️
 REORDER_EMOJI = "\U0001f500"  # 🔀
 EDIT_EMOJI = "\u270f\ufe0f"  # ✏️
+LEAVE_EMOJI = "\U0001f6aa"  # 🚪
 
 
 def _questions_embed(title: str, questions: list[str], description: str | None = None) -> Embed:
@@ -550,6 +551,7 @@ class ApplicationSubmitConversation(Conversation):
         self.last_activity: datetime = datetime.now(timezone.utc)
         self.submission_id: int | None = None
         self._current_q_index: int = 0
+        self._editing: bool = False
         super().__init__(bot, user, guild)
 
     def create_state_handler(self):
@@ -573,7 +575,7 @@ class ApplicationSubmitConversation(Conversation):
             title=self.form_name,
             description="I'll walk you through the questions.",
         )
-        emb.set_footer(text=f"{CANCEL_EMOJI} cancel application")
+        emb.set_footer(text=f"{LEAVE_EMOJI} leave")
         # Transition straight to first question
         self.currentState = "question_0"
         await self.send_ns(emb)
@@ -590,23 +592,33 @@ class ApplicationSubmitConversation(Conversation):
             description += f"\n\n_Current answer: {existing_answer}_"
 
         emb = Embed(title=f"Question {index + 1}/{total}", description=description)
-        emb.set_footer(text=f"{RESET_EMOJI} restart from Q1  |  {CANCEL_EMOJI} cancel application")
 
-        next_state = f"question_{index + 1}" if index + 1 < total else SubmitState.CONFIRM
-        reactions: dict = {}
-        if index > 0:
-            reactions[BACK_EMOJI] = f"question_{index - 1}"
-        reactions[RESET_EMOJI] = SubmitState.RESET
-        reactions[CANCEL_EMOJI] = SubmitState.CANCELLED
+        if self._editing:
+            next_state = SubmitState.CONFIRM
+            emb.set_footer(text=f"{BACK_EMOJI} back to review  |  {LEAVE_EMOJI} leave")
+            reactions = {BACK_EMOJI: SubmitState.CONFIRM, LEAVE_EMOJI: SubmitState.CANCELLED}
+        else:
+            next_state = f"question_{index + 1}" if index + 1 < total else SubmitState.CONFIRM
+            reactions: dict = {}
+            if index > 0:
+                reactions[BACK_EMOJI] = f"question_{index - 1}"
+                reactions[RESET_EMOJI] = SubmitState.RESET
+                emb.set_footer(text=f"{RESET_EMOJI} restart from Q1  |  {LEAVE_EMOJI} leave")
+            else:
+                emb.set_footer(text=f"{LEAVE_EMOJI} leave")
+            reactions[LEAVE_EMOJI] = SubmitState.CANCELLED
+
         await self.send_both(emb, next_state, self._handle_answer, reactions)
 
     async def _handle_answer(self, message):
         q_id, _ = self.questions[self._current_q_index]
         self.answers[q_id] = message
+        self._editing = False
         return True
 
     async def state_reset(self):
         self.answers.clear()
+        self._editing = False
         self.currentState = "question_0"
         await self.state_question(0)
 
@@ -629,24 +641,25 @@ class ApplicationSubmitConversation(Conversation):
                 Embed(title="Invalid number", description=f"Enter a number between 1 and {len(self.questions)}.")
             )
             return False
-        # Jump to that question; answering it chains forward naturally, eventually back to CONFIRM
+        self._editing = True
         self.currentState = f"question_{num - 1}"
         return False
 
     async def state_confirm(self):
+        self._editing = False
         lines = []
         for q_id, q_text in self.questions:
             answer = self.answers.get(q_id, "_No answer_")
             lines.append(f"**Q:** {q_text}\n**A:** {answer}")
         body = "\n\n".join(lines)
         emb = Embed(title=f"Review: {self.form_name}", description=body)
-        emb.set_footer(text=f"{CONFIRM_EMOJI} submit  |  {EDIT_EMOJI} edit an answer  |  {CANCEL_EMOJI} cancel")
+        emb.set_footer(text=f"{CONFIRM_EMOJI} submit  |  {EDIT_EMOJI} edit  |  {LEAVE_EMOJI} leave")
         await self.send_react(
             emb,
             {
                 CONFIRM_EMOJI: SubmitState.SUBMIT,
                 EDIT_EMOJI: SubmitState.EDIT_SELECT,
-                CANCEL_EMOJI: SubmitState.CANCELLED,
+                LEAVE_EMOJI: SubmitState.CANCELLED,
             },
         )
 

@@ -12,6 +12,7 @@ from modules.conversations.application import (
     CANCEL_EMOJI,
     CONFIRM_EMOJI,
     EDIT_EMOJI,
+    LEAVE_EMOJI,
     REORDER_EMOJI,
     REMOVE_EMOJI,
     RESET_EMOJI,
@@ -488,9 +489,9 @@ class TestApplicationSubmitConversation:
         _make_send_return(mock_user)
         await conv.on_message("Alice")
 
-        # Cancel on question 1
+        # Leave on question 1
         _make_send_return(mock_user)
-        await conv.on_react(CANCEL_EMOJI)
+        await conv.on_react(LEAVE_EMOJI)
 
         assert conv.currentState == SubmitState.CANCELLED
         assert conv.isActive is False
@@ -652,15 +653,32 @@ class TestSubmitConversationNavigation:
         assert conv.answers == {}
 
     @pytest.mark.asyncio
-    async def test_cancel_instruction_in_footer_not_description(self, conv):
-        """Cancel hint should appear in the embed footer, not the description body."""
+    async def test_reset_not_available_on_first_question(self, conv):
+        """question_0 should NOT show 🔄 reset — there's nothing to reset."""
+        await conv.repost_state()  # INIT → question_0
+        sent = conv.user.send.return_value
+        reaction_calls = [str(call.args[0]) for call in sent.add_reaction.call_args_list]
+        assert RESET_EMOJI not in reaction_calls
+
+    @pytest.mark.asyncio
+    async def test_reset_available_on_second_question(self, conv):
+        """question_1 should show 🔄 reset."""
+        await conv.repost_state()
+        await conv.on_message("A1")  # → question_1
+        sent = conv.user.send.return_value
+        reaction_calls = [str(call.args[0]) for call in sent.add_reaction.call_args_list]
+        assert RESET_EMOJI in reaction_calls
+
+    @pytest.mark.asyncio
+    async def test_leave_instruction_in_footer_not_description(self, conv):
+        """Leave hint should appear in the embed footer, not the description body."""
         await conv.repost_state()  # INIT → question_0
         sent_calls = conv.user.send.call_args_list
         last_embed = sent_calls[-1].kwargs.get("embed") or sent_calls[-1][1]["embed"]
-        # Cancel emoji should NOT be the focus of the description
-        assert CANCEL_EMOJI not in (last_embed.description or "")
+        # Leave emoji should NOT be in the description
+        assert LEAVE_EMOJI not in (last_embed.description or "")
         # But it should appear in the footer text
-        assert CANCEL_EMOJI in (last_embed.footer.text if last_embed.footer else "")
+        assert LEAVE_EMOJI in (last_embed.footer.text if last_embed.footer else "")
 
 
 class TestSubmitConversationEditBeforeSubmit:
@@ -722,6 +740,55 @@ class TestSubmitConversationEditBeforeSubmit:
         await conv.repost_state()
         await conv.on_message("abc")
         assert conv.currentState == SubmitState.EDIT_SELECT
+
+    @pytest.mark.asyncio
+    async def test_edit_returns_to_confirm_after_answering(self, conv):
+        """After editing one answer, go straight back to CONFIRM — not the next question."""
+        conv.currentState = SubmitState.EDIT_SELECT
+        await conv.repost_state()
+        await conv.on_message("1")  # select Q1 to edit
+        assert conv.currentState == "question_0"
+        assert conv._editing is True
+        await conv.on_message("New A1")  # answer Q1
+        assert conv.currentState == SubmitState.CONFIRM
+        assert conv._editing is False
+
+    @pytest.mark.asyncio
+    async def test_edit_shows_back_to_review_and_leave(self, conv):
+        """During edit mode, back (to review) and leave should be available — no reset."""
+        conv.currentState = SubmitState.EDIT_SELECT
+        await conv.repost_state()
+        await conv.on_message("2")  # select Q2 to edit
+        sent = conv.user.send.return_value
+        reaction_calls = [str(call.args[0]) for call in sent.add_reaction.call_args_list]
+        assert BACK_EMOJI in reaction_calls
+        assert RESET_EMOJI not in reaction_calls
+        assert LEAVE_EMOJI in reaction_calls
+
+    @pytest.mark.asyncio
+    async def test_edit_back_returns_to_confirm_without_changing_answer(self, conv):
+        """Pressing back during edit returns to review without modifying the answer."""
+        q2_id = conv.questions[1][0]
+        original_answer = conv.answers[q2_id]
+        conv.currentState = SubmitState.EDIT_SELECT
+        await conv.repost_state()
+        await conv.on_message("2")  # select Q2 to edit
+        await conv.on_react(BACK_EMOJI)  # bail out without retyping
+        assert conv.currentState == SubmitState.CONFIRM
+        assert conv.answers[q2_id] == original_answer
+        assert conv._editing is False
+
+    @pytest.mark.asyncio
+    async def test_edit_updates_answer_value(self, conv):
+        """Editing an answer should actually update the stored value."""
+        q1_id = conv.questions[0][0]
+        assert conv.answers[q1_id] == "Old A1"
+        conv.currentState = SubmitState.EDIT_SELECT
+        await conv.repost_state()
+        await conv.on_message("1")
+        await conv.on_message("Brand new A1")
+        assert conv.answers[q1_id] == "Brand new A1"
+        assert conv.currentState == SubmitState.CONFIRM
 
 
 class TestApplicationTemplateCreateConversation:
