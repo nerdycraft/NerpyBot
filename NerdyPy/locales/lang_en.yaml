@@ -26,6 +26,19 @@ admin:
     get_default: "No language configured. Defaulting to English."
     invalid: "Unsupported language: `{language}`. Available: {available}"
 
+music:
+  skip:
+    success: "Skipped current track."
+  queue:
+    drop_success: "Cleared the queue and stopped playing audio."
+    added: "Added to Queue"
+  playlist:
+    not_a_playlist: "This is not a playlist. Please add a single video directly with the play command."
+    loading: "Please bear with me. This can take a while."
+    use_playlist_command: "Please use the playlist command for playlists."
+  search:
+    no_results: "Your search did not yield any results."
+
 leavemsg:
   enable:
     success: "Leave messages enabled in {channel}."
