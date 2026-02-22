@@ -715,9 +715,12 @@ class ApplicationSubmitConversation(Conversation):
         # Post review embed to the review channel.
         if channel is not None:
             with self.bot.session_scope() as session:
+                from utils.strings import get_guild_language
+
                 submission = ApplicationSubmission.get_by_id(self.submission_id, session)
                 form = ApplicationForm.get_by_id(self.form_id, session)
-                embed = build_review_embed(submission, form, session)
+                lang = get_guild_language(self.guild.id, session)
+                embed = build_review_embed(submission, form, session, lang)
                 # Collect role IDs to mention: admin roles + configured manager/reviewer roles
                 mention_ids: set[int] = {r.id for r in self.guild.roles if r.permissions.administrator}
                 config = ApplicationGuildConfig.get(self.guild.id, session)

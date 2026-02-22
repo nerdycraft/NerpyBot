@@ -35,6 +35,12 @@ from modules.views.application import (
     check_override_permission,
     build_review_embed,
 )
+from utils.strings import load_strings
+
+
+@pytest.fixture(autouse=True)
+def _load_locale_strings():
+    load_strings()
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +93,7 @@ def _make_reviewer_only_interaction(bot, reviewer_role_id):
     """Interaction for a user with ONLY the reviewer role (not manager, not admin)."""
     interaction = MagicMock(spec=discord.Interaction)
     interaction.guild.id = GUILD_ID
+    interaction.guild_id = GUILD_ID
     interaction.user.guild_permissions.administrator = False
     role = MagicMock()
     role.id = reviewer_role_id
@@ -113,6 +120,7 @@ def _make_reviewer_interaction(mock_bot, *, is_admin=True, manager_role_id=None,
 
     interaction.guild = MagicMock()
     interaction.guild.id = GUILD_ID
+    interaction.guild_id = GUILD_ID
 
     interaction.message = MagicMock()
     interaction.message.id = message_id
@@ -1547,6 +1555,7 @@ def _make_apply_interaction(mock_bot, *, message_id=APPLY_MESSAGE_ID, guild_id=G
     interaction.user.name = "Applicant"
     interaction.guild = MagicMock()
     interaction.guild.id = guild_id
+    interaction.guild_id = guild_id
     interaction.message = MagicMock()
     interaction.message.id = message_id
     interaction.response = MagicMock()

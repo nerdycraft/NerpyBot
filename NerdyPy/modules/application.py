@@ -19,6 +19,7 @@ from models.application import (
     ApplicationQuestion,
     ApplicationTemplate,
     ApplicationTemplateQuestion,
+    TEMPLATE_KEY_MAP,
     seed_built_in_templates,
 )
 from modules.conversations.application import (
@@ -27,12 +28,13 @@ from modules.conversations.application import (
 )
 from modules.views.application import check_override_permission
 from utils.cog import NerpyBotCog
+from utils.strings import get_guild_language, get_raw, get_string
 
 _MESSAGE_LINK_RE = re.compile(r"https?://(?:canary\.|ptb\.)?discord(?:app)?\.com/channels/\d+/(\d+)/(\d+)")
 
 
 async def _fetch_description_from_message(
-    bot, message_ref: str, channel_hint: TextChannel | None, interaction: Interaction
+    bot, message_ref: str, channel_hint: TextChannel | None, interaction: Interaction, lang: str = "en"
 ) -> tuple[str | None, str | None]:
     """Fetch message content for use as apply description, then delete the source message.
 
@@ -48,7 +50,7 @@ async def _fetch_description_from_message(
         try:
             message_id = int(message_ref)
         except ValueError:
-            return None, "Invalid message reference — provide a message ID or a message link."
+            return None, get_string(lang, "application.fetch_description.invalid_ref")
         channel_id = channel_hint.id if channel_hint else interaction.channel_id
 
     channel = bot.get_channel(channel_id)
@@ -56,18 +58,18 @@ async def _fetch_description_from_message(
         try:
             channel = await bot.fetch_channel(channel_id)
         except (discord.NotFound, discord.Forbidden):
-            return None, "I can't access the channel that message is in."
+            return None, get_string(lang, "application.fetch_description.channel_inaccessible")
 
     try:
         msg = await channel.fetch_message(message_id)
     except discord.NotFound:
-        return None, "Message not found — double-check the ID or link."
+        return None, get_string(lang, "application.fetch_description.message_not_found")
     except discord.Forbidden:
-        return None, "I don't have permission to read that message."
+        return None, get_string(lang, "application.fetch_description.no_read_permission")
 
     content = msg.content
     if not content:
-        return None, "That message has no text content."
+        return None, get_string(lang, "application.fetch_description.no_content")
 
     try:
         await msg.delete()
@@ -88,6 +90,10 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     def __init__(self, bot):
         super().__init__(bot)
+
+    def _lang(self, guild_id: int) -> str:
+        with self.bot.session_scope() as session:
+            return get_guild_language(guild_id, session)
 
     async def cog_load(self):
         # Ensure any new tables introduced by this cog exist before seeding.
@@ -114,11 +120,25 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     async def _template_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             templates = ApplicationTemplate.get_available(interaction.guild.id, session)
             choices = []
             for tpl in templates:
-                label = f"{'[Built-in] ' if tpl.IsBuiltIn else ''}{tpl.Name}"
-                if current and current.lower() not in tpl.Name.lower():
+                if tpl.IsBuiltIn:
+                    yaml_key = TEMPLATE_KEY_MAP.get(tpl.Name)
+                    if yaml_key:
+                        try:
+                            localized_name = get_raw(lang, f"application.builtin_templates.{yaml_key}.name")
+                        except KeyError:
+                            localized_name = tpl.Name
+                    else:
+                        localized_name = tpl.Name
+                    prefix = get_string(lang, "application.template.list.prefix_builtin")
+                    label = f"{prefix} {localized_name}"
+                else:
+                    localized_name = tpl.Name
+                    label = tpl.Name
+                if current and current.lower() not in localized_name.lower():
                     continue
                 choices.append(app_commands.Choice(name=label[:100], value=tpl.Name))
             return choices[:25]
@@ -171,11 +191,16 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     ):
         """Create a new application form via DM conversation."""
         if not self._has_manage_permission(interaction):
-            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
+        lang = self._lang(interaction.guild_id)
+
         if description_message:
-            content, error = await _fetch_description_from_message(self.bot, description_message, channel, interaction)
+            content, error = await _fetch_description_from_message(
+                self.bot, description_message, channel, interaction, lang
+            )
             if error:
                 await interaction.response.send_message(error, ephemeral=True)
                 return
@@ -184,7 +209,9 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         with self.bot.session_scope() as session:
             existing = ApplicationForm.get(name, interaction.guild.id, session)
             if existing:
-                await interaction.response.send_message(f"A form named **{name}** already exists.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.form_already_exists", name=name), ephemeral=True
+                )
                 return
 
         conv = ApplicationCreateConversation(
@@ -204,12 +231,9 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         try:
             await self.bot.convMan.init_conversation(conv)
         except discord.Forbidden:
-            await interaction.followup.send(
-                "I couldn't send you a DM. Please enable DMs from server members and try again.",
-                ephemeral=True,
-            )
+            await interaction.followup.send(get_string(lang, "application.dm_forbidden"), ephemeral=True)
             return
-        await interaction.followup.send("Check your DMs!", ephemeral=True)
+        await interaction.followup.send(get_string(lang, "application.check_dms"), ephemeral=True)
 
     # -- /application delete -------------------------------------------------
 
@@ -219,19 +243,25 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     async def _delete(self, interaction: Interaction, name: str):
         """Delete an application form."""
         if not self._has_manage_permission(interaction):
-            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             form = ApplicationForm.get(name, interaction.guild.id, session)
             if not form:
-                await interaction.response.send_message(f"Form **{name}** not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.form_not_found", name=name), ephemeral=True
+                )
                 return
             apply_channel_id = form.ApplyChannelId
             apply_message_id = form.ApplyMessageId
             session.delete(form)
 
-        await interaction.response.send_message(f"Form **{name}** deleted.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "application.delete.success", name=name), ephemeral=True
+        )
 
         if apply_channel_id and apply_message_id:
             from modules.views.application import delete_apply_message
@@ -247,22 +277,30 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     async def _list(self, interaction: Interaction):
         """List all application forms for this server."""
         if not self._has_manage_permission(interaction):
-            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             forms = ApplicationForm.get_all_by_guild(interaction.guild.id, session)
             if not forms:
-                await interaction.response.send_message("No application forms configured.", ephemeral=True)
+                await interaction.response.send_message(get_string(lang, "application.list.empty"), ephemeral=True)
                 return
 
             lines = []
             for form in forms:
-                status = "ready" if form.ReviewChannelId else "not ready"
+                status = (
+                    get_string(lang, "application.list.status_ready")
+                    if form.ReviewChannelId
+                    else get_string(lang, "application.list.status_not_ready")
+                )
                 q_count = len(form.questions) if form.questions else 0
-                lines.append(f"**{form.Name}** — {q_count} question(s) — {status}")
+                lines.append(
+                    get_string(lang, "application.list.entry", name=form.Name, questions=q_count, status=status)
+                )
 
-        embed = Embed(title="Application Forms", description="\n".join(lines), color=0x5865F2)
+        embed = Embed(title=get_string(lang, "application.list.title"), description="\n".join(lines), color=0x5865F2)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     # -- /application edit ---------------------------------------------------
@@ -273,13 +311,17 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     async def _edit(self, interaction: Interaction, name: str):
         """Edit an application form's questions via DM conversation."""
         if not self._has_manage_permission(interaction):
-            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             form = ApplicationForm.get(name, interaction.guild.id, session)
             if not form:
-                await interaction.response.send_message(f"Form **{name}** not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.form_not_found", name=name), ephemeral=True
+                )
                 return
             form_id = form.Id
 
@@ -288,12 +330,9 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         try:
             await self.bot.convMan.init_conversation(conv)
         except discord.Forbidden:
-            await interaction.followup.send(
-                "I couldn't send you a DM. Please enable DMs from server members and try again.",
-                ephemeral=True,
-            )
+            await interaction.followup.send(get_string(lang, "application.dm_forbidden"), ephemeral=True)
             return
-        await interaction.followup.send("Check your DMs!", ephemeral=True)
+        await interaction.followup.send(get_string(lang, "application.check_dms"), ephemeral=True)
 
     # -- /application settings -----------------------------------------------
 
@@ -326,11 +365,16 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     ):
         """Update settings for an application form."""
         if not self._has_manage_permission(interaction):
-            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
+        lang = self._lang(interaction.guild_id)
+
         if description_message:
-            content, error = await _fetch_description_from_message(self.bot, description_message, channel, interaction)
+            content, error = await _fetch_description_from_message(
+                self.bot, description_message, channel, interaction, lang
+            )
             if error:
                 await interaction.response.send_message(error, ephemeral=True)
                 return
@@ -343,43 +387,49 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         with self.bot.session_scope() as session:
             form = ApplicationForm.get(name, interaction.guild.id, session)
             if not form:
-                await interaction.response.send_message(f"Form **{name}** not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.form_not_found", name=name), ephemeral=True
+                )
                 return
 
             changes = []
             if review_channel is not None:
                 form.ReviewChannelId = review_channel.id
-                changes.append(f"review_channel={review_channel.mention}")
+                changes.append(
+                    get_string(lang, "application.settings.change_review_channel", channel=review_channel.mention)
+                )
             if channel is not None:
                 form.ApplyChannelId = channel.id
-                changes.append(f"channel={channel.mention}")
+                changes.append(get_string(lang, "application.settings.change_channel", channel=channel.mention))
                 repost_apply = True
             if description is not None:
                 form.ApplyDescription = description
-                changes.append("description updated")
+                changes.append(get_string(lang, "application.settings.change_description"))
                 if not repost_apply and form.ApplyMessageId:
                     edit_apply = True
             if approvals is not None:
                 form.RequiredApprovals = approvals
-                changes.append(f"approvals={approvals}")
+                changes.append(get_string(lang, "application.settings.change_approvals", count=approvals))
             if denials is not None:
                 form.RequiredDenials = denials
-                changes.append(f"denials={denials}")
+                changes.append(get_string(lang, "application.settings.change_denials", count=denials))
             if approval_message is not None:
                 form.ApprovalMessage = approval_message
-                changes.append("approval message updated")
+                changes.append(get_string(lang, "application.settings.change_approval_message"))
             if denial_message is not None:
                 form.DenialMessage = denial_message
-                changes.append("denial message updated")
+                changes.append(get_string(lang, "application.settings.change_denial_message"))
 
             if not changes:
-                await interaction.response.send_message("Nothing to change.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.settings.nothing_to_change"), ephemeral=True
+                )
                 return
 
             form_id = form.Id
 
         await interaction.response.send_message(
-            f"Settings for **{name}** updated: {', '.join(changes)}.", ephemeral=True
+            get_string(lang, "application.settings.success", name=name, changes=", ".join(changes)), ephemeral=True
         )
 
         if repost_apply:
@@ -403,22 +453,47 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     async def _template_list(self, interaction: Interaction):
         """Show available application form templates."""
         if not self._has_manage_permission(interaction):
-            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             templates = ApplicationTemplate.get_available(interaction.guild.id, session)
             if not templates:
-                await interaction.response.send_message("No templates available.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.template.list.empty"), ephemeral=True
+                )
                 return
 
             lines = []
             for tpl in templates:
-                prefix = "[Built-in]" if tpl.IsBuiltIn else "[Custom]"
+                prefix = (
+                    get_string(lang, "application.template.list.prefix_builtin")
+                    if tpl.IsBuiltIn
+                    else get_string(lang, "application.template.list.prefix_custom")
+                )
+                if tpl.IsBuiltIn:
+                    yaml_key = TEMPLATE_KEY_MAP.get(tpl.Name)
+                    if yaml_key:
+                        try:
+                            display_name = get_raw(lang, f"application.builtin_templates.{yaml_key}.name")
+                        except KeyError:
+                            display_name = tpl.Name
+                    else:
+                        display_name = tpl.Name
+                else:
+                    display_name = tpl.Name
                 q_count = len(tpl.questions) if tpl.questions else 0
-                lines.append(f"{prefix} **{tpl.Name}** — {q_count} question(s)")
+                lines.append(
+                    get_string(
+                        lang, "application.template.list.entry", prefix=prefix, name=display_name, questions=q_count
+                    )
+                )
 
-        embed = Embed(title="Application Templates", description="\n".join(lines), color=0x5865F2)
+        embed = Embed(
+            title=get_string(lang, "application.template.list.title"), description="\n".join(lines), color=0x5865F2
+        )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     # -- /application template create ----------------------------------------
@@ -438,14 +513,16 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     ):
         """Create a new guild template via DM conversation."""
         if not self._has_manage_permission(interaction):
-            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             existing = ApplicationTemplate.get_by_name(name, interaction.guild.id, session)
             if existing and not existing.IsBuiltIn:
                 await interaction.response.send_message(
-                    f"A guild template named **{name}** already exists.", ephemeral=True
+                    get_string(lang, "application.template.already_exists", name=name), ephemeral=True
                 )
                 return
 
@@ -463,12 +540,9 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         try:
             await self.bot.convMan.init_conversation(conv)
         except discord.Forbidden:
-            await interaction.followup.send(
-                "I couldn't send you a DM. Please enable DMs from server members and try again.",
-                ephemeral=True,
-            )
+            await interaction.followup.send(get_string(lang, "application.dm_forbidden"), ephemeral=True)
             return
-        await interaction.followup.send("Check your DMs!", ephemeral=True)
+        await interaction.followup.send(get_string(lang, "application.check_dms"), ephemeral=True)
 
     # -- /application template use -------------------------------------------
 
@@ -495,11 +569,16 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     ):
         """Create a new form from a template."""
         if not self._has_manage_permission(interaction):
-            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
+        lang = self._lang(interaction.guild_id)
+
         if description_message:
-            content, error = await _fetch_description_from_message(self.bot, description_message, channel, interaction)
+            content, error = await _fetch_description_from_message(
+                self.bot, description_message, channel, interaction, lang
+            )
             if error:
                 await interaction.response.send_message(error, ephemeral=True)
                 return
@@ -509,13 +588,32 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         with self.bot.session_scope() as session:
             tpl = ApplicationTemplate.get_by_name(template, interaction.guild.id, session)
             if not tpl:
-                await interaction.response.send_message(f"Template **{template}** not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.template.not_found", name=template), ephemeral=True
+                )
                 return
 
             existing = ApplicationForm.get(name, interaction.guild.id, session)
             if existing:
-                await interaction.response.send_message(f"A form named **{name}** already exists.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.form_already_exists", name=name), ephemeral=True
+                )
                 return
+
+            # Resolve questions: for built-in templates, use localized YAML questions
+            questions = None
+            if tpl.IsBuiltIn:
+                yaml_key = TEMPLATE_KEY_MAP.get(tpl.Name)
+                if yaml_key:
+                    try:
+                        questions = get_raw(lang, f"application.builtin_templates.{yaml_key}.questions")
+                    except KeyError:
+                        self.bot.log.warning(
+                            "No YAML questions for built-in template %s (lang=%s, key=%s); falling back to DB",
+                            tpl.Name,
+                            lang,
+                            yaml_key,
+                        )
 
             form = ApplicationForm(
                 GuildId=interaction.guild.id,
@@ -529,14 +627,18 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             session.add(form)
             session.flush()
 
-            for tpl_q in tpl.questions:
-                session.add(
-                    ApplicationQuestion(FormId=form.Id, QuestionText=tpl_q.QuestionText, SortOrder=tpl_q.SortOrder)
-                )
+            if questions is not None:
+                for i, q_text in enumerate(questions, start=1):
+                    session.add(ApplicationQuestion(FormId=form.Id, QuestionText=q_text, SortOrder=i))
+            else:
+                for tpl_q in tpl.questions:
+                    session.add(
+                        ApplicationQuestion(FormId=form.Id, QuestionText=tpl_q.QuestionText, SortOrder=tpl_q.SortOrder)
+                    )
             form_id = form.Id
 
         await interaction.response.send_message(
-            f"Form **{name}** created from template **{template}**.", ephemeral=True
+            get_string(lang, "application.template.use.success", name=name, template=template), ephemeral=True
         )
 
         if channel and form_id:
@@ -555,19 +657,23 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     async def _template_save(self, interaction: Interaction, form: str, template_name: str):
         """Save an existing form as a guild template."""
         if not self._has_manage_permission(interaction):
-            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             src_form = ApplicationForm.get(form, interaction.guild.id, session)
             if not src_form:
-                await interaction.response.send_message(f"Form **{form}** not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.form_not_found", name=form), ephemeral=True
+                )
                 return
 
             existing_tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
             if existing_tpl:
                 await interaction.response.send_message(
-                    f"A template named **{template_name}** already exists.", ephemeral=True
+                    get_string(lang, "application.template.already_exists", name=template_name), ephemeral=True
                 )
                 return
 
@@ -587,7 +693,8 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 )
 
         await interaction.response.send_message(
-            f"Template **{template_name}** saved from form **{form}**.", ephemeral=True
+            get_string(lang, "application.template.save.success", template_name=template_name, form=form),
+            ephemeral=True,
         )
 
     # -- /application template delete ----------------------------------------
@@ -598,20 +705,28 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     async def _template_delete(self, interaction: Interaction, template_name: str):
         """Delete a guild custom template."""
         if not self._has_manage_permission(interaction):
-            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
             if not tpl:
-                await interaction.response.send_message(f"Template **{template_name}** not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.template.not_found", name=template_name), ephemeral=True
+                )
                 return
             if tpl.IsBuiltIn:
-                await interaction.response.send_message("Built-in templates cannot be deleted.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.template.delete.builtin_forbidden"), ephemeral=True
+                )
                 return
             session.delete(tpl)
 
-        await interaction.response.send_message(f"Template **{template_name}** deleted.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "application.template.delete.success", name=template_name), ephemeral=True
+        )
 
     # -- /application template edit-messages ---------------------------------
 
@@ -631,32 +746,44 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     ):
         """Update default approval/denial messages for a custom template."""
         if not self._has_manage_permission(interaction):
-            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
+        lang = self._lang(interaction.guild_id)
+
         if approval_message is None and denial_message is None:
-            await interaction.response.send_message("Nothing to update.", ephemeral=True)
+            await interaction.response.send_message(
+                get_string(lang, "application.template.edit_messages.nothing_to_update"), ephemeral=True
+            )
             return
 
         with self.bot.session_scope() as session:
             tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
             if not tpl:
-                await interaction.response.send_message(f"Template **{template_name}** not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.template.not_found", name=template_name), ephemeral=True
+                )
                 return
             if tpl.IsBuiltIn:
-                await interaction.response.send_message("Built-in templates cannot be edited.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.template.edit_messages.builtin_forbidden"), ephemeral=True
+                )
                 return
 
             changes = []
             if approval_message is not None:
                 tpl.ApprovalMessage = approval_message
-                changes.append("approval message")
+                changes.append(get_string(lang, "application.template.edit_messages.change_approval"))
             if denial_message is not None:
                 tpl.DenialMessage = denial_message
-                changes.append("denial message")
+                changes.append(get_string(lang, "application.template.edit_messages.change_denial"))
 
         await interaction.response.send_message(
-            f"Template **{template_name}** updated: {', '.join(changes)}.", ephemeral=True
+            get_string(
+                lang, "application.template.edit_messages.success", name=template_name, changes=", ".join(changes)
+            ),
+            ephemeral=True,
         )
 
     # -- /application export -------------------------------------------------
@@ -667,13 +794,17 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     async def _export(self, interaction: Interaction, name: str):
         """Export an application form as a JSON file via DM."""
         if not self._has_manage_permission(interaction):
-            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             form = ApplicationForm.get(name, interaction.guild.id, session)
             if not form:
-                await interaction.response.send_message(f"Form **{name}** not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.form_not_found", name=name), ephemeral=True
+                )
                 return
 
             form_dict = {
@@ -688,14 +819,12 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         data = json.dumps(form_dict, indent=2)
         file = discord.File(io.BytesIO(data.encode()), filename=f"{name}.json")
 
-        await interaction.response.send_message("Check your DMs!", ephemeral=True)
+        await interaction.response.send_message(get_string(lang, "application.check_dms"), ephemeral=True)
 
         try:
             await interaction.user.send(file=file)
         except (discord.Forbidden, discord.NotFound):
-            await interaction.followup.send(
-                "I couldn't DM you. Please enable DMs from server members and try again.", ephemeral=True
-            )
+            await interaction.followup.send(get_string(lang, "application.dm_forbidden"), ephemeral=True)
 
     # -- /application import -------------------------------------------------
 
@@ -703,19 +832,20 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     async def _import_form(self, interaction: Interaction):
         """Import an application form from a JSON file via DM."""
         if not self._has_manage_permission(interaction):
-            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
+
+        lang = self._lang(interaction.guild_id)
 
         await interaction.response.defer(ephemeral=True)
         try:
-            await interaction.user.send("Please upload a JSON file to import as an application form.")
+            await interaction.user.send(get_string(lang, "application.import.upload_prompt"))
         except (discord.Forbidden, discord.NotFound):
-            await interaction.followup.send(
-                "I couldn't DM you. Please enable DMs from server members and try again.", ephemeral=True
-            )
+            await interaction.followup.send(get_string(lang, "application.dm_forbidden"), ephemeral=True)
             return
 
-        await interaction.followup.send("Check your DMs!", ephemeral=True)
+        await interaction.followup.send(get_string(lang, "application.check_dms"), ephemeral=True)
 
         def check(msg):
             return msg.author.id == interaction.user.id and msg.guild is None and msg.attachments
@@ -724,43 +854,41 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             msg = await self.bot.wait_for("message", check=check, timeout=120)
         except asyncio.TimeoutError:
             try:
-                await interaction.user.send("Import cancelled — timed out.")
+                await interaction.user.send(get_string(lang, "application.import.timeout"))
             except (discord.Forbidden, discord.NotFound):
                 self.bot.log.debug("Could not send import timeout DM to user %s", interaction.user.id)
             return
 
         attachment = msg.attachments[0]
         if attachment.size > 1_000_000:  # 1 MB
-            await interaction.user.send("File too large — please upload a JSON file under 1 MB.")
+            await interaction.user.send(get_string(lang, "application.import.file_too_large"))
             return
         try:
             raw = await attachment.read()
             form_data = json.loads(raw.decode())
         except (json.JSONDecodeError, UnicodeDecodeError):
-            await interaction.user.send("Invalid JSON file. Please check the format and try again.")
+            await interaction.user.send(get_string(lang, "application.import.invalid_json"))
             return
 
         # Validate required fields
         if not isinstance(form_data.get("name"), str) or not form_data["name"].strip():
-            await interaction.user.send("Invalid format: missing or empty `name` field.")
+            await interaction.user.send(get_string(lang, "application.import.missing_name"))
             return
 
         questions = form_data.get("questions")
         if not isinstance(questions, list) or len(questions) == 0:
-            await interaction.user.send("Invalid format: `questions` must be a non-empty list.")
+            await interaction.user.send(get_string(lang, "application.import.invalid_questions"))
             return
 
         for i, q in enumerate(questions):
             if not isinstance(q, dict) or not isinstance(q.get("text"), str) or not q["text"].strip():
-                await interaction.user.send(f"Invalid format: question {i + 1} is missing a `text` field.")
+                await interaction.user.send(get_string(lang, "application.import.invalid_question", index=i + 1))
                 return
 
         approvals = form_data.get("required_approvals", 1)
         denials = form_data.get("required_denials", 1)
         if not isinstance(approvals, int) or approvals < 1 or not isinstance(denials, int) or denials < 1:
-            await interaction.user.send(
-                "Invalid format: `required_approvals` and `required_denials` must be positive integers."
-            )
+            await interaction.user.send(get_string(lang, "application.import.invalid_counts"))
             return
 
         form_name = form_data["name"].strip()
@@ -768,7 +896,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         with self.bot.session_scope() as session:
             existing = ApplicationForm.get(form_name, interaction.guild.id, session)
             if existing:
-                await interaction.user.send(f"A form named **{form_name}** already exists in this server.")
+                await interaction.user.send(get_string(lang, "application.import.form_exists", name=form_name))
                 return
 
             form = ApplicationForm(
@@ -787,7 +915,9 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                     ApplicationQuestion(FormId=form.Id, QuestionText=q["text"].strip(), SortOrder=q.get("order", i + 1))
                 )
 
-        await interaction.user.send(f"Form **{form_name}** imported successfully with {len(questions)} question(s).")
+        await interaction.user.send(
+            get_string(lang, "application.import.success", name=form_name, count=len(questions))
+        )
 
     # -- /application managerole set -----------------------------------------
 
@@ -797,13 +927,16 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     async def _managerole_set(self, interaction: Interaction, role: Role):
         """Set the application manager role for this server."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             config = ApplicationGuildConfig.get(interaction.guild.id, session)
             if config is None:
                 config = ApplicationGuildConfig(GuildId=interaction.guild.id)
                 session.add(config)
             config.ManagerRoleId = role.id
 
-        await interaction.response.send_message(f"Application manager role set to **{role.name}**.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "application.managerole.set_success", role=role.name), ephemeral=True
+        )
 
     # -- /application managerole remove --------------------------------------
 
@@ -812,13 +945,18 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     async def _managerole_remove(self, interaction: Interaction):
         """Remove the application manager role for this server."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             config = ApplicationGuildConfig.get(interaction.guild.id, session)
             if config is None or config.ManagerRoleId is None:
-                await interaction.response.send_message("No manager role is configured.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.managerole.not_configured"), ephemeral=True
+                )
                 return
             config.ManagerRoleId = None
 
-        await interaction.response.send_message("Application manager role removed.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "application.managerole.remove_success"), ephemeral=True
+        )
 
     # -- /application reviewerrole set -----------------------------------------
 
@@ -828,13 +966,16 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     async def _reviewerrole_set(self, interaction: Interaction, role: Role):
         """Set the application reviewer role for this server."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             config = ApplicationGuildConfig.get(interaction.guild.id, session)
             if config is None:
                 config = ApplicationGuildConfig(GuildId=interaction.guild.id)
                 session.add(config)
             config.ReviewerRoleId = role.id
 
-        await interaction.response.send_message(f"Application reviewer role set to **{role.name}**.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "application.reviewerrole.set_success", role=role.name), ephemeral=True
+        )
 
     # -- /application reviewerrole remove ---------------------------------------
 
@@ -843,13 +984,18 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     async def _reviewerrole_remove(self, interaction: Interaction):
         """Remove the application reviewer role for this server."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             config = ApplicationGuildConfig.get(interaction.guild.id, session)
             if config is None or config.ReviewerRoleId is None:
-                await interaction.response.send_message("No reviewer role is configured.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.reviewerrole.not_configured"), ephemeral=True
+                )
                 return
             config.ReviewerRoleId = None
 
-        await interaction.response.send_message("Application reviewer role removed.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "application.reviewerrole.remove_success"), ephemeral=True
+        )
 
 
 async def setup(bot):

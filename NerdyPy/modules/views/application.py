@@ -22,6 +22,7 @@ from models.application import (
     SubmissionStatus,
     VoteType,
 )
+from utils.strings import get_guild_language, get_string
 
 
 # ---------------------------------------------------------------------------
@@ -62,28 +63,42 @@ def check_override_permission(interaction: discord.Interaction, bot) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def build_review_embed(submission, form, session) -> discord.Embed:
+def build_review_embed(submission, form, session, lang: str = "en") -> discord.Embed:
     """Build the review embed shown in the review channel for a submission."""
     approve_count = ApplicationVote.count_by_type(submission.Id, VoteType.APPROVE, session)
     deny_count = ApplicationVote.count_by_type(submission.Id, VoteType.DENY, session)
 
     embed = discord.Embed(title=f"\U0001f4cb {form.Name}", colour=_status_colour(submission.Status))
-    embed.add_field(name="Applicant", value=f"<@{submission.UserId}> ({submission.UserName})", inline=True)
+    embed.add_field(
+        name=get_string(lang, "application.review.applicant"),
+        value=f"<@{submission.UserId}> ({submission.UserName})",
+        inline=True,
+    )
     submitted_at = submission.SubmittedAt
     if submitted_at.tzinfo is None:
         submitted_at = submitted_at.replace(tzinfo=UTC)
-    embed.add_field(name="Submitted", value=discord.utils.format_dt(submitted_at, style="R"), inline=True)
+    embed.add_field(
+        name=get_string(lang, "application.review.submitted"),
+        value=discord.utils.format_dt(submitted_at, style="R"),
+        inline=True,
+    )
 
     for answer in submission.answers:
         label = answer.question.QuestionText if answer.question else f"Question {answer.QuestionId}"
-        embed.add_field(name=label, value=answer.AnswerText or "_No answer_", inline=False)
+        embed.add_field(
+            name=label, value=answer.AnswerText or get_string(lang, "application.review.no_answer"), inline=False
+        )
 
     status_display = submission.Status.capitalize()
     embed.set_footer(
-        text=(
-            f"Status: {status_display} | "
-            f"Approvals: {approve_count}/{form.RequiredApprovals} | "
-            f"Denials: {deny_count}/{form.RequiredDenials}"
+        text=get_string(
+            lang,
+            "application.review.footer",
+            status=status_display,
+            approvals=approve_count,
+            required_approvals=form.RequiredApprovals,
+            denials=deny_count,
+            required_denials=form.RequiredDenials,
         )
     )
     return embed
@@ -124,7 +139,8 @@ async def _update_review_embed(
             bot.log.warning("application: no submission found for review message %d — was it deleted?", msg_id)
             return
         form = ApplicationForm.get_by_id(submission.FormId, session)
-        embed = build_review_embed(submission, form, session)
+        lang = get_guild_language(submission.GuildId, session)
+        embed = build_review_embed(submission, form, session, lang)
         status = submission.Status
         applicant_notified = submission.ApplicantNotified
 
@@ -197,18 +213,20 @@ async def _post_to_review_thread(
     await thread.send(f"{prefix} **{reviewer.display_name}**: {message_text}")
 
 
-def _decision_embed(form_name: str, status: str, custom_message: str | None, reason: str | None) -> discord.Embed:
+def _decision_embed(
+    form_name: str, status: str, custom_message: str | None, reason: str | None, lang: str = "en"
+) -> discord.Embed:
     """Build the embed sent to the applicant when a decision is made."""
     if status == SubmissionStatus.APPROVED:
-        title = "Application Approved"
+        title = get_string(lang, "application.decision.approved_title")
         colour = discord.Colour.green()
-        body = custom_message or f"Your application for **{form_name}** has been approved."
+        body = custom_message or get_string(lang, "application.decision.approved_default", form=form_name)
     else:
-        title = "Application Denied"
+        title = get_string(lang, "application.decision.denied_title")
         colour = discord.Colour.red()
-        body = custom_message or f"Your application for **{form_name}** has been denied."
+        body = custom_message or get_string(lang, "application.decision.denied_default", form=form_name)
         if reason:
-            body += f"\n\n**Reason:** {reason}"
+            body += "\n\n" + get_string(lang, "application.decision.reason", reason=reason)
 
     return discord.Embed(title=title, description=body, colour=colour)
 
@@ -218,7 +236,7 @@ def _decision_embed(form_name: str, status: str, custom_message: str | None, rea
 # ---------------------------------------------------------------------------
 
 
-class DenyVoteModal(discord.ui.Modal, title="Deny Application"):
+class DenyVoteModal(discord.ui.Modal):
     """Modal that collects a required message when denying an application."""
 
     message = discord.ui.TextInput(
@@ -232,10 +250,12 @@ class DenyVoteModal(discord.ui.Modal, title="Deny Application"):
         prefill: str | None = None,
         review_channel_id: int = 0,
         review_message_id: int = 0,
+        lang: str = "en",
     ):
-        super().__init__()
+        super().__init__(title=get_string(lang, "application.modal.deny_title"))
         self.submission_id = submission_id
         self.bot = bot
+        self.lang = lang
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
         if prefill:
@@ -249,7 +269,9 @@ class DenyVoteModal(discord.ui.Modal, title="Deny Application"):
         with self.bot.session_scope() as session:
             submission = ApplicationSubmission.get_by_id(self.submission_id, session)
             if submission is None or submission.Status != SubmissionStatus.PENDING:
-                await interaction.followup.send("This submission is no longer pending.", ephemeral=True)
+                await interaction.followup.send(
+                    get_string(self.lang, "application.review.no_longer_pending"), ephemeral=True
+                )
                 return
 
             vote = ApplicationVote(SubmissionId=self.submission_id, UserId=interaction.user.id, Vote=VoteType.DENY)
@@ -258,7 +280,9 @@ class DenyVoteModal(discord.ui.Modal, title="Deny Application"):
                 session.flush()
             except IntegrityError:
                 session.rollback()
-                await interaction.followup.send("You have already voted on this application.", ephemeral=True)
+                await interaction.followup.send(
+                    get_string(self.lang, "application.review.already_voted"), ephemeral=True
+                )
                 return
 
             deny_count = ApplicationVote.count_by_type(self.submission_id, VoteType.DENY, session)
@@ -269,7 +293,7 @@ class DenyVoteModal(discord.ui.Modal, title="Deny Application"):
                 submission.DecisionReason = message_text
                 session.flush()
 
-        await interaction.followup.send("Your deny vote has been recorded.", ephemeral=True)
+        await interaction.followup.send(get_string(self.lang, "application.review.deny_recorded"), ephemeral=True)
 
         try:
             await _post_to_review_thread(
@@ -300,7 +324,7 @@ class DenyVoteModal(discord.ui.Modal, title="Deny Application"):
             await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
 
 
-class ApproveVoteModal(discord.ui.Modal, title="Approve Application"):
+class ApproveVoteModal(discord.ui.Modal):
     """Modal that collects a required message when approving an application."""
 
     message = discord.ui.TextInput(
@@ -314,10 +338,12 @@ class ApproveVoteModal(discord.ui.Modal, title="Approve Application"):
         prefill: str | None = None,
         review_channel_id: int = 0,
         review_message_id: int = 0,
+        lang: str = "en",
     ):
-        super().__init__()
+        super().__init__(title=get_string(lang, "application.modal.approve_title"))
         self.submission_id = submission_id
         self.bot = bot
+        self.lang = lang
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
         if prefill:
@@ -331,7 +357,9 @@ class ApproveVoteModal(discord.ui.Modal, title="Approve Application"):
         with self.bot.session_scope() as session:
             submission = ApplicationSubmission.get_by_id(self.submission_id, session)
             if submission is None or submission.Status != SubmissionStatus.PENDING:
-                await interaction.followup.send("This submission is no longer pending.", ephemeral=True)
+                await interaction.followup.send(
+                    get_string(self.lang, "application.review.no_longer_pending"), ephemeral=True
+                )
                 return
 
             vote = ApplicationVote(SubmissionId=self.submission_id, UserId=interaction.user.id, Vote=VoteType.APPROVE)
@@ -340,7 +368,9 @@ class ApproveVoteModal(discord.ui.Modal, title="Approve Application"):
                 session.flush()
             except IntegrityError:
                 session.rollback()
-                await interaction.followup.send("You have already voted on this application.", ephemeral=True)
+                await interaction.followup.send(
+                    get_string(self.lang, "application.review.already_voted"), ephemeral=True
+                )
                 return
 
             approve_count = ApplicationVote.count_by_type(self.submission_id, VoteType.APPROVE, session)
@@ -350,7 +380,7 @@ class ApproveVoteModal(discord.ui.Modal, title="Approve Application"):
                 submission.Status = SubmissionStatus.APPROVED
                 session.flush()
 
-        await interaction.followup.send("Your approval vote has been recorded.", ephemeral=True)
+        await interaction.followup.send(get_string(self.lang, "application.review.approve_recorded"), ephemeral=True)
 
         try:
             await _post_to_review_thread(
@@ -381,7 +411,7 @@ class ApproveVoteModal(discord.ui.Modal, title="Approve Application"):
             await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
 
 
-class MessageModal(discord.ui.Modal, title="Message Applicant"):
+class MessageModal(discord.ui.Modal):
     """Modal that sends a free-form message to the applicant."""
 
     message = discord.ui.TextInput(
@@ -396,10 +426,12 @@ class MessageModal(discord.ui.Modal, title="Message Applicant"):
         submission_id: int | None = None,
         review_channel_id: int | None = None,
         review_message_id: int | None = None,
+        lang: str = "en",
     ):
-        super().__init__()
+        super().__init__(title=get_string(lang, "application.message_modal.title"))
         self.target_user_id = user_id
         self.bot = bot
+        self.lang = lang
         self.submission_id = submission_id
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
@@ -408,21 +440,25 @@ class MessageModal(discord.ui.Modal, title="Message Applicant"):
 
     async def on_submit(self, interaction: discord.Interaction):
         if not self.message.value:
-            await interaction.response.send_message("No message sent.", ephemeral=True)
+            await interaction.response.send_message(
+                get_string(self.lang, "application.message_modal.no_content"), ephemeral=True
+            )
             return
 
         try:
             user = await self.bot.fetch_user(self.target_user_id)
             embed = discord.Embed(
-                title="Message from a reviewer",
+                title=get_string(self.lang, "application.message_modal.reviewer_title"),
                 description=f"**From:** {interaction.user.mention}\n\n{self.message.value}",
                 colour=discord.Colour.blurple(),
             )
             await user.send(embed=embed)
-            await interaction.response.send_message("Message sent to the applicant.", ephemeral=True)
+            await interaction.response.send_message(
+                get_string(self.lang, "application.message_modal.sent"), ephemeral=True
+            )
         except (discord.Forbidden, discord.NotFound):
             await interaction.response.send_message(
-                "Could not DM the user — they may have DMs disabled.", ephemeral=True
+                get_string(self.lang, "application.message_modal.dm_failed"), ephemeral=True
             )
             return  # DM failed — leave Message button available for retry
 
@@ -471,10 +507,12 @@ class VoteSelectView(discord.ui.View):
         bot,
         review_channel_id: int,
         review_message_id: int,
+        lang: str = "en",
     ):
         super().__init__(timeout=60)
         self.submission_id = submission_id
         self.bot = bot
+        self.lang = lang
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
 
@@ -493,6 +531,7 @@ class VoteSelectView(discord.ui.View):
                 bot=self.bot,
                 review_channel_id=self.review_channel_id,
                 review_message_id=self.review_message_id,
+                lang=self.lang,
             )
         else:
             modal = DenyVoteModal(
@@ -500,6 +539,7 @@ class VoteSelectView(discord.ui.View):
                 bot=self.bot,
                 review_channel_id=self.review_channel_id,
                 review_message_id=self.review_message_id,
+                lang=self.lang,
             )
         await interaction.response.send_modal(modal)
 
@@ -519,10 +559,12 @@ class EditVoteSelectView(discord.ui.View):
         current_vote: VoteType,
         review_channel_id: int,
         review_message_id: int,
+        lang: str = "en",
     ):
         super().__init__(timeout=60)
         self.submission_id = submission_id
         self.bot = bot
+        self.lang = lang
         self.current_vote = current_vote
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
@@ -545,7 +587,7 @@ class EditVoteSelectView(discord.ui.View):
         vote_type = VoteType.APPROVE if select.values[0] == "approve" else VoteType.DENY
         if vote_type == self.current_vote:
             await interaction.response.send_message(
-                "You already cast this vote. Select a different option to change it.", ephemeral=True
+                get_string(self.lang, "application.review.same_vote"), ephemeral=True
             )
             return
         if vote_type == VoteType.APPROVE:
@@ -555,6 +597,7 @@ class EditVoteSelectView(discord.ui.View):
                 previous_vote=self.current_vote,
                 review_channel_id=self.review_channel_id,
                 review_message_id=self.review_message_id,
+                lang=self.lang,
             )
         else:
             modal = EditDenyModal(
@@ -563,11 +606,12 @@ class EditVoteSelectView(discord.ui.View):
                 previous_vote=self.current_vote,
                 review_channel_id=self.review_channel_id,
                 review_message_id=self.review_message_id,
+                lang=self.lang,
             )
         await interaction.response.send_modal(modal)
 
 
-class EditApproveModal(discord.ui.Modal, title="Change Vote — Approve"):
+class EditApproveModal(discord.ui.Modal):
     """Modal for changing an existing vote to Approve."""
 
     message = discord.ui.TextInput(
@@ -581,10 +625,12 @@ class EditApproveModal(discord.ui.Modal, title="Change Vote — Approve"):
         previous_vote: VoteType,
         review_channel_id: int = 0,
         review_message_id: int = 0,
+        lang: str = "en",
     ):
-        super().__init__()
+        super().__init__(title=get_string(lang, "application.modal.edit_approve_title"))
         self.submission_id = submission_id
         self.bot = bot
+        self.lang = lang
         self.previous_vote = previous_vote
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
@@ -596,7 +642,9 @@ class EditApproveModal(discord.ui.Modal, title="Change Vote — Approve"):
         with self.bot.session_scope() as session:
             submission = ApplicationSubmission.get_by_id(self.submission_id, session)
             if submission is None or submission.Status != SubmissionStatus.PENDING:
-                await interaction.followup.send("This submission is no longer pending.", ephemeral=True)
+                await interaction.followup.send(
+                    get_string(self.lang, "application.review.no_longer_pending"), ephemeral=True
+                )
                 return
 
             old_vote = ApplicationVote.get_user_vote(self.submission_id, interaction.user.id, session)
@@ -614,7 +662,9 @@ class EditApproveModal(discord.ui.Modal, title="Change Vote — Approve"):
                 submission.Status = SubmissionStatus.APPROVED
                 session.flush()
 
-        await interaction.followup.send("Your vote has been changed to Approve.", ephemeral=True)
+        await interaction.followup.send(
+            get_string(self.lang, "application.review.vote_changed_approve"), ephemeral=True
+        )
 
         prev_emoji = "✅" if self.previous_vote == VoteType.APPROVE else "❌"
         try:
@@ -640,7 +690,7 @@ class EditApproveModal(discord.ui.Modal, title="Change Vote — Approve"):
             await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
 
 
-class EditDenyModal(discord.ui.Modal, title="Change Vote — Deny"):
+class EditDenyModal(discord.ui.Modal):
     """Modal for changing an existing vote to Deny."""
 
     message = discord.ui.TextInput(
@@ -654,10 +704,12 @@ class EditDenyModal(discord.ui.Modal, title="Change Vote — Deny"):
         previous_vote: VoteType,
         review_channel_id: int = 0,
         review_message_id: int = 0,
+        lang: str = "en",
     ):
-        super().__init__()
+        super().__init__(title=get_string(lang, "application.modal.edit_deny_title"))
         self.submission_id = submission_id
         self.bot = bot
+        self.lang = lang
         self.previous_vote = previous_vote
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
@@ -669,7 +721,9 @@ class EditDenyModal(discord.ui.Modal, title="Change Vote — Deny"):
         with self.bot.session_scope() as session:
             submission = ApplicationSubmission.get_by_id(self.submission_id, session)
             if submission is None or submission.Status != SubmissionStatus.PENDING:
-                await interaction.followup.send("This submission is no longer pending.", ephemeral=True)
+                await interaction.followup.send(
+                    get_string(self.lang, "application.review.no_longer_pending"), ephemeral=True
+                )
                 return
 
             old_vote = ApplicationVote.get_user_vote(self.submission_id, interaction.user.id, session)
@@ -688,7 +742,7 @@ class EditDenyModal(discord.ui.Modal, title="Change Vote — Deny"):
                 submission.DecisionReason = message_text
                 session.flush()
 
-        await interaction.followup.send("Your vote has been changed to Deny.", ephemeral=True)
+        await interaction.followup.send(get_string(self.lang, "application.review.vote_changed_deny"), ephemeral=True)
 
         prev_emoji = "✅" if self.previous_vote == VoteType.APPROVE else "❌"
         try:
@@ -728,17 +782,19 @@ class OverrideModal(discord.ui.Modal):
         bot,
         review_channel_id: int = 0,
         review_message_id: int = 0,
+        lang: str = "en",
     ):
         new_status = (
             SubmissionStatus.DENIED if current_status == SubmissionStatus.APPROVED else SubmissionStatus.APPROVED
         )
         old_label = current_status.value.capitalize()
         new_label = new_status.value.capitalize()
-        super().__init__(title=f"Override: {old_label} → {new_label}")
+        super().__init__(title=get_string(lang, "application.modal.override_title", old=old_label, new=new_label))
         self.current_status = current_status
         self.new_status = new_status
         self.submission_id = submission_id
         self.bot = bot
+        self.lang = lang
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
 
@@ -749,12 +805,14 @@ class OverrideModal(discord.ui.Modal):
         with self.bot.session_scope() as session:
             submission = ApplicationSubmission.get_by_id(self.submission_id, session)
             if submission is None or submission.Status == SubmissionStatus.PENDING:
-                await interaction.followup.send("Cannot override a pending application.", ephemeral=True)
+                await interaction.followup.send(
+                    get_string(self.lang, "application.review.override_cannot_pending"), ephemeral=True
+                )
                 return
             submission.Status = self.new_status
             session.flush()
 
-        await interaction.followup.send("Decision overridden.", ephemeral=True)
+        await interaction.followup.send(get_string(self.lang, "application.review.override_success"), ephemeral=True)
 
         old_label = self.current_status.value.capitalize()
         new_label = self.new_status.value.capitalize()
@@ -810,35 +868,45 @@ class ApplicationReviewView(discord.ui.View):
     @discord.ui.button(label="Vote", style=discord.ButtonStyle.primary, custom_id="app_review_vote")
     async def vote(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not check_application_permission(interaction, self.bot):
+            with self.bot.session_scope() as session:
+                lang = get_guild_language(interaction.guild_id, session)
             await interaction.response.send_message(
-                "You do not have permission to review applications.", ephemeral=True
+                get_string(lang, "application.review.no_review_permission"), ephemeral=True
             )
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             submission = ApplicationSubmission.get_by_review_message(interaction.message.id, session)
             if submission is None:
-                await interaction.response.send_message("Submission not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.review.not_found"), ephemeral=True
+                )
                 return
 
             if submission.Status != SubmissionStatus.PENDING:
-                await interaction.response.send_message("This application has already been decided.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.review.already_decided"), ephemeral=True
+                )
                 return
 
             existing = ApplicationVote.get_user_vote(submission.Id, interaction.user.id, session)
             if existing:
-                await interaction.response.send_message("You have already voted on this application.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.review.already_voted"), ephemeral=True
+                )
                 return
 
             submission_id = submission.Id
 
         await interaction.response.send_message(
-            "Select your vote:",
+            get_string(lang, "application.review.select_vote"),
             view=VoteSelectView(
                 submission_id=submission_id,
                 bot=self.bot,
                 review_channel_id=interaction.message.channel.id,
                 review_message_id=interaction.message.id,
+                lang=lang,
             ),
             ephemeral=True,
         )
@@ -848,25 +916,32 @@ class ApplicationReviewView(discord.ui.View):
     @discord.ui.button(label="Edit Vote", style=discord.ButtonStyle.secondary, custom_id="app_review_edit_vote")
     async def edit_vote(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not check_application_permission(interaction, self.bot):
+            with self.bot.session_scope() as session:
+                lang = get_guild_language(interaction.guild_id, session)
             await interaction.response.send_message(
-                "You do not have permission to review applications.", ephemeral=True
+                get_string(lang, "application.review.no_review_permission"), ephemeral=True
             )
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             submission = ApplicationSubmission.get_by_review_message(interaction.message.id, session)
             if submission is None:
-                await interaction.response.send_message("Submission not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.review.not_found"), ephemeral=True
+                )
                 return
 
             if submission.Status != SubmissionStatus.PENDING:
-                await interaction.response.send_message("This application has already been decided.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.review.already_decided"), ephemeral=True
+                )
                 return
 
             existing = ApplicationVote.get_user_vote(submission.Id, interaction.user.id, session)
             if existing is None:
                 await interaction.response.send_message(
-                    "You haven't voted yet. Use the Vote button to cast your vote.", ephemeral=True
+                    get_string(lang, "application.review.no_vote_yet"), ephemeral=True
                 )
                 return
 
@@ -874,13 +949,14 @@ class ApplicationReviewView(discord.ui.View):
             current_vote = existing.Vote
 
         await interaction.response.send_message(
-            "Change your vote:",
+            get_string(lang, "application.review.change_vote"),
             view=EditVoteSelectView(
                 submission_id=submission_id,
                 bot=self.bot,
                 current_vote=current_vote,
                 review_channel_id=interaction.message.channel.id,
                 review_message_id=interaction.message.id,
+                lang=lang,
             ),
             ephemeral=True,
         )
@@ -890,15 +966,20 @@ class ApplicationReviewView(discord.ui.View):
     @discord.ui.button(label="Message", style=discord.ButtonStyle.grey, custom_id="app_review_message")
     async def message_applicant(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not check_application_permission(interaction, self.bot):
+            with self.bot.session_scope() as session:
+                lang = get_guild_language(interaction.guild_id, session)
             await interaction.response.send_message(
-                "You do not have permission to review applications.", ephemeral=True
+                get_string(lang, "application.review.no_review_permission"), ephemeral=True
             )
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             submission = ApplicationSubmission.get_by_review_message(interaction.message.id, session)
             if submission is None:
-                await interaction.response.send_message("Submission not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.review.not_found"), ephemeral=True
+                )
                 return
 
             target_user_id = submission.UserId
@@ -908,9 +989,13 @@ class ApplicationReviewView(discord.ui.View):
                 form = ApplicationForm.get_by_id(submission.FormId, session)
                 if form:
                     if submission.Status == SubmissionStatus.APPROVED:
-                        prefill = form.ApprovalMessage or f"Your application for **{form.Name}** has been approved."
+                        prefill = form.ApprovalMessage or get_string(
+                            lang, "application.decision.approved_default", form=form.Name
+                        )
                     else:
-                        prefill = form.DenialMessage or f"Your application for **{form.Name}** has been denied."
+                        prefill = form.DenialMessage or get_string(
+                            lang, "application.decision.denied_default", form=form.Name
+                        )
 
         await interaction.response.send_modal(
             MessageModal(
@@ -920,6 +1005,7 @@ class ApplicationReviewView(discord.ui.View):
                 submission_id=submission_id,
                 review_channel_id=interaction.message.channel.id,
                 review_message_id=interaction.message.id,
+                lang=lang,
             )
         )
 
@@ -928,18 +1014,25 @@ class ApplicationReviewView(discord.ui.View):
     @discord.ui.button(label="Override", style=discord.ButtonStyle.danger, custom_id="app_review_override")
     async def override(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not check_override_permission(interaction, self.bot):
-            await interaction.response.send_message("You do not have permission to override decisions.", ephemeral=True)
+            with self.bot.session_scope() as session:
+                lang = get_guild_language(interaction.guild_id, session)
+            await interaction.response.send_message(
+                get_string(lang, "application.review.no_override_permission"), ephemeral=True
+            )
             return
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             submission = ApplicationSubmission.get_by_review_message(interaction.message.id, session)
             if submission is None:
-                await interaction.response.send_message("Submission not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.review.not_found"), ephemeral=True
+                )
                 return
 
             if submission.Status == SubmissionStatus.PENDING:
                 await interaction.response.send_message(
-                    "This application is still pending — there is no decision to override.", ephemeral=True
+                    get_string(lang, "application.review.override_pending"), ephemeral=True
                 )
                 return
 
@@ -953,6 +1046,7 @@ class ApplicationReviewView(discord.ui.View):
                 bot=self.bot,
                 review_channel_id=interaction.message.channel.id,
                 review_message_id=interaction.message.id,
+                lang=lang,
             )
         )
 
@@ -962,11 +1056,11 @@ class ApplicationReviewView(discord.ui.View):
 # ---------------------------------------------------------------------------
 
 
-def build_apply_embed(form_name: str, description: str | None) -> discord.Embed:
+def build_apply_embed(form_name: str, description: str | None, lang: str = "en") -> discord.Embed:
     """Build the embed shown above the Apply button in the apply channel."""
     return discord.Embed(
         title=f"\U0001f4cb {form_name}",
-        description=description or "Click the button below to apply!",
+        description=description or get_string(lang, "application.apply.default_description"),
         colour=discord.Colour.green(),
     )
 
@@ -1004,6 +1098,7 @@ async def post_apply_button_message(bot, form_id: int) -> None:
         old_message_id = form.ApplyMessageId
         form_name = form.Name
         description = form.ApplyDescription
+        lang = get_guild_language(form.GuildId, session)
 
     # Delete old message if it exists
     if old_message_id:
@@ -1018,7 +1113,7 @@ async def post_apply_button_message(bot, form_id: int) -> None:
             bot.log.warning("application: could not fetch apply channel %d for form %d", channel_id, form_id)
             return
 
-    embed = build_apply_embed(form_name, description)
+    embed = build_apply_embed(form_name, description, lang)
     view = ApplicationApplyView(bot=bot)
     msg = await channel.send(embed=embed, view=view)
 
@@ -1038,13 +1133,14 @@ async def edit_apply_button_message(bot, form_id: int) -> None:
         message_id = form.ApplyMessageId
         form_name = form.Name
         description = form.ApplyDescription
+        lang = get_guild_language(form.GuildId, session)
 
     try:
         channel = bot.get_channel(channel_id)
         if channel is None:
             channel = await bot.fetch_channel(channel_id)
         msg = await channel.fetch_message(message_id)
-        embed = build_apply_embed(form_name, description)
+        embed = build_apply_embed(form_name, description, lang)
         await msg.edit(embed=embed)
     except discord.HTTPException:
         bot.log.warning("application: could not edit apply message %d in channel %d", message_id, channel_id)
@@ -1078,23 +1174,24 @@ class ApplicationApplyView(discord.ui.View):
     async def apply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         # 1. Look up form via apply message ID
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
             form = ApplicationForm.get_by_apply_message(interaction.message.id, session)
             if form is None:
-                await interaction.response.send_message("This application is no longer available.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "application.apply.not_available"), ephemeral=True
+                )
                 return
 
             # 2. Check form is ready
             if not form.ReviewChannelId:
-                await interaction.response.send_message(
-                    "This form is not set up yet. Please contact a server admin.", ephemeral=True
-                )
+                await interaction.response.send_message(get_string(lang, "application.apply.not_ready"), ephemeral=True)
                 return
 
             # 3. Check no existing submission
             existing = ApplicationSubmission.get_by_user_and_form(interaction.user.id, form.Id, session)
             if existing:
                 await interaction.response.send_message(
-                    f"You have already applied for **{form.Name}**.", ephemeral=True
+                    get_string(lang, "application.apply.already_applied", form=form.Name), ephemeral=True
                 )
                 return
 
@@ -1113,8 +1210,7 @@ class ApplicationApplyView(discord.ui.View):
                 await self.bot.fetch_channel(review_channel_id)
             except (discord.NotFound, discord.Forbidden):
                 await interaction.followup.send(
-                    "This form's review channel is currently unavailable. Please try again later.",
-                    ephemeral=True,
+                    get_string(lang, "application.apply.review_unavailable"), ephemeral=True
                 )
                 return
 
@@ -1132,11 +1228,8 @@ class ApplicationApplyView(discord.ui.View):
         try:
             await self.bot.convMan.init_conversation(conv)
         except discord.Forbidden:
-            await interaction.followup.send(
-                "I couldn't send you a DM. Please enable DMs from server members and try again.",
-                ephemeral=True,
-            )
+            await interaction.followup.send(get_string(lang, "application.dm_forbidden"), ephemeral=True)
             return
 
         # 7. Send "Check your DMs!" followup
-        await interaction.followup.send("Check your DMs!", ephemeral=True)
+        await interaction.followup.send(get_string(lang, "application.check_dms"), ephemeral=True)

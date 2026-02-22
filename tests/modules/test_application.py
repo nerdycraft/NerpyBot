@@ -10,6 +10,7 @@ import discord
 import pytest
 
 
+from models.admin import GuildLanguageConfig
 from models.application import (
     BUILT_IN_TEMPLATES,
     ApplicationForm,
@@ -19,6 +20,7 @@ from models.application import (
     seed_built_in_templates,
 )
 from modules.application import Application, _fetch_description_from_message
+from utils.strings import load_strings
 
 
 @pytest.fixture
@@ -766,6 +768,89 @@ class TestTemplateUse:
         assert form is not None
         assert form.ApplyChannelId == 555
         assert form.ApplyDescription == "Apply here!"
+
+
+# ---------------------------------------------------------------------------
+# /application template use — localized questions
+# ---------------------------------------------------------------------------
+
+
+class TestTemplateUseLocalized:
+    """Built-in template questions should be resolved from YAML based on guild language."""
+
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        load_strings()
+
+    @pytest.mark.asyncio
+    async def test_german_guild_gets_german_questions(self, app_cog, admin_interaction, db_session):
+        db_session.add(GuildLanguageConfig(GuildId=admin_interaction.guild.id, Language="de"))
+        seed_built_in_templates(db_session)
+        db_session.commit()
+
+        review_channel = MagicMock()
+        review_channel.id = 444
+
+        await app_cog._template_use.callback(
+            app_cog,
+            admin_interaction,
+            template="Guild Membership",
+            name="GermanForm",
+            review_channel=review_channel,
+        )
+
+        form = ApplicationForm.get("GermanForm", admin_interaction.guild.id, db_session)
+        assert form is not None
+        # First question should be in German
+        assert form.questions[0].QuestionText == "Wie lautet dein Ingame-Name oder Hauptcharakter?"
+        assert len(form.questions) == 6
+
+    @pytest.mark.asyncio
+    async def test_english_guild_gets_english_questions(self, app_cog, admin_interaction, db_session):
+        seed_built_in_templates(db_session)
+        db_session.commit()
+
+        review_channel = MagicMock()
+        review_channel.id = 444
+
+        await app_cog._template_use.callback(
+            app_cog,
+            admin_interaction,
+            template="Guild Membership",
+            name="EnglishForm",
+            review_channel=review_channel,
+        )
+
+        form = ApplicationForm.get("EnglishForm", admin_interaction.guild.id, db_session)
+        assert form is not None
+        assert form.questions[0].QuestionText == "What is your in-game name or main character?"
+        assert len(form.questions) == 6
+
+    @pytest.mark.asyncio
+    async def test_custom_template_unaffected_by_language(self, app_cog, admin_interaction, db_session):
+        db_session.add(GuildLanguageConfig(GuildId=admin_interaction.guild.id, Language="de"))
+        from models.application import ApplicationTemplateQuestion
+
+        tpl = ApplicationTemplate(GuildId=admin_interaction.guild.id, Name="Custom", IsBuiltIn=False)
+        db_session.add(tpl)
+        db_session.flush()
+        db_session.add(ApplicationTemplateQuestion(TemplateId=tpl.Id, QuestionText="Custom Q?", SortOrder=1))
+        db_session.commit()
+
+        review_channel = MagicMock()
+        review_channel.id = 444
+
+        await app_cog._template_use.callback(
+            app_cog,
+            admin_interaction,
+            template="Custom",
+            name="CustomForm",
+            review_channel=review_channel,
+        )
+
+        form = ApplicationForm.get("CustomForm", admin_interaction.guild.id, db_session)
+        assert form is not None
+        assert form.questions[0].QuestionText == "Custom Q?"
 
 
 # ---------------------------------------------------------------------------

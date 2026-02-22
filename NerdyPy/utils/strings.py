@@ -46,6 +46,20 @@ def _traverse(data: dict, key: str) -> str | None:
     return current if isinstance(current, str) else None
 
 
+_SENTINEL = object()
+
+
+def _traverse_raw(data: dict, key: str):
+    """Traverse a nested dict by dot-separated key. Returns any leaf type."""
+    parts = key.split(".")
+    current = data
+    for part in parts:
+        if not isinstance(current, dict) or part not in current:
+            return _SENTINEL
+        current = current[part]
+    return current
+
+
 def get_string(lang: str, key: str, **kwargs) -> str:
     """Look up a localized string by dot-notation key with English fallback.
 
@@ -71,6 +85,28 @@ def get_string(lang: str, key: str, **kwargs) -> str:
         result = _traverse(_strings["en"], key)
         if result is not None:
             return result.format(**kwargs) if kwargs else result
+
+    raise KeyError(f"Missing localization key: {key}")
+
+
+def get_raw(lang: str, key: str):
+    """Look up any YAML value by dot-notation key with English fallback.
+
+    Unlike ``get_string``, this returns the raw value (list, dict, string, etc.)
+    without calling ``.format()``.
+
+    Raises:
+        KeyError: If the key is missing from both the target language and English.
+    """
+    if lang in _strings:
+        result = _traverse_raw(_strings[lang], key)
+        if result is not _SENTINEL:
+            return result
+
+    if "en" in _strings:
+        result = _traverse_raw(_strings["en"], key)
+        if result is not _SENTINEL:
+            return result
 
     raise KeyError(f"Missing localization key: {key}")
 
