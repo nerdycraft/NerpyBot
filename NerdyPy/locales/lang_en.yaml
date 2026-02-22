@@ -39,6 +39,14 @@ music:
   search:
     no_results: "Your search did not yield any results."
 
+league:
+  summoner:
+    level: "Summoner Level: {level}"
+    rank: "Rank"
+    league_points: "League Points"
+    wins: "Wins"
+    losses: "Losses"
+
 leavemsg:
   enable:
     success: "Leave messages enabled in {channel}."

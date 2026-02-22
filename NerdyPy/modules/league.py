@@ -9,6 +9,7 @@ from discord.ext.commands import GroupCog
 from utils.cog import NerpyBotCog
 from utils.errors import NerpyInfraException
 from utils.helpers import error_context
+from utils.strings import get_guild_language, get_string
 
 
 class LeagueCommand(Enum):
@@ -27,6 +28,10 @@ class League(NerpyBotCog, GroupCog):
         super().__init__(bot)
         self.version = None
         self.config = self.bot.config["league"]
+
+    def _lang(self, guild_id: int) -> str:
+        with self.bot.session_scope() as session:
+            return get_guild_language(guild_id, session)
 
     async def _get_latest_version(self) -> str:
         if self.version is None:
@@ -47,6 +52,7 @@ class League(NerpyBotCog, GroupCog):
         """get information about the summoner"""
         rank = tier = lp = wins = losses = ""
 
+        lang = self._lang(interaction.guild_id)
         auth_header = {"X-Riot-Token": self.config["riot"]}
         summoner_url = self._get_url(region, LeagueCommand.SUMMONER_BY_NAME, summoner_name)
 
@@ -81,13 +87,13 @@ class League(NerpyBotCog, GroupCog):
                     emb.set_thumbnail(
                         url=f"https://ddragon.leagueoflegends.com/cdn/{ver}/img/profileicon/{icon_id}.png"
                     )
-                    emb.description = f"Summoner Level: {level}"
+                    emb.description = get_string(lang, "league.summoner.level", level=level)
 
                     if played_ranked:
-                        emb.add_field(name="Rank", value=f"{tier} {rank}")
-                        emb.add_field(name="League Points", value=lp)
-                        emb.add_field(name="Wins", value=wins)
-                        emb.add_field(name="Losses", value=losses)
+                        emb.add_field(name=get_string(lang, "league.summoner.rank"), value=f"{tier} {rank}")
+                        emb.add_field(name=get_string(lang, "league.summoner.league_points"), value=lp)
+                        emb.add_field(name=get_string(lang, "league.summoner.wins"), value=wins)
+                        emb.add_field(name=get_string(lang, "league.summoner.losses"), value=losses)
 
         await interaction.response.send_message(embed=emb)
 

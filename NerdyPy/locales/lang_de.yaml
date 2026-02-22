@@ -39,6 +39,14 @@ music:
   search:
     no_results: "Deine Suche hat keine Ergebnisse geliefert."
 
+league:
+  summoner:
+    level: "Beschwörerstufe: {level}"
+    rank: "Rang"
+    league_points: "Ligapunkte"
+    wins: "Siege"
+    losses: "Niederlagen"
+
 leavemsg:
   enable:
     success: "Abschiedsnachrichten in {channel} aktiviert."
