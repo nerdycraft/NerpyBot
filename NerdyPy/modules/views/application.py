@@ -4,6 +4,9 @@
 ApplicationReviewView — four-button view (Vote / Edit Vote / Message / Override) attached to
 review embeds in the review channel.  Uses ``timeout=None`` and fixed ``custom_id``
 strings so the view survives bot restarts.
+
+ApplicationApplyView — single-button persistent view ("Apply") posted in a public channel.
+Clicking it starts the same DM conversation as ``/apply``.
 """
 
 from datetime import UTC
@@ -952,3 +955,201 @@ class ApplicationReviewView(discord.ui.View):
                 review_message_id=interaction.message.id,
             )
         )
+
+
+# ---------------------------------------------------------------------------
+# Apply button embed builder
+# ---------------------------------------------------------------------------
+
+
+def build_apply_embed(form_name: str, description: str | None) -> discord.Embed:
+    """Build the embed shown above the Apply button in the apply channel."""
+    return discord.Embed(
+        title=f"\U0001f4cb {form_name}",
+        description=description or "Click the button below to apply!",
+        colour=discord.Colour.green(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Apply button message lifecycle helpers
+# ---------------------------------------------------------------------------
+
+
+async def _delete_apply_message(bot, channel_id: int, message_id: int) -> None:
+    """Best-effort delete a single apply button message."""
+    try:
+        channel = bot.get_channel(channel_id)
+        if channel is None:
+            channel = await bot.fetch_channel(channel_id)
+        msg = await channel.fetch_message(message_id)
+        await msg.delete()
+    except discord.HTTPException:
+        bot.log.warning("application: could not delete apply message %d in channel %d", message_id, channel_id)
+
+
+async def post_apply_button_message(bot, form_id: int) -> None:
+    """Post (or re-post) the Apply button message for a form.
+
+    Reads form from DB, deletes old message if any, posts new one, updates ApplyMessageId.
+    No-op if form lacks ApplyChannelId or isn't ready.
+    """
+    with bot.session_scope() as session:
+        form = ApplicationForm.get_by_id(form_id, session)
+        if form is None:
+            return
+        if not form.ApplyChannelId or not form.ReviewChannelId or not form.questions:
+            return
+        channel_id = form.ApplyChannelId
+        old_message_id = form.ApplyMessageId
+        form_name = form.Name
+        description = form.ApplyDescription
+
+    # Delete old message if it exists
+    if old_message_id:
+        await _delete_apply_message(bot, channel_id, old_message_id)
+
+    # Post new message
+    channel = bot.get_channel(channel_id)
+    if channel is None:
+        try:
+            channel = await bot.fetch_channel(channel_id)
+        except discord.HTTPException:
+            bot.log.warning("application: could not fetch apply channel %d for form %d", channel_id, form_id)
+            return
+
+    embed = build_apply_embed(form_name, description)
+    view = ApplicationApplyView(bot=bot)
+    msg = await channel.send(embed=embed, view=view)
+
+    with bot.session_scope() as session:
+        form = ApplicationForm.get_by_id(form_id, session)
+        if form is not None:
+            form.ApplyMessageId = msg.id
+
+
+async def delete_apply_button_message(bot, form_id: int) -> None:
+    """Delete the Apply button message for a form.  Best-effort."""
+    with bot.session_scope() as session:
+        form = ApplicationForm.get_by_id(form_id, session)
+        if form is None or not form.ApplyMessageId or not form.ApplyChannelId:
+            return
+        channel_id = form.ApplyChannelId
+        message_id = form.ApplyMessageId
+        form.ApplyMessageId = None
+
+    await _delete_apply_message(bot, channel_id, message_id)
+
+
+async def edit_apply_button_message(bot, form_id: int) -> None:
+    """Edit the Apply button message in-place (e.g. after description change).  Best-effort."""
+    with bot.session_scope() as session:
+        form = ApplicationForm.get_by_id(form_id, session)
+        if form is None or not form.ApplyMessageId or not form.ApplyChannelId:
+            return
+        channel_id = form.ApplyChannelId
+        message_id = form.ApplyMessageId
+        form_name = form.Name
+        description = form.ApplyDescription
+
+    try:
+        channel = bot.get_channel(channel_id)
+        if channel is None:
+            channel = await bot.fetch_channel(channel_id)
+        msg = await channel.fetch_message(message_id)
+        embed = build_apply_embed(form_name, description)
+        await msg.edit(embed=embed)
+    except discord.HTTPException:
+        bot.log.warning("application: could not edit apply message %d in channel %d", message_id, channel_id)
+
+
+# ---------------------------------------------------------------------------
+# Persistent apply view
+# ---------------------------------------------------------------------------
+
+
+class ApplicationApplyView(discord.ui.View):
+    """Single-button persistent view posted in a public channel.
+
+    One view instance (registered in ``setup_hook``) handles ALL apply messages
+    across all guilds — the form is looked up via ``interaction.message.id``.
+    """
+
+    def __init__(self, bot=None):
+        super().__init__(timeout=None)  # persistent — survives bot restarts
+        self.bot = bot
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
+        if self.bot:
+            self.bot.log.error("Error in ApplicationApplyView: %s", error, exc_info=error)
+        if not interaction.response.is_done():
+            await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
+        else:
+            await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
+
+    @discord.ui.button(label="Apply", style=discord.ButtonStyle.green, custom_id="app_apply_button")
+    async def apply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # 1. Look up form via apply message ID
+        with self.bot.session_scope() as session:
+            form = ApplicationForm.get_by_apply_message(interaction.message.id, session)
+            if form is None:
+                await interaction.response.send_message("This application is no longer available.", ephemeral=True)
+                return
+
+            # 2. Check form is ready
+            if not form.ReviewChannelId:
+                await interaction.response.send_message(
+                    "This form is not set up yet. Please contact a server admin.", ephemeral=True
+                )
+                return
+
+            # 3. Check no existing submission
+            existing = ApplicationSubmission.get_by_user_and_form(interaction.user.id, form.Id, session)
+            if existing:
+                await interaction.response.send_message(
+                    f"You have already applied for **{form.Name}**.", ephemeral=True
+                )
+                return
+
+            form_id = form.Id
+            form_name = form.Name
+            questions = [(q.Id, q.QuestionText) for q in form.questions]
+            review_channel_id = form.ReviewChannelId
+
+        # 4. Defer ephemeral
+        await interaction.response.defer(ephemeral=True)
+
+        # 5. Verify review channel accessible
+        channel = self.bot.get_channel(review_channel_id)
+        if channel is None:
+            try:
+                await self.bot.fetch_channel(review_channel_id)
+            except (discord.NotFound, discord.Forbidden):
+                await interaction.followup.send(
+                    "This form's review channel is currently unavailable. Please try again later.",
+                    ephemeral=True,
+                )
+                return
+
+        # 6. Start ApplicationSubmitConversation
+        from modules.conversations.application import ApplicationSubmitConversation
+
+        conv = ApplicationSubmitConversation(
+            self.bot,
+            interaction.user,
+            interaction.guild,
+            form_id=form_id,
+            form_name=form_name,
+            questions=questions,
+        )
+        try:
+            await self.bot.convMan.init_conversation(conv)
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "I couldn't send you a DM. Please enable DMs from server members and try again.",
+                ephemeral=True,
+            )
+            return
+
+        # 7. Send "Check your DMs!" followup
+        await interaction.followup.send("Check your DMs!", ephemeral=True)

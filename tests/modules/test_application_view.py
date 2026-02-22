@@ -19,6 +19,7 @@ from models.application import (
     VoteType,
 )
 from modules.views.application import (
+    ApplicationApplyView,
     ApproveVoteModal,
     ApplicationReviewView,
     DenyVoteModal,
@@ -29,6 +30,7 @@ from modules.views.application import (
     OverrideModal,
     VoteSelectView,
     _dm_applicant,
+    build_apply_embed,
     check_application_permission,
     check_override_permission,
     build_review_embed,
@@ -1528,3 +1530,196 @@ class TestOverrideButton:
         modal = interaction.response.send_modal.call_args[0][0]
         assert modal.current_status == SubmissionStatus.DENIED
         assert modal.new_status == SubmissionStatus.APPROVED
+
+
+# ---------------------------------------------------------------------------
+# Apply button helpers
+# ---------------------------------------------------------------------------
+
+APPLY_MESSAGE_ID = 888999000
+
+
+def _make_apply_interaction(mock_bot, *, message_id=APPLY_MESSAGE_ID, guild_id=GUILD_ID):
+    interaction = MagicMock()
+    interaction.client = mock_bot
+    interaction.user = MagicMock()
+    interaction.user.id = APPLICANT_USER_ID
+    interaction.user.name = "Applicant"
+    interaction.guild = MagicMock()
+    interaction.guild.id = guild_id
+    interaction.message = MagicMock()
+    interaction.message.id = message_id
+    interaction.response = MagicMock()
+    interaction.response.send_message = AsyncMock()
+    interaction.response.defer = AsyncMock()
+    interaction.response.is_done = MagicMock(return_value=False)
+    interaction.followup = MagicMock()
+    interaction.followup.send = AsyncMock()
+    return interaction
+
+
+def _seed_apply_form(session, *, apply_message_id=APPLY_MESSAGE_ID, review_channel_id=REVIEW_CHANNEL_ID):
+    """Insert a form wired up for apply-button lookup.  Returns (form,)."""
+    form = ApplicationForm(
+        GuildId=GUILD_ID,
+        Name="Apply Form",
+        ReviewChannelId=review_channel_id,
+        RequiredApprovals=1,
+        RequiredDenials=1,
+        ApplyChannelId=100200300,
+        ApplyMessageId=apply_message_id,
+    )
+    session.add(form)
+    session.flush()
+
+    question = ApplicationQuestion(FormId=form.Id, QuestionText="Tell us about yourself", SortOrder=1)
+    session.add(question)
+    session.flush()
+
+    return (form,)
+
+
+# ---------------------------------------------------------------------------
+# build_apply_embed tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildApplyEmbed:
+    def test_embed_with_custom_description(self):
+        embed = build_apply_embed("Staff Application", "We are looking for new staff!")
+        assert "Staff Application" in embed.title
+        assert embed.description == "We are looking for new staff!"
+        assert embed.colour == discord.Colour.green()
+
+    def test_embed_with_none_description_uses_default(self):
+        embed = build_apply_embed("Staff Application", None)
+        assert "Staff Application" in embed.title
+        assert embed.description == "Click the button below to apply!"
+        assert embed.colour == discord.Colour.green()
+
+
+# ---------------------------------------------------------------------------
+# ApplicationApplyView structure tests
+# ---------------------------------------------------------------------------
+
+
+class TestApplicationApplyViewStructure:
+    @pytest.mark.asyncio
+    async def test_has_button_with_correct_custom_id(self):
+        view = ApplicationApplyView(bot=None)
+        custom_ids = {c.custom_id for c in view.children}
+        assert "app_apply_button" in custom_ids
+
+    @pytest.mark.asyncio
+    async def test_timeout_is_none(self):
+        view = ApplicationApplyView(bot=None)
+        assert view.timeout is None
+
+    @pytest.mark.asyncio
+    async def test_button_is_green(self):
+        view = ApplicationApplyView(bot=None)
+        button = next(c for c in view.children if c.custom_id == "app_apply_button")
+        assert button.style == discord.ButtonStyle.green
+
+    @pytest.mark.asyncio
+    async def test_button_label_is_apply(self):
+        view = ApplicationApplyView(bot=None)
+        button = next(c for c in view.children if c.custom_id == "app_apply_button")
+        assert button.label == "Apply"
+
+
+# ---------------------------------------------------------------------------
+# ApplicationApplyButton tests
+# ---------------------------------------------------------------------------
+
+
+class TestApplicationApplyButton:
+    @pytest.mark.asyncio
+    async def test_happy_path_starts_conversation(self, mock_bot, db_session):
+        """Apply button starts DM conversation and sends 'Check your DMs!' followup."""
+        (form,) = _seed_apply_form(db_session)
+        mock_bot.convMan = MagicMock()
+        mock_bot.convMan.init_conversation = AsyncMock()
+        mock_bot.get_channel = MagicMock(return_value=MagicMock())
+
+        view = ApplicationApplyView(bot=mock_bot)
+        interaction = _make_apply_interaction(mock_bot)
+
+        await view.apply_button.callback(interaction)
+
+        interaction.response.defer.assert_called_once()
+        mock_bot.convMan.init_conversation.assert_called_once()
+        interaction.followup.send.assert_called_once()
+        msg = str(interaction.followup.send.call_args).lower()
+        assert "dm" in msg or "check" in msg
+
+    @pytest.mark.asyncio
+    async def test_form_not_found(self, mock_bot, db_session):
+        """When no form matches the message ID, respond with error."""
+        view = ApplicationApplyView(bot=mock_bot)
+        interaction = _make_apply_interaction(mock_bot, message_id=999999999)
+
+        await view.apply_button.callback(interaction)
+
+        interaction.response.send_message.assert_called_once()
+        msg = str(interaction.response.send_message.call_args).lower()
+        assert "no longer available" in msg or "not found" in msg or "unavailable" in msg
+
+    @pytest.mark.asyncio
+    async def test_blocks_duplicate_submission(self, mock_bot, db_session):
+        """If user already submitted for this form, deny with message."""
+        (form,) = _seed_apply_form(db_session)
+
+        # Add an existing submission from this user
+        submission = ApplicationSubmission(
+            FormId=form.Id,
+            GuildId=GUILD_ID,
+            UserId=APPLICANT_USER_ID,
+            UserName="Applicant",
+            Status="pending",
+            SubmittedAt=datetime.now(UTC),
+        )
+        db_session.add(submission)
+        db_session.flush()
+
+        view = ApplicationApplyView(bot=mock_bot)
+        interaction = _make_apply_interaction(mock_bot)
+
+        await view.apply_button.callback(interaction)
+
+        interaction.response.send_message.assert_called_once()
+        msg = str(interaction.response.send_message.call_args).lower()
+        assert "already" in msg
+
+    @pytest.mark.asyncio
+    async def test_form_not_ready_no_review_channel(self, mock_bot, db_session):
+        """If form has no ReviewChannelId, respond with 'not set up' error."""
+        (form,) = _seed_apply_form(db_session, review_channel_id=None)
+
+        view = ApplicationApplyView(bot=mock_bot)
+        interaction = _make_apply_interaction(mock_bot)
+
+        await view.apply_button.callback(interaction)
+
+        interaction.response.send_message.assert_called_once()
+        msg = str(interaction.response.send_message.call_args).lower()
+        assert "not set up" in msg or "not ready" in msg
+
+    @pytest.mark.asyncio
+    async def test_dm_forbidden_sends_error(self, mock_bot, db_session):
+        """If bot can't DM the user, respond with helpful message."""
+        (form,) = _seed_apply_form(db_session)
+        mock_bot.convMan = MagicMock()
+        mock_bot.convMan.init_conversation = AsyncMock(
+            side_effect=discord.Forbidden(MagicMock(), "Cannot send messages")
+        )
+        mock_bot.get_channel = MagicMock(return_value=MagicMock())
+
+        view = ApplicationApplyView(bot=mock_bot)
+        interaction = _make_apply_interaction(mock_bot)
+
+        await view.apply_button.callback(interaction)
+
+        interaction.followup.send.assert_called_once()
+        msg = str(interaction.followup.send.call_args).lower()
+        assert "dm" in msg
