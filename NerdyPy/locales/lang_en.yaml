@@ -86,6 +86,41 @@ reactionrole:
   clear:
     success: "Cleared all reaction role mappings from message `{message_id}`."
 
+tagging:
+  not_found: "Tag \"{name}\" doesn't exist!"
+  skip:
+    success: "Skipped."
+  queue:
+    drop_success: "Queue dropped."
+  create:
+    success: "Tag \"{name}\" created!"
+    already_exists: "Tag \"{name}\" already exists!"
+  add:
+    success: "Entry added to tag \"{name}\"!"
+  volume:
+    success: "Changed volume of \"{name}\" to {volume}."
+    out_of_range: "Volume must be between 0 and 200."
+  delete:
+    success: "Tag \"{name}\" deleted!"
+  get:
+    not_found: "Could not find a tag called \"{name}\"."
+    playing: "Playing **{name}**"
+  list:
+    title: "🏷️ Tags"
+    empty: "No tags found."
+    entry_count_one: "{count} entry"
+    entry_count_other: "{count} entries"
+  info:
+    author: "Author"
+    type: "Type"
+    created: "Created"
+    hits: "Hits"
+    entries: "Entries"
+    volume: "Volume"
+  raw:
+    title: "🏷️ {name} — Raw"
+    binary_data: "*(binary audio data)*"
+
 leavemsg:
   enable:
     success: "Leave messages enabled in {channel}."
