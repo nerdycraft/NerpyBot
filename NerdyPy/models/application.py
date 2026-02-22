@@ -64,8 +64,8 @@ class ApplicationForm(db.BASE):
     __table_args__ = (
         Index("ApplicationForm_GuildId", "GuildId"),
         Index("ApplicationForm_Name_GuildId", "Name", "GuildId", unique=True),
-        CheckConstraint("RequiredApprovals >= 1", name="ck_form_required_approvals"),
-        CheckConstraint("RequiredDenials >= 1", name="ck_form_required_denials"),
+        CheckConstraint('"RequiredApprovals" >= 1', name="ck_form_required_approvals"),
+        CheckConstraint('"RequiredDenials" >= 1', name="ck_form_required_denials"),
     )
 
     Id = Column(Integer, primary_key=True)
@@ -246,7 +246,7 @@ class ApplicationTemplate(db.BASE):
     __table_args__ = (
         Index("ApplicationTemplate_GuildId", "GuildId"),
         CheckConstraint(
-            "(IsBuiltIn = 1 AND GuildId IS NULL) OR (IsBuiltIn = 0 AND GuildId IS NOT NULL)",
+            '("IsBuiltIn" = 1 AND "GuildId" IS NULL) OR ("IsBuiltIn" = 0 AND "GuildId" IS NOT NULL)',
             name="ck_template_builtin_guild",
         ),
     )
