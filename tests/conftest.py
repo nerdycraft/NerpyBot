@@ -22,6 +22,16 @@ def db_engine():
     engine = create_engine("sqlite:///:memory:", echo=False)
 
     # Import all models to ensure they're registered with BASE.metadata
+    from models.application import (  # noqa: F401
+        ApplicationForm,
+        ApplicationQuestion,
+        ApplicationSubmission,
+        ApplicationAnswer,
+        ApplicationVote,
+        ApplicationGuildConfig,
+        ApplicationTemplate,
+        ApplicationTemplateQuestion,
+    )
     from models.reminder import ReminderMessage  # noqa: F401
     from models.tagging import Tag, TagEntry  # noqa: F401
     from models.wow import WowGuildNewsConfig, WowCharacterMounts  # noqa: F401

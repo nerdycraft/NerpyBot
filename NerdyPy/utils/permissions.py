@@ -24,6 +24,7 @@ REQUIRED_PERMISSIONS: dict[str, set[str]] = {
         "use_external_stickers",
     },
     "admin": set(),
+    "application": {"send_messages", "embed_links", "create_public_threads"},
     "league": {"send_messages"},
     "leavemsg": {"send_messages"},
     "moderation": {"send_messages", "kick_members", "manage_messages", "read_message_history"},
