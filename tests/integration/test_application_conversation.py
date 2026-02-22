@@ -731,7 +731,10 @@ class TestApplicationTemplateCreateConversation:
     def conv(self, mock_bot, mock_user, mock_guild):
         _make_send_return(mock_user)
         return ApplicationTemplateCreateConversation(
-            mock_bot, mock_user, mock_guild, template_name="MyTemplate",
+            mock_bot,
+            mock_user,
+            mock_guild,
+            template_name="MyTemplate",
         )
 
     @pytest.mark.asyncio
@@ -749,6 +752,7 @@ class TestApplicationTemplateCreateConversation:
         await conv.on_react(CANCEL_EMOJI)  # finish
 
         from models.application import ApplicationTemplate
+
         tpl = ApplicationTemplate.get_by_name("MyTemplate", conv.guild.id, db_session)
         assert tpl is not None
         assert len(tpl.questions) == 2
@@ -758,14 +762,19 @@ class TestApplicationTemplateCreateConversation:
     async def test_stores_approval_denial_messages(self, mock_bot, mock_user, mock_guild, db_session):
         _make_send_return(mock_user)
         conv = ApplicationTemplateCreateConversation(
-            mock_bot, mock_user, mock_guild, template_name="T2",
-            approval_message="Approved!", denial_message="Denied!",
+            mock_bot,
+            mock_user,
+            mock_guild,
+            template_name="T2",
+            approval_message="Approved!",
+            denial_message="Denied!",
         )
         await conv.repost_state()
         await conv.on_message("Q1")
         await conv.on_react(CANCEL_EMOJI)
 
         from models.application import ApplicationTemplate
+
         tpl = ApplicationTemplate.get_by_name("T2", mock_guild.id, db_session)
         assert tpl.ApprovalMessage == "Approved!"
         assert tpl.DenialMessage == "Denied!"
@@ -871,8 +880,11 @@ class TestSubmitConversationRoleMentions:
         db_session.add(q)
         db_session.flush()
         return ApplicationSubmitConversation(
-            mock_bot, mock_user, mock_guild,
-            form_id=form.Id, form_name="F",
+            mock_bot,
+            mock_user,
+            mock_guild,
+            form_id=form.Id,
+            form_name="F",
             questions=[(q.Id, "Q1")],
         )
 
@@ -900,6 +912,7 @@ class TestSubmitConversationRoleMentions:
     @pytest.mark.asyncio
     async def test_mentions_configured_roles(self, conv, mock_bot, mock_guild, db_session):
         from models.application import ApplicationGuildConfig
+
         db_session.add(ApplicationGuildConfig(GuildId=mock_guild.id, ManagerRoleId=111, ReviewerRoleId=222))
         db_session.flush()
         mock_guild.roles = []
