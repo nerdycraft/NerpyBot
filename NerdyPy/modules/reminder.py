@@ -15,6 +15,7 @@ from utils.duration import parse_duration
 from utils.helpers import notify_error, register_before_loop, send_paginated
 from utils.permissions import validate_channel_permissions
 from utils.schedule import compute_next_fire
+from utils.strings import get_guild_language, get_string
 
 LOOP_MAX_SECONDS = 60.0
 LOOP_MIN_SECONDS = 5.0
@@ -35,7 +36,7 @@ _WEEKDAY_NAMES = list(WEEKDAY_MAP.keys())
 _TZ_NAMES = sorted(available_timezones())
 
 
-def _format_relative(next_fire_utc: datetime, tz: ZoneInfo | None = None) -> str:
+def _format_relative(next_fire_utc: datetime, tz: ZoneInfo | None = None, lang: str = "en") -> str:
     """Format a human-friendly relative time string.
 
     For short durations (< 12 hours) uses humanize for precision (e.g. "in 2 hours").
@@ -55,8 +56,8 @@ def _format_relative(next_fire_utc: datetime, tz: ZoneInfo | None = None) -> str
     day_diff = (local_fire - local_now).days
 
     if day_diff == 1:
-        return "a day from now"
-    return f"{day_diff} days from now"
+        return get_string(lang, "reminder.relative.a_day")
+    return get_string(lang, "reminder.relative.days", days=day_diff)
 
 
 @app_commands.guild_only()
@@ -144,6 +145,11 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
         """Restart the loop so it immediately re-evaluates timing."""
         self._reminder_loop.restart()
 
+    def _lang(self, guild_id):
+        """Look up the guild's language preference."""
+        with self.bot.session_scope() as session:
+            return get_guild_language(guild_id, session)
+
     # -- /reminder create ----------------------------------------------
 
     @app_commands.command(name="create")
@@ -177,6 +183,7 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
         next_fire = datetime.now(UTC) + td
 
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             reminder = ReminderMessage(
                 GuildId=interaction.guild.id,
                 ChannelId=target.id,
@@ -193,8 +200,10 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
             session.add(reminder)
 
         self._reschedule()
-        rel = _format_relative(next_fire)
-        await interaction.response.send_message(f"Reminder created — next fire {rel}.", ephemeral=True)
+        rel = _format_relative(next_fire, lang=lang)
+        await interaction.response.send_message(
+            get_string(lang, "reminder.create.success", relative_time=rel), ephemeral=True
+        )
 
     # -- /reminder schedule --------------------------------------------
 
@@ -228,12 +237,14 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
         timezone: Optional[str] = None,
     ):
         """Create a calendar-based reminder (daily, weekly, monthly)."""
+        lang = self._lang(interaction.guild.id)
+
         # Parse time
         try:
             parts = time_of_day.split(":")
             sched_time = time(int(parts[0]), int(parts[1]))
         except (ValueError, IndexError):
-            await interaction.response.send_message("Invalid time format. Use HH:MM (e.g. 09:00).", ephemeral=True)
+            await interaction.response.send_message(get_string(lang, "reminder.schedule.invalid_time"), ephemeral=True)
             return
 
         # Validate timezone
@@ -242,7 +253,9 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
             try:
                 tz = ZoneInfo(timezone)
             except (KeyError, ValueError):
-                await interaction.response.send_message(f"Unknown timezone: {timezone}", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "reminder.schedule.unknown_timezone", timezone=timezone), ephemeral=True
+                )
                 return
 
         stype = schedule_type.value
@@ -252,17 +265,21 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
         dom = None
         if stype == "weekly":
             if day_of_week is None:
-                await interaction.response.send_message("day_of_week is required for weekly schedules.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "reminder.schedule.day_of_week_required"), ephemeral=True
+                )
                 return
             dow = day_of_week.value
         elif stype == "monthly":
             if day_of_month is None:
                 await interaction.response.send_message(
-                    "day_of_month is required for monthly schedules.", ephemeral=True
+                    get_string(lang, "reminder.schedule.day_of_month_required"), ephemeral=True
                 )
                 return
             if not 1 <= day_of_month <= 28:
-                await interaction.response.send_message("day_of_month must be between 1 and 28.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "reminder.schedule.day_of_month_range"), ephemeral=True
+                )
                 return
             dom = day_of_month
 
@@ -298,8 +315,10 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
 
         self._reschedule()
         tz_obj = ZoneInfo(timezone) if timezone else None
-        rel = _format_relative(next_fire, tz_obj)
-        await interaction.response.send_message(f"Scheduled reminder created — next fire {rel}.", ephemeral=True)
+        rel = _format_relative(next_fire, tz_obj, lang=lang)
+        await interaction.response.send_message(
+            get_string(lang, "reminder.schedule.success", relative_time=rel), ephemeral=True
+        )
 
     # noinspection PyMethodMayBeStatic,PyUnusedLocal
     async def _timezone_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
@@ -314,9 +333,10 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
     async def _reminder_list(self, interaction: Interaction):
         """List all current reminder messages."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             msgs = ReminderMessage.get_all_by_guild(interaction.guild.id, session)
             if not msgs:
-                await interaction.response.send_message("No reminders set.", ephemeral=True)
+                await interaction.response.send_message(get_string(lang, "reminder.no_reminders"), ephemeral=True)
                 return
 
             to_send = ""
@@ -334,40 +354,56 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
                             abs_time = next_fire.strftime("%Y-%m-%d %H:%M UTC")
                     else:
                         abs_time = next_fire.strftime("%Y-%m-%d %H:%M UTC")
-                    rel = _format_relative(next_fire, display_tz)
-                    timing = f"Next: {rel} ({abs_time})"
+                    rel = _format_relative(next_fire, display_tz, lang=lang)
+                    timing = get_string(lang, "reminder.list.next", relative=rel, absolute=abs_time)
                 else:
-                    timing = "paused"
+                    timing = get_string(lang, "reminder.list.paused")
 
                 schedule_info = msg.ScheduleType
                 if msg.ScheduleType == "once":
-                    schedule_info = "one-time"
+                    schedule_info = get_string(lang, "reminder.list.one_time")
                 elif msg.ScheduleType == "interval" and msg.IntervalSeconds:
-                    schedule_info = f"every {humanize.naturaldelta(timedelta(seconds=msg.IntervalSeconds))}"
+                    delta = humanize.naturaldelta(timedelta(seconds=msg.IntervalSeconds))
+                    schedule_info = get_string(lang, "reminder.list.every", delta=delta)
                 elif msg.ScheduleType == "daily" and msg.ScheduleTime:
                     tz_label = msg.Timezone or "UTC"
-                    schedule_info = f"daily at {msg.ScheduleTime.strftime('%H:%M')} {tz_label}"
+                    schedule_info = get_string(
+                        lang, "reminder.list.daily_at", time=msg.ScheduleTime.strftime("%H:%M"), timezone=tz_label
+                    )
                 elif (
                     msg.ScheduleType == "weekly" and msg.ScheduleTime is not None and msg.ScheduleDayOfWeek is not None
                 ):
                     day_name = _WEEKDAY_NAMES[msg.ScheduleDayOfWeek]
                     tz_label = msg.Timezone or "UTC"
-                    schedule_info = f"weekly {day_name} at {msg.ScheduleTime.strftime('%H:%M')} {tz_label}"
+                    schedule_info = get_string(
+                        lang,
+                        "reminder.list.weekly_at",
+                        day=day_name,
+                        time=msg.ScheduleTime.strftime("%H:%M"),
+                        timezone=tz_label,
+                    )
                 elif (
                     msg.ScheduleType == "monthly"
                     and msg.ScheduleTime is not None
                     and msg.ScheduleDayOfMonth is not None
                 ):
                     tz_label = msg.Timezone or "UTC"
-                    schedule_info = (
-                        f"monthly day {msg.ScheduleDayOfMonth} at {msg.ScheduleTime.strftime('%H:%M')} {tz_label}"
+                    schedule_info = get_string(
+                        lang,
+                        "reminder.list.monthly_at",
+                        day=msg.ScheduleDayOfMonth,
+                        time=msg.ScheduleTime.strftime("%H:%M"),
+                        timezone=tz_label,
                     )
 
+                hits = get_string(lang, "reminder.list.hits", count=msg.Count)
                 to_send += f"{status} **#{msg.Id}** \u2014 #{msg.ChannelName} \u2014 {schedule_info}\n"
                 to_send += f"> {msg.Message}\n"
-                to_send += f"*{msg.Author} \u00b7 {timing} \u00b7 Hits: {msg.Count}*\n\n"
+                to_send += f"*{msg.Author} \u00b7 {timing} \u00b7 {hits}*\n\n"
 
-            await send_paginated(interaction, to_send, title="\u23f0 Reminders", color=0xF39C12, ephemeral=True)
+            await send_paginated(
+                interaction, to_send, title=get_string(lang, "reminder.list.title"), color=0xF39C12, ephemeral=True
+            )
 
     # -- /reminder edit ------------------------------------------------
 
@@ -409,9 +445,10 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
     ):
         """Edit an existing reminder's message, channel, or timing."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             msg = ReminderMessage.get_by_id(reminder_id, interaction.guild.id, session)
             if msg is None:
-                await interaction.response.send_message("Reminder not found.", ephemeral=True)
+                await interaction.response.send_message(get_string(lang, "reminder.not_found"), ephemeral=True)
                 return
 
             # Collect which timing params the user supplied
@@ -426,7 +463,9 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
 
             # Check if anything was supplied at all
             if not supplied_timing and message is None and channel is None:
-                await interaction.response.send_message("Nothing to change.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "reminder.edit.nothing_to_change"), ephemeral=True
+                )
                 return
 
             # Validate param applicability against ScheduleType
@@ -435,7 +474,13 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
                 if param not in allowed:
                     allowed_types = [st for st, params in self._EDIT_ALLOWED.items() if param in params]
                     await interaction.response.send_message(
-                        f"`{param}` only applies to {', '.join(allowed_types)} reminders, not {msg.ScheduleType}.",
+                        get_string(
+                            lang,
+                            "reminder.edit.param_not_applicable",
+                            param=param,
+                            allowed_types=", ".join(allowed_types),
+                            schedule_type=msg.ScheduleType,
+                        ),
                         ephemeral=True,
                     )
                     return
@@ -471,7 +516,7 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
                     sched_time = time(int(parts[0]), int(parts[1]))
                 except (ValueError, IndexError):
                     await interaction.response.send_message(
-                        "Invalid time format. Use HH:MM (e.g. 09:00).", ephemeral=True
+                        get_string(lang, "reminder.schedule.invalid_time"), ephemeral=True
                     )
                     return
                 msg.ScheduleTime = sched_time
@@ -486,7 +531,9 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
 
             if day_of_month is not None:
                 if not 1 <= day_of_month <= 28:
-                    await interaction.response.send_message("day_of_month must be between 1 and 28.", ephemeral=True)
+                    await interaction.response.send_message(
+                        get_string(lang, "reminder.schedule.day_of_month_range"), ephemeral=True
+                    )
                     return
                 msg.ScheduleDayOfMonth = day_of_month
                 changes.append(f"day → {day_of_month}")
@@ -496,7 +543,9 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
                 try:
                     ZoneInfo(timezone)
                 except (KeyError, ValueError):
-                    await interaction.response.send_message(f"Unknown timezone: {timezone}", ephemeral=True)
+                    await interaction.response.send_message(
+                        get_string(lang, "reminder.schedule.unknown_timezone", timezone=timezone), ephemeral=True
+                    )
                     return
                 msg.Timezone = timezone
                 changes.append(f"timezone → {timezone}")
@@ -519,9 +568,9 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
             summary = ", ".join(changes)
             next_fire_utc = msg.NextFire.replace(tzinfo=UTC)
             edit_tz = ZoneInfo(msg.Timezone) if msg.Timezone else None
-            rel = _format_relative(next_fire_utc, edit_tz)
+            rel = _format_relative(next_fire_utc, edit_tz, lang=lang)
             await interaction.response.send_message(
-                f"Updated reminder **#{reminder_id}**: {summary}. Next fire {rel}.",
+                get_string(lang, "reminder.edit.success", reminder_id=reminder_id, summary=summary, relative_time=rel),
                 ephemeral=True,
             )
 
@@ -552,9 +601,10 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
     async def _reminder_delete(self, interaction: Interaction, reminder_id: int):
         """Delete a reminder message."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             ReminderMessage.delete(reminder_id, interaction.guild.id, session)
         self._reschedule()
-        await interaction.response.send_message("Message deleted.", ephemeral=True)
+        await interaction.response.send_message(get_string(lang, "reminder.delete.success"), ephemeral=True)
 
     # -- /reminder pause -----------------------------------------------
 
@@ -563,16 +613,21 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
     async def _reminder_pause(self, interaction: Interaction, reminder_id: int):
         """Pause a reminder without deleting it."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             msg = ReminderMessage.get_by_id(reminder_id, interaction.guild.id, session)
             if msg is None:
-                await interaction.response.send_message("Reminder not found.", ephemeral=True)
+                await interaction.response.send_message(get_string(lang, "reminder.not_found"), ephemeral=True)
                 return
             if not msg.Enabled:
-                await interaction.response.send_message("Reminder is already paused.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "reminder.pause.already_paused"), ephemeral=True
+                )
                 return
             msg.Enabled = False
         self._reschedule()
-        await interaction.response.send_message(f"Paused reminder **#{reminder_id}**.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "reminder.pause.success", reminder_id=reminder_id), ephemeral=True
+        )
 
     # -- /reminder resume ----------------------------------------------
 
@@ -581,12 +636,15 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
     async def _reminder_resume(self, interaction: Interaction, reminder_id: int):
         """Resume a paused reminder."""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             msg = ReminderMessage.get_by_id(reminder_id, interaction.guild.id, session)
             if msg is None:
-                await interaction.response.send_message("Reminder not found.", ephemeral=True)
+                await interaction.response.send_message(get_string(lang, "reminder.not_found"), ephemeral=True)
                 return
             if msg.Enabled:
-                await interaction.response.send_message("Reminder is already active.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "reminder.resume.already_active"), ephemeral=True
+                )
                 return
             msg.Enabled = True
             # Recalculate NextFire if it's in the past
@@ -606,12 +664,14 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
                     # One-shot whose time has passed — just delete it
                     session.delete(msg)
                     await interaction.response.send_message(
-                        f"Reminder **#{reminder_id}** expired while paused and has been deleted.", ephemeral=True
+                        get_string(lang, "reminder.resume.expired", reminder_id=reminder_id), ephemeral=True
                     )
                     self._reschedule()
                     return
         self._reschedule()
-        await interaction.response.send_message(f"Resumed reminder **#{reminder_id}**.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "reminder.resume.success", reminder_id=reminder_id), ephemeral=True
+        )
 
 
 async def setup(bot):

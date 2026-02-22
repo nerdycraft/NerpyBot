@@ -98,23 +98,23 @@ reactionrole:
     success: "Alle Reaktionsrollen-Zuordnungen von Nachricht `{message_id}` entfernt."
 
 tagging:
-  not_found: "Tag \"{name}\" existiert nicht!"
+  not_found: 'Tag "{name}" existiert nicht!'
   skip:
     success: "Übersprungen."
   queue:
     drop_success: "Warteschlange geleert."
   create:
-    success: "Tag \"{name}\" erstellt!"
-    already_exists: "Tag \"{name}\" existiert bereits!"
+    success: 'Tag "{name}" erstellt!'
+    already_exists: 'Tag "{name}" existiert bereits!'
   add:
-    success: "Eintrag zu Tag \"{name}\" hinzugefügt!"
+    success: 'Eintrag zu Tag "{name}" hinzugefügt!'
   volume:
-    success: "Lautstärke von \"{name}\" auf {volume} geändert."
+    success: 'Lautstärke von "{name}" auf {volume} geändert.'
     out_of_range: "Lautstärke muss zwischen 0 und 200 liegen."
   delete:
-    success: "Tag \"{name}\" gelöscht!"
+    success: 'Tag "{name}" gelöscht!'
   get:
-    not_found: "Konnte keinen Tag namens \"{name}\" finden."
+    not_found: 'Konnte keinen Tag namens "{name}" finden.'
     playing: "Spiele **{name}**"
   list:
     title: "🏷️ Tags"
@@ -151,11 +151,36 @@ reminder:
     success: "Erinnerung erstellt — nächste Auslösung {relative_time}."
   schedule:
     success: "Geplante Erinnerung erstellt — nächste Auslösung {relative_time}."
+    invalid_time: "Ungültiges Zeitformat. Verwende HH:MM (z.B. 09:00)."
+    unknown_timezone: "Unbekannte Zeitzone: {timezone}"
+    day_of_week_required: "day_of_week ist für wöchentliche Erinnerungen erforderlich."
+    day_of_month_required: "day_of_month ist für monatliche Erinnerungen erforderlich."
+    day_of_month_range: "day_of_month muss zwischen 1 und 28 liegen."
+  list:
+    title: "⏰ Erinnerungen"
+    next: "Nächste: {relative} ({absolute})"
+    paused: "pausiert"
+    one_time: "einmalig"
+    every: "alle {delta}"
+    daily_at: "täglich um {time} {timezone}"
+    weekly_at: "wöchentlich {day} um {time} {timezone}"
+    monthly_at: "monatlich Tag {day} um {time} {timezone}"
+    hits: "Aufrufe: {count}"
+  edit:
+    nothing_to_change: "Nichts zu ändern."
+    param_not_applicable: "`{param}` gilt nur für {allowed_types}-Erinnerungen, nicht für {schedule_type}."
+    success: "Erinnerung **#{reminder_id}** aktualisiert: {summary}. Nächste Auslösung {relative_time}."
   delete:
     success: "Nachricht gelöscht."
   pause:
     success: "Erinnerung **#{reminder_id}** pausiert."
+    already_paused: "Erinnerung ist bereits pausiert."
   resume:
     success: "Erinnerung **#{reminder_id}** fortgesetzt."
+    already_active: "Erinnerung ist bereits aktiv."
+    expired: "Erinnerung **#{reminder_id}** ist während der Pause abgelaufen und wurde gelöscht."
   not_found: "Erinnerung nicht gefunden."
   no_reminders: "Keine Erinnerungen gesetzt."
+  relative:
+    a_day: "in einem Tag"
+    days: "in {days} Tagen"
