@@ -114,9 +114,13 @@ class NerpyBot(Bot):
         db_port = ""
 
         is_mysql = any(s in db_type for s in ("mysql", "mariadb"))
+        is_postgres = "postgresql" in db_type
 
         if is_mysql:
             db_type = f"{db_type}+pymysql"
+        elif is_postgres:
+            db_type = f"{db_type}+psycopg"
+
         if "db_password" in database_config and database_config["db_password"]:
             db_password = f":{database_config['db_password']}"
         if "db_username" in database_config and database_config["db_username"]:
