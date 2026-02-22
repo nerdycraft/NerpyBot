@@ -488,6 +488,52 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         await interaction.response.send_message(f"Template **{template_name}** deleted.", ephemeral=True)
 
+    # -- /application template edit-messages ---------------------------------
+
+    @template_group.command(name="edit-messages")
+    @app_commands.describe(
+        template_name="Name of the guild template to update",
+        approval_message="New default approval message (optional)",
+        denial_message="New default denial message (optional)",
+    )
+    @app_commands.autocomplete(template_name=_guild_template_autocomplete)
+    async def _template_edit_messages(
+        self,
+        interaction: Interaction,
+        template_name: str,
+        approval_message: Optional[str] = None,
+        denial_message: Optional[str] = None,
+    ):
+        """Update default approval/denial messages for a custom template."""
+        if not self._has_manage_permission(interaction):
+            await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
+            return
+
+        if approval_message is None and denial_message is None:
+            await interaction.response.send_message("Nothing to update.", ephemeral=True)
+            return
+
+        with self.bot.session_scope() as session:
+            tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
+            if not tpl:
+                await interaction.response.send_message(f"Template **{template_name}** not found.", ephemeral=True)
+                return
+            if tpl.IsBuiltIn:
+                await interaction.response.send_message("Built-in templates cannot be edited.", ephemeral=True)
+                return
+
+            changes = []
+            if approval_message is not None:
+                tpl.ApprovalMessage = approval_message
+                changes.append("approval message")
+            if denial_message is not None:
+                tpl.DenialMessage = denial_message
+                changes.append("denial message")
+
+        await interaction.response.send_message(
+            f"Template **{template_name}** updated: {', '.join(changes)}.", ephemeral=True
+        )
+
     # -- /application export -------------------------------------------------
 
     @app_commands.command(name="export")

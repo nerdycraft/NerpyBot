@@ -757,6 +757,47 @@ class TestTemplateDelete:
         assert "permission" in call_args.lower()
 
 
+class TestTemplateEditMessages:
+    """Tests for /application template edit-messages."""
+
+    @pytest.mark.asyncio
+    async def test_template_edit_messages_happy_path(self, app_cog, admin_interaction, db_session):
+        tpl = ApplicationTemplate(GuildId=admin_interaction.guild.id, Name="T1", IsBuiltIn=False)
+        db_session.add(tpl)
+        db_session.commit()
+
+        await app_cog._template_edit_messages.callback(
+            app_cog, admin_interaction, template_name="T1", approval_message="New App", denial_message="New Deny"
+        )
+
+        updated = ApplicationTemplate.get_by_name("T1", admin_interaction.guild.id, db_session)
+        assert updated.ApprovalMessage == "New App"
+        assert updated.DenialMessage == "New Deny"
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "updated" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_template_edit_messages_builtin_rejected(self, app_cog, admin_interaction, db_session):
+        seed_built_in_templates(db_session)
+        db_session.commit()
+
+        await app_cog._template_edit_messages.callback(
+            app_cog, admin_interaction, template_name="Guild Membership", approval_message="X"
+        )
+
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "built-in" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_template_edit_messages_not_found(self, app_cog, admin_interaction):
+        await app_cog._template_edit_messages.callback(
+            app_cog, admin_interaction, template_name="Nope", approval_message="X"
+        )
+
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "not found" in call_args.lower()
+
+
 # ---------------------------------------------------------------------------
 # /application managerole set / remove
 # ---------------------------------------------------------------------------
