@@ -1,0 +1,24 @@
+common:
+  error_generic: "Ein Fehler ist aufgetreten. Der Bot-Betreiber wurde benachrichtigt."
+  not_found: "Nicht gefunden."
+
+admin:
+  language:
+    set_success: "Serversprache auf **{language}** gesetzt."
+    get_current: "Serversprache: **{language}**"
+    get_default: "Keine Sprache konfiguriert. Standard ist Englisch."
+    invalid: "Nicht unterstützte Sprache: `{language}`. Verfügbar: {available}"
+
+reminder:
+  create:
+    success: "Erinnerung erstellt — nächste Auslösung {relative_time}."
+  schedule:
+    success: "Geplante Erinnerung erstellt — nächste Auslösung {relative_time}."
+  delete:
+    success: "Nachricht gelöscht."
+  pause:
+    success: "Erinnerung **#{reminder_id}** pausiert."
+  resume:
+    success: "Erinnerung **#{reminder_id}** fortgesetzt."
+  not_found: "Erinnerung nicht gefunden."
+  no_reminders: "Keine Erinnerungen gesetzt."
