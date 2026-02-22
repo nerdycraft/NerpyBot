@@ -398,6 +398,8 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 ReviewChannelId=review_channel.id,
                 ApplyChannelId=channel.id if channel else None,
                 ApplyDescription=description,
+                ApprovalMessage=tpl.ApprovalMessage,
+                DenialMessage=tpl.DenialMessage,
             )
             session.add(form)
             session.flush()
@@ -444,7 +446,13 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 )
                 return
 
-            tpl = ApplicationTemplate(GuildId=interaction.guild.id, Name=template_name, IsBuiltIn=False)
+            tpl = ApplicationTemplate(
+                GuildId=interaction.guild.id,
+                Name=template_name,
+                IsBuiltIn=False,
+                ApprovalMessage=src_form.ApprovalMessage,
+                DenialMessage=src_form.DenialMessage,
+            )
             session.add(tpl)
             session.flush()
 

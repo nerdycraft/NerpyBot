@@ -255,6 +255,8 @@ class ApplicationTemplate(db.BASE):
     GuildId = Column(BigInteger, nullable=True)
     Name = Column(Unicode(100))
     IsBuiltIn = Column(Boolean, default=False)
+    ApprovalMessage = Column(UnicodeText, nullable=True)
+    DenialMessage = Column(UnicodeText, nullable=True)
 
     questions = relationship(
         "ApplicationTemplateQuestion",

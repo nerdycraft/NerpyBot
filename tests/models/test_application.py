@@ -783,6 +783,27 @@ class TestApplicationTemplateGetByName:
 class TestApplicationTemplateQuestions:
     """Tests for ApplicationTemplateQuestion relationship."""
 
+    def test_message_columns_exist(self, db_session):
+        """ApplicationTemplate should have ApprovalMessage and DenialMessage columns."""
+        tpl = ApplicationTemplate(
+            GuildId=111, Name="MsgTest", IsBuiltIn=False, ApprovalMessage="App!", DenialMessage="Deny!"
+        )
+        db_session.add(tpl)
+        db_session.commit()
+
+        fetched = db_session.query(ApplicationTemplate).filter(ApplicationTemplate.Id == tpl.Id).first()
+        assert fetched.ApprovalMessage == "App!"
+        assert fetched.DenialMessage == "Deny!"
+
+    def test_message_columns_nullable(self, db_session):
+        tpl = ApplicationTemplate(GuildId=111, Name="NoMsg", IsBuiltIn=False)
+        db_session.add(tpl)
+        db_session.commit()
+
+        fetched = db_session.query(ApplicationTemplate).filter(ApplicationTemplate.Id == tpl.Id).first()
+        assert fetched.ApprovalMessage is None
+        assert fetched.DenialMessage is None
+
     def test_questions_ordered_by_sort_order(self, db_session):
         tpl = ApplicationTemplate(GuildId=111, Name="WithQ", IsBuiltIn=False)
         db_session.add(tpl)
