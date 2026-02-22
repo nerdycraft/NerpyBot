@@ -370,11 +370,7 @@ class TestApplicationSettings:
             app_cog,
             admin_interaction,
             name="SetForm",
-            channel=None,
             approvals=3,
-            denials=None,
-            approval_message=None,
-            denial_message=None,
         )
 
         call_args = str(admin_interaction.response.send_message.call_args)
@@ -406,25 +402,21 @@ class TestApplicationSettings:
         assert updated.DenialMessage == "Sorry!"
 
     @pytest.mark.asyncio
-    async def test_settings_updates_channel(self, app_cog, admin_interaction, db_session):
+    async def test_settings_updates_review_channel(self, app_cog, admin_interaction, db_session):
         _make_form(db_session, guild_id=admin_interaction.guild.id, name="ChanSettings")
 
-        channel = MagicMock()
-        channel.id = 999
-        channel.mention = "#new-reviews"
+        review_channel = MagicMock()
+        review_channel.id = 999
+        review_channel.mention = "#new-reviews"
 
         await app_cog._settings.callback(
             app_cog,
             admin_interaction,
             name="ChanSettings",
-            channel=channel,
-            approvals=None,
-            denials=None,
-            approval_message=None,
-            denial_message=None,
+            review_channel=review_channel,
         )
 
-        assert "channel=#new-reviews" in str(admin_interaction.response.send_message.call_args)
+        assert "review_channel=#new-reviews" in str(admin_interaction.response.send_message.call_args)
         updated = ApplicationForm.get("ChanSettings", admin_interaction.guild.id, db_session)
         assert updated.ReviewChannelId == 999
 
@@ -432,16 +424,7 @@ class TestApplicationSettings:
     async def test_settings_nothing_to_change(self, app_cog, admin_interaction, db_session):
         _make_form(db_session, guild_id=admin_interaction.guild.id, name="Nochange")
 
-        await app_cog._settings.callback(
-            app_cog,
-            admin_interaction,
-            name="Nochange",
-            channel=None,
-            approvals=None,
-            denials=None,
-            approval_message=None,
-            denial_message=None,
-        )
+        await app_cog._settings.callback(app_cog, admin_interaction, name="Nochange")
 
         call_args = str(admin_interaction.response.send_message.call_args)
         assert "nothing to change" in call_args.lower()
@@ -453,9 +436,6 @@ class TestApplicationSettings:
             admin_interaction,
             name="Missing",
             approvals=1,
-            denials=None,
-            approval_message=None,
-            denial_message=None,
         )
 
         call_args = str(admin_interaction.response.send_message.call_args)
@@ -468,13 +448,63 @@ class TestApplicationSettings:
             non_admin_interaction,
             name="Form",
             approvals=1,
-            denials=None,
-            approval_message=None,
-            denial_message=None,
         )
 
         call_args = str(non_admin_interaction.response.send_message.call_args)
         assert "permission" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_settings_updates_apply_channel(self, app_cog, admin_interaction, db_session):
+        _make_form(db_session, guild_id=admin_interaction.guild.id, name="ApplyChan")
+
+        channel = MagicMock()
+        channel.id = 555
+        channel.mention = "#apply-here"
+
+        # Mock for apply button message posting
+        mock_msg = MagicMock()
+        mock_msg.id = 888777
+        channel.send = AsyncMock(return_value=mock_msg)
+        app_cog.bot.get_channel = MagicMock(return_value=channel)
+
+        await app_cog._settings.callback(
+            app_cog,
+            admin_interaction,
+            name="ApplyChan",
+            channel=channel,
+        )
+
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "channel=#apply-here" in call_args
+        updated = ApplicationForm.get("ApplyChan", admin_interaction.guild.id, db_session)
+        assert updated.ApplyChannelId == 555
+
+    @pytest.mark.asyncio
+    async def test_settings_updates_description(self, app_cog, admin_interaction, db_session):
+        form = _make_form(db_session, guild_id=admin_interaction.guild.id, name="DescForm")
+        # Simulate a form that already has an apply message posted
+        form.ApplyMessageId = 111222
+        form.ApplyChannelId = 333
+        db_session.commit()
+
+        # Mock for edit_apply_button_message
+        mock_channel = MagicMock()
+        mock_message = MagicMock()
+        mock_message.edit = AsyncMock()
+        mock_channel.fetch_message = AsyncMock(return_value=mock_message)
+        app_cog.bot.get_channel = MagicMock(return_value=mock_channel)
+
+        await app_cog._settings.callback(
+            app_cog,
+            admin_interaction,
+            name="DescForm",
+            description="New description!",
+        )
+
+        call_args = str(admin_interaction.response.send_message.call_args)
+        assert "description updated" in call_args
+        updated = ApplicationForm.get("DescForm", admin_interaction.guild.id, db_session)
+        assert updated.ApplyDescription == "New description!"
 
 
 # ---------------------------------------------------------------------------

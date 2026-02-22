@@ -315,9 +315,12 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     # -- /application settings -----------------------------------------------
 
     @app_commands.command(name="settings")
+    @app_commands.rename(review_channel="review-channel")
     @app_commands.describe(
         name="Name of the form",
-        channel="New review channel",
+        review_channel="New review channel",
+        channel="Channel where the apply button will be posted",
+        description="Description shown on the apply button embed",
         approvals="Number of approvals required",
         denials="Number of denials required",
         approval_message="Message sent on approval",
@@ -328,7 +331,9 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         self,
         interaction: Interaction,
         name: str,
+        review_channel: Optional[TextChannel] = None,
         channel: Optional[TextChannel] = None,
+        description: Optional[str] = None,
         approvals: Optional[app_commands.Range[int, 1]] = None,
         denials: Optional[app_commands.Range[int, 1]] = None,
         approval_message: Optional[str] = None,
@@ -339,6 +344,10 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
             return
 
+        repost_apply = False
+        edit_apply = False
+        form_id = None
+
         with self.bot.session_scope() as session:
             form = ApplicationForm.get(name, interaction.guild.id, session)
             if not form:
@@ -346,9 +355,18 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 return
 
             changes = []
+            if review_channel is not None:
+                form.ReviewChannelId = review_channel.id
+                changes.append(f"review_channel={review_channel.mention}")
             if channel is not None:
-                form.ReviewChannelId = channel.id
+                form.ApplyChannelId = channel.id
                 changes.append(f"channel={channel.mention}")
+                repost_apply = True
+            if description is not None:
+                form.ApplyDescription = description
+                changes.append("description updated")
+                if not repost_apply and form.ApplyMessageId:
+                    edit_apply = True
             if approvals is not None:
                 form.RequiredApprovals = approvals
                 changes.append(f"approvals={approvals}")
@@ -366,9 +384,26 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 await interaction.response.send_message("Nothing to change.", ephemeral=True)
                 return
 
+            form_id = form.Id
+
         await interaction.response.send_message(
             f"Settings for **{name}** updated: {', '.join(changes)}.", ephemeral=True
         )
+
+        if repost_apply:
+            from modules.views.application import post_apply_button_message
+
+            try:
+                await post_apply_button_message(self.bot, form_id)
+            except Exception:
+                self.bot.log.error("application: failed to repost apply button after settings change", exc_info=True)
+        elif edit_apply:
+            from modules.views.application import edit_apply_button_message
+
+            try:
+                await edit_apply_button_message(self.bot, form_id)
+            except Exception:
+                self.bot.log.error("application: failed to edit apply button after description change", exc_info=True)
 
     # -- /application template list ------------------------------------------
 
