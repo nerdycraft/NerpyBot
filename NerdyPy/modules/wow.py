@@ -5,7 +5,7 @@ import itertools
 import json
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Literal, LiteralString
+from typing import LiteralString
 
 import discord
 from blizzapi import Language, Region, RetailClient
@@ -39,6 +39,7 @@ from utils.errors import (
 )
 from utils.helpers import notify_error, register_before_loop, send_paginated
 from utils.permissions import validate_channel_permissions
+from utils.strings import get_guild_language, get_string
 
 
 class WowApiLanguage(Enum):
@@ -57,27 +58,6 @@ COLOR_MOUNT = Color.purple()
 # Stale character cleanup: remove mount data for characters gone from roster after this many days
 STALE_DAYS = 30
 
-_NOTIFICATION_STRINGS = {
-    "en": {
-        "achievement_title": "Achievement Earned!",
-        "achievement_desc": "**{name}** ({realm}) has earned the achievement **{achievement}**",
-        "mount_title": "New Mount Collected!",
-        "mount_desc": "**{name}** ({realm}) obtained **{mount}**",
-        "boss_title": "Boss Defeated!",
-        "boss_desc": "**{name}** ({realm}) defeated **{boss}**",
-        "boss_desc_mode": "**{name}** ({realm}) defeated **{boss}** ({mode})",
-    },
-    "de": {
-        "achievement_title": "Erfolg errungen!",
-        "achievement_desc": "**{name}** ({realm}) hat den Erfolg **{achievement}** errungen",
-        "mount_title": "Neues Reittier erhalten!",
-        "mount_desc": "**{name}** ({realm}) hat **{mount}** erhalten",
-        "boss_title": "Boss besiegt!",
-        "boss_desc": "**{name}** ({realm}) hat **{boss}** besiegt",
-        "boss_desc_mode": "**{name}** ({realm}) hat **{boss}** besiegt ({mode})",
-    },
-}
-
 
 @app_commands.checks.bot_has_permissions(send_messages=True, embed_links=True)
 @app_commands.guild_only()
@@ -85,6 +65,11 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     """World of Warcraft API"""
 
     guildnews = app_commands.Group(name="guildnews", description="manage WoW guild news tracking")
+
+    def _lang(self, guild_id):
+        """Look up the guild's language preference."""
+        with self.bot.session_scope() as session:
+            return get_guild_language(guild_id, session)
 
     def __init__(self, bot):
         super().__init__(bot)
@@ -183,7 +168,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
     # ── Shared helpers ──────────────────────────────────────────────────
 
-    async def _parse_realm(self, realm: str) -> tuple[str, str]:
+    async def _parse_realm(self, realm: str, lang: str = "en") -> tuple[str, str]:
         """Parse a realm string like 'blackrock-eu' into (realm_slug, region).
 
         Validates against the realm cache if populated. Plain slugs default to EU.
@@ -201,10 +186,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         await self._ensure_realm_cache()
         cache_key = f"{realm_slug}-{region}"
         if self._realm_cache and cache_key not in self._realm_cache:
-            raise NerpyNotFoundError(
-                f"Unknown realm '{realm_slug}' in {region.upper()}. "
-                f"Use the autocomplete suggestions or check your spelling."
-            )
+            raise NerpyNotFoundError(get_string(lang, "wow.realm_not_found", realm=realm_slug, region=region.upper()))
 
         return realm_slug, region
 
@@ -249,26 +231,25 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         interaction: Interaction,
         name: str,
         realm: str,
-        language: Literal["de", "en"] | None = "en",
     ):
         """
         search for character
 
         name and realm are required parameters.
         realm accepts autocomplete suggestions (e.g. "blackrock-eu") or a plain slug (defaults to EU).
-        language is optional, defaults to English.
         """
         try:
             await interaction.response.defer()
-            realm_slug, region = await self._parse_realm(realm)
+            lang = self._lang(interaction.guild.id)
+            realm_slug, region = await self._parse_realm(realm, lang)
             name = name.lower()
             profile = f"{region}/{realm_slug}/{name}"
 
             # noinspection PyTypeChecker
-            character, profile_picture = self._get_character(realm_slug, region, name, language)
+            character, profile_picture = self._get_character(realm_slug, region, name, lang)
 
             if not isinstance(character, dict) or character.get("code") == 404:
-                raise NerpyNotFoundError("No Character with this name found.")
+                raise NerpyNotFoundError(get_string(lang, "wow.armory.not_found"))
 
             best_keys = get_best_mythic_keys(region, realm_slug, name)
             rio_score = get_raiderio_score(region, realm_slug, name)
@@ -285,10 +266,10 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 description=f"{character['gender']['name']} {character['race']['name']}",
             )
             emb.set_thumbnail(url=profile_picture)
-            emb.add_field(name="Level", value=character["level"], inline=True)
-            emb.add_field(name="Faction", value=character["faction"]["name"], inline=True)
+            emb.add_field(name=get_string(lang, "wow.armory.level"), value=character["level"], inline=True)
+            emb.add_field(name=get_string(lang, "wow.armory.faction"), value=character["faction"]["name"], inline=True)
             if "guild" in character:
-                emb.add_field(name="Guild", value=character["guild"]["name"], inline=True)
+                emb.add_field(name=get_string(lang, "wow.armory.guild"), value=character["guild"]["name"], inline=True)
             emb.add_field(name="\u200b", value="\u200b", inline=False)
 
             if best_keys:
@@ -296,13 +277,13 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 for key in best_keys:
                     keys += f"+{key['level']} - {key['dungeon']} - {key['clear_time']}\n"
 
-                emb.add_field(name="Best M+ Keys", value=keys, inline=True)
+                emb.add_field(name=get_string(lang, "wow.armory.best_keys"), value=keys, inline=True)
             if rio_score is not None:
-                emb.add_field(name="M+ Score", value=rio_score, inline=True)
+                emb.add_field(name=get_string(lang, "wow.armory.mplus_score"), value=rio_score, inline=True)
 
             emb.add_field(name="\u200b", value="\u200b", inline=False)
             emb.add_field(
-                name="External Sites",
+                name=get_string(lang, "wow.armory.external_sites"),
                 value=f"[Raider.io]({raiderio}) | [Armory]({armory}) | [WarcraftLogs]({warcraftlogs}) | [WoWProgress]({wowprogress})",
                 inline=True,
             )
@@ -325,7 +306,6 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         guild_name: str,
         realm: str,
         channel: TextChannel,
-        language: Literal["de", "en"] | None = "en",
         active_days: int | None = None,
     ):
         """set up guild news tracking for a WoW guild [manage_channels]
@@ -336,16 +316,19 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         """
         try:
             await interaction.response.defer(ephemeral=True)
-            language = language or "en"
-            realm_slug, region = await self._parse_realm(realm)
+            lang = self._lang(interaction.guild.id)
+            realm_slug, region = await self._parse_realm(realm, lang)
             name_slug = guild_name.lower().replace(" ", "-")
+            realm_region = f"{realm_slug}-{region.upper()}"
 
             # Validate the guild exists via API
-            api = self._get_retailclient(region, language)
+            api = self._get_retailclient(region, lang)
             roster = await asyncio.to_thread(api.guild_roster, realmSlug=realm_slug, nameSlug=name_slug)
 
             if isinstance(roster, dict) and roster.get("code") in (404, 403):
-                raise NerpyNotFoundError(f"Guild '{guild_name}' not found on {realm_slug}-{region.upper()}.")
+                raise NerpyNotFoundError(
+                    get_string(lang, "wow.guildnews.setup.guild_not_found", guild=guild_name, realm_region=realm_region)
+                )
 
             guild_display = roster.get("guild", {}).get("name", guild_name)
 
@@ -355,8 +338,14 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 existing = WowGuildNewsConfig.get_existing(interaction.guild.id, name_slug, realm_slug, region, session)
                 if existing:
                     raise NerpyValidationError(
-                        f"Guild '{guild_display}' on {realm_slug}-{region.upper()} is already tracked "
-                        f"(config #{existing.Id} in <#{existing.ChannelId}>)."
+                        get_string(
+                            lang,
+                            "wow.guildnews.setup.already_tracked",
+                            guild=guild_display,
+                            realm_region=realm_region,
+                            id=existing.Id,
+                            channel=f"<#{existing.ChannelId}>",
+                        )
                     )
 
                 config = WowGuildNewsConfig(
@@ -365,7 +354,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                     WowGuildName=name_slug,
                     WowRealmSlug=realm_slug,
                     Region=region,
-                    Language=language,
+                    Language=lang,
                     ActiveDays=active_days or self._default_active_days,
                     LastActivityTimestamp=datetime.now(UTC),
                     Enabled=True,
@@ -374,8 +363,13 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 session.add(config)
 
             await interaction.followup.send(
-                f"Now tracking **{guild_display}** ({realm_slug}-{region.upper()}) in {channel.mention}. "
-                f"First scan will establish a baseline silently.",
+                get_string(
+                    lang,
+                    "wow.guildnews.setup.success",
+                    guild=guild_display,
+                    realm_region=realm_region,
+                    channel=channel.mention,
+                ),
                 ephemeral=True,
             )
         except NerpyUserException as ex:
@@ -402,54 +396,82 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     async def _guildnews_remove(self, interaction: Interaction, config: int):
         """remove a guild news tracking config [manage_channels]"""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
             if not cfg:
-                await interaction.response.send_message(f"Config #{config} not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
+                )
                 return
             WowGuildNewsConfig.delete(config, interaction.guild.id, session)
-        await interaction.response.send_message(f"Removed tracking config #{config}.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "wow.guildnews.remove.success", config=config), ephemeral=True
+        )
 
     @guildnews.command(name="list")
     async def _guildnews_list(self, interaction: Interaction):
         """list all tracked WoW guilds for this server"""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             configs = WowGuildNewsConfig.get_all_by_guild(interaction.guild.id, session)
             if not configs:
-                await interaction.response.send_message("No guild news configs for this server.", ephemeral=True)
+                await interaction.response.send_message(get_string(lang, "wow.guildnews.list.empty"), ephemeral=True)
                 return
             output = ""
             for cfg in configs:
                 channel = interaction.guild.get_channel(cfg.ChannelId)
-                channel_name = f"#{channel.name}" if channel else f"#{cfg.ChannelId} (deleted)"
-                status = "\u2705 Active" if cfg.Enabled else "\u23f8\ufe0f Paused"
+                if channel:
+                    channel_name = f"#{channel.name}"
+                else:
+                    channel_name = get_string(lang, "wow.guildnews.list.channel_deleted", channel_id=cfg.ChannelId)
+                if cfg.Enabled:
+                    status = f"\u2705 {get_string(lang, 'wow.guildnews.list.status_active')}"
+                else:
+                    status = f"\u23f8\ufe0f {get_string(lang, 'wow.guildnews.list.status_paused')}"
                 output += f"**#{cfg.Id}** {cfg.WowGuildName} (`{cfg.WowRealmSlug}-{cfg.Region.upper()}`)\n"
-                output += f"> {cfg.Language} \u00b7 {status} \u00b7 Active Days: {cfg.ActiveDays}\n"
-                output += f"> Channel: {channel_name}\n\n"
-            await send_paginated(interaction, output, title="\u2694\ufe0f Guild News", color=0xFFB100, ephemeral=True)
+                output += f"> {get_string(lang, 'wow.guildnews.list.entry_details', status=status, active_days=cfg.ActiveDays)}\n"
+                output += f"> {get_string(lang, 'wow.guildnews.list.entry_channel', channel=channel_name)}\n\n"
+            await send_paginated(
+                interaction,
+                output,
+                title=get_string(lang, "wow.guildnews.list.title"),
+                color=0xFFB100,
+                ephemeral=True,
+            )
 
     @guildnews.command(name="pause")
     @checks.has_permissions(manage_channels=True)
     async def _guildnews_pause(self, interaction: Interaction, config: int):
         """pause guild news tracking [manage_channels]"""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
             if not cfg:
-                await interaction.response.send_message(f"Config #{config} not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
+                )
                 return
             cfg.Enabled = False
-        await interaction.response.send_message(f"Paused tracking for config #{config}.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "wow.guildnews.pause.success", config=config), ephemeral=True
+        )
 
     @guildnews.command(name="resume")
     @checks.has_permissions(manage_channels=True)
     async def _guildnews_resume(self, interaction: Interaction, config: int):
         """resume guild news tracking [manage_channels]"""
         with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild.id, session)
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
             if not cfg:
-                await interaction.response.send_message(f"Config #{config} not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
+                )
                 return
             cfg.Enabled = True
-        await interaction.response.send_message(f"Resumed tracking for config #{config}.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(lang, "wow.guildnews.resume.success", config=config), ephemeral=True
+        )
 
     @guildnews.command(name="edit")
     @checks.has_permissions(manage_channels=True)
@@ -458,19 +480,18 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         interaction: Interaction,
         config: int,
         channel: TextChannel | None = None,
-        language: Literal["de", "en"] | None = None,
         active_days: int | None = None,
     ):
         """edit a guild news tracking config [manage_channels]
 
         config: Config to edit (autocomplete shows tracked guilds)
         channel: Move notifications to this channel
-        language: Change notification language (de/en)
         active_days: Change activity window (days)
         """
-        if channel is None and language is None and active_days is None:
+        lang = self._lang(interaction.guild.id)
+        if channel is None and active_days is None:
             await interaction.response.send_message(
-                "Nothing to change. Specify at least one of: channel, language, active_days.", ephemeral=True
+                get_string(lang, "wow.guildnews.edit.nothing_to_change"), ephemeral=True
             )
             return
 
@@ -480,24 +501,26 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         with self.bot.session_scope() as session:
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
             if not cfg:
-                await interaction.response.send_message(f"Config #{config} not found.", ephemeral=True)
+                await interaction.response.send_message(
+                    get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
+                )
                 return
 
             changes = []
             if channel is not None:
                 cfg.ChannelId = channel.id
-                changes.append(f"channel \u2192 {channel.mention}")
-            if language is not None:
-                cfg.Language = language
-                changes.append(f"language \u2192 {language}")
+                changes.append(get_string(lang, "wow.guildnews.edit.change_channel", channel=channel.mention))
             if active_days is not None:
                 cfg.ActiveDays = active_days
-                changes.append(f"active_days \u2192 {active_days}")
+                changes.append(get_string(lang, "wow.guildnews.edit.change_active_days", active_days=active_days))
 
             guild_label = f"**{cfg.WowGuildName}** ({cfg.WowRealmSlug}-{cfg.Region.upper()})"
 
         await interaction.response.send_message(
-            f"Updated config #{config} for {guild_label}: {', '.join(changes)}.", ephemeral=True
+            get_string(
+                lang, "wow.guildnews.edit.success", config=config, guild=guild_label, changes=", ".join(changes)
+            ),
+            ephemeral=True,
         )
 
     @guildnews.command(name="check")
@@ -561,7 +584,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             wow_guild = config.WowGuildName
             realm = config.WowRealmSlug
             region = config.Region
-            language = config.Language
+            language = get_guild_language(config.GuildId, session)
             min_level = config.MinLevel
             active_days = config.ActiveDays
             last_activity_ts = config.LastActivityTimestamp
@@ -637,11 +660,14 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 achievement = ach_data.get("achievement", {})
                 ach_name = achievement.get("name", "Unknown Achievement")
                 ach_id = achievement.get("id")
-                strings = _NOTIFICATION_STRINGS.get(language, _NOTIFICATION_STRINGS["en"])
                 emb = Embed(
-                    title=strings["achievement_title"],
-                    description=strings["achievement_desc"].format(
-                        name=char_name, realm=char_realm, achievement=ach_name
+                    title=get_string(language, "wow.notification.achievement_title"),
+                    description=get_string(
+                        language,
+                        "wow.notification.achievement_desc",
+                        name=char_name,
+                        realm=char_realm,
+                        achievement=ach_name,
                     ),
                     color=COLOR_ACHIEVEMENT,
                     timestamp=activity_time,
@@ -668,13 +694,25 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 enc_name = encounter.get("name", "Unknown Encounter")
                 enc_id = encounter.get("id")
                 mode = enc_data.get("mode", {}).get("name", "")
-                strings = _NOTIFICATION_STRINGS.get(language, _NOTIFICATION_STRINGS["en"])
                 if mode:
-                    desc = strings["boss_desc_mode"].format(name=char_name, realm=char_realm, boss=enc_name, mode=mode)
+                    desc = get_string(
+                        language,
+                        "wow.notification.boss_desc_mode",
+                        name=char_name,
+                        realm=char_realm,
+                        boss=enc_name,
+                        mode=mode,
+                    )
                 else:
-                    desc = strings["boss_desc"].format(name=char_name, realm=char_realm, boss=enc_name)
+                    desc = get_string(
+                        language,
+                        "wow.notification.boss_desc",
+                        name=char_name,
+                        realm=char_realm,
+                        boss=enc_name,
+                    )
                 emb = Embed(
-                    title=strings["boss_title"],
+                    title=get_string(language, "wow.notification.boss_title"),
                     description=desc,
                     color=COLOR_ENCOUNTER,
                     timestamp=activity_time,
@@ -984,11 +1022,14 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                                 continue
                             already_reported.add(mid)
                             self.bot.log.debug(f"Guild news #{config_id}: {display_name} got new mount: {mname}")
-                            strings = _NOTIFICATION_STRINGS.get(language, _NOTIFICATION_STRINGS["en"])
                             emb = Embed(
-                                title=strings["mount_title"],
-                                description=strings["mount_desc"].format(
-                                    name=display_name, realm=display_realm, mount=mname
+                                title=get_string(language, "wow.notification.mount_title"),
+                                description=get_string(
+                                    language,
+                                    "wow.notification.mount_desc",
+                                    name=display_name,
+                                    realm=display_realm,
+                                    mount=mname,
                                 ),
                                 color=COLOR_MOUNT,
                                 timestamp=datetime.now(UTC),
