@@ -394,7 +394,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
             try:
                 await edit_apply_button_message(self.bot, form_id)
-            except Exception:
+            except discord.HTTPException:
                 self.bot.log.error("application: failed to edit apply button after description change", exc_info=True)
 
     # -- /application template list ------------------------------------------
@@ -706,15 +706,16 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             await interaction.response.send_message("You don't have permission to manage applications.", ephemeral=True)
             return
 
+        await interaction.response.defer(ephemeral=True)
         try:
             await interaction.user.send("Please upload a JSON file to import as an application form.")
         except (discord.Forbidden, discord.NotFound):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "I couldn't DM you. Please enable DMs from server members and try again.", ephemeral=True
             )
             return
 
-        await interaction.response.send_message("Check your DMs!", ephemeral=True)
+        await interaction.followup.send("Check your DMs!", ephemeral=True)
 
         def check(msg):
             return msg.author.id == interaction.user.id and msg.guild is None and msg.attachments
@@ -729,6 +730,9 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             return
 
         attachment = msg.attachments[0]
+        if attachment.size > 1_000_000:  # 1 MB
+            await interaction.user.send("File too large — please upload a JSON file under 1 MB.")
+            return
         try:
             raw = await attachment.read()
             form_data = json.loads(raw.decode())

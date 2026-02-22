@@ -6,11 +6,11 @@ Custom application/form system where admins create questionnaires, users submit 
 
 **Forms** are named questionnaires owned by a guild. Each has ordered questions, a review channel, approval/denial thresholds, and optional custom messages. A form is "ready" once a review channel is assigned.
 
-**Apply button** is an optional embed with a persistent "Apply" button posted in a designated channel. When configured, users click this button instead of running `/apply`. The button triggers the same DM application flow.
+**Apply button** is a persistent embed with an "Apply" button posted in a designated channel. Users click this button to start the DM application flow.
 
 **Templates** are reusable question sets. Five built-in templates are seeded at startup (Guild Membership, Staff/Moderator, Partnership / Collaboration, Volunteer, Community Access). Guilds can save their own forms as custom templates.
 
-**Submissions** are created when a user completes an application conversation (started via `/apply` or the Apply button). The bot posts a review embed in the form's review channel with Approve, Deny, and Message buttons.
+**Submissions** are created when a user completes an application conversation (started via the Apply button). The bot posts a review embed in the form's review channel with Approve, Deny, and Message buttons.
 
 **Manager role** is an optional guild-wide role that grants non-admins permission to manage forms and review submissions.
 
@@ -26,7 +26,7 @@ Custom application/form system where admins create questionnaires, users submit 
 
 ### User Submission
 
-1. User runs `/apply <form_name>` or clicks the Apply button in the designated channel
+1. User clicks the Apply button in the designated channel
 2. Bot walks the user through each question via DM
 3. After answering all questions, the user sees a review summary
 4. User confirms (check mark) or cancels (cross mark)
@@ -34,30 +34,33 @@ Custom application/form system where admins create questionnaires, users submit 
 
 ### Review
 
-1. Reviewers click **Approve** or **Deny** on the review embed
-2. Deny opens a modal for an optional reason; the reason is stored and shown in the review embed
-3. When the required threshold is reached, the submission status changes; Approve and Deny are disabled
-4. The **Message** button remains active so reviewers can notify the applicant at any time
-5. After a decision the Message field is pre-filled with the configured approval or denial message (if set); successfully sending that post-decision message disables the button to prevent duplicate notifications
+1. Reviewers click **Vote** on the review embed, then pick Approve or Deny from a dropdown
+2. Both options open a modal for a required review note; the note is posted to a thread on the review embed
+3. When the required threshold is reached, the submission status changes; Vote and Edit Vote are disabled
+4. **Edit Vote** lets a reviewer change their existing vote before a decision is reached
+5. The **Message** button remains active so reviewers can notify the applicant at any time
+6. After a decision the Message field is pre-filled with the configured approval or denial message (if set); successfully sending that post-decision message disables the button to prevent duplicate notifications
+7. **Override** (admin/manager only) lets a decided application be flipped APPROVED↔DENIED
 
 ## Commands
 
 ### Admin Commands (`/application ...`)
 
-#### `/application create <name> <review-channel> [channel] [description] [approvals] [denials] [approval-message] [denial-message]`
+#### `/application create <name> <review-channel> [channel] [description] [description-message] [approvals] [denials] [approval-message] [denial-message]`
 
 Create a new application form via DM conversation. The review channel is required at creation time.
 
-| Parameter          | Type          | Description                                          |
-| ------------------ | ------------- | ---------------------------------------------------- |
-| `name`             | `str`         | Name for the new form                                |
-| `review-channel`   | `TextChannel` | Channel where submission reviews are posted          |
-| `channel`          | `TextChannel` | Channel where an Apply button message will be posted |
-| `description`      | `str`         | Custom text shown on the Apply button embed          |
-| `approvals`        | `int` >= 1    | Number of approvals required (default: 1)            |
-| `denials`          | `int` >= 1    | Number of denials required (default: 1)              |
-| `approval_message` | `str`         | Custom DM message sent to applicant on approval      |
-| `denial_message`   | `str`         | Custom DM message sent to applicant on denial        |
+| Parameter             | Type          | Description                                                     |
+| --------------------- | ------------- | --------------------------------------------------------------- |
+| `name`                | `str`         | Name for the new form                                           |
+| `review-channel`      | `TextChannel` | Channel where submission reviews are posted                     |
+| `channel`             | `TextChannel` | Channel where an Apply button message will be posted            |
+| `description`         | `str`         | Custom text shown on the Apply button embed                     |
+| `description-message` | `str`         | Message ID or link whose text becomes the description (deleted) |
+| `approvals`           | `int` >= 1    | Number of approvals required (default: 1)                       |
+| `denials`             | `int` >= 1    | Number of denials required (default: 1)                         |
+| `approval_message`    | `str`         | Custom DM message sent to applicant on approval                 |
+| `denial_message`      | `str`         | Custom DM message sent to applicant on denial                   |
 
 #### `/application delete <name>`
 
@@ -79,20 +82,21 @@ Edit a form's questions via DM conversation (add, remove, reorder).
 | --------- | ----- | ------------------------------------------- |
 | `name`    | `str` | Form name (autocomplete from guild's forms) |
 
-#### `/application settings <name> [review-channel] [channel] [description] [approvals] [denials] [approval-message] [denial-message]`
+#### `/application settings <name> [review-channel] [channel] [description] [description-message] [approvals] [denials] [approval-message] [denial-message]`
 
 Configure form thresholds, channels, and custom messages.
 
-| Parameter          | Type          | Description                                   |
-| ------------------ | ------------- | --------------------------------------------- |
-| `name`             | `str`         | Form name (autocomplete)                      |
-| `review-channel`   | `TextChannel` | New review channel                            |
-| `channel`          | `TextChannel` | Channel where the Apply button will be posted |
-| `description`      | `str`         | Description shown on the Apply button embed   |
-| `approvals`        | `int` >= 1    | Required approval votes                       |
-| `denials`          | `int` >= 1    | Required denial votes                         |
-| `approval_message` | `str`         | Custom DM message on approval                 |
-| `denial_message`   | `str`         | Custom DM message on denial                   |
+| Parameter             | Type          | Description                                                     |
+| --------------------- | ------------- | --------------------------------------------------------------- |
+| `name`                | `str`         | Form name (autocomplete)                                        |
+| `review-channel`      | `TextChannel` | New review channel                                              |
+| `channel`             | `TextChannel` | Channel where the Apply button will be posted                   |
+| `description`         | `str`         | Description shown on the Apply button embed                     |
+| `description-message` | `str`         | Message ID or link whose text becomes the description (deleted) |
+| `approvals`           | `int` >= 1    | Required approval votes                                         |
+| `denials`             | `int` >= 1    | Required denial votes                                           |
+| `approval_message`    | `str`         | Custom DM message on approval                                   |
+| `denial_message`      | `str`         | Custom DM message on denial                                     |
 
 When `channel` is changed, the old Apply button message is deleted and a new one is posted in the new channel. When only `description` is changed, the existing Apply button message is edited in-place.
 
@@ -114,17 +118,18 @@ Import a form from a JSON file. The bot DMs the user and waits 120 seconds for a
 
 Show all available templates (built-in + guild custom).
 
-#### `/application template use <template> <name> <review-channel> [channel] [description]`
+#### `/application template use <template> <name> <review-channel> [channel] [description] [description-message]`
 
 Create a new form from a template.
 
-| Parameter        | Type          | Description                                          |
-| ---------------- | ------------- | ---------------------------------------------------- |
-| `template`       | `str`         | Template name (autocomplete)                         |
-| `name`           | `str`         | Name for the new form                                |
-| `review-channel` | `TextChannel` | Channel where submission reviews are posted          |
-| `channel`        | `TextChannel` | Channel where an Apply button message will be posted |
-| `description`    | `str`         | Custom text shown on the Apply button embed          |
+| Parameter             | Type          | Description                                                     |
+| --------------------- | ------------- | --------------------------------------------------------------- |
+| `template`            | `str`         | Template name (autocomplete)                                    |
+| `name`                | `str`         | Name for the new form                                           |
+| `review-channel`      | `TextChannel` | Channel where submission reviews are posted                     |
+| `channel`             | `TextChannel` | Channel where an Apply button message will be posted            |
+| `description`         | `str`         | Custom text shown on the Apply button embed                     |
+| `description-message` | `str`         | Message ID or link whose text becomes the description (deleted) |
 
 #### `/application template save <form> <template_name>`
 
@@ -134,6 +139,26 @@ Save an existing form as a guild template.
 | --------------- | ----- | ------------------------------- |
 | `form`          | `str` | Source form name (autocomplete) |
 | `template_name` | `str` | Name for the new template       |
+
+#### `/application template create <name> [approval-message] [denial-message]`
+
+Create a new guild template via DM conversation. The bot walks you through adding questions one by one.
+
+| Parameter          | Type  | Description                                                   |
+| ------------------ | ----- | ------------------------------------------------------------- |
+| `name`             | `str` | Name for the new template                                     |
+| `approval_message` | `str` | Default approval message for forms created from this template |
+| `denial_message`   | `str` | Default denial message for forms created from this template   |
+
+#### `/application template edit-messages <template_name> [approval-message] [denial-message]`
+
+Update the default approval/denial messages on a custom template. Built-in templates cannot be edited.
+
+| Parameter          | Type  | Description                                        |
+| ------------------ | ----- | -------------------------------------------------- |
+| `template_name`    | `str` | Template name (autocomplete, guild templates only) |
+| `approval_message` | `str` | New default approval message                       |
+| `denial_message`   | `str` | New default denial message                         |
 
 #### `/application template delete <template_name>`
 
@@ -159,15 +184,21 @@ Set the guild's application manager role.
 
 Remove the manager role configuration.
 
-### User Command
+### Reviewer Role Commands (`/application reviewerrole ...`)
 
-#### `/apply <form>`
+Requires `administrator` permission.
 
-Submit an application via DM. This is a top-level command (not under `/application`). Autocomplete only shows forms that have a review channel configured. This command serves as a fallback for forms that don't have an Apply button channel configured.
+#### `/application reviewerrole set <role>`
 
-| Parameter | Type  | Description                     |
-| --------- | ----- | ------------------------------- |
-| `form`    | `str` | Form to apply to (autocomplete) |
+Set the guild's application reviewer role. Reviewers can vote on applications but cannot manage forms or override decisions.
+
+| Parameter | Type   | Description                        |
+| --------- | ------ | ---------------------------------- |
+| `role`    | `Role` | Role that can vote on applications |
+
+#### `/application reviewerrole remove`
+
+Remove the reviewer role configuration.
 
 ## Import/Export JSON Format
 
@@ -190,19 +221,21 @@ Guild/channel IDs are intentionally excluded so forms are portable across server
 ## Permission Model
 
 - **Admin commands** require `administrator` permission OR the guild's manager role
-- **Manager role commands** (`set`/`remove`) require `administrator` only
-- **Review buttons** (approve/deny/message) require `administrator` or the manager role
-- **`/apply`** is available to all guild members
+- **Manager/Reviewer role commands** (`set`/`remove`) require `administrator` only
+- **Review buttons** (Vote, Edit Vote, Message) require `administrator`, the manager role, or the reviewer role
+- **Override button** requires `administrator` or the manager role (reviewers cannot override)
+- **Apply button** is available to all guild members
 - **Bot permissions** needed: `send_messages`, `embed_links`
 
 ## Database Models
 
 ### `ApplicationGuildConfig`
 
-| Column        | Type            | Purpose                  |
-| ------------- | --------------- | ------------------------ |
-| GuildId       | BigInteger (PK) | Discord guild ID         |
-| ManagerRoleId | BigInteger      | Optional manager role ID |
+| Column         | Type            | Purpose                   |
+| -------------- | --------------- | ------------------------- |
+| GuildId        | BigInteger (PK) | Discord guild ID          |
+| ManagerRoleId  | BigInteger      | Optional manager role ID  |
+| ReviewerRoleId | BigInteger      | Optional reviewer role ID |
 
 ### `ApplicationForm`
 
@@ -270,12 +303,14 @@ Guild/channel IDs are intentionally excluded so forms are portable across server
 
 ### `ApplicationTemplate`
 
-| Column    | Type         | Purpose                      |
-| --------- | ------------ | ---------------------------- |
-| Id        | Integer (PK) | Auto-increment               |
-| GuildId   | BigInteger   | Guild ID (null for built-in) |
-| Name      | Unicode(100) | Template name                |
-| IsBuiltIn | Boolean      | True for seeded templates    |
+| Column          | Type         | Purpose                      |
+| --------------- | ------------ | ---------------------------- |
+| Id              | Integer (PK) | Auto-increment               |
+| GuildId         | BigInteger   | Guild ID (null for built-in) |
+| Name            | Unicode(100) | Template name                |
+| IsBuiltIn       | Boolean      | True for seeded templates    |
+| ApprovalMessage | UnicodeText  | Default approval message     |
+| DenialMessage   | UnicodeText  | Default denial message       |
 
 ### `ApplicationTemplateQuestion`
 
@@ -315,12 +350,8 @@ When a user clicks the button:
 
 1. The bot looks up the form via the message ID
 2. Validates the form is still ready and the user hasn't already applied
-3. Starts an `ApplicationSubmitConversation` via DM (same flow as `/apply`)
+3. Starts an `ApplicationSubmitConversation` via DM
 4. Sends an ephemeral "Check your DMs!" confirmation
-
-### Fallback
-
-`/apply` still works for all forms — users can apply via command even if an Apply button channel is configured. Forms without an apply channel rely solely on `/apply`.
 
 ## Persistent Views
 

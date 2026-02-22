@@ -1028,19 +1028,6 @@ async def post_apply_button_message(bot, form_id: int) -> None:
             form.ApplyMessageId = msg.id
 
 
-async def delete_apply_button_message(bot, form_id: int) -> None:
-    """Delete the Apply button message for a form.  Best-effort."""
-    with bot.session_scope() as session:
-        form = ApplicationForm.get_by_id(form_id, session)
-        if form is None or not form.ApplyMessageId or not form.ApplyChannelId:
-            return
-        channel_id = form.ApplyChannelId
-        message_id = form.ApplyMessageId
-        form.ApplyMessageId = None
-
-    await delete_apply_message(bot, channel_id, message_id)
-
-
 async def edit_apply_button_message(bot, form_id: int) -> None:
     """Edit the Apply button message in-place (e.g. after description change).  Best-effort."""
     with bot.session_scope() as session:

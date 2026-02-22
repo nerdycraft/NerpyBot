@@ -1045,6 +1045,7 @@ class TestImport:
         attachment = MagicMock()
         raw = json.dumps(form_data).encode()
         attachment.read = AsyncMock(return_value=raw)
+        attachment.size = len(raw)
         msg.attachments = [attachment]
         return msg
 
@@ -1069,7 +1070,7 @@ class TestImport:
         await app_cog._import_form.callback(app_cog, admin_interaction)
 
         # Verify ephemeral "Check your DMs"
-        call_args = str(admin_interaction.response.send_message.call_args)
+        call_args = str(admin_interaction.followup.send.call_args)
         assert "DMs" in call_args
 
         # Verify the form was created
@@ -1096,6 +1097,7 @@ class TestImport:
         msg.guild = None
         attachment = MagicMock()
         attachment.read = AsyncMock(return_value=b"not valid json {{{")
+        attachment.size = 18
         msg.attachments = [attachment]
 
         admin_interaction.user.send = AsyncMock()
@@ -1197,7 +1199,7 @@ class TestImport:
 
         await app_cog._import_form.callback(app_cog, admin_interaction)
 
-        call_args = str(admin_interaction.response.send_message.call_args)
+        call_args = str(admin_interaction.followup.send.call_args)
         assert "dm" in call_args.lower() or "DM" in call_args
 
     @pytest.mark.asyncio

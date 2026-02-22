@@ -77,7 +77,6 @@ CANCEL_EMOJI = "\u274c"  # ❌
 CONFIRM_EMOJI = "\u2705"  # ✅
 BACK_EMOJI = "\u2b05\ufe0f"  # ⬅️
 RESET_EMOJI = "\U0001f504"  # 🔄
-REORDER_EMOJI = "\u2705"  # ✅ - Wait, this is wrong in the file?
 ADD_EMOJI = "\U0001f4dd"  # 📝
 REMOVE_EMOJI = "\U0001f5d1\ufe0f"  # 🗑️
 REORDER_EMOJI = "\U0001f500"  # 🔀
@@ -719,17 +718,16 @@ class ApplicationSubmitConversation(Conversation):
                 submission = ApplicationSubmission.get_by_id(self.submission_id, session)
                 form = ApplicationForm.get_by_id(self.form_id, session)
                 embed = build_review_embed(submission, form, session)
-
-            view = ApplicationReviewView(bot=self.bot)
-            # Collect role IDs to mention: admin roles + configured manager/reviewer roles
-            mention_ids: set[int] = {r.id for r in self.guild.roles if r.permissions.administrator}
-            with self.bot.session_scope() as session:
+                # Collect role IDs to mention: admin roles + configured manager/reviewer roles
+                mention_ids: set[int] = {r.id for r in self.guild.roles if r.permissions.administrator}
                 config = ApplicationGuildConfig.get(self.guild.id, session)
                 if config:
                     if config.ManagerRoleId:
                         mention_ids.add(config.ManagerRoleId)
                     if config.ReviewerRoleId:
                         mention_ids.add(config.ReviewerRoleId)
+
+            view = ApplicationReviewView(bot=self.bot)
             mention_content = " ".join(f"<@&{rid}>" for rid in sorted(mention_ids)) or None
 
             msg = await channel.send(content=mention_content, embed=embed, view=view)
