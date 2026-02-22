@@ -7,6 +7,16 @@ from discord import Interaction, Role, app_commands
 from discord.ext.commands import Context
 from models.admin import BotModeratorRole
 from utils.errors import NerpyPermissionError, SilentCheckFailure
+from utils.strings import get_localized_string, get_string
+
+
+def _localized(interaction: Interaction, key: str, **kwargs) -> str:
+    """Look up a guild-localized string from the interaction context."""
+    bot = cast("NerpyBot", interaction.client)
+    if interaction.guild_id is None:
+        return get_string("en", key, **kwargs)
+    with bot.session_scope() as session:
+        return get_localized_string(interaction.guild_id, key, session, **kwargs)
 
 
 def require_operator(ctx_or_interaction: Context | Interaction) -> None:
@@ -60,15 +70,15 @@ async def is_bot_moderator(interaction: Interaction) -> bool:
 
 async def is_connected_to_voice(interaction: Interaction):
     if interaction.user.voice is None or interaction.user.voice.channel is None:
-        await reject(interaction, "I don't know where you are. Please connect to a voice channel.")
+        await reject(interaction, _localized(interaction, "checks.voice.not_connected"))
         return False
     channel = interaction.user.voice.channel
     bot_perms = channel.permissions_for(interaction.guild.me)
     if not bot_perms.connect:
-        await reject(interaction, "I'm not allowed to join you in your current channel.")
+        await reject(interaction, _localized(interaction, "checks.voice.no_connect_permission"))
         return False
     if not bot_perms.speak:
-        await reject(interaction, "I don't have permission to speak in your voice channel.")
+        await reject(interaction, _localized(interaction, "checks.voice.no_speak_permission"))
         return False
     return True
 
@@ -77,18 +87,18 @@ async def can_stop_playback(interaction: Interaction):
     """Any user in the same voice channel as the bot, or a bot-moderator from anywhere."""
     bot_voice = interaction.guild.voice_client
     if bot_voice is None:
-        await reject(interaction, "Nothing is playing right now.")
+        await reject(interaction, _localized(interaction, "checks.voice.nothing_playing"))
         return False
 
     if await is_bot_moderator(interaction):
         return True
 
     if interaction.user.voice is None or interaction.user.voice.channel is None:
-        await reject(interaction, "You need to be in a voice channel to use this command.")
+        await reject(interaction, _localized(interaction, "checks.voice.user_not_in_voice"))
         return False
 
     if interaction.user.voice.channel != bot_voice.channel:
-        await reject(interaction, "You need to be in the same voice channel as the bot to use this command.")
+        await reject(interaction, _localized(interaction, "checks.voice.user_in_different_channel"))
         return False
 
     return True
@@ -99,16 +109,16 @@ async def can_leave_voice(interaction: Interaction):
     if await is_bot_moderator(interaction):
         return True
 
-    await reject(interaction, "Only moderators can make the bot leave the voice channel.")
+    await reject(interaction, _localized(interaction, "checks.voice.leave_moderator_only"))
     return False
 
 
 async def is_role_assignable(interaction: Interaction, role: Role, *, action: str = "assigned to") -> bool:
     """Return False (with ephemeral message) if the role is integration-managed."""
     if role.managed:
-        await interaction.response.send_message(
-            f"**{role.name}** is an integration role and cannot be {action} members.", ephemeral=True
-        )
+        key = "checks.role.integration_remove" if "remov" in action else "checks.role.integration_assign"
+        msg = _localized(interaction, key, role=role.name)
+        await interaction.response.send_message(msg, ephemeral=True)
         return False
     return True
 
@@ -116,8 +126,7 @@ async def is_role_assignable(interaction: Interaction, role: Role, *, action: st
 async def is_role_below_bot(interaction: Interaction, role: Role) -> bool:
     """Return False (with ephemeral message) if the role is at or above the bot's highest role."""
     if role >= interaction.guild.me.top_role:
-        await interaction.response.send_message(
-            f"I cannot manage **{role.name}** — it is at or above my highest role.", ephemeral=True
-        )
+        msg = _localized(interaction, "checks.role.above_bot_role", role=role.name)
+        await interaction.response.send_message(msg, ephemeral=True)
         return False
     return True
