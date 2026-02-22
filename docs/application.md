@@ -225,7 +225,7 @@ Guild/channel IDs are intentionally excluded so forms are portable across server
 - **Review buttons** (Vote, Edit Vote, Message) require `administrator`, the manager role, or the reviewer role
 - **Override button** requires `administrator` or the manager role (reviewers cannot override)
 - **Apply button** is available to all guild members
-- **Bot permissions** needed: `send_messages`, `embed_links`
+- **Bot permissions** needed: `send_messages`, `embed_links`, `create_public_threads`
 
 ## Database Models
 
