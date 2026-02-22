@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Admin-domain database models: bot-moderator role and permission notification subscribers."""
 
-from sqlalchemy import BigInteger, Column
+from sqlalchemy import BigInteger, Column, String
 from utils import database as db
 
 
@@ -50,3 +50,17 @@ class PermissionSubscriber(db.BASE):
         entry = cls.get(guild_id, user_id, session)
         if entry is not None:
             session.delete(entry)
+
+
+class GuildLanguageConfig(db.BASE):
+    """Per-guild language preference for localized bot responses."""
+
+    __tablename__ = "GuildLanguageConfig"
+
+    GuildId = Column(BigInteger, primary_key=True)
+    Language = Column(String(5), nullable=False, default="en")
+
+    @classmethod
+    def get(cls, guild_id: int, session) -> "GuildLanguageConfig | None":
+        """Returns the language config for the given guild, or None."""
+        return session.query(cls).filter(cls.GuildId == guild_id).first()

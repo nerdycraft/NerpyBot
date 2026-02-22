@@ -1,0 +1,25 @@
+common:
+  error_generic: "An error occurred. The bot operator has been notified."
+  not_found: "Not found."
+
+admin:
+  language:
+    set_success: "Server language set to **{language}**."
+    get_current: "Server language: **{language}**"
+    get_default: "No language configured. Defaulting to English."
+    invalid: "Unsupported language: `{language}`. Available: {available}"
+
+# Example module strings — pattern for Phase 2 migration PRs
+reminder:
+  create:
+    success: "Reminder created — next fire {relative_time}."
+  schedule:
+    success: "Scheduled reminder created — next fire {relative_time}."
+  delete:
+    success: "Message deleted."
+  pause:
+    success: "Paused reminder **#{reminder_id}**."
+  resume:
+    success: "Resumed reminder **#{reminder_id}**."
+  not_found: "Reminder not found."
+  no_reminders: "No reminders set."
