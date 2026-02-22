@@ -184,3 +184,45 @@ reminder:
   relative:
     a_day: "a day from now"
     days: "{days} days from now"
+
+moderation:
+  invalid_timespan: "Only timespans up until weeks are allowed. Do not use months or years."
+  autokicker:
+    configured: "AutoKicker configured for this server."
+    default_reminder: "You have not selected a role on {guild}. Please choose a role until {deadline}."
+  autodeleter:
+    no_config: "No auto-delete config for {channel}."
+    create:
+      success: 'AutoDeleter configured for channel "{channel}".'
+      already_exists: "This channel is already configured for AutoDelete. Please edit or delete the existing configuration."
+    delete:
+      success: 'Deleted configuration for channel "{channel}".'
+      not_found: 'No configuration for channel "{channel}" found!'
+    list:
+      title: "🗑️ AutoDeleter"
+      empty: "No configuration found!"
+      entry_details: "Age limit: {age} · Keep: {keep} · Delete pinned: {pinned}"
+      pinned_yes: "Yes"
+      pinned_no: "No"
+    pause:
+      success: "Paused auto-deletion for {channel}."
+      already_paused: "Auto-deletion is already paused for {channel}."
+    resume:
+      success: "Resumed auto-deletion for {channel}."
+      already_active: "Auto-deletion is already active for {channel}."
+    edit:
+      success: 'Updated configuration for channel "{channel}".'
+      not_found: 'Configuration for channel "{channel}" does not exist. Please create one first.'
+  user:
+    info:
+      original_name: "Original name: {name}"
+      created: "Created"
+      joined: "Joined"
+      top_role: "Top Role"
+      roles: "Roles"
+    list:
+      title: "👥 Members"
+      empty: "None found."
+      entry_no_roles: "**{name}** — joined: {joined}"
+      entry_full: "**{name}** — created: {created} · joined: {joined}"
+  membercount: "There are currently **{count}** members on this server."
