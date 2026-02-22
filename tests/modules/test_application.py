@@ -47,9 +47,11 @@ def non_admin_interaction(mock_interaction):
     return mock_interaction
 
 
-def _make_form(db_session, guild_id=987654321, name="TestForm", review_channel_id=None):
+def _make_form(db_session, guild_id=987654321, name="TestForm", review_channel_id=None, apply_channel_id=None):
     """Helper to create an ApplicationForm with one question."""
-    form = ApplicationForm(GuildId=guild_id, Name=name, ReviewChannelId=review_channel_id)
+    form = ApplicationForm(
+        GuildId=guild_id, Name=name, ReviewChannelId=review_channel_id, ApplyChannelId=apply_channel_id
+    )
     db_session.add(form)
     db_session.flush()
     db_session.add(ApplicationQuestion(FormId=form.Id, QuestionText="What is your name?", SortOrder=1))
@@ -156,14 +158,16 @@ class TestApplicationCreate:
         app_cog.bot.convMan = MagicMock()
         app_cog.bot.convMan.init_conversation = AsyncMock()
 
-        channel = MagicMock()
-        channel.id = 777
+        review_channel = MagicMock()
+        review_channel.id = 777
 
-        await app_cog._create.callback(app_cog, admin_interaction, name="NewForm", channel=channel)
+        await app_cog._create.callback(app_cog, admin_interaction, name="NewForm", review_channel=review_channel)
 
         app_cog.bot.convMan.init_conversation.assert_called_once()
         conv = app_cog.bot.convMan.init_conversation.call_args[0][0]
         assert conv.review_channel_id == 777
+        assert conv.apply_channel_id is None
+        assert conv.apply_description is None
         assert conv.required_approvals is None
         assert conv.required_denials is None
         assert conv.approval_message is None
@@ -176,14 +180,14 @@ class TestApplicationCreate:
         app_cog.bot.convMan = MagicMock()
         app_cog.bot.convMan.init_conversation = AsyncMock()
 
-        channel = MagicMock()
-        channel.id = 888
+        review_channel = MagicMock()
+        review_channel.id = 888
 
         await app_cog._create.callback(
             app_cog,
             admin_interaction,
             name="SettingsForm",
-            channel=channel,
+            review_channel=review_channel,
             approvals=3,
             denials=2,
             approval_message="Welcome!",
@@ -203,22 +207,46 @@ class TestApplicationCreate:
         app_cog.bot.convMan = MagicMock()
         app_cog.bot.convMan.init_conversation = AsyncMock()
 
-        channel = MagicMock()
-        channel.id = 777
+        review_channel = MagicMock()
+        review_channel.id = 777
 
-        await app_cog._create.callback(app_cog, admin_interaction, name="Existing", channel=channel)
+        await app_cog._create.callback(app_cog, admin_interaction, name="Existing", review_channel=review_channel)
 
         app_cog.bot.convMan.init_conversation.assert_not_called()
         assert "already exists" in str(admin_interaction.response.send_message.call_args)
 
     @pytest.mark.asyncio
     async def test_create_permission_denied(self, app_cog, non_admin_interaction):
-        channel = MagicMock()
-        channel.id = 777
+        review_channel = MagicMock()
+        review_channel.id = 777
 
-        await app_cog._create.callback(app_cog, non_admin_interaction, name="Nope", channel=channel)
+        await app_cog._create.callback(app_cog, non_admin_interaction, name="Nope", review_channel=review_channel)
 
         assert "permission" in str(non_admin_interaction.response.send_message.call_args).lower()
+
+    @pytest.mark.asyncio
+    async def test_create_passes_apply_channel_and_description(self, app_cog, admin_interaction):
+        app_cog.bot.convMan = MagicMock()
+        app_cog.bot.convMan.init_conversation = AsyncMock()
+
+        review_channel = MagicMock()
+        review_channel.id = 777
+        apply_channel = MagicMock()
+        apply_channel.id = 888
+
+        await app_cog._create.callback(
+            app_cog,
+            admin_interaction,
+            name="WithApply",
+            review_channel=review_channel,
+            channel=apply_channel,
+            description="Click to apply for membership!",
+        )
+
+        conv = app_cog.bot.convMan.init_conversation.call_args[0][0]
+        assert conv.review_channel_id == 777
+        assert conv.apply_channel_id == 888
+        assert conv.apply_description == "Click to apply for membership!"
 
 
 # ---------------------------------------------------------------------------

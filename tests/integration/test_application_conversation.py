@@ -188,6 +188,30 @@ class TestApplicationCreateConversation:
         assert form.ApprovalMessage == "Welcome!"
         assert form.DenialMessage == "Sorry."
 
+    @pytest.mark.asyncio
+    async def test_done_saves_apply_channel_and_description(self, mock_bot, mock_user, mock_guild, db_session):
+        """ApplyChannelId and ApplyDescription are persisted when provided."""
+        _make_send_return(mock_user)
+        conv = ApplicationCreateConversation(
+            mock_bot,
+            mock_user,
+            mock_guild,
+            "Apply Form",
+            review_channel_id=55,
+            apply_channel_id=999,
+            apply_description="Click to apply!",
+        )
+        await conv.repost_state()
+        _make_send_return(mock_user)
+        await conv.on_message("Question?")
+        _make_send_return(mock_user)
+        await conv.on_react(CANCEL_EMOJI)
+
+        form = db_session.query(ApplicationForm).filter(ApplicationForm.Name == "Apply Form").first()
+        assert form is not None
+        assert form.ApplyChannelId == 999
+        assert form.ApplyDescription == "Click to apply!"
+
 
 # ---------------------------------------------------------------------------
 # TestApplicationEditConversation

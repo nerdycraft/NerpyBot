@@ -88,6 +88,8 @@ class ApplicationCreateConversation(Conversation):
         guild,
         form_name: str,
         review_channel_id: int,
+        apply_channel_id: int | None = None,
+        apply_description: str | None = None,
         required_approvals: int | None = None,
         required_denials: int | None = None,
         approval_message: str | None = None,
@@ -95,6 +97,8 @@ class ApplicationCreateConversation(Conversation):
     ):
         self.form_name = form_name
         self.review_channel_id = review_channel_id
+        self.apply_channel_id = apply_channel_id
+        self.apply_description = apply_description
         self.required_approvals = required_approvals
         self.required_denials = required_denials
         self.approval_message = approval_message
@@ -140,6 +144,8 @@ class ApplicationCreateConversation(Conversation):
                 GuildId=self.guild.id,
                 Name=self.form_name,
                 ReviewChannelId=self.review_channel_id,
+                ApplyChannelId=self.apply_channel_id,
+                ApplyDescription=self.apply_description,
                 ApprovalMessage=self.approval_message,
                 DenialMessage=self.denial_message,
             )
@@ -151,6 +157,15 @@ class ApplicationCreateConversation(Conversation):
             session.flush()
             for i, q_text in enumerate(self.questions, start=1):
                 session.add(ApplicationQuestion(FormId=form.Id, QuestionText=q_text, SortOrder=i))
+            form_id = form.Id
+
+        if self.apply_channel_id:
+            from modules.views.application import post_apply_button_message
+
+            try:
+                await post_apply_button_message(self.bot, form_id)
+            except Exception:
+                self.bot.log.error("application: failed to post apply button after form creation", exc_info=True)
 
         emb = _questions_embed(
             f"Form created: {self.form_name}",

@@ -180,9 +180,12 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     # -- /application create -------------------------------------------------
 
     @app_commands.command(name="create")
+    @app_commands.rename(review_channel="review-channel")
     @app_commands.describe(
         name="Name for the new application form",
-        channel="Channel where reviews will be posted",
+        review_channel="Channel where reviews will be posted",
+        channel="Channel where the apply button will be posted (optional)",
+        description="Description shown on the apply button embed (optional)",
         approvals="Number of approvals required (default: 1)",
         denials="Number of denials required (default: 1)",
         approval_message="Message sent to applicant on approval",
@@ -192,7 +195,9 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         self,
         interaction: Interaction,
         name: str,
-        channel: TextChannel,
+        review_channel: TextChannel,
+        channel: Optional[TextChannel] = None,
+        description: Optional[str] = None,
         approvals: Optional[app_commands.Range[int, 1]] = None,
         denials: Optional[app_commands.Range[int, 1]] = None,
         approval_message: Optional[str] = None,
@@ -214,7 +219,9 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             interaction.user,
             interaction.guild,
             name,
-            review_channel_id=channel.id,
+            review_channel_id=review_channel.id,
+            apply_channel_id=channel.id if channel else None,
+            apply_description=description,
             required_approvals=approvals,
             required_denials=denials,
             approval_message=approval_message,
