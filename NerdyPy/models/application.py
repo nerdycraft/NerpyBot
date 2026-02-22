@@ -246,7 +246,7 @@ class ApplicationTemplate(db.BASE):
     __table_args__ = (
         Index("ApplicationTemplate_GuildId", "GuildId"),
         CheckConstraint(
-            '("IsBuiltIn" = 1 AND "GuildId" IS NULL) OR ("IsBuiltIn" = 0 AND "GuildId" IS NOT NULL)',
+            '("IsBuiltIn" IS TRUE AND "GuildId" IS NULL) OR ("IsBuiltIn" IS FALSE AND "GuildId" IS NOT NULL)',
             name="ck_template_builtin_guild",
         ),
     )
