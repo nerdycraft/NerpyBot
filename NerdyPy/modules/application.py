@@ -631,7 +631,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             try:
                 await interaction.user.send("Import cancelled — timed out.")
             except (discord.Forbidden, discord.NotFound):
-                pass  # user has DMs disabled or account not found — drop silently
+                self.bot.log.debug("Could not send import timeout DM to user %s", interaction.user.id)
             return
 
         attachment = msg.attachments[0]

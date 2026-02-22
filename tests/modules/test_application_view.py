@@ -241,7 +241,7 @@ class TestVoteButton:
 
     @pytest.mark.asyncio
     async def test_vote_duplicate_vote_rejected(self, review_view, mock_bot, db_session):
-        form, submission = _seed_form_and_submission(db_session, required_approvals=2)
+        _, submission = _seed_form_and_submission(db_session, required_approvals=2)
         db_session.add(ApplicationVote(SubmissionId=submission.Id, UserId=REVIEWER_USER_ID, Vote="approve"))
         db_session.commit()
 
@@ -1637,7 +1637,7 @@ class TestApplicationApplyButton:
     @pytest.mark.asyncio
     async def test_happy_path_starts_conversation(self, mock_bot, db_session):
         """Apply button starts DM conversation and sends 'Check your DMs!' followup."""
-        (form,) = _seed_apply_form(db_session)
+        _seed_apply_form(db_session)
         mock_bot.convMan = MagicMock()
         mock_bot.convMan.init_conversation = AsyncMock()
         mock_bot.get_channel = MagicMock(return_value=MagicMock())
@@ -1694,7 +1694,7 @@ class TestApplicationApplyButton:
     @pytest.mark.asyncio
     async def test_form_not_ready_no_review_channel(self, mock_bot, db_session):
         """If form has no ReviewChannelId, respond with 'not set up' error."""
-        (form,) = _seed_apply_form(db_session, review_channel_id=None)
+        _seed_apply_form(db_session, review_channel_id=None)
 
         view = ApplicationApplyView(bot=mock_bot)
         interaction = _make_apply_interaction(mock_bot)
@@ -1708,7 +1708,7 @@ class TestApplicationApplyButton:
     @pytest.mark.asyncio
     async def test_dm_forbidden_sends_error(self, mock_bot, db_session):
         """If bot can't DM the user, respond with helpful message."""
-        (form,) = _seed_apply_form(db_session)
+        _seed_apply_form(db_session)
         mock_bot.convMan = MagicMock()
         mock_bot.convMan.init_conversation = AsyncMock(
             side_effect=discord.Forbidden(MagicMock(), "Cannot send messages")
