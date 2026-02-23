@@ -45,6 +45,137 @@ def get_asset_url(response, key: str = "icon") -> str | None:
     return None
 
 
+async def sync_crafting_recipes(api, guild_id, session, log, progress_callback=None):
+    """Fetch BOP crafting recipes from Blizzard API and cache them.
+
+    Args:
+        api: blizzapi.RetailClient instance
+        guild_id: Discord guild ID for cache partitioning
+        session: SQLAlchemy session
+        log: logger instance
+        progress_callback: async callable(str) for progress updates
+
+    Returns:
+        (recipe_count, profession_count) tuple
+
+    Raises:
+        RateLimited: if Blizzard returns 429 mid-sync
+    """
+    import asyncio
+
+    from models.wow import CraftingRecipeCache
+
+    # Step 1: Get all professions
+    professions_data = await asyncio.to_thread(api.professions_index)
+    check_rate_limit(professions_data)
+
+    professions = professions_data.get("professions", [])
+    recipe_count = 0
+    profession_count = 0
+
+    for prof in professions:
+        prof_id = prof["id"]
+        prof_name = prof.get("name", f"Profession {prof_id}")
+
+        if progress_callback:
+            await progress_callback(f"Scanning {prof_name}...")
+
+        # Step 2: Get profession detail → skill tiers
+        prof_data = await asyncio.to_thread(api.profession, prof_id)
+        check_rate_limit(prof_data)
+
+        skill_tiers = prof_data.get("skill_tiers", [])
+        if not skill_tiers:
+            continue
+
+        # Pick highest tier ID (= current expansion)
+        current_tier = max(skill_tiers, key=lambda t: t["id"])
+        tier_id = current_tier["id"]
+
+        # Step 3: Get recipes for this tier
+        tier_data = await asyncio.to_thread(api.profession_skill_tier, prof_id, tier_id)
+        check_rate_limit(tier_data)
+
+        categories = tier_data.get("categories", [])
+        tier_recipes = []
+        for cat in categories:
+            for recipe_entry in cat.get("recipes", []):
+                tier_recipes.append(recipe_entry)
+
+        if not tier_recipes:
+            continue
+
+        prof_recipe_count = 0
+        for recipe_entry in tier_recipes:
+            recipe_id = recipe_entry["id"]
+
+            # Step 4: Get recipe detail → crafted item
+            recipe_data = await asyncio.to_thread(api.recipe, recipe_id)
+            check_rate_limit(recipe_data)
+
+            crafted_item = recipe_data.get("crafted_item", {})
+            item_ref = crafted_item.get("item", {})
+            item_id = item_ref.get("id")
+            if not item_id:
+                continue
+
+            # Step 5: Get item detail → check binding type
+            item_data = await asyncio.to_thread(api.item, item_id)
+            check_rate_limit(item_data)
+
+            binding_type = item_data.get("preview_item", {}).get("binding", {}).get("type")
+            if binding_type != "ON_ACQUIRE":  # BOP = ON_ACQUIRE in Blizzard API
+                continue
+
+            item_name = item_data.get("name", f"Item {item_id}")
+
+            # Step 6: Get item media → icon URL
+            try:
+                media_data = await asyncio.to_thread(api.item_media, item_id)
+                check_rate_limit(media_data)
+                icon_url = get_asset_url(media_data, "icon")
+            except Exception:
+                icon_url = None
+
+            # Upsert into cache
+            existing = (
+                session.query(CraftingRecipeCache)
+                .filter(
+                    CraftingRecipeCache.GuildId == guild_id,
+                    CraftingRecipeCache.RecipeId == recipe_id,
+                )
+                .first()
+            )
+
+            now = datetime.now(UTC)
+            if existing:
+                existing.ItemId = item_id
+                existing.ItemName = item_name
+                existing.IconUrl = icon_url
+                existing.ProfessionId = prof_id
+                existing.LastSynced = now
+            else:
+                session.add(
+                    CraftingRecipeCache(
+                        GuildId=guild_id,
+                        ProfessionId=prof_id,
+                        RecipeId=recipe_id,
+                        ItemId=item_id,
+                        ItemName=item_name,
+                        IconUrl=icon_url,
+                        LastSynced=now,
+                    )
+                )
+
+            prof_recipe_count += 1
+            recipe_count += 1
+
+        if prof_recipe_count > 0:
+            profession_count += 1
+
+    return recipe_count, profession_count
+
+
 # ── Mount set comparison ─────────────────────────────────────────────
 
 
