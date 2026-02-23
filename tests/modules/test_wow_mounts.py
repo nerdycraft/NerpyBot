@@ -12,26 +12,26 @@ class TestParseKnownMounts:
     def test_legacy_list_format(self):
         """Plain JSON list → set of IDs, count = list length."""
         raw = json.dumps([1, 2, 3])
-        ids, count = parse_known_mounts(raw)
+        ids, count, _ap = parse_known_mounts(raw)
         assert ids == {1, 2, 3}
         assert count == 3
 
     def test_new_dict_format(self):
         """New dict format → IDs from 'ids' key, count from 'last_count'."""
         raw = json.dumps({"ids": [10, 20, 30, 40], "last_count": 3})
-        ids, count = parse_known_mounts(raw)
+        ids, count, _ap = parse_known_mounts(raw)
         assert ids == {10, 20, 30, 40}
         assert count == 3
 
     def test_empty_legacy(self):
         raw = json.dumps([])
-        ids, count = parse_known_mounts(raw)
+        ids, count, _ap = parse_known_mounts(raw)
         assert ids == set()
         assert count == 0
 
     def test_empty_new_format(self):
         raw = json.dumps({"ids": [], "last_count": 0})
-        ids, count = parse_known_mounts(raw)
+        ids, count, _ap = parse_known_mounts(raw)
         assert ids == set()
         assert count == 0
 

@@ -910,6 +910,8 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                         total_stats["skipped_inactive"] += 1
                         return
 
+                achievement_points = profile.get("achievement_points") or None
+
                 mount_data = await self._call_api(
                     api.character_mounts_collection_summary,
                     config_id,
@@ -957,18 +959,21 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
                 if stored is None:
                     self.bot.log.debug(f"Guild news #{config_id}: baseline for {char_name} — {len(current_ids)} mounts")
+                    mount_json = {"ids": sorted(current_ids), "last_count": len(current_ids)}
+                    if achievement_points is not None:
+                        mount_json["achievement_points"] = achievement_points
                     # noinspection PyShadowingNames
                     entry = WowCharacterMounts(
                         ConfigId=config_id,
                         CharacterName=char_name,
                         RealmSlug=char_realm,
-                        KnownMountIds=json.dumps({"ids": sorted(current_ids), "last_count": len(current_ids)}),
+                        KnownMountIds=json.dumps(mount_json),
                         LastChecked=datetime.now(UTC),
                     )
                     session.add(entry)
                     total_stats["baselined"] += 1
                 else:
-                    known_ids, last_count = parse_known_mounts(stored.KnownMountIds)
+                    known_ids, last_count, _ = parse_known_mounts(stored.KnownMountIds)
                     new_ids = current_ids - known_ids
                     removed_ids = known_ids - current_ids
 
@@ -1059,12 +1064,13 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
                         total_stats["new_mounts"] += len(new_ids)
 
-                    stored.KnownMountIds = json.dumps(
-                        {
-                            "ids": sorted(known_ids | current_ids),
-                            "last_count": len(current_ids),
-                        }
-                    )
+                    mount_json = {
+                        "ids": sorted(known_ids | current_ids),
+                        "last_count": len(current_ids),
+                    }
+                    if achievement_points is not None:
+                        mount_json["achievement_points"] = achievement_points
+                    stored.KnownMountIds = json.dumps(mount_json)
                     stored.LastChecked = datetime.now(UTC)
                     cycle_new_mounts[(char_name, char_realm)] = new_ids
 

@@ -14,6 +14,7 @@ import difflib
 import itertools
 import json
 import unicodedata
+from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from datetime import datetime as dt
 from datetime import timedelta as td
@@ -145,25 +146,30 @@ def get_profile_link(site: str, profile: str) -> str:
 
 # ── Account resolution ───────────────────────────────────────────────
 # Heuristics for grouping WoW characters by likely Battle.net account.
-# Uses three signals: name patterns, mount set identity, and temporal correlation.
+# Uses five signals: name patterns, achievement points, mount set identity,
+# mount count similarity, and temporal correlation.
+
+AP_TOLERANCE = 100  # achievement points tolerance for timing drift between polls
+MOUNT_COUNT_MIN = 20  # minimum mount count for count-based comparison
 
 
-def parse_known_mounts(raw: str) -> tuple[set[int], int]:
+def parse_known_mounts(raw: str) -> tuple[set[int], int, int | None]:
     """Parse stored mount data, supporting both legacy and new formats.
 
     Legacy format: JSON list of mount IDs, e.g. [1, 2, 3]
-    New format: JSON dict with union set and real API count,
-                e.g. {"ids": [1, 2, 3], "last_count": 73}
+    New format: JSON dict with union set, real API count, and optional
+                achievement points, e.g. {"ids": [1, 2, 3], "last_count": 73,
+                "achievement_points": 15430}
 
-    Returns (known_id_set, last_api_count).
-    For legacy data, last_api_count equals the list length.
+    Returns (known_id_set, last_api_count, achievement_points_or_none).
+    For legacy data, last_api_count equals the list length and AP is None.
     """
     data = json.loads(raw)
     if isinstance(data, dict):
         ids: list[int] = data["ids"]
-        return set(ids), int(data["last_count"])
+        return set(ids), int(data["last_count"]), data.get("achievement_points")
     mount_list: list[int] = data
-    return set(mount_list), len(mount_list)
+    return set(mount_list), len(mount_list), None
 
 
 def strip_diacritics(name: str) -> str:
@@ -196,7 +202,11 @@ def name_similarity_score(name_a: str, name_b: str) -> float:
         prefix_len += 1
     shorter = min(len(norm_a), len(norm_b))
     if shorter > 0 and prefix_len >= 3 and prefix_len / shorter >= 0.4:
-        return 0.3 + 0.2 * (prefix_len / shorter)
+        coverage = prefix_len / shorter
+        if prefix_len >= 5:
+            length_bonus = min(0.35, 0.07 * (prefix_len - 4))
+            return min(0.9, 0.3 + 0.2 * coverage + length_bonus)
+        return 0.3 + 0.2 * coverage
 
     ratio = difflib.SequenceMatcher(None, norm_a, norm_b).ratio()
     if ratio >= 0.6:
@@ -229,11 +239,18 @@ def account_confidence(
 ) -> float:
     """Combine all signals into a single same-account confidence score.
 
+    Signals (in evaluation order):
+    1. Name similarity (diacritics, shared prefix, sequence matching)
+    2. Achievement points (account-wide, deterministic within tolerance)
+    3. Mount set identity (Jaccard on full collection, 50+ mounts)
+    4. Mount count similarity (supplementary, 20+ mounts)
+    5. Temporal correlation (mount acquisition patterns across poll cycles)
+
     Args:
         name_a: Lowercased character name (first).
         name_b: Lowercased character name (second).
-        mounts_a: JSON-encoded mount ID list (or None if no stored data).
-        mounts_b: JSON-encoded mount ID list (or None if no stored data).
+        mounts_a: JSON-encoded mount data (or None if no stored data).
+        mounts_b: JSON-encoded mount data (or None if no stored data).
         temporal_data: Dict with 'correlated' and 'uncorrelated' counts (or None).
 
     Returns: 0.0-1.0 confidence score.
@@ -246,17 +263,29 @@ def account_confidence(
 
     if mounts_a and mounts_b:
         try:
-            ids_a, _ = parse_known_mounts(mounts_a)
-            ids_b, _ = parse_known_mounts(mounts_b)
+            ids_a, count_a, ap_a = parse_known_mounts(mounts_a)
+            ids_b, count_b, ap_b = parse_known_mounts(mounts_b)
         except (ValueError, TypeError, KeyError):
-            pass  # corrupt data — skip mount signal
+            pass  # corrupt data — skip mount signals
         else:
+            # Achievement points: account-wide and deterministic.
+            if ap_a is not None and ap_b is not None and ap_a > 0 and ap_b > 0:
+                if abs(ap_a - ap_b) <= AP_TOLERANCE:
+                    scores.append(0.9)
+
+            # Mount set identity: Jaccard on the full collection.
             if len(ids_a) > 50 and len(ids_b) > 50:
                 overlap = len(ids_a & ids_b)
                 total = len(ids_a | ids_b)
                 jaccard = overlap / total
                 if jaccard >= 0.95:
                     scores.append(0.9 * jaccard)
+
+            # Mount count similarity: weaker supplementary signal.
+            if count_a >= MOUNT_COUNT_MIN and count_b >= MOUNT_COUNT_MIN:
+                count_ratio = min(count_a, count_b) / max(count_a, count_b)
+                if count_ratio >= 0.90:
+                    scores.append(0.3 + 0.2 * count_ratio)
 
     if temporal_data:
         ts = temporal_score(temporal_data.get("correlated", 0), temporal_data.get("uncorrelated", 0))
@@ -286,12 +315,63 @@ def make_pair_key(char_a_key: tuple, char_b_key: tuple) -> str:
     return "|".join(sorted([a, b]))
 
 
+MIN_PREFIX_FAMILY_LEN = 3
+MIN_PREFIX_FAMILY_SIZE = 3
+
+
+def detect_prefix_families(
+    candidates: list[dict],
+) -> dict[tuple, set[tuple]]:
+    """Find groups of same-realm characters sharing a common name prefix.
+
+    Scans prefix lengths from longest to shortest. Each character is assigned
+    to the largest family it belongs to (longest prefix with enough members).
+
+    Args:
+        candidates: List of {"name": str, "realm": str, ...} dicts.
+
+    Returns:
+        Mapping of (name, realm) -> set of (name, realm) family peers.
+        Characters not in any family are absent from the mapping.
+    """
+    by_realm: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
+    for c in candidates:
+        by_realm[c["realm"]].append((strip_diacritics(c["name"]), c["name"], c["realm"]))
+
+    family_map: dict[tuple, set[tuple]] = {}
+    for realm, chars in by_realm.items():
+        if len(chars) < MIN_PREFIX_FAMILY_SIZE:
+            continue
+        for prefix_len in range(12, MIN_PREFIX_FAMILY_LEN - 1, -1):
+            groups: dict[str, list[tuple[str, str]]] = defaultdict(list)
+            for norm, orig, r in chars:
+                if len(norm) >= prefix_len:
+                    groups[norm[:prefix_len]].append((orig, r))
+            for members in groups.values():
+                if len(members) >= MIN_PREFIX_FAMILY_SIZE:
+                    member_set = set(members)
+                    for m in members:
+                        if m not in family_map or len(member_set) > len(family_map[m]):
+                            family_map[m] = member_set
+    return family_map
+
+
 def build_account_groups(
     candidates: list[dict],
     stored_mounts: dict,
     temporal_data: dict,
 ) -> dict[tuple, int]:
-    """Cluster characters into likely-same-account groups.
+    """Cluster characters into likely-same-account groups (two-phase).
+
+    Phase 1: Pairwise comparison using name similarity, mount overlap, and
+    temporal correlation.  Long shared prefixes (7+ chars) can now cross the
+    confidence threshold on their own.
+
+    Phase 2: Prefix family extension.  If 3+ same-realm characters share a
+    name prefix and a majority of them are already grouped from phase 1, the
+    remaining members are pulled into the group.  This handles short-prefix
+    naming conventions (e.g. "alu*") where individual pairs score too low but
+    the cluster pattern is unmistakable.
 
     Args:
         candidates: List of {"name": str, "realm": str, ...} dicts.
@@ -320,7 +400,7 @@ def build_account_groups(
     for k in keys:
         parent[k] = k
 
-    # Check all pairs for confidence above threshold
+    # Phase 1: Check all pairs for confidence above threshold
     for ca, cb in itertools.combinations(candidates, 2):
         key_a = (ca["name"], ca["realm"])
         key_b = (cb["name"], cb["realm"])
@@ -334,6 +414,28 @@ def build_account_groups(
         conf = account_confidence(ca["name"], cb["name"], mounts_a, mounts_b, t_data)
         if conf >= CONFIDENCE_THRESHOLD:
             union(key_a, key_b)
+
+    # Phase 2: Prefix family extension
+    # If a majority of a prefix family (3+ same-realm chars sharing a prefix)
+    # is already grouped by phase 1 signals, extend the group to all members.
+    phase1_root = {k: find(k) for k in keys}
+    families = detect_prefix_families(candidates)
+    seen_families: set[int] = set()
+    for key in keys:
+        family = families.get(key)
+        if family is None or id(family) in seen_families:
+            continue
+        seen_families.add(id(family))
+        phase1_roots = [phase1_root[m] for m in family if m in phase1_root]
+        if not phase1_roots:
+            continue
+        root_counts = Counter(phase1_roots)
+        dominant_root, max_count = root_counts.most_common(1)[0]
+        min_required = (len(family) + 1) // 2
+        if max_count >= min_required:
+            anchor = next(m for m in family if phase1_root.get(m) == dominant_root)
+            for m in family:
+                union(anchor, m)
 
     # Convert to sequential group IDs
     group_map = {}

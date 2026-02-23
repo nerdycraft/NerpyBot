@@ -149,13 +149,19 @@ If a Blizzard API response returns a significantly smaller mount set than what's
 
 Account-wide mounts appear on every character belonging to the same Battle.net account. Without dedup, earning one mount triggers N notifications for N characters. The module uses **confidence-based account resolution** to group characters likely on the same account, then suppresses duplicate mount announcements within each group.
 
-**Three independent signals are combined into a confidence score:**
+**Two-phase grouping with five independent signals:**
 
-1. **Name similarity** — Detects diacritics variants ("Mörza"/"Morza"), shared prefix patterns ("alurush"/"alublood"), and general sequence similarity
-2. **Mount set identity** — Characters with near-identical mount collections (Jaccard similarity ≥ 0.95, 50+ mounts) are almost certainly on the same account
-3. **Temporal correlation** — Characters that consistently earn the same mounts in the same poll cycles build evidence over time (persisted in `AccountGroupData`)
+Phase 1 — Pairwise confidence scoring (signals combined, threshold ≥ 0.7):
 
-Characters with combined confidence ≥ 0.7 are grouped via union-find clustering. Only the first character in a group to announce a mount sends the Discord notification; `KnownMountIds` is still updated for all characters.
+1. **Name similarity** — Detects diacritics variants ("Mörza"/"Morza"), shared prefix patterns ("alurush"/"alublood"), and general sequence similarity. Long shared prefixes (7+ chars) can cross the threshold on their own.
+2. **Achievement points** — Account-wide and deterministic. Characters within ±100 AP of each other are very likely on the same account (score 0.9).
+3. **Mount set identity** — Characters with near-identical mount collections (Jaccard similarity ≥ 0.95, 50+ mounts) are almost certainly on the same account
+4. **Mount count similarity** — Supplementary signal: characters with similar total mount counts (both 20+, within 10%) get a moderate boost
+5. **Temporal correlation** — Characters that consistently earn the same mounts in the same poll cycles build evidence over time (persisted in `AccountGroupData`)
+
+Phase 2 — Prefix family extension: If 3+ same-realm characters share a name prefix and a majority are already grouped from phase 1, the remaining members are pulled into the group. This handles short-prefix naming conventions (e.g. "alu\*") where individual pairs score too low but the cluster pattern is unmistakable.
+
+Characters are grouped via union-find clustering. Only the first character in a group to announce a mount sends the Discord notification; `KnownMountIds` is still updated for all characters.
 
 ### Stale Character Cleanup
 
