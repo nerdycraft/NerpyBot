@@ -100,8 +100,6 @@ class NerpyBot(Bot):
         """Build a SQLAlchemy connection string from the bot config.
 
         Returns ``"sqlite:///db.db"`` when no database section is present.
-        Appends ``?charset=utf8mb4`` for MySQL/MariaDB connections so PyMySQL
-        negotiates UTF-8 instead of defaulting to latin1.
         """
         if "database" not in config:
             return "sqlite:///db.db"
@@ -114,12 +112,7 @@ class NerpyBot(Bot):
         db_host = ""
         db_port = ""
 
-        is_mysql = any(s in db_type for s in ("mysql", "mariadb"))
-        is_postgres = "postgresql" in db_type
-
-        if is_mysql:
-            db_type = f"{db_type}+pymysql"
-        elif is_postgres:
+        if "postgresql" in db_type:
             db_type = f"{db_type}+psycopg"
 
         if "db_password" in database_config and database_config["db_password"]:
@@ -132,12 +125,7 @@ class NerpyBot(Bot):
             db_port = f":{database_config['db_port']}"
 
         db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
-        connection_string = f"{db_type}://{db_authentication}/{db_name}"
-
-        if is_mysql:
-            connection_string += "?charset=utf8mb4"
-
-        return connection_string
+        return f"{db_type}://{db_authentication}/{db_name}"
 
     def create_all(self) -> None:
         """creates all tables previously defined"""
