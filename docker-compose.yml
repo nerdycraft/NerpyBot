@@ -5,6 +5,9 @@ services:
     volumes:
       - nerpybot-data:/data
       - ./config/nerpybot.yaml:/app/config.yaml:ro
+    # depends_on:
+    #   postgres:
+    #     condition: service_healthy
 
   nerpybot:
     image: ghcr.io/nerdycraft/nerpybot:latest
@@ -12,6 +15,8 @@ services:
     depends_on:
       nerpybot-migrations:
         condition: service_completed_successfully
+      # postgres:
+      #   condition: service_healthy
     volumes:
       - nerpybot-data:/data
       - ./config/nerpybot.yaml:/app/config.yaml:ro
@@ -23,6 +28,23 @@ services:
       - humanmusic-data:/data
       - ./config/humanmusic.yaml:/app/config.yaml:ro
 
+  # ── Uncomment to use PostgreSQL instead of SQLite ──
+  # postgres:
+  #   image: postgres:18-alpine
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_DB: nerpybot
+  #     POSTGRES_USER: nerpybot
+  #     POSTGRES_PASSWORD: changeme  # change this!
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U nerpybot"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+
 volumes:
   nerpybot-data:
   humanmusic-data:
+  # postgres-data:
