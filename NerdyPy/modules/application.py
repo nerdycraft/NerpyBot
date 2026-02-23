@@ -676,45 +676,30 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     # -- /application template edit-messages ---------------------------------
 
-    @template_group.command(name="edit-messages")
-    @app_commands.describe(
-        template_name="Name of the guild template to update",
-        approval_message="New default approval message (optional)",
-        denial_message="New default denial message (optional)",
-    )
-    @app_commands.autocomplete(template_name=_guild_template_autocomplete)
-    async def _template_edit_messages(
+    async def _save_template_messages(
         self,
         interaction: Interaction,
         template_name: str,
-        approval_message: Optional[str] = None,
-        denial_message: Optional[str] = None,
-    ):
-        """Update default approval/denial messages for a custom template."""
-        if not self._has_manage_permission(interaction):
-            lang = self._lang(interaction.guild_id)
-            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
-            return
-
-        lang = self._lang(interaction.guild_id)
-
-        if approval_message is None and denial_message is None:
-            await interaction.response.send_message(
-                get_string(lang, "application.template.edit_messages.nothing_to_update"), ephemeral=True
-            )
-            return
-
+        approval_message: str | None,
+        denial_message: str | None,
+        lang: str,
+    ) -> None:
+        """Validate and persist template message changes, then confirm."""
         with self.bot.session_scope() as session:
             tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
             if not tpl:
-                await interaction.response.send_message(
-                    get_string(lang, "application.template.not_found", name=template_name), ephemeral=True
-                )
+                msg = get_string(lang, "application.template.not_found", name=template_name)
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(msg, ephemeral=True)
+                else:
+                    await interaction.followup.send(msg, ephemeral=True)
                 return
             if tpl.IsBuiltIn:
-                await interaction.response.send_message(
-                    get_string(lang, "application.template.edit_messages.builtin_forbidden"), ephemeral=True
-                )
+                msg = get_string(lang, "application.template.edit_messages.builtin_forbidden")
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(msg, ephemeral=True)
+                else:
+                    await interaction.followup.send(msg, ephemeral=True)
                 return
 
             changes = []
@@ -725,12 +710,99 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 tpl.DenialMessage = denial_message
                 changes.append(get_string(lang, "application.template.edit_messages.change_denial"))
 
-        await interaction.response.send_message(
-            get_string(
+        if not changes:
+            msg = get_string(lang, "application.template.edit_messages.nothing_to_update")
+        else:
+            msg = get_string(
                 lang, "application.template.edit_messages.success", name=template_name, changes=", ".join(changes)
-            ),
-            ephemeral=True,
-        )
+            )
+
+        if not interaction.response.is_done():
+            await interaction.response.send_message(msg, ephemeral=True)
+        else:
+            await interaction.followup.send(msg, ephemeral=True)
+
+    @template_group.command(name="edit-messages")
+    @app_commands.describe(
+        template_name="Name of the guild template to update",
+        approval_message="New default approval message (optional, opens a modal if all omitted)",
+        denial_message="New default denial message (optional, opens a modal if all omitted)",
+        approval_message_source="Message ID or link whose text becomes the approval message (message is deleted)",
+        denial_message_source="Message ID or link whose text becomes the denial message (message is deleted)",
+    )
+    @app_commands.rename(
+        approval_message_source="approval-message-source",
+        denial_message_source="denial-message-source",
+    )
+    @app_commands.autocomplete(template_name=_guild_template_autocomplete)
+    async def _template_edit_messages(
+        self,
+        interaction: Interaction,
+        template_name: str,
+        approval_message: Optional[str] = None,
+        denial_message: Optional[str] = None,
+        approval_message_source: Optional[str] = None,
+        denial_message_source: Optional[str] = None,
+    ):
+        """Update default approval/denial messages for a custom template."""
+        if not self._has_manage_permission(interaction):
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
+            return
+
+        lang = self._lang(interaction.guild_id)
+
+        # Fetch from message references if provided
+        if approval_message_source:
+            content, error = await fetch_message_content(
+                self.bot,
+                approval_message_source,
+                None,
+                interaction,
+                lang,
+                key_prefix="application.template.fetch_message",
+            )
+            if error:
+                await interaction.response.send_message(error, ephemeral=True)
+                return
+            approval_message = content
+
+        if denial_message_source:
+            content, error = await fetch_message_content(
+                self.bot,
+                denial_message_source,
+                None,
+                interaction,
+                lang,
+                key_prefix="application.template.fetch_message",
+            )
+            if error:
+                await interaction.response.send_message(error, ephemeral=True)
+                return
+            denial_message = content
+
+        # When no text provided at all → open modal pre-filled with current values
+        if approval_message is None and denial_message is None:
+            with self.bot.session_scope() as session:
+                tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
+                if not tpl:
+                    await interaction.response.send_message(
+                        get_string(lang, "application.template.not_found", name=template_name), ephemeral=True
+                    )
+                    return
+                if tpl.IsBuiltIn:
+                    await interaction.response.send_message(
+                        get_string(lang, "application.template.edit_messages.builtin_forbidden"), ephemeral=True
+                    )
+                    return
+                current_approval = tpl.ApprovalMessage or ""
+                current_denial = tpl.DenialMessage or ""
+
+            modal = _TemplateMessagesModal(self.bot, template_name, current_approval, current_denial, lang)
+            await interaction.response.send_modal(modal)
+            return
+
+        await self._save_template_messages(interaction, template_name, approval_message, denial_message, lang)
 
     # -- /application export -------------------------------------------------
 
@@ -942,6 +1014,43 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         await interaction.response.send_message(
             get_string(lang, "application.reviewerrole.remove_success"), ephemeral=True
         )
+
+
+class _TemplateMessagesModal(discord.ui.Modal):
+    """Two-field modal for editing template approval/denial messages."""
+
+    approval_input = discord.ui.TextInput(
+        label="Approval Message",
+        style=discord.TextStyle.paragraph,
+        max_length=2000,
+        required=False,
+    )
+    denial_input = discord.ui.TextInput(
+        label="Denial Message",
+        style=discord.TextStyle.paragraph,
+        max_length=2000,
+        required=False,
+    )
+
+    def __init__(self, bot, template_name: str, current_approval: str, current_denial: str, lang: str):
+        super().__init__(title=get_string(lang, "application.template.edit_messages.modal_title"))
+        self.bot = bot
+        self.template_name = template_name
+        self.lang = lang
+        self.approval_input.label = get_string(lang, "application.template.edit_messages.modal_approval_label")
+        self.approval_input.placeholder = get_string(
+            lang, "application.template.edit_messages.modal_approval_placeholder"
+        )
+        self.approval_input.default = current_approval
+        self.denial_input.label = get_string(lang, "application.template.edit_messages.modal_denial_label")
+        self.denial_input.placeholder = get_string(lang, "application.template.edit_messages.modal_denial_placeholder")
+        self.denial_input.default = current_denial
+
+    async def on_submit(self, interaction: Interaction):
+        approval = self.approval_input.value.strip() or None
+        denial = self.denial_input.value.strip() or None
+        cog = self.bot.get_cog("Application")
+        await cog._save_template_messages(interaction, self.template_name, approval, denial, self.lang)
 
 
 async def setup(bot):
