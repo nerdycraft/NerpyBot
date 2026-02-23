@@ -28,6 +28,73 @@ async def send_hidden_message(interaction: Interaction, msg: str | None = None, 
     return await interaction.followup.send(msg, ephemeral=True, **kwargs)
 
 
+_MESSAGE_LINK_RE = re.compile(r"https?://(?:canary\.|ptb\.)?discord(?:app)?\.com/channels/\d+/(\d+)/(\d+)")
+
+
+async def fetch_message_content(
+    bot,
+    message_ref: str,
+    channel_hint: TextChannel | None,
+    interaction: Interaction,
+    lang: str = "en",
+    key_prefix: str = "application.fetch_description",
+) -> tuple[str | None, str | None]:
+    """Fetch message content by ID or link for use as a description template.
+
+    The source message is deleted after its content is read.
+
+    Args:
+        bot: The bot instance.
+        message_ref: A message ID or full Discord message link.
+        channel_hint: Optional channel to search in if only an ID is given.
+        interaction: The triggering interaction (for channel fallback).
+        lang: Language code for error messages.
+        key_prefix: Localization key prefix for error messages.
+
+    Returns:
+        ``(content, error)`` — on success ``error`` is ``None``;
+        on failure ``content`` is ``None``.
+    """
+    from utils.strings import get_string
+
+    message_ref = message_ref.strip()
+    match = _MESSAGE_LINK_RE.match(message_ref)
+    if match:
+        channel_id = int(match.group(1))
+        message_id = int(match.group(2))
+    else:
+        try:
+            message_id = int(message_ref)
+        except ValueError:
+            return None, get_string(lang, f"{key_prefix}.invalid_ref")
+        channel_id = channel_hint.id if channel_hint else interaction.channel_id
+
+    channel = bot.get_channel(channel_id)
+    if channel is None:
+        try:
+            channel = await bot.fetch_channel(channel_id)
+        except (discord.NotFound, discord.Forbidden):
+            return None, get_string(lang, f"{key_prefix}.channel_inaccessible")
+
+    try:
+        msg = await channel.fetch_message(message_id)
+    except discord.NotFound:
+        return None, get_string(lang, f"{key_prefix}.message_not_found")
+    except discord.Forbidden:
+        return None, get_string(lang, f"{key_prefix}.no_read_permission")
+
+    content = msg.content
+    if not content:
+        return None, get_string(lang, f"{key_prefix}.no_content")
+
+    try:
+        await msg.delete()
+    except (discord.NotFound, discord.Forbidden):
+        log.debug("Could not delete description source message %d", message_id)
+
+    return content, None
+
+
 DISCORD_MESSAGE_LIMIT = 2000
 # Embed description supports up to 4096 characters
 DISCORD_EMBED_DESCRIPTION_LIMIT = 4096

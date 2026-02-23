@@ -289,9 +289,16 @@ wow:
     board_title: "⚒️ Crafting Order Board"
     board_footer: "Click the button below to create a crafting order."
     create_button: "Create Crafting Order"
+    fetch_description:
+      invalid_ref: "Invalid message reference — provide a message ID or a message link."
+      channel_inaccessible: "I can't access the channel that message is in."
+      message_not_found: "Message not found — double-check the ID or link."
+      no_read_permission: "I don't have permission to read that message."
+      no_content: "That message has no text content."
     create:
       already_exists: "A crafting order board already exists in {channel}. Use `/wow craftingorder remove` first."
       no_roles: "No valid roles found. Provide role mentions separated by spaces or commas."
+      no_description: "Provide a description or a description_message."
       success: "Crafting order board created in {channel}."
     remove:
       not_found: "No crafting order board found for this server."

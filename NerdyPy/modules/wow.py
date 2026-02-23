@@ -1183,16 +1183,48 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
     @craftingorder.command(name="create")
     @checks.has_permissions(manage_channels=True)
+    @app_commands.describe(
+        channel="Channel where the board embed will be posted",
+        description="Description shown on the board embed (optional if description_message is provided)",
+        roles="Profession role mentions separated by spaces or commas",
+        description_message="Message ID or link whose text becomes the description (message is deleted)",
+    )
+    @app_commands.rename(description_message="description-message")
     async def _craftingorder_create(
         self,
         interaction: Interaction,
         channel: TextChannel,
-        description: str,
         roles: str,
+        description: str | None = None,
+        description_message: str | None = None,
     ):
         """create a crafting order board in a channel [manage_channels]"""
-        await interaction.response.defer(ephemeral=True)
         lang = self._lang(interaction.guild_id)
+
+        # Resolve description from message reference if provided
+        if description_message:
+            from utils.helpers import fetch_message_content
+
+            content, error = await fetch_message_content(
+                self.bot,
+                description_message,
+                channel,
+                interaction,
+                lang,
+                key_prefix="wow.craftingorder.fetch_description",
+            )
+            if error:
+                await interaction.response.send_message(error, ephemeral=True)
+                return
+            description = content
+
+        if not description:
+            await interaction.response.send_message(
+                get_string(lang, "wow.craftingorder.create.no_description"), ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
 
         # Parse role mentions
         role_ids = []
