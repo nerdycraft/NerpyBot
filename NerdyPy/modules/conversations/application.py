@@ -25,6 +25,7 @@ from models.application import (
 )
 from modules.views.application import ApplicationReviewView, build_review_embed
 from utils.conversation import Conversation
+from utils.strings import get_string
 
 
 # ---------------------------------------------------------------------------
@@ -141,9 +142,10 @@ class ApplicationCreateConversation(Conversation):
 
     async def state_init(self):
         # No questions yet — only cancel available (no back)
+        _c = "application.conversation.create"
         emb = Embed(
-            title=f"Creating form: {self.form_name}",
-            description=f"Type your first question, or react {CANCEL_EMOJI} to cancel.",
+            title=get_string(self.lang, f"{_c}.title", name=self.form_name),
+            description=get_string(self.lang, f"{_c}.init_description"),
         )
         await self.send_both(emb, CreateState.COLLECT, self._handle_question, {CANCEL_EMOJI: CreateState.CANCEL})
 
@@ -156,9 +158,10 @@ class ApplicationCreateConversation(Conversation):
         reactions = {CONFIRM_EMOJI: CreateState.REVIEW, CANCEL_EMOJI: CreateState.CANCEL}
         if count > 0:
             reactions[BACK_EMOJI] = CreateState.BACK
+        _c = "application.conversation.create"
         emb = Embed(
-            title=f"Creating form: {self.form_name}",
-            description=(f"Question {count} added. Type the next question, or react {CONFIRM_EMOJI} to finish."),
+            title=get_string(self.lang, f"{_c}.title", name=self.form_name),
+            description=get_string(self.lang, f"{_c}.collect_description", count=count),
         )
         await self.send_both(emb, CreateState.COLLECT, self._handle_question, reactions)
 
@@ -177,11 +180,12 @@ class ApplicationCreateConversation(Conversation):
             self.currentState = CreateState.INIT
             await self.state_init()
             return
+        _c = "application.conversation.create"
         emb = _questions_embed(
-            f"Review: {self.form_name}",
+            get_string(self.lang, f"{_c}.review_title", name=self.form_name),
             self.questions,
         )
-        emb.set_footer(text=f"{CONFIRM_EMOJI} save  |  {EDIT_EMOJI} edit a question  |  {CANCEL_EMOJI} cancel")
+        emb.set_footer(text=get_string(self.lang, f"{_c}.review_footer"))
         await self.send_react(
             emb,
             {
@@ -197,26 +201,43 @@ class ApplicationCreateConversation(Conversation):
             self.currentState = CreateState.INIT
             await self.state_init()
             return
-        emb = Embed(title="Edit a question", description=f"Which question number (1–{total})?")
+        _c = "application.conversation.create"
+        emb = Embed(
+            title=get_string(self.lang, f"{_c}.edit_q_select_title"),
+            description=get_string(self.lang, f"{_c}.edit_q_select_description", total=total),
+        )
         await self.send_msg(emb, CreateState.EDIT_Q_SELECT, self._handle_edit_q_select)
 
     async def _handle_edit_q_select(self, message):
+        _c = "application.conversation.create"
+        _e = "application.conversation.error"
         try:
             num = int(message)
         except ValueError:
-            await self.send_ns(Embed(title="Invalid input", description="Enter a number."))
+            await self.send_ns(
+                Embed(
+                    title=get_string(self.lang, f"{_e}.invalid_input_title"),
+                    description=get_string(self.lang, f"{_c}.edit_q_select_invalid"),
+                )
+            )
             return False
         if num < 1 or num > len(self.questions):
-            await self.send_ns(Embed(title="Invalid", description=f"Enter 1–{len(self.questions)}."))
+            await self.send_ns(
+                Embed(
+                    title=get_string(self.lang, f"{_e}.invalid_title"),
+                    description=get_string(self.lang, f"{_c}.edit_q_select_out_of_range", total=len(self.questions)),
+                )
+            )
             return False
         self._edit_q_index = num - 1
         self.currentState = CreateState.EDIT_Q
         return False
 
     async def state_edit_q(self):
+        _c = "application.conversation.create"
         emb = Embed(
-            title=f"Re-enter question {self._edit_q_index + 1}",
-            description=f"Current: _{self.questions[self._edit_q_index]}_\n\nType the replacement:",
+            title=get_string(self.lang, f"{_c}.edit_q_title", num=self._edit_q_index + 1),
+            description=get_string(self.lang, f"{_c}.edit_q_description", current=self.questions[self._edit_q_index]),
         )
         await self.send_msg(emb, CreateState.EDIT_Q, self._handle_edit_q)
 
@@ -254,16 +275,23 @@ class ApplicationCreateConversation(Conversation):
             except Exception:
                 self.bot.log.error("application: failed to post apply button after form creation", exc_info=True)
 
+        _c = "application.conversation.create"
         emb = _questions_embed(
-            f"Form created: {self.form_name}",
+            get_string(self.lang, f"{_c}.done_title", name=self.form_name),
             self.questions,
-            description=f"Added {len(self.questions)} question(s).",
+            description=get_string(self.lang, f"{_c}.done_description", count=len(self.questions)),
         )
         await self.send_ns(emb)
         await self.close()
 
     async def state_cancel(self):
-        await self.send_ns(Embed(title="Form creation cancelled", description="No form was saved."))
+        _c = "application.conversation.create"
+        await self.send_ns(
+            Embed(
+                title=get_string(self.lang, f"{_c}.cancel_title"),
+                description=get_string(self.lang, f"{_c}.cancel_description"),
+            )
+        )
         await self.close()
 
 
@@ -293,9 +321,10 @@ class ApplicationTemplateCreateConversation(Conversation):
         }
 
     async def state_init(self):
+        _c = "application.conversation.template_create"
         emb = Embed(
-            title=f"Creating template: {self.template_name}",
-            description="Type your first question, or react " + CANCEL_EMOJI + " to finish.",
+            title=get_string(self.lang, f"{_c}.title", name=self.template_name),
+            description=get_string(self.lang, f"{_c}.init_description"),
         )
         await self.send_both(
             emb, TemplateCreateState.COLLECT, self._handle_question, {CANCEL_EMOJI: TemplateCreateState.DONE}
@@ -307,18 +336,23 @@ class ApplicationTemplateCreateConversation(Conversation):
 
     async def state_collect(self):
         count = len(self.questions)
+        _c = "application.conversation.template_create"
         emb = Embed(
-            title=f"Creating template: {self.template_name}",
-            description=f"Question {count} added. Type the next question, or react " + CANCEL_EMOJI + " to finish.",
+            title=get_string(self.lang, f"{_c}.title", name=self.template_name),
+            description=get_string(self.lang, f"{_c}.collect_description", count=count),
         )
         await self.send_both(
             emb, TemplateCreateState.COLLECT, self._handle_question, {CANCEL_EMOJI: TemplateCreateState.DONE}
         )
 
     async def state_done(self):
+        _c = "application.conversation.template_create"
         if not self.questions:
             await self.send_ns(
-                Embed(title="Template creation cancelled", description="You need at least one question.")
+                Embed(
+                    title=get_string(self.lang, f"{_c}.empty_title"),
+                    description=get_string(self.lang, f"{_c}.empty_description"),
+                )
             )
             await self.close()
             return
@@ -337,9 +371,9 @@ class ApplicationTemplateCreateConversation(Conversation):
                 session.add(ApplicationTemplateQuestion(TemplateId=tpl.Id, QuestionText=q_text, SortOrder=i))
 
         emb = _questions_embed(
-            f"Template created: {self.template_name}",
+            get_string(self.lang, f"{_c}.done_title", name=self.template_name),
             self.questions,
-            description=f"Added {len(self.questions)} question(s).",
+            description=get_string(self.lang, f"{_c}.done_description", count=len(self.questions)),
         )
         await self.send_ns(emb)
         await self.close()
@@ -385,19 +419,21 @@ class ApplicationEditConversation(Conversation):
         return [text for _, text in self._db_questions]
 
     async def state_init(self):
+        _c = "application.conversation.edit"
+        _e = "application.conversation.error"
         if not self._load_questions():
-            emb = Embed(title="Error", description="Form not found.")
+            emb = Embed(
+                title=get_string(self.lang, f"{_e}.title"),
+                description=get_string(self.lang, f"{_e}.form_not_found"),
+            )
             await self.send_ns(emb)
             await self.close()
             return
 
         emb = _questions_embed(
-            f"Editing form: {self.form_name}",
+            get_string(self.lang, f"{_c}.title", name=self.form_name),
             self._question_texts(),
-            description=(
-                f"{ADD_EMOJI} = add question | {REMOVE_EMOJI} = remove question\n"
-                f"{REORDER_EMOJI} = reorder | {CONFIRM_EMOJI} = done"
-            ),
+            description=get_string(self.lang, f"{_c}.init_description"),
         )
         reactions = {
             ADD_EMOJI: EditState.ADD,
@@ -408,15 +444,23 @@ class ApplicationEditConversation(Conversation):
         await self.send_react(emb, reactions)
 
     async def state_add(self):
-        emb = Embed(title="Add question", description="Type the new question:")
+        _c = "application.conversation.edit"
+        emb = Embed(
+            title=get_string(self.lang, f"{_c}.add_title"),
+            description=get_string(self.lang, f"{_c}.add_description"),
+        )
         await self.send_msg(emb, EditState.ADD_CONFIRM)
 
     async def state_add_confirm(self):
+        _e = "application.conversation.error"
         new_text = self.lastResponse
         with self.bot.session_scope() as session:
             form = ApplicationForm.get_by_id(self.form_id, session)
             if form is None:
-                emb = Embed(title="Error", description="This form no longer exists.")
+                emb = Embed(
+                    title=get_string(self.lang, f"{_e}.title"),
+                    description=get_string(self.lang, f"{_e}.form_gone"),
+                )
                 await self.send_ns(emb)
                 await self.close()
                 return
@@ -428,20 +472,29 @@ class ApplicationEditConversation(Conversation):
         await self.state_init()
 
     async def state_remove(self):
-        emb = Embed(title="Remove question", description="Which question number to remove?")
+        _c = "application.conversation.edit"
+        emb = Embed(
+            title=get_string(self.lang, f"{_c}.remove_title"),
+            description=get_string(self.lang, f"{_c}.remove_description"),
+        )
         await self.send_msg(emb, EditState.REMOVE_CONFIRM, self._validate_question_number)
 
     async def _validate_question_number(self, message):
+        _c = "application.conversation.edit"
+        _e = "application.conversation.error"
         try:
             num = int(message)
         except ValueError:
-            emb = Embed(title="Invalid input", description="Please enter a valid number.")
+            emb = Embed(
+                title=get_string(self.lang, f"{_e}.invalid_input_title"),
+                description=get_string(self.lang, f"{_c}.invalid_number_description"),
+            )
             await self.send_ns(emb)
             return False
         if num < 1 or num > len(self._db_questions):
             emb = Embed(
-                title="Invalid number",
-                description=f"Please enter a number between 1 and {len(self._db_questions)}.",
+                title=get_string(self.lang, f"{_e}.invalid_number_title"),
+                description=get_string(self.lang, f"{_c}.out_of_range_description", total=len(self._db_questions)),
             )
             await self.send_ns(emb)
             return False
@@ -458,8 +511,12 @@ class ApplicationEditConversation(Conversation):
                 session.flush()
                 # Reorder remaining questions
                 form = ApplicationForm.get_by_id(self.form_id, session)
+                _e = "application.conversation.error"
                 if form is None:
-                    emb = Embed(title="Error", description="This form no longer exists.")
+                    emb = Embed(
+                        title=get_string(self.lang, f"{_e}.title"),
+                        description=get_string(self.lang, f"{_e}.form_gone"),
+                    )
                     await self.send_ns(emb)
                     await self.close()
                     return
@@ -470,25 +527,31 @@ class ApplicationEditConversation(Conversation):
         await self.state_init()
 
     async def state_reorder(self):
+        _c = "application.conversation.edit"
         emb = Embed(
-            title="Reorder questions",
-            description="Enter new order as comma-separated numbers (e.g., 3,1,2):",
+            title=get_string(self.lang, f"{_c}.reorder_title"),
+            description=get_string(self.lang, f"{_c}.reorder_description"),
         )
         await self.send_msg(emb, EditState.REORDER_CONFIRM, self._validate_reorder)
 
     async def _validate_reorder(self, message):
+        _c = "application.conversation.edit"
+        _e = "application.conversation.error"
         try:
             nums = [int(x.strip()) for x in message.split(",")]
         except ValueError:
-            emb = Embed(title="Invalid input", description="Please enter comma-separated numbers.")
+            emb = Embed(
+                title=get_string(self.lang, f"{_e}.invalid_input_title"),
+                description=get_string(self.lang, f"{_c}.reorder_invalid_input"),
+            )
             await self.send_ns(emb)
             return False
 
         expected = set(range(1, len(self._db_questions) + 1))
         if len(nums) != len(self._db_questions) or set(nums) != expected:
             emb = Embed(
-                title="Invalid order",
-                description=f"Please use each number from 1 to {len(self._db_questions)} exactly once.",
+                title=get_string(self.lang, f"{_e}.invalid_order_title"),
+                description=get_string(self.lang, f"{_c}.reorder_invalid_order", total=len(self._db_questions)),
             )
             await self.send_ns(emb)
             return False
@@ -499,8 +562,12 @@ class ApplicationEditConversation(Conversation):
 
         with self.bot.session_scope() as session:
             form = ApplicationForm.get_by_id(self.form_id, session)
+            _e = "application.conversation.error"
             if form is None:
-                emb = Embed(title="Error", description="This form no longer exists.")
+                emb = Embed(
+                    title=get_string(self.lang, f"{_e}.title"),
+                    description=get_string(self.lang, f"{_e}.form_gone"),
+                )
                 await self.send_ns(emb)
                 await self.close()
                 return
@@ -521,7 +588,11 @@ class ApplicationEditConversation(Conversation):
         await self.state_init()
 
     async def state_done(self):
-        emb = Embed(title="Editing complete", description=f"Finished editing form: {self.form_name}")
+        _c = "application.conversation.edit"
+        emb = Embed(
+            title=get_string(self.lang, f"{_c}.done_title"),
+            description=get_string(self.lang, f"{_c}.done_description", name=self.form_name),
+        )
         await self.send_ns(emb)
         await self.close()
 
@@ -570,17 +641,19 @@ class ApplicationSubmitConversation(Conversation):
         await super().on_message(message)
 
     async def state_init(self):
+        _c = "application.conversation.submit"
         emb = Embed(
             title=self.form_name,
-            description="I'll walk you through the questions.",
+            description=get_string(self.lang, f"{_c}.init_description"),
         )
-        emb.set_footer(text=f"{LEAVE_EMOJI} leave")
+        emb.set_footer(text=get_string(self.lang, f"{_c}.init_footer"))
         # Transition straight to first question
         self.currentState = "question_0"
         await self.send_ns(emb)
         await self.state_question(0)
 
     async def state_question(self, index: int):
+        _c = "application.conversation.submit"
         self._current_q_index = index
         q_id, q_text = self.questions[index]
         total = len(self.questions)
@@ -588,13 +661,16 @@ class ApplicationSubmitConversation(Conversation):
         existing_answer = self.answers.get(q_id)
         description = q_text
         if existing_answer:
-            description += f"\n\n_Current answer: {existing_answer}_"
+            description += get_string(self.lang, f"{_c}.current_answer", answer=existing_answer)
 
-        emb = Embed(title=f"Question {index + 1}/{total}", description=description)
+        emb = Embed(
+            title=get_string(self.lang, f"{_c}.question_title", num=index + 1, total=total),
+            description=description,
+        )
 
         if self._editing:
             next_state = SubmitState.CONFIRM
-            emb.set_footer(text=f"{BACK_EMOJI} back to review  |  {LEAVE_EMOJI} leave")
+            emb.set_footer(text=get_string(self.lang, f"{_c}.question_footer_editing"))
             reactions = {BACK_EMOJI: SubmitState.CONFIRM, LEAVE_EMOJI: SubmitState.CANCELLED}
         else:
             next_state = f"question_{index + 1}" if index + 1 < total else SubmitState.CONFIRM
@@ -602,9 +678,9 @@ class ApplicationSubmitConversation(Conversation):
             if index > 0:
                 reactions[BACK_EMOJI] = f"question_{index - 1}"
                 reactions[RESET_EMOJI] = SubmitState.RESET
-                emb.set_footer(text=f"{RESET_EMOJI} restart from Q1  |  {LEAVE_EMOJI} leave")
+                emb.set_footer(text=get_string(self.lang, f"{_c}.question_footer_restart"))
             else:
-                emb.set_footer(text=f"{LEAVE_EMOJI} leave")
+                emb.set_footer(text=get_string(self.lang, f"{_c}.question_footer_leave"))
             reactions[LEAVE_EMOJI] = SubmitState.CANCELLED
 
         await self.send_both(emb, next_state, self._handle_answer, reactions)
@@ -622,22 +698,33 @@ class ApplicationSubmitConversation(Conversation):
         await self.state_question(0)
 
     async def state_edit_select(self):
+        _c = "application.conversation.submit"
         total = len(self.questions)
         emb = Embed(
-            title="Edit an answer",
-            description=f"Enter the question number to edit (1–{total}):",
+            title=get_string(self.lang, f"{_c}.edit_select_title"),
+            description=get_string(self.lang, f"{_c}.edit_select_description", total=total),
         )
         await self.send_msg(emb, SubmitState.EDIT_SELECT, self._handle_edit_select)
 
     async def _handle_edit_select(self, message):
+        _c = "application.conversation.submit"
+        _e = "application.conversation.error"
         try:
             num = int(message)
         except ValueError:
-            await self.send_ns(Embed(title="Invalid input", description="Please enter a number."))
+            await self.send_ns(
+                Embed(
+                    title=get_string(self.lang, f"{_e}.invalid_input_title"),
+                    description=get_string(self.lang, f"{_c}.edit_select_invalid"),
+                )
+            )
             return False
         if num < 1 or num > len(self.questions):
             await self.send_ns(
-                Embed(title="Invalid number", description=f"Enter a number between 1 and {len(self.questions)}.")
+                Embed(
+                    title=get_string(self.lang, f"{_e}.invalid_number_title"),
+                    description=get_string(self.lang, f"{_c}.edit_select_out_of_range", total=len(self.questions)),
+                )
             )
             return False
         self._editing = True
@@ -645,14 +732,18 @@ class ApplicationSubmitConversation(Conversation):
         return False
 
     async def state_confirm(self):
+        _c = "application.conversation.submit"
         self._editing = False
         lines = []
         for q_id, q_text in self.questions:
-            answer = self.answers.get(q_id, "_No answer_")
-            lines.append(f"**Q:** {q_text}\n**A:** {answer}")
+            answer = self.answers.get(q_id) or get_string(self.lang, f"{_c}.confirm_no_answer")
+            lines.append(get_string(self.lang, f"{_c}.confirm_qa_line", question=q_text, answer=answer))
         body = "\n\n".join(lines)
-        emb = Embed(title=f"Review: {self.form_name}", description=body)
-        emb.set_footer(text=f"{CONFIRM_EMOJI} submit  |  {EDIT_EMOJI} edit  |  {LEAVE_EMOJI} leave")
+        emb = Embed(
+            title=get_string(self.lang, f"{_c}.confirm_title", name=self.form_name),
+            description=body,
+        )
+        emb.set_footer(text=get_string(self.lang, f"{_c}.confirm_footer"))
         await self.send_react(
             emb,
             {
@@ -684,12 +775,10 @@ class ApplicationSubmitConversation(Conversation):
                         exc,
                     )
                     await self._notify_responsible(review_channel_id)
+                    _c = "application.conversation.submit"
                     emb = Embed(
-                        title="Submission error",
-                        description=(
-                            "Something went wrong reaching the review channel. "
-                            "Your answers haven't been saved — please try again in a bit."
-                        ),
+                        title=get_string(self.lang, f"{_c}.error_title"),
+                        description=get_string(self.lang, f"{_c}.error_description"),
                     )
                     await self.send_ns(emb)
                     await self.close()
@@ -715,11 +804,9 @@ class ApplicationSubmitConversation(Conversation):
         # Post review embed to the review channel.
         if channel is not None:
             with self.bot.session_scope() as session:
-                from utils.strings import get_guild_language
-
                 submission = ApplicationSubmission.get_by_id(self.submission_id, session)
                 form = ApplicationForm.get_by_id(self.form_id, session)
-                lang = get_guild_language(self.guild.id, session)
+                lang = self.lang
                 embed = build_review_embed(submission, form, session, lang)
                 # Collect role IDs to mention: admin roles + configured manager/reviewer roles
                 mention_ids: set[int] = {r.id for r in self.guild.roles if r.permissions.administrator}
@@ -739,21 +826,27 @@ class ApplicationSubmitConversation(Conversation):
                 submission = ApplicationSubmission.get_by_id(self.submission_id, session)
                 submission.ReviewMessageId = msg.id
 
-        emb = Embed(title="Application submitted!", description="Your application has been submitted for review.")
+        _c = "application.conversation.submit"
+        emb = Embed(
+            title=get_string(self.lang, f"{_c}.submitted_title"),
+            description=get_string(self.lang, f"{_c}.submitted_description"),
+        )
         await self.send_ns(emb)
         await self.close()
 
     async def _notify_responsible(self, review_channel_id: int) -> None:
         """DM the guild owner when the review channel is unreachable mid-conversation."""
+        _c = "application.conversation.submit"
         try:
             owner = await self.bot.fetch_user(self.guild.owner_id)
             emb = Embed(
-                title="Application review channel unreachable",
-                description=(
-                    f"Someone tried to submit an application for form **{self.form_name}** "
-                    f"in **{self.guild.name}**, but the review channel (ID: `{review_channel_id}`) "
-                    f"is not accessible to the bot.\n\n"
-                    "The submission was not saved. Please check the channel permissions or reconfigure the form."
+                title=get_string(self.lang, f"{_c}.channel_unreachable_title"),
+                description=get_string(
+                    self.lang,
+                    f"{_c}.channel_unreachable_description",
+                    form=self.form_name,
+                    guild=self.guild.name,
+                    channel_id=review_channel_id,
                 ),
             )
             await owner.send(embed=emb)
@@ -766,6 +859,10 @@ class ApplicationSubmitConversation(Conversation):
             )
 
     async def state_cancelled(self):
-        emb = Embed(title="Application cancelled", description="Your application has been cancelled.")
+        _c = "application.conversation.submit"
+        emb = Embed(
+            title=get_string(self.lang, f"{_c}.cancelled_title"),
+            description=get_string(self.lang, f"{_c}.cancelled_description"),
+        )
         await self.send_ns(emb)
         await self.close()

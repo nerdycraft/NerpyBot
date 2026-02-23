@@ -4,6 +4,8 @@ from enum import Enum
 
 from discord import Embed
 
+from utils.strings import get_guild_language
+
 
 class AnswerType(Enum):
     REACTION = 0
@@ -17,6 +19,12 @@ class Conversation:
 
         self.user = user
         self.guild = guild
+
+        if guild is not None:
+            with self.bot.session_scope() as session:
+                self.lang = get_guild_language(guild.id, session)
+        else:
+            self.lang = "en"
 
         self.isActive = True
 
@@ -132,7 +140,7 @@ class PrevConvState(Enum):
 
 class PreConversation(Conversation):
     def __init__(self, conv_man, bot, prev_conv: Conversation, next_conv: Conversation, user):
-        super().__init__(bot, user, None)
+        super().__init__(bot, user, next_conv.guild)
         self.convMan = conv_man
         self.prevConv = prev_conv
         self.nextConv = next_conv
