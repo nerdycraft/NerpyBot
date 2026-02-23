@@ -84,7 +84,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **rolemanage** - Delegated role management (lets specific roles assign other roles via mappings)
 - **tagging** - Audio tag management
 - **voicecontrol** - Voice stop/leave commands (auto-loaded when tagging or music is enabled)
-- **wow** - Blizzard API integration
+- **wow** - Blizzard API integration (armory lookup, guild news tracking, crafting order board)
 
 ### Database Layer
 
