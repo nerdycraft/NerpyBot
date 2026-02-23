@@ -19,7 +19,8 @@ from models.application import (
     ApplicationTemplate,
     seed_built_in_templates,
 )
-from modules.application import Application, _fetch_description_from_message
+from modules.application import Application
+from utils.helpers import fetch_message_content
 from utils.strings import load_strings
 
 
@@ -60,11 +61,15 @@ def _make_form(db_session, guild_id=987654321, name="TestForm", review_channel_i
 
 
 # ---------------------------------------------------------------------------
-# _fetch_description_from_message
+# fetch_message_content
 # ---------------------------------------------------------------------------
 
 
 class TestFetchDescriptionFromMessage:
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        load_strings()
+
     @pytest.fixture
     def mock_channel(self):
         ch = MagicMock()
@@ -87,7 +92,7 @@ class TestFetchDescriptionFromMessage:
         hint = MagicMock()
         hint.id = 222
 
-        content, error = await _fetch_description_from_message(mock_bot, "99999", hint, mock_interaction)
+        content, error = await fetch_message_content(mock_bot, "99999", hint, mock_interaction)
 
         assert error is None
         assert content == msg.content
@@ -100,7 +105,7 @@ class TestFetchDescriptionFromMessage:
         ch, msg = mock_channel
         mock_bot.get_channel = MagicMock(return_value=ch)
 
-        content, error = await _fetch_description_from_message(mock_bot, "99999", None, mock_interaction)
+        content, error = await fetch_message_content(mock_bot, "99999", None, mock_interaction)
 
         assert error is None
         mock_bot.get_channel.assert_called_with(111)
@@ -111,7 +116,7 @@ class TestFetchDescriptionFromMessage:
         mock_bot.get_channel = MagicMock(return_value=ch)
         link = "https://discord.com/channels/123/456/789"
 
-        content, error = await _fetch_description_from_message(mock_bot, link, None, mock_interaction)
+        content, error = await fetch_message_content(mock_bot, link, None, mock_interaction)
 
         assert error is None
         mock_bot.get_channel.assert_called_with(456)
@@ -119,7 +124,7 @@ class TestFetchDescriptionFromMessage:
 
     @pytest.mark.asyncio
     async def test_invalid_ref_returns_error(self, mock_bot, mock_interaction):
-        content, error = await _fetch_description_from_message(mock_bot, "not-a-number", None, mock_interaction)
+        content, error = await fetch_message_content(mock_bot, "not-a-number", None, mock_interaction)
 
         assert content is None
         assert "Invalid" in error
@@ -130,7 +135,7 @@ class TestFetchDescriptionFromMessage:
         ch.fetch_message = AsyncMock(side_effect=discord.NotFound(MagicMock(), "Not found"))
         mock_bot.get_channel = MagicMock(return_value=ch)
 
-        content, error = await _fetch_description_from_message(mock_bot, "99999", None, mock_interaction)
+        content, error = await fetch_message_content(mock_bot, "99999", None, mock_interaction)
 
         assert content is None
         assert "not found" in error.lower()
@@ -143,7 +148,7 @@ class TestFetchDescriptionFromMessage:
         ch.fetch_message = AsyncMock(return_value=msg)
         mock_bot.get_channel = MagicMock(return_value=ch)
 
-        content, error = await _fetch_description_from_message(mock_bot, "99999", None, mock_interaction)
+        content, error = await fetch_message_content(mock_bot, "99999", None, mock_interaction)
 
         assert content is None
         assert "no text" in error.lower()
@@ -154,7 +159,7 @@ class TestFetchDescriptionFromMessage:
         msg.delete = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "No perms"))
         mock_bot.get_channel = MagicMock(return_value=ch)
 
-        content, error = await _fetch_description_from_message(mock_bot, "99999", None, mock_interaction)
+        content, error = await fetch_message_content(mock_bot, "99999", None, mock_interaction)
 
         assert error is None
         assert content == msg.content
