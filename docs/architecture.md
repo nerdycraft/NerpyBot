@@ -66,11 +66,10 @@ Modules are loaded dynamically based on `config.bot.modules`. Available modules:
 
 **File:** `NerdyPy/bot.py` (connection setup in `NerpyBot.__init__`)
 
-Supports SQLite, MySQL/MariaDB, and PostgreSQL via SQLAlchemy connection strings:
+Supports SQLite and PostgreSQL via SQLAlchemy connection strings:
 
 - SQLite: `sqlite:///db.db` (default)
-- MySQL: `mysql+pymysql://user:pass@host:port/dbname`
-- PostgreSQL: `postgresql://user:pass@host:port/dbname`
+- PostgreSQL: `postgresql+psycopg://user:pass@host:port/dbname`
 
 ### Session Management
 
@@ -204,7 +203,7 @@ bot:
   modules: [admin, league, ...]
 
 database:
-  db_type: sqlite # sqlite, mariadb, postgresql
+  db_type: sqlite # sqlite, postgresql
   db_name: db.db
 
 audio:

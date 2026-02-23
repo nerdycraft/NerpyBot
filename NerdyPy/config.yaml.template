@@ -16,16 +16,16 @@ bot:
     - wow
 
 database:
-  # db_type can be any of mysql, sqlite, postgresql, oracle or mssql
+  # db_type: sqlite (default) or postgresql
   db_type: sqlite
   db_name: db.db
-  # For MariaDB/MySQL:
-  # db_type: mariadb
-  # db_name: nerdybot
+  # For PostgreSQL:
+  # db_type: postgresql
+  # db_name: nerpybot
   # db_username: your_username
   # db_password: your_password
   # db_host: localhost
-  # db_port: 3306
+  # db_port: 5432
 
 audio:
   buffer_limit: 5

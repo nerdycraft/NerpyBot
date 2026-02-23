@@ -34,12 +34,7 @@ def _build_url_from_bot_config(bot_config: dict) -> str | None:
     db_host = ""
     db_port = ""
 
-    is_mysql = any(s in db_type for s in ("mysql", "mariadb"))
-    is_postgres = "postgresql" in db_type
-
-    if is_mysql:
-        db_type = f"{db_type}+pymysql"
-    elif is_postgres:
+    if "postgresql" in db_type:
         db_type = f"{db_type}+psycopg"
 
     if database_config.get("db_password"):

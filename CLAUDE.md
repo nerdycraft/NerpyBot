@@ -91,7 +91,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - `NerdyPy/models/` - SQLAlchemy ORM models
 - `NerdyPy/utils/database.py` - Session management with context managers
 - `database-migrations/` - Alembic migrations
-- Supports SQLite (default), MySQL/MariaDB, PostgreSQL
+- Supports SQLite (default) and PostgreSQL
 
 ### Utilities
 
@@ -123,7 +123,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **`docs/plans/` is gitignored** — Design docs and implementation plans live there but are NOT committed.
 - **Testing `@app_commands.command()` methods** — Call `.callback(cog, interaction, ...)` to bypass discord.py decorator machinery. See `tests/modules/test_reminder.py` for the pattern.
 - **`@app_commands.rename` for cleaner Discord param names** — Use `@app_commands.rename(python_name="discord_name")` whenever the Discord-facing name should differ from the Python identifier: required when the name is a keyword (e.g. `in`), and useful for readability (e.g. `form_name` → `form`). `describe`, `autocomplete`, and all internal references keep using the Python name.
-- **Alembic migrations must be dialect-aware** — SQLite uses `datetime()`, PostgreSQL uses `make_interval()`, MySQL uses `DATE_ADD()`. Use `op.get_bind().dialect.name` to branch. Always use `batch_alter_table` for SQLite column operations. Note: `op.alter_column()` **without** a `batch_alter_table` context crashes on SQLite — and type-only encoding migrations (e.g. `Text` → `UnicodeText`) can skip SQLite entirely since it stores all text as Unicode internally.
+- **Alembic migrations must be dialect-aware** — SQLite uses `datetime()`, PostgreSQL uses `make_interval()`. Use `op.get_bind().dialect.name` to branch. Always use `batch_alter_table` for SQLite column operations. Note: `op.alter_column()` **without** a `batch_alter_table` context crashes on SQLite — and type-only encoding migrations (e.g. `Text` → `UnicodeText`) can skip SQLite entirely since it stores all text as Unicode internally.
 - **All Alembic migrations must guard column/index existence, not just table existence** — `create_all()` on a fresh install already builds the latest schema; a subsequent `alembic upgrade head` must be a no-op. Before `add_column`, check `{c["name"] for c in inspect(conn).get_columns(table)}`; before `create_index`, check `{i["name"] for i in inspect(conn).get_indexes(table)}`. The return-early guard must cover both the "table absent" and "schema already current" cases.
 - **`interaction.response.is_done()` returns `False` after a failed `send_message()`** — If `send_message()` raises (e.g. 10062 Unknown interaction), `is_done()` is still `False`. In `_on_app_command_error`, wrap the user-facing response in `try/except` _before_ `notify_error`, or `notify_error` will never be reached.
 - **`pyproject.toml` requires `packages = []`** — Without `[tool.setuptools] packages = []`, setuptools auto-discovers `config/` and `NerdyPy/` as a flat-layout conflict, breaking all `uv` commands.
