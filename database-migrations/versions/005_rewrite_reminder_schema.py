@@ -58,15 +58,7 @@ def upgrade():
         """)
         )
     else:
-        # MySQL/MariaDB
-        conn.execute(
-            text("""
-            UPDATE ReminderMessage
-            SET NextFire = DATE_ADD(COALESCE(LastSend, CreateDate), INTERVAL (Minutes * 60) SECOND),
-                ScheduleType = CASE WHEN `Repeat` >= 1 THEN 'interval' ELSE 'once' END,
-                IntervalSeconds = CASE WHEN `Repeat` >= 1 THEN Minutes * 60 ELSE NULL END
-        """)
-        )
+        raise NotImplementedError(f"Unsupported dialect: {dialect}")
 
     # Make NextFire and ScheduleType NOT NULL, then drop old columns
     # Single batch_alter_table to avoid two full table copies on SQLite
@@ -108,16 +100,7 @@ def downgrade():
                 "Repeat" = CASE WHEN "ScheduleType" != 'once' THEN 1 ELSE 0 END
         """)
         )
-    elif dialect in ("mysql", "mariadb"):
-        conn.execute(
-            text("""
-            UPDATE ReminderMessage
-            SET Minutes = COALESCE(IntervalSeconds / 60, 60),
-                LastSend = NextFire,
-                `Repeat` = CASE WHEN ScheduleType != 'once' THEN 1 ELSE 0 END
-        """)
-        )
-    else:
+    elif dialect == "sqlite":
         conn.execute(
             text("""
             UPDATE ReminderMessage
@@ -126,6 +109,8 @@ def downgrade():
                 "Repeat" = CASE WHEN ScheduleType != 'once' THEN 1 ELSE 0 END
         """)
         )
+    else:
+        raise NotImplementedError(f"Unsupported dialect: {dialect}")
 
     with op.batch_alter_table("ReminderMessage") as batch_op:
         batch_op.drop_column("NextFire")
