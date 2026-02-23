@@ -142,6 +142,14 @@ leavemsg:
     success: "Abschiedsnachricht aktualisiert auf: {message}"
     missing_placeholder: "Die Nachricht muss den Platzhalter {member} für den Mitgliedsnamen enthalten."
     not_enabled: "Bitte aktiviere zuerst Abschiedsnachrichten mit `/leavemsg enable #channel`."
+    modal_title: "Abschiedsnachricht"
+    modal_placeholder: "Verwende {member} für den Mitgliedsnamen, z.B. Tschüss {member}!"
+  fetch_message:
+    invalid_ref: "Ungültige Nachrichtenreferenz — gib eine Nachrichten-ID oder einen Nachrichtenlink an."
+    channel_inaccessible: "Ich kann nicht auf den Kanal dieser Nachricht zugreifen."
+    message_not_found: "Nachricht nicht gefunden — überprüfe die ID oder den Link."
+    no_read_permission: "Ich habe keine Berechtigung, diese Nachricht zu lesen."
+    no_content: "Diese Nachricht hat keinen Textinhalt."
   status:
     not_enabled: "Abschiedsnachrichten sind für diesen Server nicht aktiviert."
     enabled: "**Abschiedsnachrichten:** Aktiviert\n**Kanal:** {channel}\n**Nachricht:** {message}"
@@ -187,6 +195,12 @@ reminder:
 
 moderation:
   invalid_timespan: "Es sind nur Zeiträume bis Wochen erlaubt. Verwende keine Monate oder Jahre."
+  fetch_message:
+    invalid_ref: "Ungültige Nachrichtenreferenz — gib eine Nachrichten-ID oder einen Nachrichtenlink an."
+    channel_inaccessible: "Ich kann nicht auf den Kanal dieser Nachricht zugreifen."
+    message_not_found: "Nachricht nicht gefunden — überprüfe die ID oder den Link."
+    no_read_permission: "Ich habe keine Berechtigung, diese Nachricht zu lesen."
+    no_content: "Diese Nachricht hat keinen Textinhalt."
   autokicker:
     configured: "AutoKicker für diesen Server konfiguriert."
     default_reminder: "Du hast keine Rolle auf {guild} gewählt. Bitte wähle eine Rolle bis {deadline}."
@@ -366,6 +380,17 @@ application:
       success: "Vorlage **{name}** aktualisiert: {changes}."
       change_approval: "Genehmigungsnachricht"
       change_denial: "Ablehnungsnachricht"
+      modal_title: "Vorlagen-Nachrichten"
+      modal_approval_label: "Genehmigungsnachricht"
+      modal_approval_placeholder: "Nachricht, die dem Bewerber bei Genehmigung gesendet wird"
+      modal_denial_label: "Ablehnungsnachricht"
+      modal_denial_placeholder: "Nachricht, die dem Bewerber bei Ablehnung gesendet wird"
+    fetch_message:
+      invalid_ref: "Ungültige Nachrichtenreferenz — gib eine Nachrichten-ID oder einen Nachrichtenlink an."
+      channel_inaccessible: "Ich kann nicht auf den Kanal dieser Nachricht zugreifen."
+      message_not_found: "Nachricht nicht gefunden — überprüfe die ID oder den Link."
+      no_read_permission: "Ich habe keine Berechtigung, diese Nachricht zu lesen."
+      no_content: "Diese Nachricht hat keinen Textinhalt."
   import:
     upload_prompt: "Bitte lade eine JSON-Datei hoch, um sie als Bewerbungsformular zu importieren."
     timeout: "Import abgebrochen — Zeitüberschreitung."

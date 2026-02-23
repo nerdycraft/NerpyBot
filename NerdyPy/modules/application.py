@@ -4,7 +4,6 @@
 import asyncio
 import io
 import json
-import re
 from typing import Optional
 
 import discord
@@ -28,55 +27,8 @@ from modules.conversations.application import (
 )
 from modules.views.application import check_override_permission
 from utils.cog import NerpyBotCog
+from utils.helpers import fetch_message_content
 from utils.strings import get_guild_language, get_raw, get_string
-
-_MESSAGE_LINK_RE = re.compile(r"https?://(?:canary\.|ptb\.)?discord(?:app)?\.com/channels/\d+/(\d+)/(\d+)")
-
-
-async def _fetch_description_from_message(
-    bot, message_ref: str, channel_hint: TextChannel | None, interaction: Interaction, lang: str = "en"
-) -> tuple[str | None, str | None]:
-    """Fetch message content for use as apply description, then delete the source message.
-
-    Returns ``(content, error)``. On success ``error`` is ``None``; on failure
-    ``content`` is ``None`` and ``error`` describes the problem.
-    """
-    message_ref = message_ref.strip()
-    match = _MESSAGE_LINK_RE.match(message_ref)
-    if match:
-        channel_id = int(match.group(1))
-        message_id = int(match.group(2))
-    else:
-        try:
-            message_id = int(message_ref)
-        except ValueError:
-            return None, get_string(lang, "application.fetch_description.invalid_ref")
-        channel_id = channel_hint.id if channel_hint else interaction.channel_id
-
-    channel = bot.get_channel(channel_id)
-    if channel is None:
-        try:
-            channel = await bot.fetch_channel(channel_id)
-        except (discord.NotFound, discord.Forbidden):
-            return None, get_string(lang, "application.fetch_description.channel_inaccessible")
-
-    try:
-        msg = await channel.fetch_message(message_id)
-    except discord.NotFound:
-        return None, get_string(lang, "application.fetch_description.message_not_found")
-    except discord.Forbidden:
-        return None, get_string(lang, "application.fetch_description.no_read_permission")
-
-    content = msg.content
-    if not content:
-        return None, get_string(lang, "application.fetch_description.no_content")
-
-    try:
-        await msg.delete()
-    except (discord.NotFound, discord.Forbidden):
-        bot.log.debug("Could not delete description source message %d", message_id)
-
-    return content, None
 
 
 @app_commands.default_permissions(administrator=True)
@@ -198,9 +150,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         lang = self._lang(interaction.guild_id)
 
         if description_message:
-            content, error = await _fetch_description_from_message(
-                self.bot, description_message, channel, interaction, lang
-            )
+            content, error = await fetch_message_content(self.bot, description_message, channel, interaction, lang)
             if error:
                 await interaction.response.send_message(error, ephemeral=True)
                 return
@@ -372,9 +322,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         lang = self._lang(interaction.guild_id)
 
         if description_message:
-            content, error = await _fetch_description_from_message(
-                self.bot, description_message, channel, interaction, lang
-            )
+            content, error = await fetch_message_content(self.bot, description_message, channel, interaction, lang)
             if error:
                 await interaction.response.send_message(error, ephemeral=True)
                 return
@@ -576,9 +524,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         lang = self._lang(interaction.guild_id)
 
         if description_message:
-            content, error = await _fetch_description_from_message(
-                self.bot, description_message, channel, interaction, lang
-            )
+            content, error = await fetch_message_content(self.bot, description_message, channel, interaction, lang)
             if error:
                 await interaction.response.send_message(error, ephemeral=True)
                 return

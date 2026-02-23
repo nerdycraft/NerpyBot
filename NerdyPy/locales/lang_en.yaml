@@ -142,6 +142,14 @@ leavemsg:
     success: "Leave message updated to: {message}"
     missing_placeholder: "Message must contain {member} placeholder for the member name."
     not_enabled: "Please enable leave messages first using `/leavemsg enable #channel`."
+    modal_title: "Leave Message"
+    modal_placeholder: "Use {member} for the member's name, e.g. Goodbye {member}!"
+  fetch_message:
+    invalid_ref: "Invalid message reference — provide a message ID or a message link."
+    channel_inaccessible: "I can't access the channel that message is in."
+    message_not_found: "Message not found — double-check the ID or link."
+    no_read_permission: "I don't have permission to read that message."
+    no_content: "That message has no text content."
   status:
     not_enabled: "Leave messages are not enabled for this server."
     enabled: "**Leave messages:** Enabled\n**Channel:** {channel}\n**Message:** {message}"
@@ -187,6 +195,12 @@ reminder:
 
 moderation:
   invalid_timespan: "Only timespans up until weeks are allowed. Do not use months or years."
+  fetch_message:
+    invalid_ref: "Invalid message reference — provide a message ID or a message link."
+    channel_inaccessible: "I can't access the channel that message is in."
+    message_not_found: "Message not found — double-check the ID or link."
+    no_read_permission: "I don't have permission to read that message."
+    no_content: "That message has no text content."
   autokicker:
     configured: "AutoKicker configured for this server."
     default_reminder: "You have not selected a role on {guild}. Please choose a role until {deadline}."
@@ -366,6 +380,17 @@ application:
       success: "Template **{name}** updated: {changes}."
       change_approval: "approval message"
       change_denial: "denial message"
+      modal_title: "Template Messages"
+      modal_approval_label: "Approval Message"
+      modal_approval_placeholder: "Message sent to the applicant when approved"
+      modal_denial_label: "Denial Message"
+      modal_denial_placeholder: "Message sent to the applicant when denied"
+    fetch_message:
+      invalid_ref: "Invalid message reference — provide a message ID or a message link."
+      channel_inaccessible: "I can't access the channel that message is in."
+      message_not_found: "Message not found — double-check the ID or link."
+      no_read_permission: "I don't have permission to read that message."
+      no_content: "That message has no text content."
   import:
     upload_prompt: "Please upload a JSON file to import as an application form."
     timeout: "Import cancelled — timed out."
