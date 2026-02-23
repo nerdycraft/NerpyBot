@@ -14,7 +14,6 @@ from cachetools import TTLCache
 from discord import FFmpegOpusAudio
 from utils.errors import NerpyValidationError
 from yt_dlp import YoutubeDL
-from yt_dlp.utils import DownloadError
 
 LOG = logging.getLogger("nerpybot")
 FFMPEG_OPTIONS = {"options": "-vn"}
@@ -38,6 +37,7 @@ YTDL_ARGS = {
     "audioformat": "mp3",
     "default_search": "auto",
     "source_address": "0.0.0.0",  # bind to ipv4 since ipv6 addresses cause issues sometimes
+    "extractor_args": {"youtube": {"player_client": ["ios"]}},  # bypass web bot-check via iOS app API
 }
 # noinspection PyTypeChecker
 YTDL = YoutubeDL(YTDL_ARGS)
@@ -73,13 +73,7 @@ def fetch_yt_infos(url: str):
         return CACHE[url]
 
     LOG.info("Fetching Information about Video from Youtube...")
-    data = None
-    try:
-        data = YTDL.extract_info(url, download=False)
-    except DownloadError as e:
-        if "Sign in to confirm you’re not a bot" in str(e):
-            data = YTDL.extract_info(url, download=False)
-
+    data = YTDL.extract_info(url, download=False)
     CACHE[url] = data
     return data
 
