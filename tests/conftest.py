@@ -39,7 +39,13 @@ def db_engine():
     from models.moderation import AutoDelete, AutoKicker  # noqa: F401
     from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage  # noqa: F401
     from models.rolemanage import RoleMapping  # noqa: F401
-    from models.wow import WowGuildNewsConfig, WowCharacterMounts  # noqa: F401
+    from models.wow import (  # noqa: F401
+        WowGuildNewsConfig,
+        WowCharacterMounts,
+        CraftingBoardConfig,
+        CraftingRecipeCache,
+        CraftingOrder,
+    )
 
     BASE.metadata.create_all(engine)
     yield engine
