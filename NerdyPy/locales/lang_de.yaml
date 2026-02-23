@@ -284,6 +284,70 @@ wow:
     boss_title: "Boss besiegt!"
     boss_desc: "**{name}** ({realm}) hat **{boss}** besiegt"
     boss_desc_mode: "**{name}** ({realm}) hat **{boss}** besiegt ({mode})"
+  craftingorder:
+    board_title: "⚒️ Handwerksaufträge"
+    board_footer: "Klicke auf den Button unten, um einen Handwerksauftrag zu erstellen."
+    create_button: "Handwerksauftrag erstellen"
+    fetch_description:
+      invalid_ref: "Ungültige Nachrichtenreferenz — gib eine Nachrichten-ID oder einen Nachrichtenlink an."
+      channel_inaccessible: "Ich kann nicht auf den Kanal dieser Nachricht zugreifen."
+      message_not_found: "Nachricht nicht gefunden — überprüfe die ID oder den Link."
+      no_read_permission: "Ich habe keine Berechtigung, diese Nachricht zu lesen."
+      no_content: "Diese Nachricht hat keinen Textinhalt."
+    create:
+      already_exists: "Es existiert bereits ein Handwerksauftrags-Board in {channel}. Verwende zuerst `/wow craftingorder remove`."
+      no_roles: "Keine gültigen Rollen gefunden. Gib Rollenerwähnungen getrennt durch Leerzeichen oder Kommas an."
+      modal_title: "Board-Beschreibung"
+      modal_description: "Gib die Beschreibung für das Handwerksauftrags-Board ein (Markdown und Emojis werden unterstützt)"
+      success: "Handwerksauftrags-Board in {channel} erstellt."
+    remove:
+      not_found: "Kein Handwerksauftrags-Board für diesen Server gefunden."
+      success: "Handwerksauftrags-Board entfernt."
+    recipe_sync:
+      not_configured: "Kein Handwerksauftrags-Board konfiguriert. Verwende zuerst `/wow craftingorder create`."
+      starting: "Synchronisiere Rezepte von der Blizzard-API... das kann einen Moment dauern."
+      rate_limited: "Von der Blizzard-API limitiert. {count} Rezepte vor dem Limit synchronisiert. Versuche es später erneut."
+      success: "Rezept-Synchronisierung abgeschlossen. {count} BoP-Rezepte für {professions} Berufe zwischengespeichert."
+      no_recipes: "Keine BoP-Rezepte für die aktuelle Erweiterungsstufe gefunden."
+    profession_select: "Wähle einen Beruf"
+    item_select: "Wähle einen Gegenstand"
+    item_other: "Anderes (unten angeben)"
+    modal_title: "Handwerksauftrag erstellen"
+    modal_item_name: "Gegenstandsname"
+    modal_notes: "Zusätzliche Hinweise (optional)"
+    order:
+      posted_by: "Erstellt von"
+      profession: "Beruf"
+      notes: "Zusätzliche Hinweise"
+      status: "Status"
+      status_open: "Offen"
+      status_in_progress: "In Bearbeitung ({crafter})"
+      status_completed: "Abgeschlossen"
+      accept_button: "Annehmen"
+      drop_button: "Ablegen"
+      complete_button: "Abschließen"
+      cancel_button: "Abbrechen"
+      ask_button: "Frage stellen"
+    accept:
+      no_role: "Du benötigst die Rolle {role}, um diesen Auftrag anzunehmen."
+      not_open: "Dieser Auftrag ist nicht mehr offen."
+      success: "Du hast diesen Handwerksauftrag angenommen."
+    drop:
+      not_crafter: "Nur der aktive Handwerker oder ein Admin kann diesen Auftrag ablegen."
+      not_in_progress: "Dieser Auftrag ist nicht in Bearbeitung."
+      success: "Auftrag zurück auf offen gesetzt."
+    complete:
+      not_crafter: "Nur der aktive Handwerker oder ein Admin kann diesen Auftrag abschließen."
+      not_in_progress: "Dieser Auftrag ist nicht in Bearbeitung."
+      dm_complete: "Dein Handwerksauftrag für **{item}** wurde abgeschlossen! 🎉"
+    cancel:
+      not_allowed: "Nur der Auftragsersteller oder ein Admin kann diesen Auftrag abbrechen."
+      dm_cancel: "Dein Handwerksauftrag für **{item}** wurde abgebrochen."
+    ask:
+      modal_title: "Eine Frage stellen"
+      modal_message: "Deine Frage"
+      thread_name: "Auftrag: {item}"
+    not_found: "Auftrag nicht gefunden."
 
 application:
   no_permission: "Du hast keine Berechtigung, Bewerbungen zu verwalten."
