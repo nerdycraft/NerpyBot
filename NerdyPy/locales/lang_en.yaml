@@ -285,6 +285,63 @@ wow:
     boss_desc: "**{name}** ({realm}) defeated **{boss}**"
     boss_desc_mode: "**{name}** ({realm}) defeated **{boss}** ({mode})"
 
+  craftingorder:
+    board_title: "⚒️ Crafting Order Board"
+    board_footer: "Click the button below to create a crafting order."
+    create_button: "Create Crafting Order"
+    create:
+      already_exists: "A crafting order board already exists in {channel}. Use `/wow craftingorder remove` first."
+      no_roles: "No valid roles found. Provide role mentions separated by spaces or commas."
+      success: "Crafting order board created in {channel}."
+    remove:
+      not_found: "No crafting order board found for this server."
+      success: "Crafting order board removed."
+    recipe_sync:
+      not_configured: "No crafting order board configured. Use `/wow craftingorder create` first."
+      starting: "Syncing recipes from the Blizzard API... this may take a moment."
+      rate_limited: "Rate limited by Blizzard API. Synced {count} recipes before limit. Try again later."
+      success: "Recipe sync complete. {count} BOP recipes cached across {professions} professions."
+      no_recipes: "No BOP recipes found for the current expansion tier."
+    profession_select: "Select a profession"
+    item_select: "Select an item"
+    item_other: "Other (specify below)"
+    modal_title: "Create Crafting Order"
+    modal_item_name: "Item Name"
+    modal_notes: "Additional Notes (optional)"
+    order:
+      posted_by: "Posted by"
+      profession: "Profession"
+      notes: "Additional Notes"
+      status: "Status"
+      status_open: "Open"
+      status_in_progress: "In Progress ({crafter})"
+      status_completed: "Completed"
+      accept_button: "Accept"
+      drop_button: "Drop"
+      complete_button: "Complete"
+      cancel_button: "Cancel"
+      ask_button: "Ask Question"
+    accept:
+      no_role: "You need the {role} role to accept this order."
+      not_open: "This order is no longer open."
+      success: "You accepted this crafting order."
+    drop:
+      not_crafter: "Only the active crafter or an admin can drop this order."
+      not_in_progress: "This order is not in progress."
+      success: "Order dropped back to open."
+    complete:
+      not_crafter: "Only the active crafter or an admin can complete this order."
+      not_in_progress: "This order is not in progress."
+      dm_complete: "Your crafting order for **{item}** has been completed! 🎉"
+    cancel:
+      not_allowed: "Only the order creator or an admin can cancel this order."
+      dm_cancel: "Your crafting order for **{item}** has been cancelled."
+    ask:
+      modal_title: "Ask a Question"
+      modal_message: "Your question"
+      thread_name: "Order: {item}"
+    not_found: "Order not found."
+
 application:
   no_permission: "You don't have permission to manage applications."
   check_dms: "Check your DMs!"
