@@ -1305,7 +1305,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 msg = await channel.fetch_message(message_id)
                 await msg.delete()
         except discord.HTTPException:
-            pass
+            self.bot.log.debug("Failed to delete crafting board message (channel=%s, msg=%s)", channel_id, message_id)
 
         await interaction.followup.send(get_string(lang, "wow.craftingorder.remove.success"), ephemeral=True)
 

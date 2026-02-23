@@ -372,7 +372,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         try:
             await interaction.message.delete()
         except discord.HTTPException:
-            pass
+            log.debug("Failed to delete order message for order %s after completion", self.order_id, exc_info=True)
 
 
 class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?P<order_id>\d+)"):
@@ -424,7 +424,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
         try:
             await interaction.message.delete()
         except discord.HTTPException:
-            pass
+            log.debug("Failed to delete order message for order %s after cancellation", self.order_id, exc_info=True)
 
 
 class AskQuestionButton(ui.DynamicItem[ui.Button], template=r"crafting:ask:(?P<order_id>\d+)"):
