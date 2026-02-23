@@ -1185,7 +1185,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     @checks.has_permissions(manage_channels=True)
     @app_commands.describe(
         channel="Channel where the board embed will be posted",
-        description="Description shown on the board embed (optional if description_message is provided)",
+        description="Description shown on the board embed (opens a modal if omitted)",
         roles="Profession role mentions separated by spaces or commas",
         description_message="Message ID or link whose text becomes the description (message is deleted)",
     )
@@ -1219,13 +1219,18 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             description = content
 
         if not description:
-            await interaction.response.send_message(
-                get_string(lang, "wow.craftingorder.create.no_description"), ephemeral=True
-            )
+            # No description provided — show a modal to collect it
+            modal = _BoardDescriptionModal(self.bot, channel, roles, lang)
+            await interaction.response.send_modal(modal)
             return
 
         await interaction.response.defer(ephemeral=True)
+        await self._finish_board_create(interaction, channel, roles, description, lang)
 
+    async def _finish_board_create(
+        self, interaction: Interaction, channel: TextChannel, roles: str, description: str, lang: str
+    ):
+        """Shared board creation logic used by both the command and the description modal."""
         # Parse role mentions
         role_ids = []
         for part in roles.replace(",", " ").split():
@@ -1345,6 +1350,32 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                     lang, "wow.craftingorder.recipe_sync.success", count=recipe_count, professions=profession_count
                 )
             )
+
+
+class _BoardDescriptionModal(discord.ui.Modal):
+    """Modal for collecting board description when not provided inline."""
+
+    description_input = discord.ui.TextInput(
+        label="Board Description",
+        style=discord.TextStyle.paragraph,
+        max_length=4000,
+        required=True,
+    )
+
+    def __init__(self, bot, channel: TextChannel, roles: str, lang: str):
+        super().__init__(title=get_string(lang, "wow.craftingorder.create.modal_title"))
+        self.bot = bot
+        self.channel = channel
+        self.roles = roles
+        self.lang = lang
+        self.description_input.placeholder = get_string(lang, "wow.craftingorder.create.modal_description")
+
+    async def on_submit(self, interaction: Interaction):
+        await interaction.response.defer(ephemeral=True)
+        cog = self.bot.get_cog("WorldofWarcraft")
+        await cog._finish_board_create(
+            interaction, self.channel, self.roles, self.description_input.value.strip(), self.lang
+        )
 
 
 async def setup(bot):

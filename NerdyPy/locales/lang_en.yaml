@@ -298,7 +298,8 @@ wow:
     create:
       already_exists: "A crafting order board already exists in {channel}. Use `/wow craftingorder remove` first."
       no_roles: "No valid roles found. Provide role mentions separated by spaces or commas."
-      no_description: "Provide a description or a description_message."
+      modal_title: "Board Description"
+      modal_description: "Enter the description for the crafting order board (supports markdown and emojis)"
       success: "Crafting order board created in {channel}."
     remove:
       not_found: "No crafting order board found for this server."

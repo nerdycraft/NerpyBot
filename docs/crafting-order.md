@@ -16,9 +16,11 @@ Guild administrators can set up a crafting order board where members post reques
 
 ### Board Setup
 
-1. Admin runs `/wow craftingorder create <channel> <description> <roles>`
-2. Bot validates the roles, creates a `CraftingBoardConfig` row, and posts the board embed
-3. The board embed has a single "Create Crafting Order" button (persistent across restarts)
+1. Admin runs `/wow craftingorder create <channel> <roles>` with an optional `description` or `description-message`
+2. If no description is provided, a modal opens for the admin to type the board description (supports markdown and emojis)
+3. If `description-message` is provided, the bot fetches the referenced message's text and deletes the source message
+4. Bot validates the roles, creates a `CraftingBoardConfig` row, and posts the board embed
+5. The board embed has a single "Create Crafting Order" button (persistent across restarts)
 
 ### Recipe Sync (Optional)
 
