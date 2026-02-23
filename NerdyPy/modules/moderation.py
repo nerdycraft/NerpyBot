@@ -13,7 +13,7 @@ from pytimeparse2 import parse
 from models.moderation import AutoDelete, AutoKicker
 
 from utils.cog import NerpyBotCog
-from utils.helpers import notify_error, register_before_loop, send_paginated
+from utils.helpers import fetch_message_content, notify_error, register_before_loop, send_paginated
 from utils.permissions import validate_channel_permissions
 from utils.strings import get_guild_language, get_string
 
@@ -148,24 +148,45 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         self.bot.log.debug("Finish Autodeleter Loop!")
 
     @app_commands.command()
-    @app_commands.rename(kick_reminder_message="reminder_message")
+    @app_commands.rename(
+        kick_reminder_message="reminder_message",
+        reminder_message_source="reminder-message-source",
+    )
+    @app_commands.describe(
+        enable="Whether to enable the autokicker",
+        kick_after='Time after someone gets kicked, e.g. "1 day", "1 week", "5 minutes"',
+        kick_reminder_message="Custom reminder message sent before kick (optional)",
+        reminder_message_source="Message ID or link whose text becomes the reminder message (message is deleted)",
+    )
     @checks.has_permissions(kick_members=True)
     async def autokicker(
-        self, interaction: Interaction, enable: bool, kick_after: str, kick_reminder_message: Optional[str] = None
+        self,
+        interaction: Interaction,
+        enable: bool,
+        kick_after: str,
+        kick_reminder_message: Optional[str] = None,
+        reminder_message_source: Optional[str] = None,
     ):
-        """Activates the AutoKicker. [bot-moderator]
-
-        Parameters
-        ----------
-        interaction
-        enable: bool
-        kick_after: str
-            Time after someone gets kicked, like "1 day", "1 week" or "5 minutes".
-            Supports also abbreviations like "min" and "h".
-        kick_reminder_message: Optional[str]
-        """
+        """Activates the AutoKicker. [bot-moderator]"""
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild.id, session)
+
+        # Fetch from a message reference if provided
+        if reminder_message_source:
+            content, error = await fetch_message_content(
+                self.bot,
+                reminder_message_source,
+                None,
+                interaction,
+                lang,
+                key_prefix="moderation.fetch_message",
+            )
+            if error:
+                await interaction.response.send_message(error, ephemeral=True)
+                return
+            kick_reminder_message = content
+
+        with self.bot.session_scope() as session:
             configuration = AutoKicker.get_by_guild(interaction.guild.id, session)
             kick_time = parse(kick_after)
             if kick_time is None:
