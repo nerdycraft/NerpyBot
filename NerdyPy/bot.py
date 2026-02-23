@@ -193,6 +193,26 @@ class NerpyBot(Bot):
                 self.log.error(f"failed to register application persistent views. {e}")
                 self.log.debug(print_exc())
 
+        # Register crafting order persistent views and dynamic items
+        if "wow" in self.modules:
+            try:
+                from modules.views.crafting_order import (
+                    AcceptOrderButton,
+                    AskQuestionButton,
+                    CancelOrderButton,
+                    CompleteOrderButton,
+                    CraftingBoardView,
+                    DropOrderButton,
+                )
+
+                self.add_view(CraftingBoardView(bot=self))
+                self.add_dynamic_items(
+                    AcceptOrderButton, DropOrderButton, CompleteOrderButton, CancelOrderButton, AskQuestionButton
+                )
+            except Exception as e:
+                self.log.error(f"failed to register crafting order persistent views. {e}")
+                self.log.debug(print_exc())
+
         # load localization strings
         load_strings()
 
