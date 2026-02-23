@@ -62,30 +62,23 @@ To build from source instead of pulling pre-built images:
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
 
-### Using an External Database
+### Using PostgreSQL
 
-To use MariaDB/MySQL instead of SQLite, update your config file:
+To use PostgreSQL instead of SQLite, update your config file:
 
 ```yaml
 database:
-  db_type: mariadb
+  db_type: postgresql
   db_name: nerpybot
   db_username: bot_user
   db_password: your_password
-  db_host: db_host
-  db_port: 3306
+  db_host: localhost
+  db_port: 5432
 ```
 
-**MariaDB/MySQL charset:** Create the database with `utf8mb4` to support emojis and full Unicode:
+Alternatively, uncomment the `postgres` service in `docker-compose.yml` for an all-in-one setup.
 
-```sql
-CREATE DATABASE nerpybot CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-Using the default `utf8` charset will cause errors when storing emoji or other 4-byte Unicode characters.
-
-Supported databases: SQLite (default), MariaDB/MySQL, PostgreSQL. For other databases, specify the type with its
-driver (e.g., `postgresql+psycopg2`).
+Supported databases: SQLite (default) and PostgreSQL.
 
 ## Database Migrations
 
@@ -112,7 +105,7 @@ The migration runner resolves the database URL in this order:
 ## Modules
 
 | Module     | Description                                           |
-|------------|-------------------------------------------------------|
+| ---------- | ----------------------------------------------------- |
 | admin      | Server management, prefix configuration, command sync |
 | league     | Riot Games API integration                            |
 | leavemsg   | Server leave message announcements                    |
@@ -131,7 +124,7 @@ Copy `NerdyPy/config.yaml.template` (local dev) or `config/*.yaml.example` (Dock
 - **bot.client_id** / **bot.token** — from the [Discord Developer Portal](https://discord.com/developers/applications)
 - **bot.ops** — Discord user IDs with bot admin privileges
 - **bot.modules** — list of modules to load
-- **database** — connection settings (see [External Database](#using-an-external-database))
+- **database** — connection settings (see [PostgreSQL](#using-postgresql))
 - **music** / **league** / **wow** — API keys for respective services
 
 ## Development
