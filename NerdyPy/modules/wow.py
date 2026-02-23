@@ -13,7 +13,7 @@ from discord import Color, Embed, HTTPException, Interaction, TextChannel, app_c
 from discord.app_commands import checks
 from discord.ext import tasks
 from discord.ext.commands import GroupCog
-from models.wow import WowCharacterMounts, WowGuildNewsConfig
+from models.wow import CraftingBoardConfig, WowCharacterMounts, WowGuildNewsConfig
 from utils.blizzard import (
     RateLimited,
     build_account_groups,
@@ -28,7 +28,9 @@ from utils.blizzard import (
     record_character_failure,
     should_skip_character,
     should_update_mount_set,
+    sync_crafting_recipes,
 )
+from utils.checks import is_bot_moderator
 from utils.cog import NerpyBotCog
 from utils.errors import (
     NerpyInfraException,
@@ -65,6 +67,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     """World of Warcraft API"""
 
     guildnews = app_commands.Group(name="guildnews", description="manage WoW guild news tracking")
+    craftingorder = app_commands.Group(name="craftingorder", description="manage crafting order board", guild_only=True)
 
     def _lang(self, guild_id):
         """Look up the guild's language preference."""
@@ -1174,6 +1177,141 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 f"baselined={total_stats['baselined']}, skipped_inactive={total_stats['skipped_inactive']}, "
                 f"skipped_error={total_stats['skipped_error']}, skipped_degraded={total_stats['skipped_degraded']}, "
                 f"skipped_404={total_stats['skipped_404']}"
+            )
+
+    # ── Crafting Order commands ────────────────────────────────────────
+
+    @craftingorder.command(name="create")
+    @checks.has_permissions(manage_channels=True)
+    async def _craftingorder_create(
+        self,
+        interaction: Interaction,
+        channel: TextChannel,
+        description: str,
+        roles: str,
+    ):
+        """create a crafting order board in a channel [manage_channels]"""
+        await interaction.response.defer(ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+
+        # Parse role mentions
+        role_ids = []
+        for part in roles.replace(",", " ").split():
+            part = part.strip("<@&>")
+            if part.isdigit():
+                role = interaction.guild.get_role(int(part))
+                if role:
+                    role_ids.append(role.id)
+
+        if not role_ids:
+            await interaction.followup.send(get_string(lang, "wow.craftingorder.create.no_roles"), ephemeral=True)
+            return
+
+        with self.bot.session_scope() as session:
+            existing = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+            if existing:
+                existing_channel = interaction.guild.get_channel(existing.ChannelId)
+                ch_mention = existing_channel.mention if existing_channel else f"#{existing.ChannelId}"
+                await interaction.followup.send(
+                    get_string(lang, "wow.craftingorder.create.already_exists", channel=ch_mention),
+                    ephemeral=True,
+                )
+                return
+
+            config = CraftingBoardConfig(
+                GuildId=interaction.guild_id,
+                ChannelId=channel.id,
+                Description=description,
+                RoleIds=json.dumps(role_ids),
+            )
+            session.add(config)
+            session.flush()
+
+            # Post board embed
+            from modules.views.crafting_order import CraftingBoardView
+
+            embed = discord.Embed(
+                title=get_string(lang, "wow.craftingorder.board_title"),
+                description=description,
+                color=discord.Color.gold(),
+            )
+            embed.set_footer(text=get_string(lang, "wow.craftingorder.board_footer"))
+
+            view = CraftingBoardView(self.bot)
+            msg = await channel.send(embed=embed, view=view)
+            config.BoardMessageId = msg.id
+
+        await interaction.followup.send(
+            get_string(lang, "wow.craftingorder.create.success", channel=channel.mention),
+            ephemeral=True,
+        )
+
+    @craftingorder.command(name="remove")
+    @checks.has_permissions(manage_channels=True)
+    async def _craftingorder_remove(self, interaction: Interaction):
+        """remove the crafting order board [manage_channels]"""
+        await interaction.response.defer(ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+
+        with self.bot.session_scope() as session:
+            config = CraftingBoardConfig.delete_by_guild(interaction.guild_id, session)
+            if config is None:
+                await interaction.followup.send(get_string(lang, "wow.craftingorder.remove.not_found"), ephemeral=True)
+                return
+            channel_id = config.ChannelId
+            message_id = config.BoardMessageId
+
+        # Try to delete the board embed
+        try:
+            channel = interaction.guild.get_channel(channel_id)
+            if channel and message_id:
+                msg = await channel.fetch_message(message_id)
+                await msg.delete()
+        except discord.HTTPException:
+            pass
+
+        await interaction.followup.send(get_string(lang, "wow.craftingorder.remove.success"), ephemeral=True)
+
+    @craftingorder.command(name="recipe-sync")
+    async def _craftingorder_recipe_sync(self, interaction: Interaction):
+        """sync BOP recipes from the Blizzard API [bot moderator]"""
+        if not await is_bot_moderator(interaction):
+            return
+        await interaction.response.defer(ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+
+        with self.bot.session_scope() as session:
+            config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+            if config is None:
+                await interaction.followup.send(
+                    get_string(lang, "wow.craftingorder.recipe_sync.not_configured"), ephemeral=True
+                )
+                return
+
+        await interaction.followup.send(get_string(lang, "wow.craftingorder.recipe_sync.starting"), ephemeral=True)
+
+        api = self._get_retailclient("eu", lang)
+
+        try:
+            with self.bot.session_scope() as session:
+                recipe_count, profession_count = await sync_crafting_recipes(
+                    api, interaction.guild_id, session, self.bot.log
+                )
+        except RateLimited:
+            await interaction.edit_original_response(
+                content=get_string(lang, "wow.craftingorder.recipe_sync.rate_limited", count=0)
+            )
+            return
+
+        if recipe_count == 0:
+            await interaction.edit_original_response(
+                content=get_string(lang, "wow.craftingorder.recipe_sync.no_recipes")
+            )
+        else:
+            await interaction.edit_original_response(
+                content=get_string(
+                    lang, "wow.craftingorder.recipe_sync.success", count=recipe_count, professions=profession_count
+                )
             )
 
 
