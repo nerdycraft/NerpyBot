@@ -97,94 +97,54 @@ async def _blizzard_item_search(api, recipe_name, region="eu", locale="en_US"):
 
 
 async def _resolve_recipe_item(api, recipe_id, recipe_name, log):
-    """Resolve a recipe to its crafted item.
+    """Resolve a recipe to its crafted item via the recipe detail API.
 
-    Tries the recipe detail API first (``api.recipe()`` → ``crafted_item`` →
-    ``api.item()``), giving a direct item ID with no name matching required.
-    Falls back to the item search API when ``crafted_item`` is absent (common
-    for quality-tiered recipes in TWW/Midnight).
+    Uses ``api.recipe(recipe_id)`` → ``crafted_item.id`` → ``api.item(item_id)``
+    to resolve by ID. No name matching needed. Recipes without ``crafted_item``
+    (some quality-tiered recipes) are skipped.
 
     Returns:
         dict with ``item_id``, ``item_name``, ``is_equippable``, ``is_bop``
-        or ``None`` if no valid item could be resolved.
+        or ``None`` if the recipe has no ``crafted_item`` or the API call fails.
     """
     import asyncio
 
-    # Method 1: Recipe detail API → crafted_item → item detail
     try:
         recipe_detail = await asyncio.to_thread(api.recipe, recipe_id)
         check_rate_limit(recipe_detail)
         crafted_item = recipe_detail.get("crafted_item")
-        if crafted_item:
-            item_id = crafted_item["id"]
-            item_name = crafted_item.get("name", recipe_name)
-            item_detail = await asyncio.to_thread(api.item, item_id)
-            check_rate_limit(item_detail)
-
-            is_equippable = item_detail.get("is_equippable", False)
-            binding_type = item_detail.get("preview_item", {}).get("binding", {}).get("type")
-            is_bop = binding_type == "ON_ACQUIRE"
-
+        if not crafted_item:
             log.debug(
-                "[recipe-sync]   '%s' (recipe=%d) → item '%s' (id=%d) via recipe detail (equip=%s, bop=%s)",
+                "[recipe-sync]   '%s' (recipe=%d): no crafted_item, skipping",
                 recipe_name,
                 recipe_id,
-                item_name,
-                item_id,
-                is_equippable,
-                is_bop,
             )
-            return {"item_id": item_id, "item_name": item_name, "is_equippable": is_equippable, "is_bop": is_bop}
+            return None
 
-        log.debug(
-            "[recipe-sync]   '%s' (recipe=%d): no crafted_item in recipe detail (quality-tiered?)",
-            recipe_name,
-            recipe_id,
-        )
-    except RateLimited:
-        raise
-    except Exception as ex:
-        log.debug("[recipe-sync]   '%s' (recipe=%d): recipe detail failed: %s", recipe_name, recipe_id, ex)
+        item_id = crafted_item["id"]
+        item_name = crafted_item.get("name", recipe_name)
+        item_detail = await asyncio.to_thread(api.item, item_id)
+        check_rate_limit(item_detail)
 
-    # Method 2: Fall back to item search by name
-    try:
-        results = await _blizzard_item_search(api, recipe_name)
-    except RateLimited:
-        raise
-    except Exception as ex:
-        log.debug("[recipe-sync]   '%s': item search failed: %s", recipe_name, ex)
-        return None
-
-    for result in results:
-        item_data = result.get("data", {})
-        name_obj = item_data.get("name", {})
-        item_name_en = name_obj.get("en_US") or name_obj.get("en_GB") or ""
-
-        if item_name_en != recipe_name:
-            continue
-
-        item_id = item_data.get("id")
-        is_equippable = item_data.get("is_equippable", False)
-        binding_type = item_data.get("preview_item", {}).get("binding", {}).get("type")
+        is_equippable = item_detail.get("is_equippable", False)
+        binding_type = item_detail.get("preview_item", {}).get("binding", {}).get("type")
         is_bop = binding_type == "ON_ACQUIRE"
 
         log.debug(
-            "[recipe-sync]   '%s' → item '%s' (id=%d) via search (equip=%s, bop=%s)",
+            "[recipe-sync]   '%s' (recipe=%d) → item '%s' (id=%d, equip=%s, bop=%s)",
             recipe_name,
-            item_name_en,
+            recipe_id,
+            item_name,
             item_id,
             is_equippable,
             is_bop,
         )
-        return {"item_id": item_id, "item_name": item_name_en, "is_equippable": is_equippable, "is_bop": is_bop}
-
-    log.debug(
-        "[recipe-sync]   '%s' (recipe=%d): no item found (%d search results, no exact match)",
-        recipe_name,
-        recipe_id,
-        len(results),
-    )
-    return None
+        return {"item_id": item_id, "item_name": item_name, "is_equippable": is_equippable, "is_bop": is_bop}
+    except RateLimited:
+        raise
+    except Exception as ex:
+        log.debug("[recipe-sync]   '%s' (recipe=%d): failed to resolve: %s", recipe_name, recipe_id, ex)
+        return None
 
 
 async def _detect_current_tier(api, prof_id, skill_tiers, log):
@@ -192,8 +152,8 @@ async def _detect_current_tier(api, prof_id, skill_tiers, log):
 
     Iterates tiers from highest ID to lowest. For each tier, samples recipes
     from diverse categories (up to 2 per category, max 10 total) and resolves
-    them via the recipe detail API + item search fallback. The first tier with
-    at least one BoP or equippable item is the current expansion.
+    them via the recipe detail API (recipe ID → crafted item ID → item detail).
+    The first tier with at least one BoP or equippable item is the current expansion.
     """
     import asyncio
 

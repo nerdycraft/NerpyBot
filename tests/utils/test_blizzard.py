@@ -160,11 +160,11 @@ class TestDetectCurrentTier:
 
 
 class TestResolveRecipeItem:
-    """Test the recipe → item resolution with recipe detail API + search fallback."""
+    """Test recipe → item resolution via recipe detail API (ID-based, no name matching)."""
 
     @pytest.mark.asyncio
-    async def test_resolves_via_recipe_detail(self):
-        """When api.recipe() returns crafted_item, use it directly."""
+    async def test_resolves_via_crafted_item_id(self):
+        """recipe detail → crafted_item.id → item detail gives full item info."""
         api = _make_api()
         log = MagicMock()
 
@@ -180,50 +180,25 @@ class TestResolveRecipeItem:
         assert result["is_bop"] is True
 
     @pytest.mark.asyncio
-    async def test_fallback_to_search_when_no_crafted_item(self):
-        """Quality-tiered recipes have no crafted_item — fall back to search."""
+    async def test_returns_none_when_no_crafted_item(self):
+        """Recipes without crafted_item (quality-tiered) are skipped."""
         api = _make_api()
         log = MagicMock()
 
         api.recipe = lambda rid: {"name": "Quality Sword"}  # no crafted_item
 
-        with patch("utils.blizzard._blizzard_item_search") as mock_search:
-            mock_search.return_value = [_make_search_result(600, "Quality Sword", is_equippable=True)]
-            result = await _resolve_recipe_item(api, 10, "Quality Sword", log)
-
-        assert result is not None
-        assert result["item_id"] == 600
-        assert result["item_name"] == "Quality Sword"
-        assert result["is_equippable"] is True
+        result = await _resolve_recipe_item(api, 10, "Quality Sword", log)
+        assert result is None
 
     @pytest.mark.asyncio
-    async def test_fallback_to_search_when_recipe_detail_fails(self):
-        """If api.recipe() raises, fall back to search."""
+    async def test_returns_none_when_api_fails(self):
+        """If api.recipe() raises, returns None gracefully."""
         api = _make_api()
         log = MagicMock()
 
         api.recipe = MagicMock(side_effect=Exception("API error"))
 
-        with patch("utils.blizzard._blizzard_item_search") as mock_search:
-            mock_search.return_value = [_make_search_result(700, "Error Sword", binding_type="ON_ACQUIRE")]
-            result = await _resolve_recipe_item(api, 10, "Error Sword", log)
-
-        assert result is not None
-        assert result["item_id"] == 700
-        assert result["is_bop"] is True
-
-    @pytest.mark.asyncio
-    async def test_returns_none_when_both_methods_fail(self):
-        """Returns None when neither recipe detail nor search finds an item."""
-        api = _make_api()
-        log = MagicMock()
-
-        api.recipe = lambda rid: {"name": "Ghost Item"}  # no crafted_item
-
-        with patch("utils.blizzard._blizzard_item_search") as mock_search:
-            mock_search.return_value = []
-            result = await _resolve_recipe_item(api, 10, "Ghost Item", log)
-
+        result = await _resolve_recipe_item(api, 10, "Error Sword", log)
         assert result is None
 
     @pytest.mark.asyncio
