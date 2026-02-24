@@ -163,7 +163,6 @@ class CraftingBoardConfig(db.BASE):
     ChannelId = Column(BigInteger)
     BoardMessageId = Column(BigInteger, nullable=True)
     Description = Column(UnicodeText)
-    RoleIds = Column(Text, default="[]")
     CreateDate = Column(DateTime, default=lambda: datetime.now(UTC))
 
     @classmethod
@@ -178,18 +177,46 @@ class CraftingBoardConfig(db.BASE):
         return config
 
 
-class CraftingRecipeCache(db.BASE):
-    """Cached BOP recipes from the Blizzard API, per guild."""
+class CraftingRoleMapping(db.BASE):
+    """Maps Discord roles to Blizzard profession IDs, per guild."""
 
-    __tablename__ = "CraftingRecipeCache"
+    __tablename__ = "CraftingRoleMapping"
     __table_args__ = (
-        Index("CraftingRecipeCache_GuildId", "GuildId"),
-        Index("CraftingRecipeCache_Guild_Recipe", "GuildId", "RecipeId", unique=True),
+        Index("CraftingRoleMapping_GuildId", "GuildId"),
+        Index("CraftingRoleMapping_Guild_Role", "GuildId", "RoleId", unique=True),
     )
 
     Id = Column(Integer, primary_key=True)
     GuildId = Column(BigInteger)
+    RoleId = Column(BigInteger)
     ProfessionId = Column(Integer)
+
+    @classmethod
+    def get_by_guild(cls, guild_id, session):
+        return session.query(cls).filter(cls.GuildId == guild_id).all()
+
+    @classmethod
+    def get_profession_id(cls, guild_id, role_id, session):
+        mapping = session.query(cls).filter(cls.GuildId == guild_id, cls.RoleId == role_id).first()
+        return mapping.ProfessionId if mapping else None
+
+    @classmethod
+    def delete_by_guild(cls, guild_id, session):
+        session.query(cls).filter(cls.GuildId == guild_id).delete()
+
+
+class CraftingRecipeCache(db.BASE):
+    """Cached craftable recipes from the Blizzard API (bot-global)."""
+
+    __tablename__ = "CraftingRecipeCache"
+    __table_args__ = (
+        Index("CraftingRecipeCache_RecipeId", "RecipeId", unique=True),
+        Index("CraftingRecipeCache_ProfessionId", "ProfessionId"),
+    )
+
+    Id = Column(Integer, primary_key=True)
+    ProfessionId = Column(Integer)
+    ProfessionName = Column(Unicode(100), nullable=True)
     RecipeId = Column(Integer)
     ItemId = Column(Integer)
     ItemName = Column(Unicode(200))
@@ -197,17 +224,12 @@ class CraftingRecipeCache(db.BASE):
     LastSynced = Column(DateTime, default=lambda: datetime.now(UTC))
 
     @classmethod
-    def get_by_profession(cls, guild_id, profession_id, session):
-        return (
-            session.query(cls)
-            .filter(cls.GuildId == guild_id, cls.ProfessionId == profession_id)
-            .order_by(cls.ItemName)
-            .all()
-        )
+    def get_by_profession(cls, profession_id, session):
+        return session.query(cls).filter(cls.ProfessionId == profession_id).order_by(cls.ItemName).all()
 
     @classmethod
-    def delete_by_guild(cls, guild_id, session):
-        session.query(cls).filter(cls.GuildId == guild_id).delete()
+    def delete_all(cls, session):
+        session.query(cls).delete()
 
 
 class CraftingOrder(db.BASE):

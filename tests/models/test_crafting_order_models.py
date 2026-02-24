@@ -4,12 +4,12 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRecipeCache
+from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRecipeCache, CraftingRoleMapping
 
 
 class TestCraftingBoardConfig:
     def test_create_and_get_by_guild(self, db_session):
-        config = CraftingBoardConfig(GuildId=100, ChannelId=200, Description="Test board", RoleIds="[1,2]")
+        config = CraftingBoardConfig(GuildId=100, ChannelId=200, Description="Test board")
         db_session.add(config)
         db_session.flush()
 
@@ -36,30 +36,77 @@ class TestCraftingBoardConfig:
         assert result is None
 
 
-class TestCraftingRecipeCache:
-    def test_get_by_profession(self, db_session):
-        db_session.add(CraftingRecipeCache(GuildId=100, ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
-        db_session.add(CraftingRecipeCache(GuildId=100, ProfessionId=1, RecipeId=11, ItemId=101, ItemName="Axe"))
-        db_session.add(CraftingRecipeCache(GuildId=100, ProfessionId=2, RecipeId=12, ItemId=102, ItemName="Potion"))
+class TestCraftingRoleMapping:
+    def test_get_by_guild(self, db_session):
+        db_session.add(CraftingRoleMapping(GuildId=100, RoleId=1, ProfessionId=164))
+        db_session.add(CraftingRoleMapping(GuildId=100, RoleId=2, ProfessionId=165))
+        db_session.add(CraftingRoleMapping(GuildId=200, RoleId=3, ProfessionId=164))
         db_session.flush()
 
-        results = CraftingRecipeCache.get_by_profession(100, 1, db_session)
+        results = CraftingRoleMapping.get_by_guild(100, db_session)
         assert len(results) == 2
-        assert results[0].ItemName == "Axe"  # alphabetical
 
-    def test_unique_guild_recipe_constraint(self, db_session):
-        db_session.add(CraftingRecipeCache(GuildId=100, ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
+    def test_get_profession_id(self, db_session):
+        db_session.add(CraftingRoleMapping(GuildId=100, RoleId=1, ProfessionId=164))
         db_session.flush()
-        db_session.add(CraftingRecipeCache(GuildId=100, ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword 2"))
+
+        assert CraftingRoleMapping.get_profession_id(100, 1, db_session) == 164
+        assert CraftingRoleMapping.get_profession_id(100, 999, db_session) is None
+
+    def test_unique_guild_role_constraint(self, db_session):
+        db_session.add(CraftingRoleMapping(GuildId=100, RoleId=1, ProfessionId=164))
+        db_session.flush()
+        db_session.add(CraftingRoleMapping(GuildId=100, RoleId=1, ProfessionId=165))
         with pytest.raises(IntegrityError):
             db_session.flush()
 
     def test_delete_by_guild(self, db_session):
-        db_session.add(CraftingRecipeCache(GuildId=100, ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
+        db_session.add(CraftingRoleMapping(GuildId=100, RoleId=1, ProfessionId=164))
+        db_session.add(CraftingRoleMapping(GuildId=100, RoleId=2, ProfessionId=165))
         db_session.flush()
-        CraftingRecipeCache.delete_by_guild(100, db_session)
+
+        CraftingRoleMapping.delete_by_guild(100, db_session)
         db_session.flush()
-        assert CraftingRecipeCache.get_by_profession(100, 1, db_session) == []
+        assert CraftingRoleMapping.get_by_guild(100, db_session) == []
+
+
+class TestCraftingRecipeCache:
+    def test_get_by_profession(self, db_session):
+        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
+        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=11, ItemId=101, ItemName="Axe"))
+        db_session.add(CraftingRecipeCache(ProfessionId=2, RecipeId=12, ItemId=102, ItemName="Potion"))
+        db_session.flush()
+
+        results = CraftingRecipeCache.get_by_profession(1, db_session)
+        assert len(results) == 2
+        assert results[0].ItemName == "Axe"  # alphabetical
+
+    def test_unique_recipe_constraint(self, db_session):
+        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
+        db_session.flush()
+        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword 2"))
+        with pytest.raises(IntegrityError):
+            db_session.flush()
+
+    def test_delete_all(self, db_session):
+        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
+        db_session.add(CraftingRecipeCache(ProfessionId=2, RecipeId=11, ItemId=101, ItemName="Potion"))
+        db_session.flush()
+        CraftingRecipeCache.delete_all(db_session)
+        db_session.flush()
+        assert CraftingRecipeCache.get_by_profession(1, db_session) == []
+        assert CraftingRecipeCache.get_by_profession(2, db_session) == []
+
+    def test_profession_name_stored(self, db_session):
+        db_session.add(
+            CraftingRecipeCache(
+                ProfessionId=164, ProfessionName="Blacksmithing", RecipeId=10, ItemId=100, ItemName="Sword"
+            )
+        )
+        db_session.flush()
+
+        results = CraftingRecipeCache.get_by_profession(164, db_session)
+        assert results[0].ProfessionName == "Blacksmithing"
 
 
 class TestCraftingOrder:

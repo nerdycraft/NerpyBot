@@ -300,21 +300,21 @@ wow:
       modal_title: "Board-Beschreibung"
       modal_description: "Gib die Beschreibung für das Handwerksauftrags-Board ein (Markdown und Emojis werden unterstützt)"
       success: "Handwerksauftrags-Board in {channel} erstellt."
+      unmapped_roles: "⚠️ Diese Rollen konnten keinem Beruf zugeordnet werden: **{roles}**. Sie erscheinen nicht im Berufs-Dropdown."
     remove:
       not_found: "Kein Handwerksauftrags-Board für diesen Server gefunden."
       success: "Handwerksauftrags-Board entfernt."
-    recipe_sync:
-      not_configured: "Kein Handwerksauftrags-Board konfiguriert. Verwende zuerst `/wow craftingorder create`."
-      starting: "Synchronisiere Rezepte von der Blizzard-API... das kann einen Moment dauern."
-      rate_limited: "Von der Blizzard-API limitiert. {count} Rezepte vor dem Limit synchronisiert. Versuche es später erneut."
-      success: "Rezept-Synchronisierung abgeschlossen. {count} BoP-Rezepte für {professions} Berufe zwischengespeichert."
-      no_recipes: "Keine BoP-Rezepte für die aktuelle Erweiterungsstufe gefunden."
+    edit:
+      not_found: "Kein Handwerksauftrags-Board für diesen Server gefunden."
+      success: "Handwerksauftrags-Board aktualisiert."
+      unmapped_roles: "⚠️ Diese Rollen konnten keinem Beruf zugeordnet werden: **{roles}**. Sie erscheinen nicht im Berufs-Dropdown."
     profession_select: "Wähle einen Beruf"
     item_select: "Wähle einen Gegenstand"
     item_other: "Anderes (unten angeben)"
     modal_title: "Handwerksauftrag erstellen"
     modal_item_name: "Gegenstandsname"
     modal_notes: "Zusätzliche Hinweise (optional)"
+    order_created: "Handwerksauftrag für **{item}** erstellt."
     order:
       posted_by: "Erstellt von"
       profession: "Beruf"
@@ -339,14 +339,18 @@ wow:
     complete:
       not_crafter: "Nur der aktive Handwerker oder ein Admin kann diesen Auftrag abschließen."
       not_in_progress: "Dieser Auftrag ist nicht in Bearbeitung."
+      done: "Auftrag abgeschlossen."
       dm_complete: "Dein Handwerksauftrag für **{item}** wurde abgeschlossen! 🎉"
     cancel:
       not_allowed: "Nur der Auftragsersteller oder ein Admin kann diesen Auftrag abbrechen."
+      done: "Auftrag abgebrochen."
       dm_cancel: "Dein Handwerksauftrag für **{item}** wurde abgebrochen."
     ask:
       modal_title: "Eine Frage stellen"
       modal_message: "Deine Frage"
       thread_name: "Auftrag: {item}"
+      sent: "Deine Frage wurde gepostet."
+      thread_failed: "Fehler beim Erstellen eines Diskussionsthreads."
     not_found: "Auftrag nicht gefunden."
 
 application:

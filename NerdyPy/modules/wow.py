@@ -12,9 +12,10 @@ from blizzapi import Language, Region, RetailClient
 from discord import Color, Embed, HTTPException, Interaction, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext import tasks
-from discord.ext.commands import GroupCog
-from models.wow import CraftingBoardConfig, WowCharacterMounts, WowGuildNewsConfig
+from discord.ext.commands import Context, GroupCog, command
+from models.wow import CraftingBoardConfig, CraftingRoleMapping, WowCharacterMounts, WowGuildNewsConfig
 from utils.blizzard import (
+    CRAFTING_PROFESSIONS,
     RateLimited,
     build_account_groups,
     check_rate_limit,
@@ -30,7 +31,7 @@ from utils.blizzard import (
     should_update_mount_set,
     sync_crafting_recipes,
 )
-from utils.checks import is_bot_moderator
+from utils.checks import require_operator
 from utils.cog import NerpyBotCog
 from utils.errors import (
     NerpyInfraException,
@@ -1220,25 +1221,64 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
         if not description:
             # No description provided — show a modal to collect it
-            modal = _BoardDescriptionModal(self.bot, channel, roles, lang)
+            modal = _BoardDescriptionModal(self.bot, lang, mode="create", channel=channel, roles=roles)
+            await interaction.response.send_modal(modal)
+            return
+
+        if description and not description_message:
+            # Inline description provided — show modal pre-filled for review
+            modal = _BoardDescriptionModal(
+                self.bot, lang, mode="create", channel=channel, roles=roles, default_text=description
+            )
             await interaction.response.send_modal(modal)
             return
 
         await interaction.response.defer(ephemeral=True)
         await self._finish_board_create(interaction, channel, roles, description, lang)
 
+    def _parse_role_ids(self, roles_str: str, guild: discord.Guild) -> list[int]:
+        """Parse role mentions/IDs from a space/comma-separated string."""
+        role_ids = []
+        for part in roles_str.replace(",", " ").split():
+            part = part.strip("<@&>")
+            if part.isdigit():
+                role = guild.get_role(int(part))
+                if role:
+                    role_ids.append(role.id)
+        return role_ids
+
+    def _auto_match_roles(self, guild: discord.Guild, role_ids: list[int], session) -> tuple[list[int], list[int]]:
+        """Auto-match Discord roles to Blizzard profession IDs.
+
+        Returns (mapped_role_ids, unmapped_role_ids).
+        Creates CraftingRoleMapping rows for each match.
+        """
+        mapped = []
+        unmapped = []
+        for role_id in role_ids:
+            role = guild.get_role(role_id)
+            if not role:
+                unmapped.append(role_id)
+                continue
+
+            matched = False
+            for prof_name, prof_id in CRAFTING_PROFESSIONS.items():
+                if prof_name.lower() in role.name.lower():
+                    session.add(CraftingRoleMapping(GuildId=guild.id, RoleId=role_id, ProfessionId=prof_id))
+                    mapped.append(role_id)
+                    matched = True
+                    break
+
+            if not matched:
+                unmapped.append(role_id)
+
+        return mapped, unmapped
+
     async def _finish_board_create(
         self, interaction: Interaction, channel: TextChannel, roles: str, description: str, lang: str
     ):
         """Shared board creation logic used by both the command and the description modal."""
-        # Parse role mentions
-        role_ids = []
-        for part in roles.replace(",", " ").split():
-            part = part.strip("<@&>")
-            if part.isdigit():
-                role = interaction.guild.get_role(int(part))
-                if role:
-                    role_ids.append(role.id)
+        role_ids = self._parse_role_ids(roles, interaction.guild)
 
         if not role_ids:
             await interaction.followup.send(get_string(lang, "wow.craftingorder.create.no_roles"), ephemeral=True)
@@ -1259,10 +1299,12 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 GuildId=interaction.guild_id,
                 ChannelId=channel.id,
                 Description=description,
-                RoleIds=json.dumps(role_ids),
             )
             session.add(config)
             session.flush()
+
+            # Auto-match roles to Blizzard professions
+            mapped, unmapped = self._auto_match_roles(interaction.guild, role_ids, session)
 
             # Post board embed
             from modules.views.crafting_order import CraftingBoardView
@@ -1274,14 +1316,18 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             )
             embed.set_footer(text=get_string(lang, "wow.craftingorder.board_footer"))
 
-            view = CraftingBoardView(self.bot)
+            view = CraftingBoardView(self.bot, label=get_string(lang, "wow.craftingorder.create_button"))
             msg = await channel.send(embed=embed, view=view)
             config.BoardMessageId = msg.id
 
-        await interaction.followup.send(
-            get_string(lang, "wow.craftingorder.create.success", channel=channel.mention),
-            ephemeral=True,
-        )
+        reply = get_string(lang, "wow.craftingorder.create.success", channel=channel.mention)
+        if unmapped:
+            unmapped_names = []
+            for rid in unmapped:
+                role = interaction.guild.get_role(rid)
+                unmapped_names.append(role.name if role else str(rid))
+            reply += "\n" + get_string(lang, "wow.craftingorder.create.unmapped_roles", roles=", ".join(unmapped_names))
+        await interaction.followup.send(reply, ephemeral=True)
 
     @craftingorder.command(name="remove")
     @checks.has_permissions(manage_channels=True)
@@ -1295,6 +1341,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             if config is None:
                 await interaction.followup.send(get_string(lang, "wow.craftingorder.remove.not_found"), ephemeral=True)
                 return
+            CraftingRoleMapping.delete_by_guild(interaction.guild_id, session)
             channel_id = config.ChannelId
             message_id = config.BoardMessageId
 
@@ -1309,57 +1356,120 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
         await interaction.followup.send(get_string(lang, "wow.craftingorder.remove.success"), ephemeral=True)
 
-    @craftingorder.command(name="recipe-sync")
-    async def _craftingorder_recipe_sync(self, interaction: Interaction):
-        """sync BOP recipes from the Blizzard API [bot moderator]"""
-        if not await is_bot_moderator(interaction):
-            return
-        await interaction.response.defer(ephemeral=True)
+    @craftingorder.command(name="edit")
+    @checks.has_permissions(manage_channels=True)
+    @app_commands.describe(roles="New role mentions (optional — re-runs auto-matching)")
+    async def _craftingorder_edit(self, interaction: Interaction, roles: str | None = None):
+        """edit the crafting order board [manage_channels]"""
         lang = self._lang(interaction.guild_id)
 
         with self.bot.session_scope() as session:
             config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
             if config is None:
-                await interaction.followup.send(
-                    get_string(lang, "wow.craftingorder.recipe_sync.not_configured"), ephemeral=True
+                await interaction.response.send_message(
+                    get_string(lang, "wow.craftingorder.edit.not_found"), ephemeral=True
                 )
                 return
+            current_description = config.Description
 
-        await interaction.followup.send(get_string(lang, "wow.craftingorder.recipe_sync.starting"), ephemeral=True)
+        # If new roles provided, update the mapping before showing the modal
+        unmapped_warning = ""
+        if roles:
+            role_ids = self._parse_role_ids(roles, interaction.guild)
+            if role_ids:
+                with self.bot.session_scope() as session:
+                    CraftingRoleMapping.delete_by_guild(interaction.guild_id, session)
+                    mapped, unmapped = self._auto_match_roles(interaction.guild, role_ids, session)
+                if unmapped:
+                    unmapped_names = []
+                    for rid in unmapped:
+                        role = interaction.guild.get_role(rid)
+                        unmapped_names.append(role.name if role else str(rid))
+                    unmapped_warning = get_string(
+                        lang, "wow.craftingorder.edit.unmapped_roles", roles=", ".join(unmapped_names)
+                    )
 
-        api = self._get_retailclient("eu", lang)
+        # Show modal pre-filled with current description
+        modal = _BoardDescriptionModal(self.bot, lang, mode="edit", default_text=current_description)
+        modal._unmapped_warning = unmapped_warning
+        await interaction.response.send_modal(modal)
+
+    async def _finish_board_edit(
+        self, interaction: Interaction, new_description: str, lang: str, unmapped_warning: str = ""
+    ):
+        """Update the board description and edit the embed in-place."""
+        with self.bot.session_scope() as session:
+            config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+            if config is None:
+                await interaction.followup.send(get_string(lang, "wow.craftingorder.edit.not_found"), ephemeral=True)
+                return
+            config.Description = new_description
+            channel_id = config.ChannelId
+            message_id = config.BoardMessageId
+
+        # Edit the board embed in-place
+        try:
+            channel = interaction.guild.get_channel(channel_id)
+            if channel and message_id:
+                msg = await channel.fetch_message(message_id)
+                embed = msg.embeds[0] if msg.embeds else discord.Embed(color=discord.Color.gold())
+                embed.description = new_description
+                await msg.edit(embed=embed)
+        except discord.HTTPException:
+            self.bot.log.debug("Failed to edit board embed (channel=%s, msg=%s)", channel_id, message_id)
+
+        reply = get_string(lang, "wow.craftingorder.edit.success")
+        if unmapped_warning:
+            reply += "\n" + unmapped_warning
+        await interaction.followup.send(reply, ephemeral=True)
+
+    async def _run_recipe_sync(self, progress_callback=None):
+        """Shared recipe sync logic used by both !wow recipesync and !sync data."""
+        api = self._get_retailclient("eu", "en")
+        with self.bot.session_scope() as session:
+            recipe_count, profession_count = await sync_crafting_recipes(
+                api, session, self.bot.log, progress_callback=progress_callback
+            )
+        return recipe_count, profession_count
+
+    @command(name="recipesync")
+    async def _recipe_sync_prefix(self, ctx: Context):
+        """Sync WoW crafting recipes from Blizzard API. [operator]"""
+        require_operator(ctx)
+        await ctx.send("Syncing recipes from the Blizzard API... this may take a moment.")
 
         async def _progress(msg: str):
-            try:
-                await interaction.edit_original_response(content=msg)
-            except discord.HTTPException:
-                pass
+            pass  # prefix commands don't support editing messages easily
 
         try:
-            with self.bot.session_scope() as session:
-                recipe_count, profession_count = await sync_crafting_recipes(
-                    api, interaction.guild_id, session, self.bot.log, progress_callback=_progress
-                )
+            recipe_count, profession_count = await self._run_recipe_sync(progress_callback=_progress)
         except RateLimited:
-            await interaction.edit_original_response(
-                content=get_string(lang, "wow.craftingorder.recipe_sync.rate_limited", count=0)
-            )
+            await ctx.send("Rate limited by Blizzard API. Try again later.")
             return
 
         if recipe_count == 0:
-            await interaction.edit_original_response(
-                content=get_string(lang, "wow.craftingorder.recipe_sync.no_recipes")
-            )
+            await ctx.send("No craftable recipes found for the current expansion tier.")
         else:
-            await interaction.edit_original_response(
-                content=get_string(
-                    lang, "wow.craftingorder.recipe_sync.success", count=recipe_count, professions=profession_count
-                )
+            await ctx.send(
+                f"Recipe sync complete. {recipe_count} recipes cached across {profession_count} professions."
             )
+
+    async def sync_data(self, ctx):
+        """Called by !sync data — syncs recipe cache."""
+        try:
+            recipe_count, profession_count = await self._run_recipe_sync()
+        except RateLimited:
+            return "rate limited by Blizzard API"
+        return f"{recipe_count} recipes across {profession_count} professions"
 
 
 class _BoardDescriptionModal(discord.ui.Modal):
-    """Modal for collecting board description when not provided inline."""
+    """Modal for collecting/editing board description.
+
+    Supports two modes:
+    - "create": calls _finish_board_create after submission
+    - "edit": updates existing board config and edits the embed in-place
+    """
 
     description_input = discord.ui.TextInput(
         label="Board Description",
@@ -1368,20 +1478,39 @@ class _BoardDescriptionModal(discord.ui.Modal):
         required=True,
     )
 
-    def __init__(self, bot, channel: TextChannel, roles: str, lang: str):
+    def __init__(
+        self,
+        bot,
+        lang: str,
+        *,
+        mode: str = "create",
+        channel: TextChannel = None,
+        roles: str = None,
+        default_text: str = None,
+    ):
         super().__init__(title=get_string(lang, "wow.craftingorder.create.modal_title"))
         self.bot = bot
+        self.lang = lang
+        self.mode = mode
         self.channel = channel
         self.roles = roles
-        self.lang = lang
         self.description_input.placeholder = get_string(lang, "wow.craftingorder.create.modal_description")
+        if default_text:
+            self.description_input.default = default_text
 
     async def on_submit(self, interaction: Interaction):
         await interaction.response.defer(ephemeral=True)
         cog = self.bot.get_cog("WorldofWarcraft")
-        await cog._finish_board_create(
-            interaction, self.channel, self.roles, self.description_input.value.strip(), self.lang
-        )
+
+        if self.mode == "create":
+            await cog._finish_board_create(
+                interaction, self.channel, self.roles, self.description_input.value.strip(), self.lang
+            )
+        else:
+            unmapped_warning = getattr(self, "_unmapped_warning", "")
+            await cog._finish_board_edit(
+                interaction, self.description_input.value.strip(), self.lang, unmapped_warning=unmapped_warning
+            )
 
 
 async def setup(bot):

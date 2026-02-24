@@ -43,6 +43,7 @@ def db_engine():
         WowGuildNewsConfig,
         WowCharacterMounts,
         CraftingBoardConfig,
+        CraftingRoleMapping,
         CraftingRecipeCache,
         CraftingOrder,
     )

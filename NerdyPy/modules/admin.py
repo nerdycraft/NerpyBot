@@ -238,16 +238,21 @@ class Admin(NerpyBotCog, Cog):
 
     @command(name="sync")
     async def sync(
-        self, ctx: Context, guilds: Greedy[Object], spec: Optional[Literal["local", "copy", "clear"]] = None
+        self, ctx: Context, guilds: Greedy[Object], spec: Optional[Literal["local", "copy", "clear", "data"]] = None
     ) -> None:
-        """Sync commands globally or to a specific guild. [operator]
+        """Sync commands or module data. [operator]
 
         Usage:
-          `!sync`                — Sync globally
-          `!sync <guild_id> ...` — Sync to specific guild(s)
+          `!sync`                — Sync commands globally
+          `!sync <guild_id> ...` — Sync commands to specific guild(s)
           `!sync local`          — Sync current guild's commands
           `!sync copy`           — Copy global commands to current guild
-          `!sync clear`          — Clear commands from current guild"""
+          `!sync clear`          — Clear commands from current guild
+          `!sync data`           — Sync module data (recipes, etc.)"""
+        if spec == "data":
+            await self._sync_module_data(ctx)
+            return
+
         if not guilds:
             if spec in ("local", "copy", "clear") and ctx.guild is None:
                 await ctx.send(f"The `{spec}` option requires a server context.")
@@ -280,6 +285,25 @@ class Admin(NerpyBotCog, Cog):
                 ret += 1
 
         await ctx.send(f"Synced the tree to {ret}/{len(guilds)}.")
+
+    async def _sync_module_data(self, ctx: Context):
+        """Iterate loaded cogs and call sync_data() on any that support it."""
+        require_operator(ctx)
+        results = []
+        for name, cog in self.bot.cogs.items():
+            if hasattr(cog, "sync_data"):
+                await ctx.send(f"Syncing data for **{name}**...")
+                try:
+                    result = await cog.sync_data(ctx)
+                    results.append(f"{name}: {result}")
+                except Exception as ex:
+                    results.append(f"{name}: error — {ex}")
+                    self.bot.log.error(f"sync_data failed for {name}: {ex}")
+
+        if results:
+            await ctx.send("Data sync complete:\n" + "\n".join(results))
+        else:
+            await ctx.send("No modules support data sync.")
 
     @command(name="uptime")
     async def _uptime(self, ctx: Context) -> None:

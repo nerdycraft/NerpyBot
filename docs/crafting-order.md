@@ -1,14 +1,16 @@
 # Crafting Order Board
 
-Guild administrators can set up a crafting order board where members post requests for BOP (Bind-on-Pickup) items. Crafters with the appropriate profession role accept orders, communicate via threads, and mark them complete.
+Guild administrators can set up a crafting order board where members post requests for craftable items (equippable gear, BoP materials, PvP gear). Crafters with the appropriate profession role accept orders, communicate via threads, and mark them complete.
 
 ## Concepts
 
-**Board** is a persistent embed posted in a designated channel. It contains a "Create Crafting Order" button. One board per guild, managed via `/wow craftingorder create` and `/wow craftingorder remove`.
+**Board** is a persistent embed posted in a designated channel. It contains a "Create Crafting Order" button. One board per guild, managed via `/wow craftingorder create`, `/wow craftingorder edit`, and `/wow craftingorder remove`.
 
-**Profession Roles** are Discord roles that represent WoW professions (e.g. Blacksmithing, Alchemy). These are configured when creating the board and determine who can accept which orders.
+**Profession Roles** are Discord roles that represent WoW professions (e.g. Blacksmithing, Alchemy). When creating a board, roles are auto-matched to Blizzard profession IDs by name. Only matched roles appear in the profession dropdown during order creation.
 
-**Recipe Cache** stores BOP recipe names and icons fetched from the Blizzard API via `/wow craftingorder recipe-sync`. This populates the item selection dropdown during order creation. The cache is per-guild and can be refreshed at any time.
+**Recipe Cache** stores craftable recipe names and icons fetched from the Blizzard API via `!wow recipesync` or `!sync data` (operator-only). The cache is **bot-global** (shared across all guilds) since WoW recipes are static data. Items are included if they are equippable OR bind-on-pickup (BoP).
+
+**Role Mapping** (`CraftingRoleMapping`) maps Discord role IDs to Blizzard profession IDs per guild. Auto-populated during board creation by matching role names against the 8 crafting professions. Unmapped roles are excluded from the profession dropdown.
 
 **Orders** are individual crafting requests. Each order tracks who posted it, which profession is needed, the item name, status, and optionally a discussion thread.
 
@@ -18,21 +20,32 @@ Guild administrators can set up a crafting order board where members post reques
 
 1. Admin runs `/wow craftingorder create <channel> <roles>` with an optional `description` or `description-message`
 2. If no description is provided, a modal opens for the admin to type the board description (supports markdown and emojis)
-3. If `description-message` is provided, the bot fetches the referenced message's text and deletes the source message
-4. Bot validates the roles, creates a `CraftingBoardConfig` row, and posts the board embed
-5. The board embed has a single "Create Crafting Order" button (persistent across restarts)
+3. If `description` is provided inline, a pre-filled modal opens for review/tweaking
+4. If `description-message` is provided, the bot fetches the referenced message's text
+5. Bot validates the roles, auto-matches them to Blizzard professions, creates `CraftingBoardConfig` and `CraftingRoleMapping` rows, and posts the board embed
+6. The board embed has a single "Create Crafting Order" button (persistent across restarts)
+7. Unmapped roles (no profession name match) are warned about — they won't appear in the dropdown
 
-### Recipe Sync (Optional)
+### Board Editing
 
-1. Moderator runs `/wow craftingorder recipe-sync`
-2. Bot fetches professions from the Blizzard API, identifies the current expansion tier (highest tier ID)
-3. For each profession, fetches recipes, filters to BOP items, and caches item names + icon URLs
-4. Cache enables an item selection dropdown during order creation
+1. Admin runs `/wow craftingorder edit` with an optional `roles` parameter
+2. If new roles are provided, old mappings are deleted and new ones are auto-matched
+3. A modal opens pre-filled with the current board description
+4. On submit, the board embed is updated in-place
+
+### Recipe Sync (Operator-Only)
+
+1. Operator runs `!wow recipesync` or `!sync data`
+2. Bot fetches the 8 crafting professions from the Blizzard API
+3. For each profession, detects the current expansion tier by sampling recipes and checking for BoP items
+4. For each recipe in the current tier, searches the Blizzard Item Search API by name
+5. Items that are equippable OR bind-on-pickup are cached with their icon URLs
+6. Cache enables an item selection dropdown during order creation
 
 ### Order Creation (3-Step Ephemeral Flow)
 
 1. User clicks "Create Crafting Order" on the board embed
-2. **Step 1 — Profession Select**: Ephemeral dropdown with configured profession roles
+2. **Step 1 — Profession Select**: Ephemeral dropdown with mapped profession roles only
 3. **Step 2 — Item Select** (conditional): If recipe cache exists for the selected profession, shows up to 25 items + "Other". Skipped if no cache.
 4. **Step 3 — Modal**: Item name field (pre-filled if selected from cache) and optional notes
 5. Bot creates a `CraftingOrder` row, posts the order embed with @mention of the profession role
@@ -63,23 +76,36 @@ Open / In Progress
 - **Cancel by creator**: No DM
 - **DM failure**: Falls back to creating/reusing a thread on the order message and pinging the creator there
 
-## Slash Commands
+## Commands
 
-| Command                          | Permission        | Description                                |
-| -------------------------------- | ----------------- | ------------------------------------------ |
-| `/wow craftingorder create`      | `manage_channels` | Create a crafting order board in a channel |
-| `/wow craftingorder remove`      | `manage_channels` | Remove the crafting order board and config |
-| `/wow craftingorder recipe-sync` | Bot Moderator     | Sync BOP recipes from Blizzard API         |
+### Slash Commands
+
+| Command                     | Permission        | Description                                    |
+| --------------------------- | ----------------- | ---------------------------------------------- |
+| `/wow craftingorder create` | `manage_channels` | Create a crafting order board in a channel     |
+| `/wow craftingorder edit`   | `manage_channels` | Edit description and/or roles of the board     |
+| `/wow craftingorder remove` | `manage_channels` | Remove the crafting order board and all config |
+
+### Prefix Commands (Operator-Only)
+
+| Command           | Description                                  |
+| ----------------- | -------------------------------------------- |
+| `!wow recipesync` | Sync crafting recipes from the Blizzard API  |
+| `!sync data`      | Sync all module data (includes recipe cache) |
 
 ## Database Models
 
 ### CraftingBoardConfig
 
-One row per guild. Stores the board channel, message ID, description, and JSON-encoded list of profession role IDs.
+One row per guild. Stores the board channel, message ID, and description.
+
+### CraftingRoleMapping
+
+Maps Discord role IDs to Blizzard profession IDs, per guild. Auto-populated during board creation by matching role names. The role list for a guild's board is derived by querying this table.
 
 ### CraftingRecipeCache
 
-Cached BOP recipes from the Blizzard API. Keyed by `(GuildId, RecipeId)`. Stores profession ID, item ID, item name, icon URL, and last sync timestamp.
+Bot-global cache of craftable recipes from the Blizzard API. Keyed by `RecipeId` (unique). Stores profession ID, profession name, item ID, item name, icon URL, and last sync timestamp.
 
 ### CraftingOrder
 
@@ -87,11 +113,11 @@ Individual crafting order. Tracks guild, channel, message ID, thread ID, creator
 
 ## File Layout
 
-| File                                      | Contents                                                              |
-| ----------------------------------------- | --------------------------------------------------------------------- |
-| `NerdyPy/modules/wow.py`                  | `craftingorder` command group (create, remove, recipe-sync)           |
-| `NerdyPy/modules/views/crafting_order.py` | Board view, select views, modal, DynamicItem buttons, thread fallback |
-| `NerdyPy/models/wow.py`                   | CraftingBoardConfig, CraftingRecipeCache, CraftingOrder               |
-| `NerdyPy/utils/blizzard.py`               | `sync_crafting_recipes()` helper                                      |
-| `NerdyPy/bot.py`                          | DynamicItem and persistent view registration in `setup_hook()`        |
-| `NerdyPy/locales/lang_en.yaml`            | `wow.craftingorder.*` localization keys                               |
+| File                                      | Contents                                                                     |
+| ----------------------------------------- | ---------------------------------------------------------------------------- |
+| `NerdyPy/modules/wow.py`                  | `craftingorder` command group (create, edit, remove) + prefix commands       |
+| `NerdyPy/modules/views/crafting_order.py` | Board view, select views, modal, DynamicItem buttons, thread fallback        |
+| `NerdyPy/models/wow.py`                   | CraftingBoardConfig, CraftingRoleMapping, CraftingRecipeCache, CraftingOrder |
+| `NerdyPy/utils/blizzard.py`               | `sync_crafting_recipes()`, item search, tier detection helpers               |
+| `NerdyPy/bot.py`                          | DynamicItem and persistent view registration in `setup_hook()`               |
+| `NerdyPy/locales/lang_en.yaml`            | `wow.craftingorder.*` localization keys                                      |

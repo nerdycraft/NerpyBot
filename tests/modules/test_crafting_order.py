@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for crafting order feature."""
 
-import json
-
-
-from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRecipeCache
+from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRecipeCache, CraftingRoleMapping
 
 
 class TestCraftingBoardConfig:
@@ -103,53 +100,58 @@ class TestRecipeCache:
     """Test recipe cache queries."""
 
     def test_get_by_profession_sorted(self, db_session):
-        db_session.add(CraftingRecipeCache(GuildId=100, ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
-        db_session.add(CraftingRecipeCache(GuildId=100, ProfessionId=1, RecipeId=11, ItemId=101, ItemName="Axe"))
+        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
+        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=11, ItemId=101, ItemName="Axe"))
         db_session.flush()
 
-        results = CraftingRecipeCache.get_by_profession(100, 1, db_session)
+        results = CraftingRecipeCache.get_by_profession(1, db_session)
         assert len(results) == 2
         assert results[0].ItemName == "Axe"
 
-    def test_delete_by_guild(self, db_session):
-        db_session.add(CraftingRecipeCache(GuildId=100, ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
+    def test_delete_all(self, db_session):
+        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
         db_session.flush()
 
-        CraftingRecipeCache.delete_by_guild(100, db_session)
+        CraftingRecipeCache.delete_all(db_session)
         db_session.flush()
-        assert CraftingRecipeCache.get_by_profession(100, 1, db_session) == []
+        assert CraftingRecipeCache.get_by_profession(1, db_session) == []
 
-    def test_cross_guild_isolation(self, db_session):
-        db_session.add(CraftingRecipeCache(GuildId=100, ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
-        db_session.add(CraftingRecipeCache(GuildId=200, ProfessionId=1, RecipeId=11, ItemId=101, ItemName="Shield"))
-        db_session.flush()
-
-        results_100 = CraftingRecipeCache.get_by_profession(100, 1, db_session)
-        results_200 = CraftingRecipeCache.get_by_profession(200, 1, db_session)
-        assert len(results_100) == 1
-        assert len(results_200) == 1
-        assert results_100[0].ItemName == "Sword"
-        assert results_200[0].ItemName == "Shield"
-
-
-class TestBoardConfigRoleIds:
-    """Test RoleIds JSON serialization."""
-
-    def test_store_and_retrieve_role_ids(self, db_session):
-        role_ids = [111, 222, 333]
-        db_session.add(
-            CraftingBoardConfig(GuildId=100, ChannelId=200, Description="Board", RoleIds=json.dumps(role_ids))
-        )
+    def test_no_guild_isolation_needed(self, db_session):
+        """Recipe cache is bot-global — same recipe is stored once regardless of guild."""
+        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
         db_session.flush()
 
-        config = CraftingBoardConfig.get_by_guild(100, db_session)
-        loaded = json.loads(config.RoleIds)
-        assert loaded == [111, 222, 333]
+        results = CraftingRecipeCache.get_by_profession(1, db_session)
+        assert len(results) == 1
+        assert results[0].ItemName == "Sword"
 
-    def test_default_role_ids_is_empty_list(self, db_session):
-        db_session.add(CraftingBoardConfig(GuildId=100, ChannelId=200, Description="Board"))
+
+class TestRoleMapping:
+    """Test role-to-profession mapping."""
+
+    def test_get_by_guild_isolates_guilds(self, db_session):
+        db_session.add(CraftingRoleMapping(GuildId=100, RoleId=1, ProfessionId=164))
+        db_session.add(CraftingRoleMapping(GuildId=200, RoleId=2, ProfessionId=164))
         db_session.flush()
 
-        config = CraftingBoardConfig.get_by_guild(100, db_session)
-        loaded = json.loads(config.RoleIds)
-        assert loaded == []
+        results = CraftingRoleMapping.get_by_guild(100, db_session)
+        assert len(results) == 1
+        assert results[0].RoleId == 1
+
+    def test_get_profession_id(self, db_session):
+        db_session.add(CraftingRoleMapping(GuildId=100, RoleId=1, ProfessionId=164))
+        db_session.flush()
+
+        assert CraftingRoleMapping.get_profession_id(100, 1, db_session) == 164
+        assert CraftingRoleMapping.get_profession_id(100, 999, db_session) is None
+
+    def test_delete_by_guild_only_affects_target(self, db_session):
+        db_session.add(CraftingRoleMapping(GuildId=100, RoleId=1, ProfessionId=164))
+        db_session.add(CraftingRoleMapping(GuildId=200, RoleId=2, ProfessionId=165))
+        db_session.flush()
+
+        CraftingRoleMapping.delete_by_guild(100, db_session)
+        db_session.flush()
+
+        assert CraftingRoleMapping.get_by_guild(100, db_session) == []
+        assert len(CraftingRoleMapping.get_by_guild(200, db_session)) == 1

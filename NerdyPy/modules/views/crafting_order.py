@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 """Crafting order board views, modals, and DynamicItem buttons."""
 
-import json
 import logging
 import re
 
 import discord
 from discord import Interaction, ui
 
-from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRecipeCache
+from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRecipeCache, CraftingRoleMapping
 from utils.strings import get_guild_language, get_localized_string, get_string
 
 log = logging.getLogger(__name__)
@@ -45,31 +44,44 @@ def build_order_embed(order: CraftingOrder, guild: discord.Guild, lang: str = "e
     return embed
 
 
-def build_order_view(order_id: int, status: str) -> ui.View:
+def build_order_view(order_id: int, status: str, lang: str = "en") -> ui.View:
     """Construct a View with the appropriate buttons for an order's current status."""
+    _s = lambda key: get_string(lang, f"wow.craftingorder.order.{key}")  # noqa: E731
     view = ui.View(timeout=None)
     if status == "open":
         view.add_item(
-            ui.Button(label="Accept", style=discord.ButtonStyle.success, custom_id=f"crafting:accept:{order_id}")
+            ui.Button(
+                label=_s("accept_button"), style=discord.ButtonStyle.success, custom_id=f"crafting:accept:{order_id}"
+            )
         )
         view.add_item(
-            ui.Button(label="Cancel", style=discord.ButtonStyle.danger, custom_id=f"crafting:cancel:{order_id}")
+            ui.Button(
+                label=_s("cancel_button"), style=discord.ButtonStyle.danger, custom_id=f"crafting:cancel:{order_id}"
+            )
         )
         view.add_item(
-            ui.Button(label="Ask Question", style=discord.ButtonStyle.secondary, custom_id=f"crafting:ask:{order_id}")
+            ui.Button(label=_s("ask_button"), style=discord.ButtonStyle.secondary, custom_id=f"crafting:ask:{order_id}")
         )
     elif status == "in_progress":
         view.add_item(
-            ui.Button(label="Drop", style=discord.ButtonStyle.secondary, custom_id=f"crafting:drop:{order_id}")
+            ui.Button(
+                label=_s("drop_button"), style=discord.ButtonStyle.secondary, custom_id=f"crafting:drop:{order_id}"
+            )
         )
         view.add_item(
-            ui.Button(label="Complete", style=discord.ButtonStyle.success, custom_id=f"crafting:complete:{order_id}")
+            ui.Button(
+                label=_s("complete_button"),
+                style=discord.ButtonStyle.success,
+                custom_id=f"crafting:complete:{order_id}",
+            )
         )
         view.add_item(
-            ui.Button(label="Cancel", style=discord.ButtonStyle.danger, custom_id=f"crafting:cancel:{order_id}")
+            ui.Button(
+                label=_s("cancel_button"), style=discord.ButtonStyle.danger, custom_id=f"crafting:cancel:{order_id}"
+            )
         )
         view.add_item(
-            ui.Button(label="Ask Question", style=discord.ButtonStyle.secondary, custom_id=f"crafting:ask:{order_id}")
+            ui.Button(label=_s("ask_button"), style=discord.ButtonStyle.secondary, custom_id=f"crafting:ask:{order_id}")
         )
     return view
 
@@ -80,31 +92,43 @@ def build_order_view(order_id: int, status: str) -> ui.View:
 
 
 class CraftingBoardView(ui.View):
-    """Persistent view on the board embed with a single 'Create Order' button."""
+    """Persistent view on the board embed with a single 'Create Order' button.
 
-    def __init__(self, bot):
+    The button label can be localized at board creation time by passing ``label``.
+    At bot restart (``setup_hook``), the label defaults to English — Discord shows
+    the label stored in the original message, so it stays localized.
+    """
+
+    def __init__(self, bot, label: str | None = None):
         super().__init__(timeout=None)
         self.bot = bot
+        button = ui.Button(
+            label=label or "Create Crafting Order",
+            style=discord.ButtonStyle.primary,
+            custom_id="crafting_create_order",
+        )
+        button.callback = self._on_create_order
+        self.add_item(button)
 
-    @ui.button(label="Create Crafting Order", style=discord.ButtonStyle.primary, custom_id="crafting_create_order")
-    async def create_order(self, interaction: Interaction, button: ui.Button):
+    async def _on_create_order(self, interaction: Interaction):
         with self.bot.session_scope() as session:
             config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
             if config is None:
                 await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
                 return
-            role_ids = json.loads(config.RoleIds)
+            mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
+            lang = get_guild_language(interaction.guild_id, session)
 
         roles = []
-        for rid in role_ids:
-            role = interaction.guild.get_role(rid)
+        for m in mappings:
+            role = interaction.guild.get_role(m.RoleId)
             if role:
                 roles.append(role)
         if not roles:
             await interaction.response.send_message(_ls(interaction, "create.no_roles"), ephemeral=True)
             return
 
-        view = ProfessionSelectView(self.bot, roles, interaction.guild_id)
+        view = ProfessionSelectView(self.bot, roles, interaction.guild_id, lang)
         await interaction.response.send_message(_ls(interaction, "profession_select"), view=view, ephemeral=True)
 
 
@@ -116,12 +140,13 @@ class CraftingBoardView(ui.View):
 class ProfessionSelectView(ui.View):
     """Ephemeral profession selection (Step 1)."""
 
-    def __init__(self, bot, roles: list[discord.Role], guild_id: int):
+    def __init__(self, bot, roles: list[discord.Role], guild_id: int, lang: str = "en"):
         super().__init__(timeout=180)
         self.bot = bot
         self.guild_id = guild_id
+        self.lang = lang
         select = ui.Select(
-            placeholder="Select a profession...",
+            placeholder=get_string(lang, "wow.craftingorder.profession_select"),
             options=[discord.SelectOption(label=r.name, value=str(r.id)) for r in roles[:25]],
         )
         select.callback = self._on_select
@@ -132,14 +157,18 @@ class ProfessionSelectView(ui.View):
         role = interaction.guild.get_role(role_id)
 
         with self.bot.session_scope() as session:
-            recipes = CraftingRecipeCache.get_by_profession(self.guild_id, role_id, session)
+            prof_id = CraftingRoleMapping.get_profession_id(self.guild_id, role_id, session)
+            if prof_id:
+                recipes = CraftingRecipeCache.get_by_profession(prof_id, session)
+            else:
+                recipes = []
             recipe_options = [(r.ItemName, r.IconUrl) for r in recipes[:25]] if recipes else []
 
         if recipe_options:
-            view = ItemSelectView(self.bot, role_id, role, recipe_options, self.guild_id)
+            view = ItemSelectView(self.bot, role_id, role, recipe_options, self.guild_id, self.lang)
             await interaction.response.edit_message(content=_ls(interaction, "item_select"), view=view)
         else:
-            modal = CraftingOrderModal(self.bot, role_id, role, "", None, self.guild_id)
+            modal = CraftingOrderModal(self.bot, role_id, role, "", None, self.guild_id, self.lang)
             await interaction.response.send_modal(modal)
 
 
@@ -153,17 +182,19 @@ class ItemSelectView(ui.View):
         role: discord.Role,
         recipe_options: list[tuple[str, str | None]],
         guild_id: int,
+        lang: str = "en",
     ):
         super().__init__(timeout=180)
         self.bot = bot
         self.role_id = role_id
         self.role = role
         self.guild_id = guild_id
+        self.lang = lang
         self._recipes = {name: icon for name, icon in recipe_options}
 
         options = [discord.SelectOption(label=name) for name, _ in recipe_options]
-        options.append(discord.SelectOption(label="Other (specify below)", value="__other__"))
-        select = ui.Select(placeholder="Select an item...", options=options)
+        options.append(discord.SelectOption(label=get_string(lang, "wow.craftingorder.item_other"), value="__other__"))
+        select = ui.Select(placeholder=get_string(lang, "wow.craftingorder.item_select"), options=options)
         select.callback = self._on_select
         self.add_item(select)
 
@@ -176,7 +207,7 @@ class ItemSelectView(ui.View):
             item_name = value
             icon_url = self._recipes.get(value)
 
-        modal = CraftingOrderModal(self.bot, self.role_id, self.role, item_name, icon_url, self.guild_id)
+        modal = CraftingOrderModal(self.bot, self.role_id, self.role, item_name, icon_url, self.guild_id, self.lang)
         await interaction.response.send_modal(modal)
 
 
@@ -193,13 +224,24 @@ class CraftingOrderModal(ui.Modal):
         label="Additional Notes (optional)", style=discord.TextStyle.paragraph, required=False, max_length=1000
     )
 
-    def __init__(self, bot, role_id: int, role: discord.Role, item_name: str, icon_url: str | None, guild_id: int):
-        super().__init__(title="Create Crafting Order")
+    def __init__(
+        self,
+        bot,
+        role_id: int,
+        role: discord.Role,
+        item_name: str,
+        icon_url: str | None,
+        guild_id: int,
+        lang: str = "en",
+    ):
+        super().__init__(title=get_string(lang, "wow.craftingorder.modal_title"))
         self.bot = bot
         self.role_id = role_id
         self.role = role
         self.icon_url = icon_url
         self.guild_id = guild_id
+        self.item_name_input.label = get_string(lang, "wow.craftingorder.modal_item_name")
+        self.notes_input.label = get_string(lang, "wow.craftingorder.modal_notes")
         if item_name:
             self.item_name_input.default = item_name
 
@@ -231,14 +273,14 @@ class CraftingOrderModal(ui.Modal):
             session.flush()
 
             embed = build_order_embed(order, interaction.guild, lang)
-            view = build_order_view(order.Id, "open")
+            view = build_order_view(order.Id, "open", lang)
 
             channel = interaction.guild.get_channel(config.ChannelId)
             msg = await channel.send(content=self.role.mention, embed=embed, view=view)
             order.OrderMessageId = msg.id
 
         await interaction.followup.send(
-            _ls(interaction, "create.success", item=item_name),
+            _ls(interaction, "order_created", item=item_name),
             ephemeral=True,
         )
 
@@ -283,7 +325,7 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
             order.CrafterId = interaction.user.id
             lang = get_guild_language(interaction.guild_id, session)
             embed = build_order_embed(order, interaction.guild, lang)
-            view = build_order_view(order.Id, "in_progress")
+            view = build_order_view(order.Id, "in_progress", lang)
         await interaction.response.edit_message(embed=embed, view=view)
 
 
@@ -321,7 +363,7 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
             order.CrafterId = None
             lang = get_guild_language(interaction.guild_id, session)
             embed = build_order_embed(order, interaction.guild, lang)
-            view = build_order_view(order.Id, "open")
+            view = build_order_view(order.Id, "open", lang)
         await interaction.response.edit_message(embed=embed, view=view)
 
 
@@ -359,20 +401,23 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
             item_name = order.ItemName
             creator_id = order.CreatorId
 
-        # DM the creator
+        # DM the creator; fall back to thread if DM fails
+        used_thread = False
         try:
             creator = await interaction.client.fetch_user(creator_id)
             await creator.send(_ls(interaction, "complete.dm_complete", item=item_name))
         except (discord.Forbidden, discord.NotFound):
-            await _thread_fallback(
+            used_thread = await _thread_fallback(
                 interaction, self.order_id, _ls(interaction, "complete.dm_complete", item=item_name), creator_id
             )
 
         await interaction.response.edit_message(content=_ls(interaction, "complete.done"), embed=None, view=None)
-        try:
-            await interaction.message.delete()
-        except discord.HTTPException:
-            log.debug("Failed to delete order message for order %s after completion", self.order_id, exc_info=True)
+        # Only delete the order message if no thread is anchored to it
+        if not used_thread:
+            try:
+                await interaction.message.delete()
+            except discord.HTTPException:
+                log.debug("Failed to delete order message for order %s after completion", self.order_id, exc_info=True)
 
 
 class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?P<order_id>\d+)"):
@@ -410,21 +455,26 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
             creator_id = order.CreatorId
             cancelled_by_creator = interaction.user.id == creator_id
 
-        # DM only if cancelled by admin (not by creator)
+        # DM only if cancelled by admin (not by creator); fall back to thread if DM fails
+        used_thread = False
         if not cancelled_by_creator:
             try:
                 creator = await interaction.client.fetch_user(creator_id)
                 await creator.send(_ls(interaction, "cancel.dm_cancel", item=item_name))
             except (discord.Forbidden, discord.NotFound):
-                await _thread_fallback(
+                used_thread = await _thread_fallback(
                     interaction, self.order_id, _ls(interaction, "cancel.dm_cancel", item=item_name), creator_id
                 )
 
         await interaction.response.edit_message(content=_ls(interaction, "cancel.done"), embed=None, view=None)
-        try:
-            await interaction.message.delete()
-        except discord.HTTPException:
-            log.debug("Failed to delete order message for order %s after cancellation", self.order_id, exc_info=True)
+        # Only delete the order message if no thread is anchored to it
+        if not used_thread:
+            try:
+                await interaction.message.delete()
+            except discord.HTTPException:
+                log.debug(
+                    "Failed to delete order message for order %s after cancellation", self.order_id, exc_info=True
+                )
 
 
 class AskQuestionButton(ui.DynamicItem[ui.Button], template=r"crafting:ask:(?P<order_id>\d+)"):
@@ -439,7 +489,9 @@ class AskQuestionButton(ui.DynamicItem[ui.Button], template=r"crafting:ask:(?P<o
         return cls(order_id=int(match["order_id"]))
 
     async def callback(self, interaction: Interaction):
-        modal = AskQuestionModal(self.order_id)
+        with interaction.client.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
+        modal = AskQuestionModal(self.order_id, lang)
         await interaction.response.send_modal(modal)
 
 
@@ -451,9 +503,10 @@ class AskQuestionButton(ui.DynamicItem[ui.Button], template=r"crafting:ask:(?P<o
 class AskQuestionModal(ui.Modal):
     message_input = ui.TextInput(label="Your question", style=discord.TextStyle.paragraph, max_length=1000)
 
-    def __init__(self, order_id: int):
-        super().__init__(title="Ask a Question")
+    def __init__(self, order_id: int, lang: str = "en"):
+        super().__init__(title=get_string(lang, "wow.craftingorder.ask.modal_title"))
         self.order_id = order_id
+        self.message_input.label = get_string(lang, "wow.craftingorder.ask.modal_message")
 
     async def on_submit(self, interaction: Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -496,12 +549,15 @@ class AskQuestionModal(ui.Modal):
 # ---------------------------------------------------------------------------
 
 
-async def _thread_fallback(interaction: Interaction, order_id: int, message: str, creator_id: int):
-    """Create or reuse a thread and post a message as DM fallback."""
+async def _thread_fallback(interaction: Interaction, order_id: int, message: str, creator_id: int) -> bool:
+    """Create or reuse a thread and post a message as DM fallback.
+
+    Returns True if the thread was successfully used (message should be kept as anchor).
+    """
     with interaction.client.session_scope() as session:
         order = CraftingOrder.get_by_id(order_id, session)
         if order is None:
-            return
+            return False
         thread_id = order.ThreadId
         channel_id = order.ChannelId
         message_id = order.OrderMessageId
@@ -519,6 +575,7 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
                 order.ThreadId = thread.id
         except discord.HTTPException:
             log.warning("Failed to create DM fallback thread for order #%d", order_id)
-            return
+            return False
 
     await thread.send(f"{message}\n<@{creator_id}>")
+    return True
