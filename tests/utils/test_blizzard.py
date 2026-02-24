@@ -42,6 +42,7 @@ class TestResolveRecipeWowhead:
             '<span class="q3"><a href="/item=244751/evercore-zoomshroud">'
             "Evercore Zoomshroud</a></span>"
             "<br>Binds when equipped"
+            "<table><tr><td>Head</td><th>Plate</th></tr></table>"
         )
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -94,6 +95,29 @@ class TestResolveRecipeWowhead:
             result = await _resolve_recipe_wowhead(52418, MagicMock())
 
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_bop_equippable_item(self):
+        """BoP crafted gear (Binds when picked up + equipment slot) is equippable."""
+        tooltip_html = (
+            '<a href="/item=219336/glyph-etched-breastplate">Glyph-Etched Breastplate</a>'
+            "<br>Binds when picked up"
+            "<table><tr><td>Chest</td><th>Mail</th></tr></table>"
+        )
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_resp.read.return_value = json.dumps(
+            {"name": "Glyph-Etched Breastplate", "icon": "inv_chest_mail", "quality": 4, "tooltip": tooltip_html}
+        ).encode()
+
+        with patch("utils.blizzard.urllib.request.urlopen", return_value=mock_resp):
+            result = await _resolve_recipe_wowhead(50215, MagicMock())
+
+        assert result is not None
+        assert result["item_id"] == 219336
+        assert result["is_equippable"] is True
 
     @pytest.mark.asyncio
     async def test_non_equippable_item(self):

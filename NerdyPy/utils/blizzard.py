@@ -64,6 +64,10 @@ CRAFTING_PROFESSIONS = {
 _WOWHEAD_TOOLTIP_URL = "https://nether.wowhead.com/tooltip/recipe/{}?dataEnv=1&locale=0"
 _WOWHEAD_ICON_URL = "https://wow.zamimg.com/images/wow/icons/large/{}.jpg"
 _ITEM_LINK_RE = re.compile(r'href="(?:/\w+)?/item=(\d+)/([^"]+)"')
+_EQUIP_SLOT_RE = re.compile(
+    r"<td>(Head|Neck|Shoulder|Back|Chest|Shirt|Tabard|Wrist|Hands|Waist|Legs|Feet"
+    r"|Finger|Trinket|Main Hand|Off Hand|One-Hand|Two-Hand|Ranged|Held In Off-hand)</td>"
+)
 
 
 async def _resolve_recipe_wowhead(recipe_id, log):
@@ -106,7 +110,7 @@ async def _resolve_recipe_wowhead(recipe_id, log):
     item_id_str, item_slug = matches[-1]
     item_id = int(item_id_str)
     item_name = data.get("name", item_slug.replace("-", " ").title())
-    is_equippable = "Binds when equipped" in tooltip
+    is_equippable = bool(_EQUIP_SLOT_RE.search(tooltip))
     icon = data.get("icon", "")
     icon_url = _WOWHEAD_ICON_URL.format(icon) if icon else None
 
