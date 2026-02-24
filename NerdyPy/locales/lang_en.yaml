@@ -142,6 +142,14 @@ leavemsg:
     success: "Leave message updated to: {message}"
     missing_placeholder: "Message must contain {member} placeholder for the member name."
     not_enabled: "Please enable leave messages first using `/leavemsg enable #channel`."
+    modal_title: "Leave Message"
+    modal_placeholder: "Use {member} for the member's name, e.g. Goodbye {member}!"
+  fetch_message:
+    invalid_ref: "Invalid message reference — provide a message ID or a message link."
+    channel_inaccessible: "I can't access the channel that message is in."
+    message_not_found: "Message not found — double-check the ID or link."
+    no_read_permission: "I don't have permission to read that message."
+    no_content: "That message has no text content."
   status:
     not_enabled: "Leave messages are not enabled for this server."
     enabled: "**Leave messages:** Enabled\n**Channel:** {channel}\n**Message:** {message}"
@@ -187,6 +195,12 @@ reminder:
 
 moderation:
   invalid_timespan: "Only timespans up until weeks are allowed. Do not use months or years."
+  fetch_message:
+    invalid_ref: "Invalid message reference — provide a message ID or a message link."
+    channel_inaccessible: "I can't access the channel that message is in."
+    message_not_found: "Message not found — double-check the ID or link."
+    no_read_permission: "I don't have permission to read that message."
+    no_content: "That message has no text content."
   autokicker:
     configured: "AutoKicker configured for this server."
     default_reminder: "You have not selected a role on {guild}. Please choose a role until {deadline}."
@@ -284,6 +298,8 @@ application:
     message_not_found: "Message not found — double-check the ID or link."
     no_read_permission: "I don't have permission to read that message."
     no_content: "That message has no text content."
+  create:
+    modal_title: "Form Messages"
   delete:
     success: "Form **{name}** deleted."
   list:
@@ -293,6 +309,8 @@ application:
     status_not_ready: "not ready"
     entry: "**{name}** — {questions} question(s) — {status}"
   settings:
+    modal_title: "Edit Description"
+    edit_description_describe: "Open a modal to edit the form description"
     nothing_to_change: "Nothing to change."
     success: "Settings for **{name}** updated: {changes}."
     change_review_channel: "review_channel={channel}"
@@ -344,16 +362,35 @@ application:
         - "How long have you been a member of this server?"
         - "Have you read and agreed to the server rules?"
         - "How do you plan to use this access?"
+  modal_fields:
+    description_label: "Description"
+    description_placeholder: "Apply button embed text (leave blank to skip · cancel aborts)"
+    approval_label: "Approval Message"
+    approval_placeholder: "Sent to applicant on approval (leave blank to skip · cancel aborts)"
+    denial_label: "Denial Message"
+    denial_placeholder: "Sent to applicant on denial (leave blank to skip · cancel aborts)"
   template:
     not_found: "Template **{name}** not found."
     already_exists: "A template named **{name}** already exists."
+    create:
+      modal_title: "Template Messages"
     list:
       title: "📋 Application Templates"
       empty: "No templates available."
       prefix_builtin: "[Built-in]"
       prefix_custom: "[Custom]"
       entry: "{prefix} **{name}** — {questions} question(s)"
+    view:
+      title: "📋 Template: {name}"
+      type_builtin: "Built-in"
+      type_custom: "Custom"
+      questions_title: "Questions"
+      no_questions: "No questions defined."
+      approval_title: "Approval Message"
+      denial_title: "Denial Message"
+      not_set: "—"
     use:
+      modal_title: "Form Settings"
       success: "Form **{name}** created from template **{template}**."
     save:
       success: "Template **{template_name}** saved from form **{form}**."
@@ -366,6 +403,17 @@ application:
       success: "Template **{name}** updated: {changes}."
       change_approval: "approval message"
       change_denial: "denial message"
+      modal_title: "Template Messages"
+      modal_approval_label: "Approval Message"
+      modal_approval_placeholder: "Sent to applicant on approval (leave blank to clear · cancel aborts)"
+      modal_denial_label: "Denial Message"
+      modal_denial_placeholder: "Sent to applicant on denial (leave blank to clear · cancel aborts)"
+    fetch_message:
+      invalid_ref: "Invalid message reference — provide a message ID or a message link."
+      channel_inaccessible: "I can't access the channel that message is in."
+      message_not_found: "Message not found — double-check the ID or link."
+      no_read_permission: "I don't have permission to read that message."
+      no_content: "That message has no text content."
   import:
     upload_prompt: "Please upload a JSON file to import as an application form."
     timeout: "Import cancelled — timed out."
@@ -458,12 +506,20 @@ application:
       cancel_description: "No form was saved."
     template_create:
       title: "Creating template: {name}"
-      init_description: "Type your first question, or react ❌ to finish."
-      collect_description: "Question {count} added. Type the next question, or react ❌ to finish."
+      init_description: "Type your first question, or react ❌ to cancel."
+      collect_description: "Question {count} added. Type the next question, or react ✅ to finish."
+      review_title: "Review: {name}"
+      review_footer: "✅ save  |  ✏️ edit a question  |  ❌ cancel"
+      edit_q_select_title: "Edit a question"
+      edit_q_select_description: "Which question number (1–{total})?"
+      edit_q_select_invalid: "Enter a number."
+      edit_q_select_out_of_range: "Enter 1–{total}."
+      edit_q_title: "Re-enter question {num}"
+      edit_q_description: "Current: _{current}_\n\nType the replacement:"
       done_title: "Template created: {name}"
       done_description: "Added {count} question(s)."
-      empty_title: "Template creation cancelled"
-      empty_description: "You need at least one question."
+      cancel_title: "Template creation cancelled"
+      cancel_description: "No template was saved."
     edit:
       title: "Editing form: {name}"
       init_description: "📝 = add question | 🗑️ = remove question\n🔀 = reorder | ✅ = done"

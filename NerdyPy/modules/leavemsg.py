@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """Module for server leave message announcements"""
 
+from typing import Optional
+
+import discord
 from discord import Interaction, Member, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext.commands import Cog, GroupCog
@@ -8,6 +11,7 @@ from models.leavemsg import LeaveMessage
 from utils.cog import NerpyBotCog
 
 from utils.errors import NerpyValidationError
+from utils.helpers import fetch_message_content
 from utils.permissions import validate_channel_permissions
 from utils.strings import get_guild_language, get_string
 
@@ -100,29 +104,60 @@ class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
 
         await interaction.response.send_message(get_string(lang, "leavemsg.disable.success"), ephemeral=True)
 
-    @app_commands.command(name="message")
-    @checks.has_permissions(administrator=True)
-    async def _leavemsg_message(self, interaction: Interaction, message: str) -> None:
-        """Set a custom leave message. Use {member} as placeholder. [administrator]
-
-        Parameters
-        ----------
-        interaction
-        message: str
-            The message template. Use {member} for the member's display name.
-        """
+    async def save_leave_message(self, interaction: Interaction, message: str, lang: str) -> None:
+        """Validate and persist a leave message, then confirm to the user."""
+        if "{member}" not in message:
+            raise NerpyValidationError(get_string(lang, "leavemsg.message.missing_placeholder"))
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
-            if "{member}" not in message:
-                raise NerpyValidationError(get_string(lang, "leavemsg.message.missing_placeholder"))
             leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
                 raise NerpyValidationError(get_string(lang, "leavemsg.message.not_enabled"))
             leave_config.Message = message
 
-        await interaction.response.send_message(
-            get_string(lang, "leavemsg.message.success", message=message), ephemeral=True
-        )
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                get_string(lang, "leavemsg.message.success", message=message), ephemeral=True
+            )
+        else:
+            await interaction.followup.send(
+                get_string(lang, "leavemsg.message.success", message=message), ephemeral=True
+            )
+
+    @app_commands.command(name="message")
+    @checks.has_permissions(administrator=True)
+    @app_commands.describe(
+        message="The message template (opens a modal if omitted). Use {member} for the member name.",
+        message_source="Message ID or link whose text becomes the leave message (message is deleted)",
+    )
+    @app_commands.rename(message_source="message-source")
+    async def _leavemsg_message(
+        self,
+        interaction: Interaction,
+        message: Optional[str] = None,
+        message_source: Optional[str] = None,
+    ) -> None:
+        """Set a custom leave message. Use {member} as placeholder. [administrator]"""
+        with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
+
+        # Path 1: fetch from an existing Discord message
+        if message_source:
+            content, error = await fetch_message_content(
+                self.bot, message_source, None, interaction, lang, key_prefix="leavemsg.fetch_message"
+            )
+            if error:
+                await interaction.response.send_message(error, ephemeral=True)
+                return
+            message = content
+
+        # Path 2: open a modal when no text was provided
+        if message is None:
+            modal = _LeaveMessageModal(self.bot, lang)
+            await interaction.response.send_modal(modal)
+            return
+
+        # Path 3: inline text provided
+        await self.save_leave_message(interaction, message, lang)
 
     @app_commands.command(name="status")
     @checks.has_permissions(administrator=True)
@@ -143,6 +178,27 @@ class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
         await interaction.response.send_message(
             get_string(lang, "leavemsg.status.enabled", channel=channel_mention, message=message), ephemeral=True
         )
+
+
+class _LeaveMessageModal(discord.ui.Modal):
+    """Paragraph modal for entering a leave message template."""
+
+    message_input = discord.ui.TextInput(
+        label="Leave Message",
+        style=discord.TextStyle.paragraph,
+        max_length=2000,
+        required=True,
+    )
+
+    def __init__(self, bot, lang: str):
+        super().__init__(title=get_string(lang, "leavemsg.message.modal_title"))
+        self.bot = bot
+        self.lang = lang
+        self.message_input.placeholder = get_string(lang, "leavemsg.message.modal_placeholder")
+
+    async def on_submit(self, interaction: Interaction):
+        cog = self.bot.get_cog("LeaveMsg")
+        await cog.save_leave_message(interaction, self.message_input.value.strip(), self.lang)
 
 
 async def setup(bot):

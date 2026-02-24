@@ -9,6 +9,7 @@ Three conversation subclasses:
 
 from datetime import datetime, timezone
 from enum import Enum
+from functools import partial
 
 import discord
 from discord import Embed
@@ -67,7 +68,12 @@ class SubmitState(Enum):
 class TemplateCreateState(Enum):
     INIT = "init"
     COLLECT = "collect"
+    BACK = "back"
+    REVIEW = "review"
+    EDIT_Q_SELECT = "edit_q_select"
+    EDIT_Q = "edit_q"
     DONE = "done"
+    CANCEL = "cancel"
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +98,77 @@ def _questions_embed(title: str, questions: list[str], description: str | None =
     if description:
         body = f"{description}\n\n{body}"
     return Embed(title=title, description=body)
+
+
+async def _show_question_review(conv, locale_prefix, item_name, init_state, done_state, edit_state, cancel_state):
+    """Show a question review embed with confirm/edit/cancel reactions, or loop back to init if empty."""
+    if not conv.questions:
+        conv.currentState = init_state
+        await conv.state_init()
+        return
+    emb = _questions_embed(
+        get_string(conv.lang, f"{locale_prefix}.review_title", name=item_name),
+        conv.questions,
+    )
+    emb.set_footer(text=get_string(conv.lang, f"{locale_prefix}.review_footer"))
+    await conv.send_react(
+        emb,
+        {
+            CONFIRM_EMOJI: done_state,
+            EDIT_EMOJI: edit_state,
+            CANCEL_EMOJI: cancel_state,
+        },
+    )
+
+
+async def _parse_question_number(
+    conv, message: str, *, invalid_desc: str, out_of_range_desc: str, out_of_range_title_key: str = "invalid_title"
+) -> int | None:
+    """Parse and validate a 1-based question number; sends error embed and returns None on failure."""
+    _e = "application.conversation.error"
+    try:
+        num = int(message)
+    except ValueError:
+        await conv.send_ns(Embed(title=get_string(conv.lang, f"{_e}.invalid_input_title"), description=invalid_desc))
+        return None
+    if num < 1 or num > len(conv.questions):
+        await conv.send_ns(
+            Embed(title=get_string(conv.lang, f"{_e}.{out_of_range_title_key}"), description=out_of_range_desc)
+        )
+        return None
+    return num
+
+
+async def _handle_edit_q_selection(conv, message: str, locale_prefix: str, edit_state) -> bool:
+    """Parse a question number for editing; sets _edit_q_index and target state. Returns False always."""
+    _c = locale_prefix
+    num = await _parse_question_number(
+        conv,
+        message,
+        invalid_desc=get_string(conv.lang, f"{_c}.edit_q_select_invalid"),
+        out_of_range_desc=get_string(conv.lang, f"{_c}.edit_q_select_out_of_range", total=len(conv.questions)),
+    )
+    if num is None:
+        return False
+    conv._edit_q_index = num - 1
+    conv.currentState = edit_state
+    return False
+
+
+async def _get_form_or_close(conv, session):
+    """Look up form by conv.form_id; sends error and closes if gone. Returns form or None."""
+    form = ApplicationForm.get_by_id(conv.form_id, session)
+    if form is None:
+        _e = "application.conversation.error"
+        await conv.send_ns(
+            Embed(
+                title=get_string(conv.lang, f"{_e}.title"),
+                description=get_string(conv.lang, f"{_e}.form_gone"),
+            )
+        )
+        await conv.close()
+        return None
+    return form
 
 
 # ---------------------------------------------------------------------------
@@ -176,23 +253,14 @@ class ApplicationCreateConversation(Conversation):
             await self.state_init()
 
     async def state_review(self):
-        if not self.questions:
-            self.currentState = CreateState.INIT
-            await self.state_init()
-            return
-        _c = "application.conversation.create"
-        emb = _questions_embed(
-            get_string(self.lang, f"{_c}.review_title", name=self.form_name),
-            self.questions,
-        )
-        emb.set_footer(text=get_string(self.lang, f"{_c}.review_footer"))
-        await self.send_react(
-            emb,
-            {
-                CONFIRM_EMOJI: CreateState.DONE,
-                EDIT_EMOJI: CreateState.EDIT_Q_SELECT,
-                CANCEL_EMOJI: CreateState.CANCEL,
-            },
+        await _show_question_review(
+            self,
+            "application.conversation.create",
+            self.form_name,
+            CreateState.INIT,
+            CreateState.DONE,
+            CreateState.EDIT_Q_SELECT,
+            CreateState.CANCEL,
         )
 
     async def state_edit_q_select(self):
@@ -206,32 +274,16 @@ class ApplicationCreateConversation(Conversation):
             title=get_string(self.lang, f"{_c}.edit_q_select_title"),
             description=get_string(self.lang, f"{_c}.edit_q_select_description", total=total),
         )
-        await self.send_msg(emb, CreateState.EDIT_Q_SELECT, self._handle_edit_q_select)
-
-    async def _handle_edit_q_select(self, message):
-        _c = "application.conversation.create"
-        _e = "application.conversation.error"
-        try:
-            num = int(message)
-        except ValueError:
-            await self.send_ns(
-                Embed(
-                    title=get_string(self.lang, f"{_e}.invalid_input_title"),
-                    description=get_string(self.lang, f"{_c}.edit_q_select_invalid"),
-                )
-            )
-            return False
-        if num < 1 or num > len(self.questions):
-            await self.send_ns(
-                Embed(
-                    title=get_string(self.lang, f"{_e}.invalid_title"),
-                    description=get_string(self.lang, f"{_c}.edit_q_select_out_of_range", total=len(self.questions)),
-                )
-            )
-            return False
-        self._edit_q_index = num - 1
-        self.currentState = CreateState.EDIT_Q
-        return False
+        await self.send_msg(
+            emb,
+            CreateState.EDIT_Q_SELECT,
+            partial(
+                _handle_edit_q_selection,
+                self,
+                locale_prefix="application.conversation.create",
+                edit_state=CreateState.EDIT_Q,
+            ),
+        )
 
     async def state_edit_q(self):
         _c = "application.conversation.create"
@@ -272,7 +324,7 @@ class ApplicationCreateConversation(Conversation):
 
             try:
                 await post_apply_button_message(self.bot, form_id)
-            except Exception:
+            except discord.HTTPException:
                 self.bot.log.error("application: failed to post apply button after form creation", exc_info=True)
 
         _c = "application.conversation.create"
@@ -311,13 +363,19 @@ class ApplicationTemplateCreateConversation(Conversation):
         self.approval_message = approval_message
         self.denial_message = denial_message
         self.questions: list[str] = []
+        self._edit_q_index: int = 0
         super().__init__(bot, user, guild)
 
     def create_state_handler(self):
         return {
             TemplateCreateState.INIT: self.state_init,
             TemplateCreateState.COLLECT: self.state_collect,
+            TemplateCreateState.BACK: self.state_back,
+            TemplateCreateState.REVIEW: self.state_review,
+            TemplateCreateState.EDIT_Q_SELECT: self.state_edit_q_select,
+            TemplateCreateState.EDIT_Q: self.state_edit_q,
             TemplateCreateState.DONE: self.state_done,
+            TemplateCreateState.CANCEL: self.state_cancel,
         }
 
     async def state_init(self):
@@ -327,7 +385,7 @@ class ApplicationTemplateCreateConversation(Conversation):
             description=get_string(self.lang, f"{_c}.init_description"),
         )
         await self.send_both(
-            emb, TemplateCreateState.COLLECT, self._handle_question, {CANCEL_EMOJI: TemplateCreateState.DONE}
+            emb, TemplateCreateState.COLLECT, self._handle_question, {CANCEL_EMOJI: TemplateCreateState.CANCEL}
         )
 
     async def _handle_question(self, message):
@@ -336,27 +394,74 @@ class ApplicationTemplateCreateConversation(Conversation):
 
     async def state_collect(self):
         count = len(self.questions)
+        reactions = {CONFIRM_EMOJI: TemplateCreateState.REVIEW, CANCEL_EMOJI: TemplateCreateState.CANCEL}
+        if count > 0:
+            reactions[BACK_EMOJI] = TemplateCreateState.BACK
         _c = "application.conversation.template_create"
         emb = Embed(
             title=get_string(self.lang, f"{_c}.title", name=self.template_name),
             description=get_string(self.lang, f"{_c}.collect_description", count=count),
         )
-        await self.send_both(
-            emb, TemplateCreateState.COLLECT, self._handle_question, {CANCEL_EMOJI: TemplateCreateState.DONE}
+        await self.send_both(emb, TemplateCreateState.COLLECT, self._handle_question, reactions)
+
+    async def state_back(self):
+        if self.questions:
+            self.questions.pop()
+        if self.questions:
+            self.currentState = TemplateCreateState.COLLECT
+            await self.state_collect()
+        else:
+            self.currentState = TemplateCreateState.INIT
+            await self.state_init()
+
+    async def state_review(self):
+        await _show_question_review(
+            self,
+            "application.conversation.template_create",
+            self.template_name,
+            TemplateCreateState.INIT,
+            TemplateCreateState.DONE,
+            TemplateCreateState.EDIT_Q_SELECT,
+            TemplateCreateState.CANCEL,
         )
+
+    async def state_edit_q_select(self):
+        total = len(self.questions)
+        if total == 0:
+            self.currentState = TemplateCreateState.INIT
+            await self.state_init()
+            return
+        _c = "application.conversation.template_create"
+        emb = Embed(
+            title=get_string(self.lang, f"{_c}.edit_q_select_title"),
+            description=get_string(self.lang, f"{_c}.edit_q_select_description", total=total),
+        )
+        await self.send_msg(
+            emb,
+            TemplateCreateState.EDIT_Q_SELECT,
+            partial(
+                _handle_edit_q_selection,
+                self,
+                locale_prefix="application.conversation.template_create",
+                edit_state=TemplateCreateState.EDIT_Q,
+            ),
+        )
+
+    async def state_edit_q(self):
+        _c = "application.conversation.template_create"
+        emb = Embed(
+            title=get_string(self.lang, f"{_c}.edit_q_title", num=self._edit_q_index + 1),
+            description=get_string(self.lang, f"{_c}.edit_q_description", current=self.questions[self._edit_q_index]),
+        )
+        await self.send_msg(emb, TemplateCreateState.EDIT_Q, self._handle_edit_q)
+
+    async def _handle_edit_q(self, message):
+        self.questions[self._edit_q_index] = message
+        self.currentState = TemplateCreateState.REVIEW
+        return False
 
     async def state_done(self):
         _c = "application.conversation.template_create"
-        if not self.questions:
-            await self.send_ns(
-                Embed(
-                    title=get_string(self.lang, f"{_c}.empty_title"),
-                    description=get_string(self.lang, f"{_c}.empty_description"),
-                )
-            )
-            await self.close()
-            return
-
         with self.bot.session_scope() as session:
             tpl = ApplicationTemplate(
                 GuildId=self.guild.id,
@@ -376,6 +481,16 @@ class ApplicationTemplateCreateConversation(Conversation):
             description=get_string(self.lang, f"{_c}.done_description", count=len(self.questions)),
         )
         await self.send_ns(emb)
+        await self.close()
+
+    async def state_cancel(self):
+        _c = "application.conversation.template_create"
+        await self.send_ns(
+            Embed(
+                title=get_string(self.lang, f"{_c}.cancel_title"),
+                description=get_string(self.lang, f"{_c}.cancel_description"),
+            )
+        )
         await self.close()
 
 
@@ -510,15 +625,8 @@ class ApplicationEditConversation(Conversation):
                 session.delete(q)
                 session.flush()
                 # Reorder remaining questions
-                form = ApplicationForm.get_by_id(self.form_id, session)
-                _e = "application.conversation.error"
+                form = await _get_form_or_close(self, session)
                 if form is None:
-                    emb = Embed(
-                        title=get_string(self.lang, f"{_e}.title"),
-                        description=get_string(self.lang, f"{_e}.form_gone"),
-                    )
-                    await self.send_ns(emb)
-                    await self.close()
                     return
                 for i, question in enumerate(form.questions, start=1):
                     question.SortOrder = i
@@ -561,15 +669,8 @@ class ApplicationEditConversation(Conversation):
         nums = [int(x.strip()) for x in self.lastResponse.split(",")]
 
         with self.bot.session_scope() as session:
-            form = ApplicationForm.get_by_id(self.form_id, session)
-            _e = "application.conversation.error"
+            form = await _get_form_or_close(self, session)
             if form is None:
-                emb = Embed(
-                    title=get_string(self.lang, f"{_e}.title"),
-                    description=get_string(self.lang, f"{_e}.form_gone"),
-                )
-                await self.send_ns(emb)
-                await self.close()
                 return
             # Map old position (1-indexed) -> question object.
             # Use a two-phase update to avoid transient unique-constraint violations
@@ -708,24 +809,14 @@ class ApplicationSubmitConversation(Conversation):
 
     async def _handle_edit_select(self, message):
         _c = "application.conversation.submit"
-        _e = "application.conversation.error"
-        try:
-            num = int(message)
-        except ValueError:
-            await self.send_ns(
-                Embed(
-                    title=get_string(self.lang, f"{_e}.invalid_input_title"),
-                    description=get_string(self.lang, f"{_c}.edit_select_invalid"),
-                )
-            )
-            return False
-        if num < 1 or num > len(self.questions):
-            await self.send_ns(
-                Embed(
-                    title=get_string(self.lang, f"{_e}.invalid_number_title"),
-                    description=get_string(self.lang, f"{_c}.edit_select_out_of_range", total=len(self.questions)),
-                )
-            )
+        num = await _parse_question_number(
+            self,
+            message,
+            invalid_desc=get_string(self.lang, f"{_c}.edit_select_invalid"),
+            out_of_range_desc=get_string(self.lang, f"{_c}.edit_select_out_of_range", total=len(self.questions)),
+            out_of_range_title_key="invalid_number_title",
+        )
+        if num is None:
             return False
         self._editing = True
         self.currentState = f"question_{num - 1}"

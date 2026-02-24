@@ -142,6 +142,14 @@ leavemsg:
     success: "Abschiedsnachricht aktualisiert auf: {message}"
     missing_placeholder: "Die Nachricht muss den Platzhalter {member} für den Mitgliedsnamen enthalten."
     not_enabled: "Bitte aktiviere zuerst Abschiedsnachrichten mit `/leavemsg enable #channel`."
+    modal_title: "Abschiedsnachricht"
+    modal_placeholder: "Verwende {member} für den Mitgliedsnamen, z.B. Tschüss {member}!"
+  fetch_message:
+    invalid_ref: "Ungültige Nachrichtenreferenz — gib eine Nachrichten-ID oder einen Nachrichtenlink an."
+    channel_inaccessible: "Ich kann nicht auf den Kanal dieser Nachricht zugreifen."
+    message_not_found: "Nachricht nicht gefunden — überprüfe die ID oder den Link."
+    no_read_permission: "Ich habe keine Berechtigung, diese Nachricht zu lesen."
+    no_content: "Diese Nachricht hat keinen Textinhalt."
   status:
     not_enabled: "Abschiedsnachrichten sind für diesen Server nicht aktiviert."
     enabled: "**Abschiedsnachrichten:** Aktiviert\n**Kanal:** {channel}\n**Nachricht:** {message}"
@@ -187,6 +195,12 @@ reminder:
 
 moderation:
   invalid_timespan: "Es sind nur Zeiträume bis Wochen erlaubt. Verwende keine Monate oder Jahre."
+  fetch_message:
+    invalid_ref: "Ungültige Nachrichtenreferenz — gib eine Nachrichten-ID oder einen Nachrichtenlink an."
+    channel_inaccessible: "Ich kann nicht auf den Kanal dieser Nachricht zugreifen."
+    message_not_found: "Nachricht nicht gefunden — überprüfe die ID oder den Link."
+    no_read_permission: "Ich habe keine Berechtigung, diese Nachricht zu lesen."
+    no_content: "Diese Nachricht hat keinen Textinhalt."
   autokicker:
     configured: "AutoKicker für diesen Server konfiguriert."
     default_reminder: "Du hast keine Rolle auf {guild} gewählt. Bitte wähle eine Rolle bis {deadline}."
@@ -284,6 +298,8 @@ application:
     message_not_found: "Nachricht nicht gefunden — überprüfe die ID oder den Link."
     no_read_permission: "Ich habe keine Berechtigung, diese Nachricht zu lesen."
     no_content: "Diese Nachricht hat keinen Textinhalt."
+  create:
+    modal_title: "Formular-Nachrichten"
   delete:
     success: "Formular **{name}** gelöscht."
   list:
@@ -293,6 +309,8 @@ application:
     status_not_ready: "nicht bereit"
     entry: "**{name}** — {questions} Frage(n) — {status}"
   settings:
+    modal_title: "Beschreibung bearbeiten"
+    edit_description_describe: "Öffnet ein Modal zur Bearbeitung der Formularbeschreibung"
     nothing_to_change: "Nichts zu ändern."
     success: "Einstellungen für **{name}** aktualisiert: {changes}."
     change_review_channel: "Überprüfungskanal={channel}"
@@ -344,16 +362,35 @@ application:
         - "Wie lange bist du schon Mitglied auf diesem Server?"
         - "Hast du die Serverregeln gelesen und akzeptiert?"
         - "Wie planst du diesen Zugang zu nutzen?"
+  modal_fields:
+    description_label: "Beschreibung"
+    description_placeholder: "Bewerben-Button-Text (optional · Abbrechen bricht ab)"
+    approval_label: "Genehmigungsnachricht"
+    approval_placeholder: "Bei Genehmigung an Bewerber (optional · Abbrechen bricht ab)"
+    denial_label: "Ablehnungsnachricht"
+    denial_placeholder: "Bei Ablehnung an Bewerber (optional · Abbrechen bricht ab)"
   template:
     not_found: "Vorlage **{name}** nicht gefunden."
     already_exists: "Eine Vorlage mit dem Namen **{name}** existiert bereits."
+    create:
+      modal_title: "Vorlagen-Nachrichten"
     list:
       title: "📋 Bewerbungsvorlagen"
       empty: "Keine Vorlagen verfügbar."
       prefix_builtin: "[Integriert]"
       prefix_custom: "[Benutzerdefiniert]"
       entry: "{prefix} **{name}** — {questions} Frage(n)"
+    view:
+      title: "📋 Vorlage: {name}"
+      type_builtin: "Integriert"
+      type_custom: "Benutzerdefiniert"
+      questions_title: "Fragen"
+      no_questions: "Keine Fragen definiert."
+      approval_title: "Genehmigungsnachricht"
+      denial_title: "Ablehnungsnachricht"
+      not_set: "—"
     use:
+      modal_title: "Formular-Einstellungen"
       success: "Formular **{name}** aus Vorlage **{template}** erstellt."
     save:
       success: "Vorlage **{template_name}** aus Formular **{form}** gespeichert."
@@ -366,6 +403,17 @@ application:
       success: "Vorlage **{name}** aktualisiert: {changes}."
       change_approval: "Genehmigungsnachricht"
       change_denial: "Ablehnungsnachricht"
+      modal_title: "Vorlagen-Nachrichten"
+      modal_approval_label: "Genehmigungsnachricht"
+      modal_approval_placeholder: "Bei Genehmigung an Bewerber (leer lassen zum Entfernen · Abbrechen bricht ab)"
+      modal_denial_label: "Ablehnungsnachricht"
+      modal_denial_placeholder: "Bei Ablehnung an Bewerber (leer lassen zum Entfernen · Abbrechen bricht ab)"
+    fetch_message:
+      invalid_ref: "Ungültige Nachrichtenreferenz — gib eine Nachrichten-ID oder einen Nachrichtenlink an."
+      channel_inaccessible: "Ich kann nicht auf den Kanal dieser Nachricht zugreifen."
+      message_not_found: "Nachricht nicht gefunden — überprüfe die ID oder den Link."
+      no_read_permission: "Ich habe keine Berechtigung, diese Nachricht zu lesen."
+      no_content: "Diese Nachricht hat keinen Textinhalt."
   import:
     upload_prompt: "Bitte lade eine JSON-Datei hoch, um sie als Bewerbungsformular zu importieren."
     timeout: "Import abgebrochen — Zeitüberschreitung."
@@ -458,12 +506,20 @@ application:
       cancel_description: "Kein Formular wurde gespeichert."
     template_create:
       title: "Vorlage erstellen: {name}"
-      init_description: "Gib deine erste Frage ein oder reagiere mit ❌ zum Beenden."
-      collect_description: "Frage {count} hinzugefügt. Gib die nächste Frage ein oder reagiere mit ❌ zum Beenden."
+      init_description: "Gib deine erste Frage ein oder reagiere mit ❌ zum Abbrechen."
+      collect_description: "Frage {count} hinzugefügt. Gib die nächste Frage ein oder reagiere mit ✅ zum Beenden."
+      review_title: "Überprüfung: {name}"
+      review_footer: "✅ speichern  |  ✏️ Frage bearbeiten  |  ❌ abbrechen"
+      edit_q_select_title: "Frage bearbeiten"
+      edit_q_select_description: "Welche Fragennummer (1–{total})?"
+      edit_q_select_invalid: "Gib eine Zahl ein."
+      edit_q_select_out_of_range: "Gib 1–{total} ein."
+      edit_q_title: "Frage {num} neu eingeben"
+      edit_q_description: "Aktuell: _{current}_\n\nGib die Ersatzfrage ein:"
       done_title: "Vorlage erstellt: {name}"
       done_description: "{count} Frage(n) hinzugefügt."
-      empty_title: "Vorlagenerstellung abgebrochen"
-      empty_description: "Du benötigst mindestens eine Frage."
+      cancel_title: "Vorlagenerstellung abgebrochen"
+      cancel_description: "Keine Vorlage wurde gespeichert."
     edit:
       title: "Formular bearbeiten: {name}"
       init_description: "📝 = Frage hinzufügen | 🗑️ = Frage entfernen\n🔀 = neu anordnen | ✅ = fertig"

@@ -19,7 +19,8 @@ from models.application import (
     ApplicationTemplate,
     seed_built_in_templates,
 )
-from modules.application import Application, _fetch_description_from_message
+from modules.application import Application
+from utils.helpers import fetch_message_content
 from utils.strings import load_strings
 
 
@@ -47,6 +48,18 @@ def non_admin_interaction(mock_interaction):
     return mock_interaction
 
 
+def _make_modal_interaction(*, is_done=False):
+    """Create a mock interaction suitable for modal on_submit callbacks."""
+    mi = MagicMock()
+    mi.response = MagicMock()
+    mi.response.send_message = AsyncMock()
+    mi.response.defer = AsyncMock()
+    mi.response.is_done = MagicMock(return_value=is_done)
+    mi.followup = MagicMock()
+    mi.followup.send = AsyncMock()
+    return mi
+
+
 def _make_form(db_session, guild_id=987654321, name="TestForm", review_channel_id=None, apply_channel_id=None):
     """Helper to create an ApplicationForm with one question."""
     form = ApplicationForm(
@@ -60,11 +73,15 @@ def _make_form(db_session, guild_id=987654321, name="TestForm", review_channel_i
 
 
 # ---------------------------------------------------------------------------
-# _fetch_description_from_message
+# fetch_message_content
 # ---------------------------------------------------------------------------
 
 
 class TestFetchDescriptionFromMessage:
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        load_strings()
+
     @pytest.fixture
     def mock_channel(self):
         ch = MagicMock()
@@ -87,7 +104,7 @@ class TestFetchDescriptionFromMessage:
         hint = MagicMock()
         hint.id = 222
 
-        content, error = await _fetch_description_from_message(mock_bot, "99999", hint, mock_interaction)
+        content, error = await fetch_message_content(mock_bot, "99999", hint, mock_interaction)
 
         assert error is None
         assert content == msg.content
@@ -100,7 +117,7 @@ class TestFetchDescriptionFromMessage:
         ch, msg = mock_channel
         mock_bot.get_channel = MagicMock(return_value=ch)
 
-        content, error = await _fetch_description_from_message(mock_bot, "99999", None, mock_interaction)
+        content, error = await fetch_message_content(mock_bot, "99999", None, mock_interaction)
 
         assert error is None
         mock_bot.get_channel.assert_called_with(111)
@@ -111,7 +128,7 @@ class TestFetchDescriptionFromMessage:
         mock_bot.get_channel = MagicMock(return_value=ch)
         link = "https://discord.com/channels/123/456/789"
 
-        content, error = await _fetch_description_from_message(mock_bot, link, None, mock_interaction)
+        content, error = await fetch_message_content(mock_bot, link, None, mock_interaction)
 
         assert error is None
         mock_bot.get_channel.assert_called_with(456)
@@ -119,7 +136,7 @@ class TestFetchDescriptionFromMessage:
 
     @pytest.mark.asyncio
     async def test_invalid_ref_returns_error(self, mock_bot, mock_interaction):
-        content, error = await _fetch_description_from_message(mock_bot, "not-a-number", None, mock_interaction)
+        content, error = await fetch_message_content(mock_bot, "not-a-number", None, mock_interaction)
 
         assert content is None
         assert "Invalid" in error
@@ -130,7 +147,7 @@ class TestFetchDescriptionFromMessage:
         ch.fetch_message = AsyncMock(side_effect=discord.NotFound(MagicMock(), "Not found"))
         mock_bot.get_channel = MagicMock(return_value=ch)
 
-        content, error = await _fetch_description_from_message(mock_bot, "99999", None, mock_interaction)
+        content, error = await fetch_message_content(mock_bot, "99999", None, mock_interaction)
 
         assert content is None
         assert "not found" in error.lower()
@@ -143,7 +160,7 @@ class TestFetchDescriptionFromMessage:
         ch.fetch_message = AsyncMock(return_value=msg)
         mock_bot.get_channel = MagicMock(return_value=ch)
 
-        content, error = await _fetch_description_from_message(mock_bot, "99999", None, mock_interaction)
+        content, error = await fetch_message_content(mock_bot, "99999", None, mock_interaction)
 
         assert content is None
         assert "no text" in error.lower()
@@ -154,7 +171,7 @@ class TestFetchDescriptionFromMessage:
         msg.delete = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "No perms"))
         mock_bot.get_channel = MagicMock(return_value=ch)
 
-        content, error = await _fetch_description_from_message(mock_bot, "99999", None, mock_interaction)
+        content, error = await fetch_message_content(mock_bot, "99999", None, mock_interaction)
 
         assert error is None
         assert content == msg.content
@@ -255,7 +272,18 @@ class TestHasManagePermission:
 
 class TestApplicationCreate:
     @pytest.mark.asyncio
-    async def test_create_starts_conversation_with_channel(self, app_cog, admin_interaction):
+    async def test_create_shows_modal(self, app_cog, admin_interaction):
+        """Command should show a modal instead of immediately starting conversation."""
+        review_channel = MagicMock()
+        review_channel.id = 777
+
+        await app_cog._create.callback(app_cog, admin_interaction, name="NewForm", review_channel=review_channel)
+
+        admin_interaction.response.send_modal.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_create_modal_on_submit_starts_conversation(self, app_cog, admin_interaction):
+        """Simulating modal on_submit should defer, start conversation, and send 'Check DMs'."""
         app_cog.bot.convMan = MagicMock()
         app_cog.bot.convMan.init_conversation = AsyncMock()
 
@@ -264,20 +292,24 @@ class TestApplicationCreate:
 
         await app_cog._create.callback(app_cog, admin_interaction, name="NewForm", review_channel=review_channel)
 
+        modal = admin_interaction.response.send_modal.call_args[0][0]
+        mi = _make_modal_interaction(is_done=True)
+
+        await modal._callback(mi, None, None, None)
+
         app_cog.bot.convMan.init_conversation.assert_called_once()
         conv = app_cog.bot.convMan.init_conversation.call_args[0][0]
         assert conv.review_channel_id == 777
         assert conv.apply_channel_id is None
         assert conv.apply_description is None
-        assert conv.required_approvals is None
-        assert conv.required_denials is None
         assert conv.approval_message is None
         assert conv.denial_message is None
-        admin_interaction.response.defer.assert_called_once()
-        assert "DMs" in str(admin_interaction.followup.send.call_args)
+        mi.response.defer.assert_called_once()
+        assert "DMs" in str(mi.followup.send.call_args)
 
     @pytest.mark.asyncio
-    async def test_create_passes_optional_settings(self, app_cog, admin_interaction):
+    async def test_create_modal_passes_optional_settings(self, app_cog, admin_interaction):
+        """Modal values (description, approval, denial) plus inline params flow through."""
         app_cog.bot.convMan = MagicMock()
         app_cog.bot.convMan.init_conversation = AsyncMock()
 
@@ -291,29 +323,31 @@ class TestApplicationCreate:
             review_channel=review_channel,
             approvals=3,
             denials=2,
-            approval_message="Welcome!",
-            denial_message="Sorry.",
         )
+
+        modal = admin_interaction.response.send_modal.call_args[0][0]
+        mi = _make_modal_interaction(is_done=True)
+
+        await modal._callback(mi, "My description", "Welcome!", "Sorry.")
 
         conv = app_cog.bot.convMan.init_conversation.call_args[0][0]
         assert conv.review_channel_id == 888
         assert conv.required_approvals == 3
         assert conv.required_denials == 2
+        assert conv.apply_description == "My description"
         assert conv.approval_message == "Welcome!"
         assert conv.denial_message == "Sorry."
 
     @pytest.mark.asyncio
     async def test_create_rejects_duplicate_name(self, app_cog, admin_interaction, db_session):
         _make_form(db_session, guild_id=admin_interaction.guild.id, name="Existing")
-        app_cog.bot.convMan = MagicMock()
-        app_cog.bot.convMan.init_conversation = AsyncMock()
 
         review_channel = MagicMock()
         review_channel.id = 777
 
         await app_cog._create.callback(app_cog, admin_interaction, name="Existing", review_channel=review_channel)
 
-        app_cog.bot.convMan.init_conversation.assert_not_called()
+        admin_interaction.response.send_modal.assert_not_called()
         assert "already exists" in str(admin_interaction.response.send_message.call_args)
 
     @pytest.mark.asyncio
@@ -326,7 +360,8 @@ class TestApplicationCreate:
         assert "permission" in str(non_admin_interaction.response.send_message.call_args).lower()
 
     @pytest.mark.asyncio
-    async def test_create_passes_apply_channel_and_description(self, app_cog, admin_interaction):
+    async def test_create_modal_with_apply_channel(self, app_cog, admin_interaction):
+        """Apply channel is captured and passed through modal callback."""
         app_cog.bot.convMan = MagicMock()
         app_cog.bot.convMan.init_conversation = AsyncMock()
 
@@ -341,13 +376,17 @@ class TestApplicationCreate:
             name="WithApply",
             review_channel=review_channel,
             channel=apply_channel,
-            description="Click to apply for membership!",
         )
+
+        modal = admin_interaction.response.send_modal.call_args[0][0]
+        mi = _make_modal_interaction(is_done=True)
+
+        await modal._callback(mi, "Click to apply!", None, None)
 
         conv = app_cog.bot.convMan.init_conversation.call_args[0][0]
         assert conv.review_channel_id == 777
         assert conv.apply_channel_id == 888
-        assert conv.apply_description == "Click to apply for membership!"
+        assert conv.apply_description == "Click to apply!"
 
 
 # ---------------------------------------------------------------------------
@@ -604,9 +643,25 @@ class TestApplicationSettings:
         assert updated.ApplyChannelId == 555
 
     @pytest.mark.asyncio
-    async def test_settings_updates_description(self, app_cog, admin_interaction, db_session):
+    async def test_settings_edit_description_shows_modal(self, app_cog, admin_interaction, db_session):
+        """When edit_description=True and no description_message, a modal should be shown."""
         form = _make_form(db_session, guild_id=admin_interaction.guild.id, name="DescForm")
-        # Simulate a form that already has an apply message posted
+        form.ApplyDescription = "Old description"
+        db_session.commit()
+
+        await app_cog._settings.callback(
+            app_cog,
+            admin_interaction,
+            name="DescForm",
+            edit_description=True,
+        )
+
+        admin_interaction.response.send_modal.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_settings_edit_description_modal_on_submit(self, app_cog, admin_interaction, db_session):
+        """Simulating the description modal on_submit should update the form."""
+        form = _make_form(db_session, guild_id=admin_interaction.guild.id, name="DescForm")
         form.ApplyMessageId = 111222
         form.ApplyChannelId = 333
         db_session.commit()
@@ -617,16 +672,25 @@ class TestApplicationSettings:
         mock_message.edit = AsyncMock()
         mock_channel.fetch_message = AsyncMock(return_value=mock_message)
         app_cog.bot.get_channel = MagicMock(return_value=mock_channel)
+        app_cog.bot.get_cog = MagicMock(return_value=app_cog)
 
         await app_cog._settings.callback(
             app_cog,
             admin_interaction,
             name="DescForm",
-            description="New description!",
+            edit_description=True,
         )
 
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "description updated" in call_args
+        modal = admin_interaction.response.send_modal.call_args[0][0]
+
+        mi = _make_modal_interaction()
+        mi.guild = admin_interaction.guild
+
+        # Simulate typing "New description!" in the modal
+        modal.description_input = MagicMock()
+        modal.description_input.value = "New description!"
+        await modal.on_submit(mi)
+
         updated = ApplicationForm.get("DescForm", admin_interaction.guild.id, db_session)
         assert updated.ApplyDescription == "New description!"
 
@@ -674,13 +738,92 @@ class TestTemplateList:
 
 
 # ---------------------------------------------------------------------------
+# /application template view
+# ---------------------------------------------------------------------------
+
+
+class TestTemplateView:
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        load_strings()
+
+    @pytest.mark.asyncio
+    async def test_view_builtin_template(self, app_cog, admin_interaction, db_session):
+        seed_built_in_templates(db_session)
+        db_session.commit()
+
+        await app_cog._template_view.callback(app_cog, admin_interaction, name="Guild Membership")
+
+        call_kwargs = admin_interaction.response.send_message.call_args
+        embed = call_kwargs.kwargs.get("embed") or call_kwargs[1].get("embed")
+        assert "Guild Membership" in embed.title
+        assert "Built-in" in embed.description
+        # Should show numbered questions from YAML
+        q_field = embed.fields[0]
+        assert "1." in q_field.value
+        assert "in-game name" in q_field.value.lower()
+
+    @pytest.mark.asyncio
+    async def test_view_custom_template(self, app_cog, admin_interaction, db_session):
+        from models.application import ApplicationTemplateQuestion
+
+        tpl = ApplicationTemplate(GuildId=admin_interaction.guild.id, Name="My Custom", IsBuiltIn=False)
+        tpl.ApprovalMessage = "Welcome aboard!"
+        tpl.DenialMessage = "Sorry, not this time."
+        db_session.add(tpl)
+        db_session.flush()
+        db_session.add(ApplicationTemplateQuestion(TemplateId=tpl.Id, QuestionText="Why join?", SortOrder=1))
+        db_session.commit()
+
+        await app_cog._template_view.callback(app_cog, admin_interaction, name="My Custom")
+
+        call_kwargs = admin_interaction.response.send_message.call_args
+        embed = call_kwargs.kwargs.get("embed") or call_kwargs[1].get("embed")
+        assert "My Custom" in embed.title
+        assert "Custom" in embed.description
+        assert "Why join?" in embed.fields[0].value
+        assert "Welcome aboard!" in embed.fields[1].value
+        assert "Sorry, not this time." in embed.fields[2].value
+
+    @pytest.mark.asyncio
+    async def test_view_not_found(self, app_cog, admin_interaction):
+        await app_cog._template_view.callback(app_cog, admin_interaction, name="NonExistent")
+
+        assert "not found" in str(admin_interaction.response.send_message.call_args).lower()
+
+    @pytest.mark.asyncio
+    async def test_view_no_permission(self, app_cog, non_admin_interaction):
+        await app_cog._template_view.callback(app_cog, non_admin_interaction, name="Whatever")
+
+        call_args = str(non_admin_interaction.response.send_message.call_args)
+        assert "permission" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_view_no_messages(self, app_cog, admin_interaction, db_session):
+        """Templates without approval/denial messages show the not-set placeholder."""
+        tpl = ApplicationTemplate(GuildId=admin_interaction.guild.id, Name="Bare", IsBuiltIn=False)
+        db_session.add(tpl)
+        db_session.commit()
+
+        await app_cog._template_view.callback(app_cog, admin_interaction, name="Bare")
+
+        call_kwargs = admin_interaction.response.send_message.call_args
+        embed = call_kwargs.kwargs.get("embed") or call_kwargs[1].get("embed")
+        # Approval and Denial fields should be "—"
+        assert embed.fields[1].value == "—"
+        assert embed.fields[2].value == "—"
+        # Questions field should show "no questions" message
+        assert "no questions" in embed.fields[0].value.lower()
+
+
+# ---------------------------------------------------------------------------
 # /application template use
 # ---------------------------------------------------------------------------
 
 
 class TestTemplateUse:
     @pytest.mark.asyncio
-    async def test_template_use_creates_form(self, app_cog, admin_interaction, db_session):
+    async def test_template_use_shows_modal(self, app_cog, admin_interaction, db_session):
         seed_built_in_templates(db_session)
         db_session.commit()
 
@@ -695,11 +838,35 @@ class TestTemplateUse:
             review_channel=review_channel,
         )
 
-        assert "created from template" in str(admin_interaction.response.send_message.call_args).lower()
+        admin_interaction.response.send_modal.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_template_use_modal_creates_form(self, app_cog, admin_interaction, db_session):
+        """Simulating modal on_submit creates the form from the template."""
+        seed_built_in_templates(db_session)
+        db_session.commit()
+
+        review_channel = MagicMock()
+        review_channel.id = 444
+
+        await app_cog._template_use.callback(
+            app_cog,
+            admin_interaction,
+            template="Guild Membership",
+            name="NewFromTemplate",
+            review_channel=review_channel,
+        )
+
+        modal = admin_interaction.response.send_modal.call_args[0][0]
+        mi = _make_modal_interaction()
+
+        await modal._callback(mi, None, None, None)
+
+        assert "created from template" in str(mi.response.send_message.call_args).lower()
 
         form = ApplicationForm.get("NewFromTemplate", admin_interaction.guild.id, db_session)
         assert form is not None
-        assert len(form.questions) == 6  # Guild Membership has 6 questions
+        assert len(form.questions) == 6
         assert form.ReviewChannelId == 444
 
     @pytest.mark.asyncio
@@ -712,6 +879,7 @@ class TestTemplateUse:
         )
 
         assert "not found" in str(admin_interaction.response.send_message.call_args).lower()
+        admin_interaction.response.send_modal.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_template_use_duplicate_form_name(self, app_cog, admin_interaction, db_session):
@@ -726,6 +894,7 @@ class TestTemplateUse:
         )
 
         assert "already exists" in str(admin_interaction.response.send_message.call_args)
+        admin_interaction.response.send_modal.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_template_use_permission_denied(self, app_cog, non_admin_interaction):
@@ -739,7 +908,8 @@ class TestTemplateUse:
         assert "permission" in str(non_admin_interaction.response.send_message.call_args).lower()
 
     @pytest.mark.asyncio
-    async def test_template_use_with_apply_channel(self, app_cog, admin_interaction, db_session):
+    async def test_template_use_modal_with_apply_channel(self, app_cog, admin_interaction, db_session):
+        """Apply channel + description flow through the modal callback."""
         seed_built_in_templates(db_session)
         db_session.commit()
 
@@ -761,8 +931,13 @@ class TestTemplateUse:
             name="WithApply",
             review_channel=review_channel,
             channel=apply_channel,
-            description="Apply here!",
         )
+
+        modal = admin_interaction.response.send_modal.call_args[0][0]
+
+        mi = _make_modal_interaction()
+
+        await modal._callback(mi, "Apply here!", None, None)
 
         form = ApplicationForm.get("WithApply", admin_interaction.guild.id, db_session)
         assert form is not None
@@ -799,9 +974,12 @@ class TestTemplateUseLocalized:
             review_channel=review_channel,
         )
 
+        modal = admin_interaction.response.send_modal.call_args[0][0]
+        modal_interaction = _make_modal_interaction()
+        await modal._callback(modal_interaction, None, None, None)
+
         form = ApplicationForm.get("GermanForm", admin_interaction.guild.id, db_session)
         assert form is not None
-        # First question should be in German
         assert form.questions[0].QuestionText == "Wie lautet dein Ingame-Name oder Hauptcharakter?"
         assert len(form.questions) == 6
 
@@ -820,6 +998,10 @@ class TestTemplateUseLocalized:
             name="EnglishForm",
             review_channel=review_channel,
         )
+
+        modal = admin_interaction.response.send_modal.call_args[0][0]
+        modal_interaction = _make_modal_interaction()
+        await modal._callback(modal_interaction, None, None, None)
 
         form = ApplicationForm.get("EnglishForm", admin_interaction.guild.id, db_session)
         assert form is not None
@@ -847,6 +1029,10 @@ class TestTemplateUseLocalized:
             name="CustomForm",
             review_channel=review_channel,
         )
+
+        modal = admin_interaction.response.send_modal.call_args[0][0]
+        modal_interaction = _make_modal_interaction()
+        await modal._callback(modal_interaction, None, None, None)
 
         form = ApplicationForm.get("CustomForm", admin_interaction.guild.id, db_session)
         assert form is not None
@@ -941,6 +1127,59 @@ class TestTemplateDelete:
 
         call_args = str(non_admin_interaction.response.send_message.call_args)
         assert "permission" in call_args.lower()
+
+
+class TestTemplateCreate:
+    """Tests for /application template create modal flow."""
+
+    @pytest.mark.asyncio
+    async def test_template_create_shows_modal(self, app_cog, admin_interaction):
+        await app_cog._template_create.callback(app_cog, admin_interaction, name="NewTpl")
+
+        admin_interaction.response.send_modal.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_template_create_modal_starts_conversation(self, app_cog, admin_interaction):
+        app_cog.bot.convMan = MagicMock()
+        app_cog.bot.convMan.init_conversation = AsyncMock()
+        app_cog.bot.get_cog = MagicMock(return_value=app_cog)
+
+        await app_cog._template_create.callback(app_cog, admin_interaction, name="NewTpl")
+
+        modal = admin_interaction.response.send_modal.call_args[0][0]
+        mi = _make_modal_interaction(is_done=True)
+        mi.user = admin_interaction.user
+        mi.guild = admin_interaction.guild
+
+        # Simulate typing in the modal
+        modal.approval_input = MagicMock()
+        modal.approval_input.value = "Welcome!"
+        modal.denial_input = MagicMock()
+        modal.denial_input.value = "Sorry."
+        await modal.on_submit(mi)
+
+        app_cog.bot.convMan.init_conversation.assert_called_once()
+        conv = app_cog.bot.convMan.init_conversation.call_args[0][0]
+        assert conv.approval_message == "Welcome!"
+        assert conv.denial_message == "Sorry."
+        assert "DMs" in str(mi.followup.send.call_args)
+
+    @pytest.mark.asyncio
+    async def test_template_create_duplicate_name(self, app_cog, admin_interaction, db_session):
+        tpl = ApplicationTemplate(GuildId=admin_interaction.guild.id, Name="Exists", IsBuiltIn=False)
+        db_session.add(tpl)
+        db_session.commit()
+
+        await app_cog._template_create.callback(app_cog, admin_interaction, name="Exists")
+
+        assert "already exists" in str(admin_interaction.response.send_message.call_args)
+        admin_interaction.response.send_modal.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_template_create_permission_denied(self, app_cog, non_admin_interaction):
+        await app_cog._template_create.callback(app_cog, non_admin_interaction, name="NewTpl")
+
+        assert "permission" in str(non_admin_interaction.response.send_message.call_args).lower()
 
 
 class TestTemplateEditMessages:
