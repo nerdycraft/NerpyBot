@@ -100,8 +100,8 @@ class TestRecipeCache:
     """Test recipe cache queries."""
 
     def test_get_by_profession_sorted(self, db_session):
-        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
-        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=11, ItemId=101, ItemName="Axe"))
+        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=10, ItemId=100, ItemName="Sword"))
+        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=11, ItemId=101, ItemName="Axe"))
         db_session.flush()
 
         results = CraftingRecipeCache.get_by_profession(1, db_session)
@@ -109,7 +109,7 @@ class TestRecipeCache:
         assert results[0].ItemName == "Axe"
 
     def test_delete_all(self, db_session):
-        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
+        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=10, ItemId=100, ItemName="Sword"))
         db_session.flush()
 
         CraftingRecipeCache.delete_all(db_session)
@@ -118,7 +118,7 @@ class TestRecipeCache:
 
     def test_no_guild_isolation_needed(self, db_session):
         """Recipe cache is bot-global — same recipe is stored once regardless of guild."""
-        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
+        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=10, ItemId=100, ItemName="Sword"))
         db_session.flush()
 
         results = CraftingRecipeCache.get_by_profession(1, db_session)

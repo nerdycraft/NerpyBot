@@ -71,36 +71,52 @@ class TestCraftingRoleMapping:
 
 
 class TestCraftingRecipeCache:
-    def test_get_by_profession(self, db_session):
-        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
-        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=11, ItemId=101, ItemName="Axe"))
-        db_session.add(CraftingRecipeCache(ProfessionId=2, RecipeId=12, ItemId=102, ItemName="Potion"))
+    def test_get_by_profession_returns_current_tier(self, db_session):
+        """get_by_profession returns only recipes from the highest tier."""
+        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=10, ItemId=100, ItemName="Sword"))
+        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=11, ItemId=101, ItemName="Axe"))
+        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=200, RecipeId=13, ItemId=103, ItemName="Old Mace"))
+        db_session.add(CraftingRecipeCache(ProfessionId=2, TierId=300, RecipeId=12, ItemId=102, ItemName="Potion"))
         db_session.flush()
 
         results = CraftingRecipeCache.get_by_profession(1, db_session)
-        assert len(results) == 2
+        assert len(results) == 2  # only tier 300, not the old tier 200
         assert results[0].ItemName == "Axe"  # alphabetical
 
     def test_unique_recipe_constraint(self, db_session):
-        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
+        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=10, ItemId=100, ItemName="Sword"))
         db_session.flush()
-        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword 2"))
+        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=10, ItemId=100, ItemName="Sword 2"))
         with pytest.raises(IntegrityError):
             db_session.flush()
 
     def test_delete_all(self, db_session):
-        db_session.add(CraftingRecipeCache(ProfessionId=1, RecipeId=10, ItemId=100, ItemName="Sword"))
-        db_session.add(CraftingRecipeCache(ProfessionId=2, RecipeId=11, ItemId=101, ItemName="Potion"))
+        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=10, ItemId=100, ItemName="Sword"))
+        db_session.add(CraftingRecipeCache(ProfessionId=2, TierId=300, RecipeId=11, ItemId=101, ItemName="Potion"))
         db_session.flush()
         CraftingRecipeCache.delete_all(db_session)
         db_session.flush()
         assert CraftingRecipeCache.get_by_profession(1, db_session) == []
         assert CraftingRecipeCache.get_by_profession(2, db_session) == []
 
+    def test_delete_stale(self, db_session):
+        """delete_stale removes recipes from tiers not in the valid set."""
+        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=100, RecipeId=1, ItemId=1, ItemName="Ancient"))
+        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=200, RecipeId=2, ItemId=2, ItemName="Old"))
+        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=3, ItemId=3, ItemName="Current"))
+        db_session.flush()
+
+        CraftingRecipeCache.delete_stale(1, [200, 300], db_session)
+        db_session.flush()
+
+        remaining = db_session.query(CraftingRecipeCache).filter(CraftingRecipeCache.ProfessionId == 1).all()
+        assert len(remaining) == 2
+        assert {r.TierId for r in remaining} == {200, 300}
+
     def test_profession_name_stored(self, db_session):
         db_session.add(
             CraftingRecipeCache(
-                ProfessionId=164, ProfessionName="Blacksmithing", RecipeId=10, ItemId=100, ItemName="Sword"
+                ProfessionId=164, ProfessionName="Blacksmithing", TierId=300, RecipeId=10, ItemId=100, ItemName="Sword"
             )
         )
         db_session.flush()

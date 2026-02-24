@@ -185,8 +185,10 @@ class TestSyncCraftingRecipes:
 
         assert recipe_count == 2  # one recipe per tier, 2 tiers
         assert profession_count == 1
+        # get_by_profession returns only the highest tier (2910)
         results = CraftingRecipeCache.get_by_profession(164, db_session)
-        assert len(results) == 2
+        assert len(results) == 1
+        assert results[0].TierId == 2910
 
     @pytest.mark.asyncio
     async def test_takes_top_2_tiers_only(self, db_session):
@@ -312,6 +314,75 @@ class TestSyncCraftingRecipes:
             recipe_count, _ = await sync_crafting_recipes(api, db_session, log)
 
         assert recipe_count == 1
+
+    @pytest.mark.asyncio
+    async def test_stores_tier_id(self, db_session):
+        """Each cached recipe records which tier it belongs to."""
+        from models.wow import CraftingRecipeCache
+
+        api = _make_api()
+        log = MagicMock()
+        api.professions_index = lambda: {"professions": [{"id": 164, "name": "Blacksmithing"}]}
+        api.profession = lambda pid: {"skill_tiers": [{"id": 300, "name": "Current"}, {"id": 200, "name": "Previous"}]}
+        api.profession_skill_tier = lambda pid, tid: {
+            "categories": [{"recipes": [{"id": tid * 10, "name": f"Item {tid}"}]}]
+        }
+
+        with patch("utils.blizzard._resolve_recipe_wowhead") as mock_resolve:
+            mock_resolve.return_value = {
+                "item_id": 1,
+                "item_name": "Item",
+                "is_equippable": True,
+                "icon_url": None,
+            }
+            await sync_crafting_recipes(api, db_session, log)
+
+        all_rows = db_session.query(CraftingRecipeCache).all()
+        tier_ids = {r.TierId for r in all_rows}
+        assert tier_ids == {200, 300}
+
+    @pytest.mark.asyncio
+    async def test_cleans_stale_tiers(self, db_session):
+        """Recipes from tiers that rotated out of the top 2 are deleted."""
+        from models.wow import CraftingRecipeCache
+
+        # Pre-populate a recipe from an old tier
+        db_session.add(
+            CraftingRecipeCache(
+                ProfessionId=164,
+                ProfessionName="Blacksmithing",
+                TierId=100,
+                RecipeId=999,
+                ItemId=999,
+                ItemName="Old Expansion Sword",
+                IconUrl=None,
+            )
+        )
+        db_session.flush()
+
+        api = _make_api()
+        log = MagicMock()
+        api.professions_index = lambda: {"professions": [{"id": 164, "name": "Blacksmithing"}]}
+        api.profession = lambda pid: {"skill_tiers": [{"id": 300, "name": "Current"}, {"id": 200, "name": "Previous"}]}
+        api.profession_skill_tier = lambda pid, tid: {
+            "categories": [{"recipes": [{"id": tid * 10, "name": f"Item {tid}"}]}]
+        }
+
+        with patch("utils.blizzard._resolve_recipe_wowhead") as mock_resolve:
+            mock_resolve.return_value = {
+                "item_id": 1,
+                "item_name": "Item",
+                "is_equippable": True,
+                "icon_url": None,
+            }
+            await sync_crafting_recipes(api, db_session, log)
+
+        # Old tier 100 recipe should be gone
+        all_rows = db_session.query(CraftingRecipeCache).filter(CraftingRecipeCache.ProfessionId == 164).all()
+        tier_ids = {r.TierId for r in all_rows}
+        assert 100 not in tier_ids
+        assert tier_ids == {200, 300}
+        assert not any(r.RecipeId == 999 for r in all_rows)
 
 
 class TestSyncDataDispatch:

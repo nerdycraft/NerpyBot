@@ -228,12 +228,14 @@ async def sync_crafting_recipes(api, session, log, progress_callback=None):
                     existing.IconUrl = icon_url
                     existing.ProfessionId = prof_id
                     existing.ProfessionName = prof_name
+                    existing.TierId = tier_id
                     existing.LastSynced = now
                 else:
                     session.add(
                         CraftingRecipeCache(
                             ProfessionId=prof_id,
                             ProfessionName=prof_name,
+                            TierId=tier_id,
                             RecipeId=recipe_id,
                             ItemId=item_id,
                             ItemName=item_name,
@@ -244,6 +246,10 @@ async def sync_crafting_recipes(api, session, log, progress_callback=None):
 
                 prof_recipe_count += 1
                 recipe_count += 1
+
+        # Clean up recipes from tiers that rotated out of the top 2
+        valid_tier_ids = [t["id"] for t in sorted_tiers]
+        CraftingRecipeCache.delete_stale(prof_id, valid_tier_ids, session)
 
         log.debug("[recipe-sync] %s: %d recipes cached", prof_name, prof_recipe_count)
         if prof_recipe_count > 0:

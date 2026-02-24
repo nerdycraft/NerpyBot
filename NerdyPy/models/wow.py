@@ -217,6 +217,7 @@ class CraftingRecipeCache(db.BASE):
     Id = Column(Integer, primary_key=True)
     ProfessionId = Column(Integer)
     ProfessionName = Column(Unicode(100), nullable=True)
+    TierId = Column(Integer, nullable=True)
     RecipeId = Column(Integer)
     ItemId = Column(Integer)
     ItemName = Column(Unicode(200))
@@ -225,7 +226,26 @@ class CraftingRecipeCache(db.BASE):
 
     @classmethod
     def get_by_profession(cls, profession_id, session):
-        return session.query(cls).filter(cls.ProfessionId == profession_id).order_by(cls.ItemName).all()
+        """Return cached recipes for the current (highest) tier of a profession."""
+        from sqlalchemy import func
+
+        max_tier = session.query(func.max(cls.TierId)).filter(cls.ProfessionId == profession_id).scalar()
+        if max_tier is None:
+            return []
+        return (
+            session.query(cls)
+            .filter(cls.ProfessionId == profession_id, cls.TierId == max_tier)
+            .order_by(cls.ItemName)
+            .all()
+        )
+
+    @classmethod
+    def delete_stale(cls, profession_id, valid_tier_ids, session):
+        """Delete cached recipes whose tier is no longer in the active set."""
+        session.query(cls).filter(
+            cls.ProfessionId == profession_id,
+            cls.TierId.notin_(valid_tier_ids),
+        ).delete(synchronize_session="fetch")
 
     @classmethod
     def delete_all(cls, session):
