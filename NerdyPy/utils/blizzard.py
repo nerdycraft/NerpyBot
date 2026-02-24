@@ -195,16 +195,21 @@ async def sync_crafting_recipes(api, session, log, progress_callback=None):
 
             log.debug("[recipe-sync] %s: tier '%s' — %d recipes", prof_name, tier_name, len(tier_recipes))
 
-            for recipe_entry in tier_recipes:
-                recipe_id = recipe_entry["id"]
+            # Resolve all recipes in this tier concurrently (capped at 15)
+            sem = asyncio.Semaphore(15)
 
-                resolved = await _resolve_recipe_wowhead(recipe_id, log)
-                await asyncio.sleep(0.05)  # courtesy throttle
+            async def _resolve_throttled(rid):
+                async with sem:
+                    result = await _resolve_recipe_wowhead(rid, log)
+                    await asyncio.sleep(0.05)  # courtesy throttle
+                    return rid, result
 
-                if resolved is None:
-                    continue
+            tasks = [_resolve_throttled(r["id"]) for r in tier_recipes]
+            results = await asyncio.gather(*tasks)
 
-                if not resolved["is_equippable"]:
+            now = datetime.now(UTC)
+            for recipe_id, resolved in results:
+                if resolved is None or not resolved["is_equippable"]:
                     continue
 
                 item_id = resolved["item_id"]
@@ -213,7 +218,6 @@ async def sync_crafting_recipes(api, session, log, progress_callback=None):
 
                 existing = session.query(CraftingRecipeCache).filter(CraftingRecipeCache.RecipeId == recipe_id).first()
 
-                now = datetime.now(UTC)
                 if existing:
                     existing.ItemId = item_id
                     existing.ItemName = item_name
