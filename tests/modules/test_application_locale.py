@@ -16,6 +16,14 @@ from models.application import (
     seed_built_in_templates,
 )
 from modules.application import Application
+from modules.conversations.application import (
+    ApplicationCreateConversation,
+    ApplicationEditConversation,
+    ApplicationSubmitConversation,
+    CreateState,
+    EditState,
+    SubmitState,
+)
 from modules.views.application import (
     ApplicationApplyView,
     ApplicationReviewView,
@@ -651,3 +659,80 @@ class TestApplyButtonLocale:
         await view.apply_button.callback(interaction)
         msg = str(interaction.response.send_message.call_args)
         assert "nicht mehr verfügbar" in msg
+
+
+# ---------------------------------------------------------------------------
+# DM Conversation locale tests
+# ---------------------------------------------------------------------------
+
+
+def _make_conv_send_return(user_mock):
+    """Set up user.send to return a mock message with add_reaction."""
+    sent = MagicMock()
+    sent.id = 998
+    sent.add_reaction = AsyncMock()
+    user_mock.send = AsyncMock(return_value=sent)
+    return sent
+
+
+@pytest.mark.asyncio
+class TestConversationDMLocale:
+    """Conversation DM flows must honour the guild's language setting."""
+
+    @pytest.fixture
+    def user(self):
+        u = MagicMock()
+        u.id = APPLICANT_USER_ID
+        _make_conv_send_return(u)
+        return u
+
+    async def test_submit_cancelled_german(self, mock_bot, db_session, user, mock_guild):
+        """ApplicationSubmitConversation.state_cancelled sends German text when guild is German."""
+        _set_german(db_session)
+        mock_guild.id = GUILD_ID
+        conv = ApplicationSubmitConversation(
+            mock_bot, user, mock_guild, form_id=1, form_name="Test", questions=[(1, "Why?")]
+        )
+        conv.currentState = SubmitState.CANCELLED
+        await conv.state_cancelled()
+
+        embed = user.send.call_args.kwargs["embed"]
+        assert "abgebrochen" in embed.title.lower()
+
+    async def test_submit_init_german(self, mock_bot, db_session, user, mock_guild):
+        """ApplicationSubmitConversation.state_init sends German intro text when guild is German."""
+        _set_german(db_session)
+        mock_guild.id = GUILD_ID
+        conv = ApplicationSubmitConversation(
+            mock_bot, user, mock_guild, form_id=1, form_name="Test", questions=[(1, "Why?")]
+        )
+        # state_init sends two messages: intro embed + first question
+        # Capture the first send call
+        await conv.state_init()
+
+        first_embed = user.send.call_args_list[0].kwargs["embed"]
+        assert "fragen" in first_embed.description.lower()
+
+    async def test_create_cancel_german(self, mock_bot, db_session, user, mock_guild):
+        """ApplicationCreateConversation.state_cancel sends German text when guild is German."""
+        _set_german(db_session)
+        mock_guild.id = GUILD_ID
+        conv = ApplicationCreateConversation(mock_bot, user, mock_guild, "TestForm", review_channel_id=123)
+        conv.currentState = CreateState.CANCEL
+        await conv.state_cancel()
+
+        embed = user.send.call_args.kwargs["embed"]
+        assert "abgebrochen" in embed.title.lower()
+
+    async def test_edit_done_german(self, mock_bot, db_session, user, mock_guild):
+        """ApplicationEditConversation.state_done sends German text when guild is German."""
+        _set_german(db_session)
+        mock_guild.id = GUILD_ID
+        # Need a real form in DB for ApplicationEditConversation
+        form = _make_form(db_session, name="EditForm")
+        conv = ApplicationEditConversation(mock_bot, user, mock_guild, form.Id)
+        conv.currentState = EditState.DONE
+        await conv.state_done()
+
+        embed = user.send.call_args.kwargs["embed"]
+        assert "abgeschlossen" in embed.title.lower()
