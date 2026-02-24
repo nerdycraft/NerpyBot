@@ -78,7 +78,7 @@ async def sync_crafting_recipes(api, guild_id, session, log, progress_callback=N
         prof_name = prof.get("name", f"Profession {prof_id}")
 
         if progress_callback:
-            await progress_callback(f"Scanning {prof_name}...")
+            await progress_callback(f"Scanning **{prof_name}**… ({recipe_count} recipes found so far)")
 
         # Step 2: Get profession detail → skill tiers
         prof_data = await asyncio.to_thread(api.profession, prof_id)

@@ -1329,10 +1329,16 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
         api = self._get_retailclient("eu", lang)
 
+        async def _progress(msg: str):
+            try:
+                await interaction.edit_original_response(content=msg)
+            except discord.HTTPException:
+                pass
+
         try:
             with self.bot.session_scope() as session:
                 recipe_count, profession_count = await sync_crafting_recipes(
-                    api, interaction.guild_id, session, self.bot.log
+                    api, interaction.guild_id, session, self.bot.log, progress_callback=_progress
                 )
         except RateLimited:
             await interaction.edit_original_response(
