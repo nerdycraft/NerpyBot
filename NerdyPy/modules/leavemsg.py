@@ -104,7 +104,7 @@ class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
 
         await interaction.response.send_message(get_string(lang, "leavemsg.disable.success"), ephemeral=True)
 
-    async def _save_leave_message(self, interaction: Interaction, message: str, lang: str) -> None:
+    async def save_leave_message(self, interaction: Interaction, message: str, lang: str) -> None:
         """Validate and persist a leave message, then confirm to the user."""
         if "{member}" not in message:
             raise NerpyValidationError(get_string(lang, "leavemsg.message.missing_placeholder"))
@@ -157,7 +157,7 @@ class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
             return
 
         # Path 3: inline text provided
-        await self._save_leave_message(interaction, message, lang)
+        await self.save_leave_message(interaction, message, lang)
 
     @app_commands.command(name="status")
     @checks.has_permissions(administrator=True)
@@ -198,7 +198,7 @@ class _LeaveMessageModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: Interaction):
         cog = self.bot.get_cog("LeaveMsg")
-        await cog._save_leave_message(interaction, self.message_input.value.strip(), self.lang)
+        await cog.save_leave_message(interaction, self.message_input.value.strip(), self.lang)
 
 
 async def setup(bot):

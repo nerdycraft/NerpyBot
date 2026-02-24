@@ -69,6 +69,18 @@ def _set_german(db_session):
     db_session.commit()
 
 
+def _make_modal_interaction():
+    """Create a mock interaction for modal on_submit callbacks."""
+    mi = MagicMock()
+    mi.response = MagicMock()
+    mi.response.send_message = AsyncMock()
+    mi.response.defer = AsyncMock()
+    mi.response.is_done = MagicMock(return_value=False)
+    mi.followup = MagicMock()
+    mi.followup.send = AsyncMock()
+    return mi
+
+
 def _make_form(db_session, name="TestForm", review_channel_id=None):
     form = ApplicationForm(GuildId=GUILD_ID, Name=name, ReviewChannelId=review_channel_id)
     db_session.add(form)
@@ -285,7 +297,10 @@ class TestTemplateUseLocale:
         await Application._template_use.callback(
             cog, interaction, template="Guild Membership", name="NewForm", review_channel=review_channel
         )
-        msg = interaction.response.send_message.call_args[0][0]
+        modal = interaction.response.send_modal.call_args[0][0]
+        mi = _make_modal_interaction()
+        await modal._callback(mi, None, None, None)
+        msg = mi.response.send_message.call_args[0][0]
         assert "created from template" in msg.lower()
 
     async def test_success_german(self, cog, interaction, db_session):
@@ -297,7 +312,10 @@ class TestTemplateUseLocale:
         await Application._template_use.callback(
             cog, interaction, template="Guild Membership", name="NewForm", review_channel=review_channel
         )
-        msg = interaction.response.send_message.call_args[0][0]
+        modal = interaction.response.send_modal.call_args[0][0]
+        mi = _make_modal_interaction()
+        await modal._callback(mi, None, None, None)
+        msg = mi.response.send_message.call_args[0][0]
         assert "aus Vorlage" in msg
 
     async def test_not_found_german(self, cog, interaction, db_session):
@@ -394,7 +412,7 @@ class TestTemplateEditMessagesLocale:
             cog, interaction, template_name="X", approval_message="Welcome!"
         )
         msg = interaction.response.send_message.call_args[0][0]
-        # hits _save_template_messages → "not found" because template X doesn't exist
+        # hits save_template_messages → "not found" because template X doesn't exist
         assert "not found" in msg.lower()
 
 

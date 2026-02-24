@@ -24,6 +24,7 @@ from modules.conversations.application import (
     CreateState,
     EditState,
     SubmitState,
+    TemplateCreateState,
 )
 
 
@@ -196,6 +197,9 @@ class TestApplicationCreateConversation:
     @pytest.mark.asyncio
     async def test_done_saves_apply_channel_and_description(self, mock_bot, mock_user, mock_guild, db_session):
         """ApplyChannelId and ApplyDescription are persisted when provided."""
+        channel_mock = MagicMock()
+        channel_mock.send = AsyncMock(return_value=MagicMock(id=5000))
+        mock_bot.get_channel = MagicMock(return_value=channel_mock)
         _make_send_return(mock_user)
         conv = ApplicationCreateConversation(
             mock_bot,
@@ -822,7 +826,12 @@ class TestApplicationTemplateCreateConversation:
         await conv.repost_state()
         await conv.on_message("Question 1")
         await conv.on_message("Question 2")
-        await conv.on_react(CANCEL_EMOJI)  # finish
+        # Go to review, then confirm
+        _make_send_return(mock_user)
+        await conv.on_react(CONFIRM_EMOJI)
+        assert conv.currentState == TemplateCreateState.REVIEW
+        _make_send_return(mock_user)
+        await conv.on_react(CONFIRM_EMOJI)
 
         from models.application import ApplicationTemplate
 
@@ -844,7 +853,10 @@ class TestApplicationTemplateCreateConversation:
         )
         await conv.repost_state()
         await conv.on_message("Q1")
-        await conv.on_react(CANCEL_EMOJI)
+        _make_send_return(mock_user)
+        await conv.on_react(CONFIRM_EMOJI)  # review
+        _make_send_return(mock_user)
+        await conv.on_react(CONFIRM_EMOJI)  # save
 
         from models.application import ApplicationTemplate
 
@@ -857,6 +869,110 @@ class TestApplicationTemplateCreateConversation:
         await conv.repost_state()
         await conv.on_react(CANCEL_EMOJI)
         assert not conv.isActive
+
+    @pytest.mark.asyncio
+    async def test_cancel_from_collect_does_not_save(self, conv, mock_user, db_session):
+        """Pressing ❌ after adding questions should discard, not save."""
+        await conv.repost_state()
+        await conv.on_message("Q1")
+        _make_send_return(mock_user)
+        await conv.on_react(CANCEL_EMOJI)
+
+        assert not conv.isActive
+
+        from models.application import ApplicationTemplate
+
+        tpl = ApplicationTemplate.get_by_name("MyTemplate", conv.guild.id, db_session)
+        assert tpl is None
+
+    @pytest.mark.asyncio
+    async def test_cancel_from_review_does_not_save(self, conv, mock_user, db_session):
+        """Pressing ❌ on the review screen should discard, not save."""
+        await conv.repost_state()
+        await conv.on_message("Q1")
+        _make_send_return(mock_user)
+        await conv.on_react(CONFIRM_EMOJI)  # review
+        assert conv.currentState == TemplateCreateState.REVIEW
+        _make_send_return(mock_user)
+        await conv.on_react(CANCEL_EMOJI)
+
+        assert not conv.isActive
+
+        from models.application import ApplicationTemplate
+
+        tpl = ApplicationTemplate.get_by_name("MyTemplate", conv.guild.id, db_session)
+        assert tpl is None
+
+    @pytest.mark.asyncio
+    async def test_collect_shows_confirm_and_cancel_reactions(self, conv, mock_user):
+        """After adding a question, both ✅ and ❌ reactions should appear."""
+        await conv.repost_state()
+        _make_send_return(mock_user)
+        await conv.on_message("Q1")
+        sent = mock_user.send.return_value
+        reaction_calls = [str(call.args[0]) for call in sent.add_reaction.call_args_list]
+        assert CONFIRM_EMOJI in reaction_calls
+        assert CANCEL_EMOJI in reaction_calls
+
+    @pytest.mark.asyncio
+    async def test_review_shows_three_reactions(self, conv, mock_user):
+        """Review screen should show ✅, ✏️, and ❌."""
+        await conv.repost_state()
+        await conv.on_message("Q1")
+        _make_send_return(mock_user)
+        await conv.on_react(CONFIRM_EMOJI)  # → REVIEW
+        sent = mock_user.send.return_value
+        reaction_calls = [str(call.args[0]) for call in sent.add_reaction.call_args_list]
+        assert CONFIRM_EMOJI in reaction_calls
+        assert EDIT_EMOJI in reaction_calls
+        assert CANCEL_EMOJI in reaction_calls
+
+    @pytest.mark.asyncio
+    async def test_review_lists_all_questions(self, conv, mock_user):
+        conv.questions = ["Q1", "Q2"]
+        conv.currentState = TemplateCreateState.REVIEW
+        await conv.repost_state()
+        embed = mock_user.send.call_args.kwargs.get("embed") or mock_user.send.call_args[1]["embed"]
+        assert "Q1" in embed.description
+        assert "Q2" in embed.description
+
+    @pytest.mark.asyncio
+    async def test_back_removes_last_question(self, conv, mock_user):
+        await conv.repost_state()
+        await conv.on_message("Q1")
+        await conv.on_message("Q2")
+        assert len(conv.questions) == 2
+        _make_send_return(mock_user)
+        await conv.on_react(BACK_EMOJI)
+        assert len(conv.questions) == 1
+        assert conv.questions[0] == "Q1"
+        assert conv.currentState == TemplateCreateState.COLLECT
+
+    @pytest.mark.asyncio
+    async def test_back_on_only_question_returns_to_init(self, conv, mock_user):
+        await conv.repost_state()
+        await conv.on_message("Q1")
+        _make_send_return(mock_user)
+        await conv.on_react(BACK_EMOJI)
+        assert len(conv.questions) == 0
+        assert conv.currentState == TemplateCreateState.INIT
+
+    @pytest.mark.asyncio
+    async def test_edit_from_review(self, conv, mock_user):
+        """Edit a question from the review screen and return to review."""
+        conv.questions = ["OldQ"]
+        conv.currentState = TemplateCreateState.REVIEW
+        await conv.repost_state()
+        _make_send_return(mock_user)
+        await conv.on_react(EDIT_EMOJI)
+        assert conv.currentState == TemplateCreateState.EDIT_Q_SELECT
+        _make_send_return(mock_user)
+        await conv.on_message("1")
+        assert conv.currentState == TemplateCreateState.EDIT_Q
+        _make_send_return(mock_user)
+        await conv.on_message("NewQ")
+        assert conv.questions[0] == "NewQ"
+        assert conv.currentState == TemplateCreateState.REVIEW
 
 
 class TestApplicationCreateConversationReview:
