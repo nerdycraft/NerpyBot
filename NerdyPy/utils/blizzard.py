@@ -70,6 +70,7 @@ async def sync_crafting_recipes(api, guild_id, session, log, progress_callback=N
     check_rate_limit(professions_data)
 
     professions = professions_data.get("professions", [])
+    log.debug("[recipe-sync] Found %d professions from API", len(professions))
     recipe_count = 0
     profession_count = 0
 
@@ -86,11 +87,21 @@ async def sync_crafting_recipes(api, guild_id, session, log, progress_callback=N
 
         skill_tiers = prof_data.get("skill_tiers", [])
         if not skill_tiers:
+            log.debug("[recipe-sync] %s (id=%d): no skill tiers, skipping", prof_name, prof_id)
             continue
 
         # Pick highest tier ID (= current expansion)
         current_tier = max(skill_tiers, key=lambda t: t["id"])
         tier_id = current_tier["id"]
+        tier_name = current_tier.get("name", f"Tier {tier_id}")
+        log.debug(
+            "[recipe-sync] %s (id=%d): %d skill tiers, using '%s' (id=%d)",
+            prof_name,
+            prof_id,
+            len(skill_tiers),
+            tier_name,
+            tier_id,
+        )
 
         # Step 3: Get recipes for this tier
         tier_data = await asyncio.to_thread(api.profession_skill_tier, prof_id, tier_id)
@@ -103,11 +114,22 @@ async def sync_crafting_recipes(api, guild_id, session, log, progress_callback=N
                 tier_recipes.append(recipe_entry)
 
         if not tier_recipes:
+            log.debug(
+                "[recipe-sync] %s: tier '%s' has %d categories but 0 recipes", prof_name, tier_name, len(categories)
+            )
             continue
+
+        log.debug(
+            "[recipe-sync] %s: %d recipes in %d categories, checking each…",
+            prof_name,
+            len(tier_recipes),
+            len(categories),
+        )
 
         prof_recipe_count = 0
         for recipe_entry in tier_recipes:
             recipe_id = recipe_entry["id"]
+            recipe_name = recipe_entry.get("name", f"Recipe {recipe_id}")
 
             # Step 4: Get recipe detail → crafted item
             recipe_data = await asyncio.to_thread(api.recipe, recipe_id)
@@ -117,17 +139,29 @@ async def sync_crafting_recipes(api, guild_id, session, log, progress_callback=N
             item_ref = crafted_item.get("item", {})
             item_id = item_ref.get("id")
             if not item_id:
+                log.debug("[recipe-sync]   %s (id=%d): no crafted_item.item.id, skipping", recipe_name, recipe_id)
                 continue
 
             # Step 5: Get item detail → check binding type
             item_data = await asyncio.to_thread(api.item, item_id)
             check_rate_limit(item_data)
 
-            binding_type = item_data.get("preview_item", {}).get("binding", {}).get("type")
+            binding = item_data.get("preview_item", {}).get("binding", {})
+            binding_type = binding.get("type")
             if binding_type != "ON_ACQUIRE":  # BOP = ON_ACQUIRE in Blizzard API
+                log.debug(
+                    "[recipe-sync]   %s (id=%d) → item %d: binding=%s (not BOP), skipping",
+                    recipe_name,
+                    recipe_id,
+                    item_id,
+                    binding_type,
+                )
                 continue
 
             item_name = item_data.get("name", f"Item {item_id}")
+            log.debug(
+                "[recipe-sync]   %s (id=%d) → BOP item '%s' (id=%d) ✓", recipe_name, recipe_id, item_name, item_id
+            )
 
             # Step 6: Get item media → icon URL
             try:
@@ -135,6 +169,7 @@ async def sync_crafting_recipes(api, guild_id, session, log, progress_callback=N
                 check_rate_limit(media_data)
                 icon_url = get_asset_url(media_data, "icon")
             except Exception:
+                log.debug("[recipe-sync]   item %d: failed to fetch icon, continuing without", item_id)
                 icon_url = None
 
             # Upsert into cache
@@ -170,9 +205,13 @@ async def sync_crafting_recipes(api, guild_id, session, log, progress_callback=N
             prof_recipe_count += 1
             recipe_count += 1
 
+        log.debug(
+            "[recipe-sync] %s: %d BOP recipes cached out of %d total", prof_name, prof_recipe_count, len(tier_recipes)
+        )
         if prof_recipe_count > 0:
             profession_count += 1
 
+    log.debug("[recipe-sync] Done. %d BOP recipes across %d professions", recipe_count, profession_count)
     return recipe_count, profession_count
 
 
