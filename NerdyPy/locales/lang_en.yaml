@@ -380,6 +380,15 @@ application:
       prefix_builtin: "[Built-in]"
       prefix_custom: "[Custom]"
       entry: "{prefix} **{name}** — {questions} question(s)"
+    view:
+      title: "📋 Template: {name}"
+      type_builtin: "Built-in"
+      type_custom: "Custom"
+      questions_title: "Questions"
+      no_questions: "No questions defined."
+      approval_title: "Approval Message"
+      denial_title: "Denial Message"
+      not_set: "—"
     use:
       modal_title: "Form Settings"
       success: "Form **{name}** created from template **{template}**."

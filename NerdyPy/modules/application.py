@@ -579,6 +579,68 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    # -- /application template view -------------------------------------------
+
+    @template_group.command(name="view")
+    @app_commands.describe(name="Template to inspect")
+    @app_commands.autocomplete(name=_template_autocomplete)
+    async def _template_view(self, interaction: Interaction, name: str):
+        """Show the contents of a template (questions, approval/denial messages)."""
+        if not self._has_manage_permission(interaction):
+            lang = self._lang(interaction.guild_id)
+            await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
+            return
+
+        with self.bot.session_scope() as session:
+            lang = get_guild_language(interaction.guild_id, session)
+            tpl = ApplicationTemplate.get_by_name(name, interaction.guild.id, session)
+            if not tpl:
+                await interaction.response.send_message(
+                    get_string(lang, "application.template.not_found", name=name), ephemeral=True
+                )
+                return
+
+            # Resolve display name and questions for built-in templates from YAML
+            questions = None
+            display_name = tpl.Name
+            if tpl.IsBuiltIn:
+                yaml_key = TEMPLATE_KEY_MAP.get(tpl.Name)
+                if yaml_key:
+                    try:
+                        display_name = get_raw(lang, f"application.builtin_templates.{yaml_key}.name")
+                    except KeyError:
+                        pass
+                    try:
+                        questions = get_raw(lang, f"application.builtin_templates.{yaml_key}.questions")
+                    except KeyError:
+                        pass
+                type_label = get_string(lang, "application.template.view.type_builtin")
+            else:
+                type_label = get_string(lang, "application.template.view.type_custom")
+
+            # Fall back to DB questions
+            if questions is None:
+                questions = [q.QuestionText for q in tpl.questions] if tpl.questions else []
+
+            if questions:
+                q_lines = "\n".join(f"{i}. {q}" for i, q in enumerate(questions, 1))
+            else:
+                q_lines = get_string(lang, "application.template.view.no_questions")
+
+            not_set = get_string(lang, "application.template.view.not_set")
+            approval = tpl.ApprovalMessage or not_set
+            denial = tpl.DenialMessage or not_set
+
+        embed = Embed(
+            title=get_string(lang, "application.template.view.title", name=display_name),
+            description=type_label,
+            color=0x5865F2,
+        )
+        embed.add_field(name=get_string(lang, "application.template.view.questions_title"), value=q_lines, inline=False)
+        embed.add_field(name=get_string(lang, "application.template.view.approval_title"), value=approval, inline=False)
+        embed.add_field(name=get_string(lang, "application.template.view.denial_title"), value=denial, inline=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
     # -- /application template create ----------------------------------------
 
     @template_group.command(name="create")

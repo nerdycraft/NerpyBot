@@ -380,6 +380,15 @@ application:
       prefix_builtin: "[Integriert]"
       prefix_custom: "[Benutzerdefiniert]"
       entry: "{prefix} **{name}** — {questions} Frage(n)"
+    view:
+      title: "📋 Vorlage: {name}"
+      type_builtin: "Integriert"
+      type_custom: "Benutzerdefiniert"
+      questions_title: "Fragen"
+      no_questions: "Keine Fragen definiert."
+      approval_title: "Genehmigungsnachricht"
+      denial_title: "Ablehnungsnachricht"
+      not_set: "—"
     use:
       modal_title: "Formular-Einstellungen"
       success: "Formular **{name}** aus Vorlage **{template}** erstellt."

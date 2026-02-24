@@ -738,6 +738,85 @@ class TestTemplateList:
 
 
 # ---------------------------------------------------------------------------
+# /application template view
+# ---------------------------------------------------------------------------
+
+
+class TestTemplateView:
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        load_strings()
+
+    @pytest.mark.asyncio
+    async def test_view_builtin_template(self, app_cog, admin_interaction, db_session):
+        seed_built_in_templates(db_session)
+        db_session.commit()
+
+        await app_cog._template_view.callback(app_cog, admin_interaction, name="Guild Membership")
+
+        call_kwargs = admin_interaction.response.send_message.call_args
+        embed = call_kwargs.kwargs.get("embed") or call_kwargs[1].get("embed")
+        assert "Guild Membership" in embed.title
+        assert "Built-in" in embed.description
+        # Should show numbered questions from YAML
+        q_field = embed.fields[0]
+        assert "1." in q_field.value
+        assert "in-game name" in q_field.value.lower()
+
+    @pytest.mark.asyncio
+    async def test_view_custom_template(self, app_cog, admin_interaction, db_session):
+        from models.application import ApplicationTemplateQuestion
+
+        tpl = ApplicationTemplate(GuildId=admin_interaction.guild.id, Name="My Custom", IsBuiltIn=False)
+        tpl.ApprovalMessage = "Welcome aboard!"
+        tpl.DenialMessage = "Sorry, not this time."
+        db_session.add(tpl)
+        db_session.flush()
+        db_session.add(ApplicationTemplateQuestion(TemplateId=tpl.Id, QuestionText="Why join?", SortOrder=1))
+        db_session.commit()
+
+        await app_cog._template_view.callback(app_cog, admin_interaction, name="My Custom")
+
+        call_kwargs = admin_interaction.response.send_message.call_args
+        embed = call_kwargs.kwargs.get("embed") or call_kwargs[1].get("embed")
+        assert "My Custom" in embed.title
+        assert "Custom" in embed.description
+        assert "Why join?" in embed.fields[0].value
+        assert "Welcome aboard!" in embed.fields[1].value
+        assert "Sorry, not this time." in embed.fields[2].value
+
+    @pytest.mark.asyncio
+    async def test_view_not_found(self, app_cog, admin_interaction):
+        await app_cog._template_view.callback(app_cog, admin_interaction, name="NonExistent")
+
+        assert "not found" in str(admin_interaction.response.send_message.call_args).lower()
+
+    @pytest.mark.asyncio
+    async def test_view_no_permission(self, app_cog, non_admin_interaction):
+        await app_cog._template_view.callback(app_cog, non_admin_interaction, name="Whatever")
+
+        call_args = str(non_admin_interaction.response.send_message.call_args)
+        assert "permission" in call_args.lower()
+
+    @pytest.mark.asyncio
+    async def test_view_no_messages(self, app_cog, admin_interaction, db_session):
+        """Templates without approval/denial messages show the not-set placeholder."""
+        tpl = ApplicationTemplate(GuildId=admin_interaction.guild.id, Name="Bare", IsBuiltIn=False)
+        db_session.add(tpl)
+        db_session.commit()
+
+        await app_cog._template_view.callback(app_cog, admin_interaction, name="Bare")
+
+        call_kwargs = admin_interaction.response.send_message.call_args
+        embed = call_kwargs.kwargs.get("embed") or call_kwargs[1].get("embed")
+        # Approval and Denial fields should be "—"
+        assert embed.fields[1].value == "—"
+        assert embed.fields[2].value == "—"
+        # Questions field should show "no questions" message
+        assert "no questions" in embed.fields[0].value.lower()
+
+
+# ---------------------------------------------------------------------------
 # /application template use
 # ---------------------------------------------------------------------------
 
