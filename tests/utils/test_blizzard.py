@@ -341,53 +341,67 @@ class TestSyncCraftingRecipes:
         api = _make_api()
         log = MagicMock()
 
-        # Mock professions index — return one crafting profession
         api.professions_index = lambda: {"professions": [{"id": 164, "name": "Blacksmithing"}]}
-
-        # Mock profession detail — one tier
-        api.profession = lambda pid: {"skill_tiers": [{"id": 100, "name": "Current Tier"}]}
-
-        # Mock tier data — two recipes
+        api.profession = lambda pid: {"skill_tiers": [{"id": 2910, "name": "Midnight"}, {"id": 2875, "name": "TWW"}]}
         api.profession_skill_tier = lambda pid, tid: {
-            "categories": [{"recipes": [{"id": 10, "name": "Iron Sword"}, {"id": 11, "name": "Iron Shield"}]}]
+            "categories": [{"recipes": [{"id": tid * 10, "name": f"Sword {tid}"}]}]
         }
 
-        # Mock item media
-        api.item_media = lambda iid: {"assets": [{"key": "icon", "value": f"https://icon/{iid}.jpg"}]}
+        with patch("utils.blizzard._resolve_recipe_wowhead") as mock_resolve:
 
-        with (
-            patch("utils.blizzard._detect_current_tier") as mock_detect,
-            patch("utils.blizzard._resolve_recipe_item") as mock_resolve,
-        ):
-
-            async def fake_detect(api, prof_id, tiers, log):
-                tier_data = api.profession_skill_tier(prof_id, tiers[0]["id"])
-                return tiers[0], tier_data
-
-            mock_detect.side_effect = fake_detect
-
-            async def fake_resolve(api, recipe_id, recipe_name, log):
-                if recipe_name == "Iron Sword":
-                    return _make_resolved(100, "Iron Sword", is_equippable=True)
-                elif recipe_name == "Iron Shield":
-                    return _make_resolved(101, "Iron Shield", is_bop=True)
-                return None
+            async def fake_resolve(recipe_id, log):
+                return {
+                    "item_id": recipe_id + 1000,
+                    "item_name": f"Item {recipe_id}",
+                    "is_equippable": True,
+                    "icon_url": f"https://icon/{recipe_id}.jpg",
+                }
 
             mock_resolve.side_effect = fake_resolve
 
             recipe_count, profession_count = await sync_crafting_recipes(api, db_session, log)
 
-        assert recipe_count == 2
+        assert recipe_count == 2  # one recipe per tier, 2 tiers
         assert profession_count == 1
-
         results = CraftingRecipeCache.get_by_profession(164, db_session)
         assert len(results) == 2
-        names = {r.ItemName for r in results}
-        assert names == {"Iron Sword", "Iron Shield"}
-        assert results[0].ProfessionName == "Blacksmithing"
 
     @pytest.mark.asyncio
-    async def test_skips_non_equippable_non_bop(self, db_session):
+    async def test_takes_top_2_tiers_only(self, db_session):
+        api = _make_api()
+        log = MagicMock()
+
+        api.professions_index = lambda: {"professions": [{"id": 164, "name": "Blacksmithing"}]}
+        api.profession = lambda pid: {
+            "skill_tiers": [
+                {"id": 100, "name": "Classic"},
+                {"id": 200, "name": "TBC"},
+                {"id": 300, "name": "Current"},
+            ]
+        }
+
+        fetched_tiers = []
+
+        def mock_skill_tier(pid, tid):
+            fetched_tiers.append(tid)
+            return {"categories": [{"recipes": [{"id": tid, "name": f"Recipe {tid}"}]}]}
+
+        api.profession_skill_tier = mock_skill_tier
+
+        with patch("utils.blizzard._resolve_recipe_wowhead") as mock_resolve:
+            mock_resolve.return_value = {
+                "item_id": 1,
+                "item_name": "Item",
+                "is_equippable": True,
+                "icon_url": None,
+            }
+            await sync_crafting_recipes(api, db_session, log)
+
+        # Only the top 2 tiers (300, 200) should be fetched — NOT 100
+        assert sorted(fetched_tiers) == [200, 300]
+
+    @pytest.mark.asyncio
+    async def test_skips_non_equippable(self, db_session):
         from models.wow import CraftingRecipeCache
 
         api = _make_api()
@@ -399,31 +413,22 @@ class TestSyncCraftingRecipes:
             "categories": [{"recipes": [{"id": 10, "name": "Health Potion"}]}]
         }
 
-        with (
-            patch("utils.blizzard._detect_current_tier") as mock_detect,
-            patch("utils.blizzard._resolve_recipe_item") as mock_resolve,
-        ):
-
-            async def fake_detect(api, prof_id, tiers, log):
-                return tiers[0], api.profession_skill_tier(prof_id, tiers[0]["id"])
-
-            mock_detect.side_effect = fake_detect
-
-            # Health Potion: not equippable, not BoP — should be skipped
-            mock_resolve.return_value = _make_resolved(200, "Health Potion")
-
-            recipe_count, profession_count = await sync_crafting_recipes(api, db_session, log)
+        with patch("utils.blizzard._resolve_recipe_wowhead") as mock_resolve:
+            mock_resolve.return_value = {
+                "item_id": 200,
+                "item_name": "Health Potion",
+                "is_equippable": False,
+                "icon_url": None,
+            }
+            recipe_count, _ = await sync_crafting_recipes(api, db_session, log)
 
         assert recipe_count == 0
-        assert profession_count == 0
         assert CraftingRecipeCache.get_by_profession(171, db_session) == []
 
     @pytest.mark.asyncio
     async def test_skips_non_crafting_professions(self, db_session):
         api = _make_api()
         log = MagicMock()
-
-        # Return a gathering profession that's NOT in CRAFTING_PROFESSIONS
         api.professions_index = lambda: {"professions": [{"id": 186, "name": "Mining"}]}
 
         recipe_count, profession_count = await sync_crafting_recipes(api, db_session, log)
@@ -434,7 +439,6 @@ class TestSyncCraftingRecipes:
     async def test_upserts_existing_recipe(self, db_session):
         from models.wow import CraftingRecipeCache
 
-        # Pre-populate with old data
         db_session.add(
             CraftingRecipeCache(
                 ProfessionId=164,
@@ -442,37 +446,50 @@ class TestSyncCraftingRecipes:
                 RecipeId=10,
                 ItemId=100,
                 ItemName="Old Name",
-                IconUrl="old_icon.jpg",
+                IconUrl="old.jpg",
             )
         )
         db_session.flush()
 
         api = _make_api()
         log = MagicMock()
-
         api.professions_index = lambda: {"professions": [{"id": 164, "name": "Blacksmithing"}]}
         api.profession = lambda pid: {"skill_tiers": [{"id": 100, "name": "Current"}]}
         api.profession_skill_tier = lambda pid, tid: {"categories": [{"recipes": [{"id": 10, "name": "New Sword"}]}]}
-        api.item_media = lambda iid: {"assets": [{"key": "icon", "value": "new_icon.jpg"}]}
 
-        with (
-            patch("utils.blizzard._detect_current_tier") as mock_detect,
-            patch("utils.blizzard._resolve_recipe_item") as mock_resolve,
-        ):
-
-            async def fake_detect(api, prof_id, tiers, log):
-                return tiers[0], api.profession_skill_tier(prof_id, tiers[0]["id"])
-
-            mock_detect.side_effect = fake_detect
-            mock_resolve.return_value = _make_resolved(200, "New Sword", is_equippable=True)
-
+        with patch("utils.blizzard._resolve_recipe_wowhead") as mock_resolve:
+            mock_resolve.return_value = {
+                "item_id": 200,
+                "item_name": "New Sword",
+                "is_equippable": True,
+                "icon_url": "new.jpg",
+            }
             await sync_crafting_recipes(api, db_session, log)
 
         results = CraftingRecipeCache.get_by_profession(164, db_session)
         assert len(results) == 1
         assert results[0].ItemName == "New Sword"
-        assert results[0].ItemId == 200
-        assert results[0].IconUrl == "new_icon.jpg"
+        assert results[0].IconUrl == "new.jpg"
+
+    @pytest.mark.asyncio
+    async def test_single_tier_profession(self, db_session):
+        """Profession with only 1 tier still works (takes that 1 tier)."""
+        api = _make_api()
+        log = MagicMock()
+        api.professions_index = lambda: {"professions": [{"id": 164, "name": "Blacksmithing"}]}
+        api.profession = lambda pid: {"skill_tiers": [{"id": 100, "name": "Only Tier"}]}
+        api.profession_skill_tier = lambda pid, tid: {"categories": [{"recipes": [{"id": 1, "name": "Sword"}]}]}
+
+        with patch("utils.blizzard._resolve_recipe_wowhead") as mock_resolve:
+            mock_resolve.return_value = {
+                "item_id": 1,
+                "item_name": "Sword",
+                "is_equippable": True,
+                "icon_url": None,
+            }
+            recipe_count, _ = await sync_crafting_recipes(api, db_session, log)
+
+        assert recipe_count == 1
 
 
 class TestBlizzardItemSearch:

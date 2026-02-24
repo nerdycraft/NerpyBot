@@ -285,10 +285,13 @@ async def _detect_current_tier(api, prof_id, skill_tiers, log):
 
 
 async def sync_crafting_recipes(api, session, log, progress_callback=None):
-    """Fetch craftable recipes from Blizzard API and cache them (bot-global).
+    """Fetch craftable recipes and cache them via Blizzard API + Wowhead tooltips.
+
+    Uses Blizzard API for profession structure (tiers, recipe lists) and
+    Wowhead tooltip API for recipe→item resolution.
 
     Args:
-        api: blizzapi.RetailClient instance
+        api: blizzapi.RetailClient instance (for profession/tier data)
         session: SQLAlchemy session
         log: logger instance
         progress_callback: async callable(str) for progress updates
@@ -297,13 +300,12 @@ async def sync_crafting_recipes(api, session, log, progress_callback=None):
         (recipe_count, profession_count) tuple
 
     Raises:
-        RateLimited: if Blizzard returns 429 mid-sync
+        RateLimited: if Blizzard returns 429 during profession/tier fetches
     """
     import asyncio
 
     from models.wow import CraftingRecipeCache
 
-    # Step 1: Get all professions, filter to crafting-only
     professions_data = await asyncio.to_thread(api.professions_index)
     check_rate_limit(professions_data)
 
@@ -322,7 +324,6 @@ async def sync_crafting_recipes(api, session, log, progress_callback=None):
         if progress_callback:
             await progress_callback(f"Scanning **{prof_name}**... ({recipe_count} recipes found so far)")
 
-        # Step 2: Get profession detail → skill tiers
         prof_data = await asyncio.to_thread(api.profession, prof_id)
         check_rate_limit(prof_data)
 
@@ -331,101 +332,76 @@ async def sync_crafting_recipes(api, session, log, progress_callback=None):
             log.debug("[recipe-sync] %s (id=%d): no skill tiers, skipping", prof_name, prof_id)
             continue
 
-        # Step 3: Detect correct tier (current expansion)
-        current_tier, tier_data = await _detect_current_tier(api, prof_id, skill_tiers, log)
-        if current_tier is None:
-            log.debug("[recipe-sync] %s (id=%d): could not detect current tier, skipping", prof_name, prof_id)
-            continue
-        tier_id = current_tier["id"]
-        tier_name = current_tier.get("name", f"Tier {tier_id}")
+        # Take top 2 tiers by ID (current + previous expansion)
+        sorted_tiers = sorted(skill_tiers, key=lambda t: t["id"], reverse=True)[:2]
         log.debug(
-            "[recipe-sync] %s (id=%d): using tier '%s' (id=%d)",
+            "[recipe-sync] %s: using %d tier(s): %s",
             prof_name,
-            prof_id,
-            tier_name,
-            tier_id,
-        )
-
-        # Step 4: Collect all recipes from this tier
-        categories = tier_data.get("categories", [])
-        tier_recipes = []
-        for cat in categories:
-            for recipe_entry in cat.get("recipes", []):
-                tier_recipes.append(recipe_entry)
-
-        if not tier_recipes:
-            log.debug(
-                "[recipe-sync] %s: tier '%s' has %d categories but 0 recipes", prof_name, tier_name, len(categories)
-            )
-            continue
-
-        log.debug(
-            "[recipe-sync] %s: %d recipes in %d categories, searching items...",
-            prof_name,
-            len(tier_recipes),
-            len(categories),
+            len(sorted_tiers),
+            ", ".join(f"'{t.get('name', t['id'])}'" for t in sorted_tiers),
         )
 
         prof_recipe_count = 0
-        for recipe_entry in tier_recipes:
-            recipe_id = recipe_entry["id"]
-            recipe_name = recipe_entry.get("name", f"Recipe {recipe_id}")
+        for tier in sorted_tiers:
+            tier_id = tier["id"]
+            tier_name = tier.get("name", f"Tier {tier_id}")
 
-            # Step 5: Resolve recipe → item via recipe detail API or item search fallback
-            resolved = await _resolve_recipe_item(api, recipe_id, recipe_name, log)
-            if resolved is None:
+            tier_data = await asyncio.to_thread(api.profession_skill_tier, prof_id, tier_id)
+            check_rate_limit(tier_data)
+
+            tier_recipes = [
+                recipe_entry for cat in tier_data.get("categories", []) for recipe_entry in cat.get("recipes", [])
+            ]
+
+            if not tier_recipes:
+                log.debug("[recipe-sync] %s: tier '%s' has 0 recipes", prof_name, tier_name)
                 continue
 
-            if not resolved["is_equippable"] and not resolved["is_bop"]:
-                log.debug(
-                    "[recipe-sync]   %s (id=%d): item not equippable/BoP, skipping",
-                    recipe_name,
-                    recipe_id,
-                )
-                continue
+            log.debug("[recipe-sync] %s: tier '%s' — %d recipes", prof_name, tier_name, len(tier_recipes))
 
-            item_id = resolved["item_id"]
-            item_name = resolved["item_name"]
+            for recipe_entry in tier_recipes:
+                recipe_id = recipe_entry["id"]
 
-            # Step 6: Get item media → icon URL
-            try:
-                media_data = await asyncio.to_thread(api.item_media, item_id)
-                check_rate_limit(media_data)
-                icon_url = get_asset_url(media_data, "icon")
-            except Exception:
-                log.debug("[recipe-sync]   item %d: failed to fetch icon, continuing without", item_id)
-                icon_url = None
+                resolved = await _resolve_recipe_wowhead(recipe_id, log)
+                await asyncio.sleep(0.05)  # courtesy throttle
 
-            # Step 7: Upsert into cache (bot-global, keyed by RecipeId)
-            existing = session.query(CraftingRecipeCache).filter(CraftingRecipeCache.RecipeId == recipe_id).first()
+                if resolved is None:
+                    continue
 
-            now = datetime.now(UTC)
-            if existing:
-                existing.ItemId = item_id
-                existing.ItemName = item_name
-                existing.IconUrl = icon_url
-                existing.ProfessionId = prof_id
-                existing.ProfessionName = prof_name
-                existing.LastSynced = now
-            else:
-                session.add(
-                    CraftingRecipeCache(
-                        ProfessionId=prof_id,
-                        ProfessionName=prof_name,
-                        RecipeId=recipe_id,
-                        ItemId=item_id,
-                        ItemName=item_name,
-                        IconUrl=icon_url,
-                        LastSynced=now,
+                if not resolved["is_equippable"]:
+                    continue
+
+                item_id = resolved["item_id"]
+                item_name = resolved["item_name"]
+                icon_url = resolved["icon_url"]
+
+                existing = session.query(CraftingRecipeCache).filter(CraftingRecipeCache.RecipeId == recipe_id).first()
+
+                now = datetime.now(UTC)
+                if existing:
+                    existing.ItemId = item_id
+                    existing.ItemName = item_name
+                    existing.IconUrl = icon_url
+                    existing.ProfessionId = prof_id
+                    existing.ProfessionName = prof_name
+                    existing.LastSynced = now
+                else:
+                    session.add(
+                        CraftingRecipeCache(
+                            ProfessionId=prof_id,
+                            ProfessionName=prof_name,
+                            RecipeId=recipe_id,
+                            ItemId=item_id,
+                            ItemName=item_name,
+                            IconUrl=icon_url,
+                            LastSynced=now,
+                        )
                     )
-                )
 
-            prof_recipe_count += 1
-            recipe_count += 1
+                prof_recipe_count += 1
+                recipe_count += 1
 
-        log.debug(
-            "[recipe-sync] %s: %d recipes cached out of %d total", prof_name, prof_recipe_count, len(tier_recipes)
-        )
+        log.debug("[recipe-sync] %s: %d recipes cached", prof_name, prof_recipe_count)
         if prof_recipe_count > 0:
             profession_count += 1
 
