@@ -185,10 +185,9 @@ class TestSyncCraftingRecipes:
 
         assert recipe_count == 2  # one recipe per tier, 2 tiers
         assert profession_count == 1
-        # get_by_profession returns only the highest tier (2910)
         results = CraftingRecipeCache.get_by_profession(164, db_session)
-        assert len(results) == 1
-        assert results[0].TierId == 2910
+        assert len(results) == 2
+        assert {r.TierId for r in results} == {2910, 2875}
 
     @pytest.mark.asyncio
     async def test_takes_top_2_tiers_only(self, db_session):

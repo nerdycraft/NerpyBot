@@ -71,8 +71,8 @@ class TestCraftingRoleMapping:
 
 
 class TestCraftingRecipeCache:
-    def test_get_by_profession_returns_current_tier(self, db_session):
-        """get_by_profession returns only recipes from the highest tier."""
+    def test_get_by_profession_returns_all_cached_tiers(self, db_session):
+        """get_by_profession returns recipes from all cached tiers, sorted alphabetically."""
         db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=10, ItemId=100, ItemName="Sword"))
         db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=11, ItemId=101, ItemName="Axe"))
         db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=200, RecipeId=13, ItemId=103, ItemName="Old Mace"))
@@ -80,7 +80,7 @@ class TestCraftingRecipeCache:
         db_session.flush()
 
         results = CraftingRecipeCache.get_by_profession(1, db_session)
-        assert len(results) == 2  # only tier 300, not the old tier 200
+        assert len(results) == 3  # both tiers for profession 1
         assert results[0].ItemName == "Axe"  # alphabetical
 
     def test_unique_recipe_constraint(self, db_session):
