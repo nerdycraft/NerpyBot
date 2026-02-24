@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Tests for blizzard.py recipe sync pipeline."""
 
+import json
+import urllib.error
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -10,6 +12,7 @@ from utils.blizzard import (
     _blizzard_item_search,
     _detect_current_tier,
     _resolve_recipe_item,
+    _resolve_recipe_wowhead,
     sync_crafting_recipes,
 )
 
@@ -228,6 +231,106 @@ class TestResolveRecipeItem:
 
         with pytest.raises(RateLimited):
             await _resolve_recipe_item(api, 10, "Sword", log)
+
+
+class TestResolveRecipeWowhead:
+    """Test recipe → item resolution via Wowhead tooltip API."""
+
+    @pytest.mark.asyncio
+    async def test_resolves_equippable_item(self):
+        """Parses item ID and detects equippable from tooltip HTML."""
+        tooltip_html = (
+            '<a href="/item=243581/evercore">Evercore</a>'
+            '<span class="q3"><a href="/item=244751/evercore-zoomshroud">'
+            "Evercore Zoomshroud</a></span>"
+            "<br>Binds when equipped"
+        )
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_resp.read.return_value = json.dumps(
+            {"name": "Evercore Zoomshroud", "icon": "inv_helmet_47", "quality": 3, "tooltip": tooltip_html}
+        ).encode()
+
+        with patch("utils.blizzard.urllib.request.urlopen", return_value=mock_resp):
+            result = await _resolve_recipe_wowhead(52418, MagicMock())
+
+        assert result is not None
+        assert result["item_id"] == 244751
+        assert result["item_name"] == "Evercore Zoomshroud"
+        assert result["is_equippable"] is True
+        assert result["icon_url"] == "https://wow.zamimg.com/images/wow/icons/large/inv_helmet_47.jpg"
+
+    @pytest.mark.asyncio
+    async def test_skips_utility_recipe(self):
+        """Recipes with quality -1 (Recraft, Recycling) return None."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_resp.read.return_value = json.dumps(
+            {"name": "Recraft Equipment", "icon": "trade_blacksmithing", "quality": -1, "tooltip": ""}
+        ).encode()
+
+        with patch("utils.blizzard.urllib.request.urlopen", return_value=mock_resp):
+            result = await _resolve_recipe_wowhead(51522, MagicMock())
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_404(self):
+        """Non-existent recipe returns None."""
+        with patch(
+            "utils.blizzard.urllib.request.urlopen",
+            side_effect=urllib.error.HTTPError("url", 404, "Not Found", {}, None),
+        ):
+            result = await _resolve_recipe_wowhead(99999999, MagicMock())
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_timeout(self):
+        """Timeout returns None, doesn't crash."""
+        with patch("utils.blizzard.urllib.request.urlopen", side_effect=urllib.error.URLError("timeout")):
+            result = await _resolve_recipe_wowhead(52418, MagicMock())
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_non_equippable_item(self):
+        """Non-equippable crafted item (reagent) detected correctly."""
+        tooltip_html = '<a href="/item=243574/song-gear">Song Gear</a><br>Crafting Reagent'
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_resp.read.return_value = json.dumps(
+            {"name": "Song Gear", "icon": "inv_gear", "quality": 2, "tooltip": tooltip_html}
+        ).encode()
+
+        with patch("utils.blizzard.urllib.request.urlopen", return_value=mock_resp):
+            result = await _resolve_recipe_wowhead(52407, MagicMock())
+
+        assert result is not None
+        assert result["item_id"] == 243574
+        assert result["is_equippable"] is False
+
+    @pytest.mark.asyncio
+    async def test_no_item_link_returns_none(self):
+        """Recipe with no item links in tooltip returns None."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_resp.read.return_value = json.dumps(
+            {"name": "Weird Recipe", "icon": "inv_misc", "quality": 2, "tooltip": "<table>no items</table>"}
+        ).encode()
+
+        with patch("utils.blizzard.urllib.request.urlopen", return_value=mock_resp):
+            result = await _resolve_recipe_wowhead(12345, MagicMock())
+
+        assert result is None
 
 
 class TestSyncCraftingRecipes:

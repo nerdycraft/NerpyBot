@@ -13,7 +13,10 @@ Consolidates all WoW-related helper logic:
 import difflib
 import itertools
 import json
+import re
 import unicodedata
+import urllib.error
+import urllib.request
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from datetime import datetime as dt
@@ -57,6 +60,64 @@ CRAFTING_PROFESSIONS = {
     "Inscription": 773,
     "Jewelcrafting": 755,
 }
+
+_WOWHEAD_TOOLTIP_URL = "https://nether.wowhead.com/tooltip/recipe/{}?dataEnv=1&locale=0"
+_WOWHEAD_ICON_URL = "https://wow.zamimg.com/images/wow/icons/large/{}.jpg"
+_ITEM_LINK_RE = re.compile(r'href="(?:/\w+)?/item=(\d+)/([^"]+)"')
+
+
+async def _resolve_recipe_wowhead(recipe_id, log):
+    """Resolve a recipe to its crafted item via the Wowhead tooltip API.
+
+    Returns dict with item_id, item_name, is_equippable, icon_url — or None.
+    """
+    import asyncio
+
+    def _fetch():
+        url = _WOWHEAD_TOOLTIP_URL.format(recipe_id)
+        req = urllib.request.Request(url, headers={"User-Agent": "NerpyBot"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read())
+
+    try:
+        data = await asyncio.to_thread(_fetch)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            log.debug("[recipe-sync]   recipe %d: not found on Wowhead (404)", recipe_id)
+        else:
+            log.warning("[recipe-sync]   recipe %d: Wowhead HTTP %d", recipe_id, e.code)
+        return None
+    except Exception as ex:
+        log.warning("[recipe-sync]   recipe %d: Wowhead fetch failed: %s", recipe_id, ex)
+        return None
+
+    quality = data.get("quality", -1)
+    if quality == -1:
+        log.debug("[recipe-sync]   '%s' (recipe=%d): utility recipe, skipping", data.get("name", "?"), recipe_id)
+        return None
+
+    tooltip = data.get("tooltip", "")
+    matches = _ITEM_LINK_RE.findall(tooltip)
+    if not matches:
+        log.debug("[recipe-sync]   '%s' (recipe=%d): no item link in tooltip", data.get("name", "?"), recipe_id)
+        return None
+
+    # Last item link is the crafted item (reagents appear first)
+    item_id_str, item_slug = matches[-1]
+    item_id = int(item_id_str)
+    item_name = data.get("name", item_slug.replace("-", " ").title())
+    is_equippable = "Binds when equipped" in tooltip
+    icon = data.get("icon", "")
+    icon_url = _WOWHEAD_ICON_URL.format(icon) if icon else None
+
+    log.debug(
+        "[recipe-sync]   '%s' (recipe=%d) → item %d (equip=%s)",
+        item_name,
+        recipe_id,
+        item_id,
+        is_equippable,
+    )
+    return {"item_id": item_id, "item_name": item_name, "is_equippable": is_equippable, "icon_url": icon_url}
 
 
 async def _blizzard_item_search(api, recipe_name, region="eu", locale="en_US"):
