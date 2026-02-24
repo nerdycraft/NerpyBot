@@ -8,7 +8,7 @@ Guild administrators can set up a crafting order board where members post reques
 
 **Profession Roles** are Discord roles that represent WoW professions (e.g. Blacksmithing, Alchemy). When creating a board, roles are auto-matched to Blizzard profession IDs by name. Only matched roles appear in the profession dropdown during order creation.
 
-**Recipe Cache** stores craftable recipe names and icons fetched from the Blizzard API via `!wow recipesync` or `!sync data` (operator-only). The cache is **bot-global** (shared across all guilds) since WoW recipes are static data. Items are included if they are equippable OR bind-on-pickup (BoP).
+**Recipe Cache** stores craftable recipe names and icons resolved via the Wowhead tooltip API, triggered by `!wow recipesync` or `!sync data` (operator-only). The cache is **bot-global** (shared across all guilds) since WoW recipes are static data. Only equippable items (armor, weapons) from the top 2 expansion tiers are cached.
 
 **Role Mapping** (`CraftingRoleMapping`) maps Discord role IDs to Blizzard profession IDs per guild. Auto-populated during board creation by matching role names against the 8 crafting professions. Unmapped roles are excluded from the profession dropdown.
 
@@ -37,9 +37,9 @@ Guild administrators can set up a crafting order board where members post reques
 
 1. Operator runs `!wow recipesync` or `!sync data`
 2. Bot fetches the 8 crafting professions from the Blizzard API
-3. For each profession, detects the current expansion tier by sampling recipes and checking for BoP items
-4. For each recipe in the current tier, searches the Blizzard Item Search API by name
-5. Items that are equippable OR bind-on-pickup are cached with their icon URLs
+3. For each profession, takes the top 2 expansion tiers (current + previous)
+4. For each recipe, queries the Wowhead tooltip API to resolve the crafted item
+5. Equippable items (armor, weapons) are cached with their icon URLs
 6. Cache enables an item selection dropdown during order creation
 
 ### Order Creation (3-Step Ephemeral Flow)
@@ -90,7 +90,7 @@ Open / In Progress
 
 | Command           | Description                                  |
 | ----------------- | -------------------------------------------- |
-| `!wow recipesync` | Sync crafting recipes from the Blizzard API  |
+| `!wow recipesync` | Sync crafting recipes via Blizzard + Wowhead |
 | `!sync data`      | Sync all module data (includes recipe cache) |
 
 ## Database Models
@@ -105,7 +105,7 @@ Maps Discord role IDs to Blizzard profession IDs, per guild. Auto-populated duri
 
 ### CraftingRecipeCache
 
-Bot-global cache of craftable recipes from the Blizzard API. Keyed by `RecipeId` (unique). Stores profession ID, profession name, item ID, item name, icon URL, and last sync timestamp.
+Bot-global cache of craftable recipes resolved via Wowhead. Keyed by `RecipeId` (unique). Stores profession ID, profession name, item ID, item name, icon URL, and last sync timestamp.
 
 ### CraftingOrder
 
@@ -118,6 +118,6 @@ Individual crafting order. Tracks guild, channel, message ID, thread ID, creator
 | `NerdyPy/modules/wow.py`                  | `craftingorder` command group (create, edit, remove) + prefix commands       |
 | `NerdyPy/modules/views/crafting_order.py` | Board view, select views, modal, DynamicItem buttons, thread fallback        |
 | `NerdyPy/models/wow.py`                   | CraftingBoardConfig, CraftingRoleMapping, CraftingRecipeCache, CraftingOrder |
-| `NerdyPy/utils/blizzard.py`               | `sync_crafting_recipes()`, item search, tier detection helpers               |
+| `NerdyPy/utils/blizzard.py`               | `sync_crafting_recipes()`, Wowhead tooltip resolver                          |
 | `NerdyPy/bot.py`                          | DynamicItem and persistent view registration in `setup_hook()`               |
 | `NerdyPy/locales/lang_en.yaml`            | `wow.craftingorder.*` localization keys                                      |

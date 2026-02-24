@@ -1436,7 +1436,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     async def _recipe_sync_prefix(self, ctx: Context):
         """Sync WoW crafting recipes from Blizzard API. [operator]"""
         require_operator(ctx)
-        await ctx.send("Syncing recipes from the Blizzard API... this may take a moment.")
+        await ctx.send("Syncing crafting recipes... this may take a moment.")
 
         async def _progress(msg: str):
             pass  # prefix commands don't support editing messages easily
@@ -1459,7 +1459,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         try:
             recipe_count, profession_count = await self._run_recipe_sync()
         except RateLimited:
-            return "rate limited by Blizzard API"
+            return "rate limited by Blizzard API during recipe sync"
         return f"{recipe_count} recipes across {profession_count} professions"
 
 
