@@ -609,11 +609,11 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                     try:
                         display_name = get_raw(lang, f"application.builtin_templates.{yaml_key}.name")
                     except KeyError:
-                        pass
+                        pass  # keep tpl.Name assigned above
                     try:
                         questions = get_raw(lang, f"application.builtin_templates.{yaml_key}.questions")
                     except KeyError:
-                        pass
+                        pass  # resolved from DB below
                 type_label = get_string(lang, "application.template.view.type_builtin")
             else:
                 type_label = get_string(lang, "application.template.view.type_custom")
