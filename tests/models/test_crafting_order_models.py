@@ -70,7 +70,6 @@ class TestCraftingRoleMapping:
         assert CraftingRoleMapping.get_by_guild(100, db_session) == []
 
 
-
 class TestCraftingOrder:
     def test_create_and_get_by_id(self, db_session):
         order = CraftingOrder(

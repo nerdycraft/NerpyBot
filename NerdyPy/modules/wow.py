@@ -1422,7 +1422,6 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         await interaction.followup.send(reply, ephemeral=True)
 
 
-
 class _BoardDescriptionModal(discord.ui.Modal):
     """Modal for collecting/editing board description.
 

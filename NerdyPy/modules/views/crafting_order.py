@@ -159,7 +159,6 @@ class ProfessionSelectView(ui.View):
         await interaction.response.send_modal(modal)
 
 
-
 # ---------------------------------------------------------------------------
 # Order Creation Modal
 # ---------------------------------------------------------------------------
@@ -219,6 +218,9 @@ class CraftingOrderModal(ui.Modal):
             view = build_order_view(order.Id, "open", lang)
 
             channel = interaction.guild.get_channel(config.ChannelId)
+            if channel is None:
+                await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
+                return
             msg = await channel.send(content=self.role.mention, embed=embed, view=view)
             order.OrderMessageId = msg.id
 
@@ -380,7 +382,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
             if order is None:
                 await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
                 return False
-            if order.Status == "completed":
+            if order.Status in ("completed", "cancelled"):
                 await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
                 return False
             is_creator = order.CreatorId == interaction.user.id
@@ -393,7 +395,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
     async def callback(self, interaction: Interaction):
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
-            order.Status = "completed"
+            order.Status = "cancelled"
             item_name = order.ItemName
             creator_id = order.CreatorId
             cancelled_by_creator = interaction.user.id == creator_id
@@ -467,6 +469,9 @@ class AskQuestionModal(ui.Modal):
             message_id = order.OrderMessageId
 
         channel = interaction.guild.get_channel(channel_id)
+        if channel is None:
+            await interaction.followup.send(_ls(interaction, "ask.thread_failed"), ephemeral=True)
+            return
         thread = None
 
         if thread_id:
@@ -507,6 +512,9 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
         item_name = order.ItemName
 
     channel = interaction.guild.get_channel(channel_id)
+    if channel is None:
+        log.warning("Board channel %d not found for order #%d", channel_id, order_id)
+        return False
     thread = channel.get_thread(thread_id) if thread_id else None
 
     if thread is None:

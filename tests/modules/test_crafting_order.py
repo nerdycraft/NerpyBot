@@ -96,7 +96,6 @@ class TestCraftingOrderTransitions:
         assert result.Status == "completed"
 
 
-
 class TestRoleMapping:
     """Test role-to-profession mapping."""
 

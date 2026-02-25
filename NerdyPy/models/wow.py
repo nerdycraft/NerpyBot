@@ -205,7 +205,6 @@ class CraftingRoleMapping(db.BASE):
         session.query(cls).filter(cls.GuildId == guild_id).delete()
 
 
-
 class CraftingOrder(db.BASE):
     """Individual crafting order posted by a user."""
 
@@ -235,4 +234,4 @@ class CraftingOrder(db.BASE):
 
     @classmethod
     def get_active_by_guild(cls, guild_id, session):
-        return session.query(cls).filter(cls.GuildId == guild_id, cls.Status != "completed").all()
+        return session.query(cls).filter(cls.GuildId == guild_id, cls.Status.notin_(["completed", "cancelled"])).all()
