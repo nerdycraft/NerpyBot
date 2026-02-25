@@ -309,8 +309,6 @@ wow:
       success: "Handwerksauftrags-Board aktualisiert."
       unmapped_roles: "⚠️ Diese Rollen konnten keinem Beruf zugeordnet werden: **{roles}**. Sie erscheinen nicht im Berufs-Dropdown."
     profession_select: "Wähle einen Beruf"
-    item_select: "Wähle einen Gegenstand"
-    item_other: "Anderes (unten angeben)"
     modal_title: "Handwerksauftrag erstellen"
     modal_item_name: "Gegenstandsname"
     modal_notes: "Zusätzliche Hinweise (optional)"

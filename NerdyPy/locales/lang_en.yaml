@@ -310,8 +310,6 @@ wow:
       success: "Crafting order board updated."
       unmapped_roles: "⚠️ Could not auto-match these roles to a profession: **{roles}**. They won't appear in the profession dropdown."
     profession_select: "Select a profession"
-    item_select: "Select an item"
-    item_other: "Other (specify below)"
     modal_title: "Create Crafting Order"
     modal_item_name: "Item Name"
     modal_notes: "Additional Notes (optional)"

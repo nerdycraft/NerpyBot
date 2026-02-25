@@ -205,42 +205,6 @@ class CraftingRoleMapping(db.BASE):
         session.query(cls).filter(cls.GuildId == guild_id).delete()
 
 
-class CraftingRecipeCache(db.BASE):
-    """Cached craftable recipes from the Blizzard API (bot-global)."""
-
-    __tablename__ = "CraftingRecipeCache"
-    __table_args__ = (
-        Index("CraftingRecipeCache_RecipeId", "RecipeId", unique=True),
-        Index("CraftingRecipeCache_ProfessionId", "ProfessionId"),
-    )
-
-    Id = Column(Integer, primary_key=True)
-    ProfessionId = Column(Integer)
-    ProfessionName = Column(Unicode(100), nullable=True)
-    TierId = Column(Integer, nullable=True)
-    RecipeId = Column(Integer)
-    ItemId = Column(Integer)
-    ItemName = Column(Unicode(200))
-    IconUrl = Column(Unicode(500), nullable=True)
-    LastSynced = Column(DateTime, default=lambda: datetime.now(UTC))
-
-    @classmethod
-    def get_by_profession(cls, profession_id, session):
-        """Return all cached recipes for a profession (both cached tiers), sorted by name."""
-        return session.query(cls).filter(cls.ProfessionId == profession_id).order_by(cls.ItemName).all()
-
-    @classmethod
-    def delete_stale(cls, profession_id, valid_tier_ids, session):
-        """Delete cached recipes whose tier is no longer in the active set."""
-        session.query(cls).filter(
-            cls.ProfessionId == profession_id,
-            cls.TierId.notin_(valid_tier_ids),
-        ).delete(synchronize_session="fetch")
-
-    @classmethod
-    def delete_all(cls, session):
-        session.query(cls).delete()
-
 
 class CraftingOrder(db.BASE):
     """Individual crafting order posted by a user."""

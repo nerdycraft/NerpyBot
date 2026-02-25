@@ -12,7 +12,7 @@ from blizzapi import Language, Region, RetailClient
 from discord import Color, Embed, HTTPException, Interaction, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext import tasks
-from discord.ext.commands import Context, GroupCog, command
+from discord.ext.commands import GroupCog
 from models.wow import CraftingBoardConfig, CraftingRoleMapping, WowCharacterMounts, WowGuildNewsConfig
 from utils.blizzard import (
     CRAFTING_PROFESSIONS,
@@ -29,9 +29,7 @@ from utils.blizzard import (
     record_character_failure,
     should_skip_character,
     should_update_mount_set,
-    sync_crafting_recipes,
 )
-from utils.checks import require_operator
 from utils.cog import NerpyBotCog
 from utils.errors import (
     NerpyInfraException,
@@ -1423,44 +1421,6 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             reply += "\n" + unmapped_warning
         await interaction.followup.send(reply, ephemeral=True)
 
-    async def _run_recipe_sync(self, progress_callback=None):
-        """Shared recipe sync logic used by both !wow recipesync and !sync data."""
-        api = self._get_retailclient("eu", "en")
-        with self.bot.session_scope() as session:
-            recipe_count, profession_count = await sync_crafting_recipes(
-                api, session, self.bot.log, progress_callback=progress_callback
-            )
-        return recipe_count, profession_count
-
-    @command(name="recipesync")
-    async def _recipe_sync_prefix(self, ctx: Context):
-        """Sync WoW crafting recipes from Blizzard API. [operator]"""
-        require_operator(ctx)
-        await ctx.send("Syncing crafting recipes... this may take a moment.")
-
-        async def _progress(msg: str):
-            pass  # prefix commands don't support editing messages easily
-
-        try:
-            recipe_count, profession_count = await self._run_recipe_sync(progress_callback=_progress)
-        except RateLimited:
-            await ctx.send("Rate limited by Blizzard API. Try again later.")
-            return
-
-        if recipe_count == 0:
-            await ctx.send("No craftable recipes found for the current expansion tier.")
-        else:
-            await ctx.send(
-                f"Recipe sync complete. {recipe_count} recipes cached across {profession_count} professions."
-            )
-
-    async def sync_data(self, ctx):
-        """Called by !sync data — syncs recipe cache."""
-        try:
-            recipe_count, profession_count = await self._run_recipe_sync()
-        except RateLimited:
-            return "rate limited by Blizzard API during recipe sync"
-        return f"{recipe_count} recipes across {profession_count} professions"
 
 
 class _BoardDescriptionModal(discord.ui.Modal):

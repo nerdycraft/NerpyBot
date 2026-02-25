@@ -7,7 +7,7 @@ import re
 import discord
 from discord import Interaction, ui
 
-from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRecipeCache, CraftingRoleMapping
+from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRoleMapping
 from utils.strings import get_guild_language, get_localized_string, get_string
 
 log = logging.getLogger(__name__)
@@ -155,60 +155,9 @@ class ProfessionSelectView(ui.View):
     async def _on_select(self, interaction: Interaction):
         role_id = int(interaction.data["values"][0])
         role = interaction.guild.get_role(role_id)
-
-        with self.bot.session_scope() as session:
-            prof_id = CraftingRoleMapping.get_profession_id(self.guild_id, role_id, session)
-            if prof_id:
-                recipes = CraftingRecipeCache.get_by_profession(prof_id, session)
-            else:
-                recipes = []
-            recipe_options = [(r.ItemName, r.IconUrl) for r in recipes[:25]] if recipes else []
-
-        if recipe_options:
-            view = ItemSelectView(self.bot, role_id, role, recipe_options, self.guild_id, self.lang)
-            await interaction.response.edit_message(content=_ls(interaction, "item_select"), view=view)
-        else:
-            modal = CraftingOrderModal(self.bot, role_id, role, "", None, self.guild_id, self.lang)
-            await interaction.response.send_modal(modal)
-
-
-class ItemSelectView(ui.View):
-    """Ephemeral item selection (Step 2)."""
-
-    def __init__(
-        self,
-        bot,
-        role_id: int,
-        role: discord.Role,
-        recipe_options: list[tuple[str, str | None]],
-        guild_id: int,
-        lang: str = "en",
-    ):
-        super().__init__(timeout=180)
-        self.bot = bot
-        self.role_id = role_id
-        self.role = role
-        self.guild_id = guild_id
-        self.lang = lang
-        self._recipes = {name: icon for name, icon in recipe_options}
-
-        options = [discord.SelectOption(label=name) for name, _ in recipe_options]
-        options.append(discord.SelectOption(label=get_string(lang, "wow.craftingorder.item_other"), value="__other__"))
-        select = ui.Select(placeholder=get_string(lang, "wow.craftingorder.item_select"), options=options)
-        select.callback = self._on_select
-        self.add_item(select)
-
-    async def _on_select(self, interaction: Interaction):
-        value = interaction.data["values"][0]
-        if value == "__other__":
-            item_name = ""
-            icon_url = None
-        else:
-            item_name = value
-            icon_url = self._recipes.get(value)
-
-        modal = CraftingOrderModal(self.bot, self.role_id, self.role, item_name, icon_url, self.guild_id, self.lang)
+        modal = CraftingOrderModal(self.bot, role_id, role, self.guild_id, self.lang)
         await interaction.response.send_modal(modal)
+
 
 
 # ---------------------------------------------------------------------------
@@ -217,7 +166,7 @@ class ItemSelectView(ui.View):
 
 
 class CraftingOrderModal(ui.Modal):
-    """Order creation modal (Step 3)."""
+    """Order creation modal (Step 2)."""
 
     item_name_input = ui.TextInput(label="Item Name", max_length=200)
     notes_input = ui.TextInput(
@@ -229,8 +178,6 @@ class CraftingOrderModal(ui.Modal):
         bot,
         role_id: int,
         role: discord.Role,
-        item_name: str,
-        icon_url: str | None,
         guild_id: int,
         lang: str = "en",
     ):
@@ -238,12 +185,9 @@ class CraftingOrderModal(ui.Modal):
         self.bot = bot
         self.role_id = role_id
         self.role = role
-        self.icon_url = icon_url
         self.guild_id = guild_id
         self.item_name_input.label = get_string(lang, "wow.craftingorder.modal_item_name")
         self.notes_input.label = get_string(lang, "wow.craftingorder.modal_notes")
-        if item_name:
-            self.item_name_input.default = item_name
 
     async def on_submit(self, interaction: Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -265,7 +209,6 @@ class CraftingOrderModal(ui.Modal):
                 CreatorId=interaction.user.id,
                 ProfessionRoleId=self.role_id,
                 ItemName=item_name,
-                IconUrl=self.icon_url,
                 Notes=notes,
                 Status="open",
             )

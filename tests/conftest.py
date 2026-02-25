@@ -44,7 +44,6 @@ def db_engine():
         WowCharacterMounts,
         CraftingBoardConfig,
         CraftingRoleMapping,
-        CraftingRecipeCache,
         CraftingOrder,
     )
 

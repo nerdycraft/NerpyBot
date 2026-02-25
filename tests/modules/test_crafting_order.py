@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for crafting order feature."""
 
-from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRecipeCache, CraftingRoleMapping
+from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRoleMapping
 
 
 class TestCraftingBoardConfig:
@@ -95,35 +95,6 @@ class TestCraftingOrderTransitions:
         result = CraftingOrder.get_by_id(order.Id, db_session)
         assert result.Status == "completed"
 
-
-class TestRecipeCache:
-    """Test recipe cache queries."""
-
-    def test_get_by_profession_sorted(self, db_session):
-        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=10, ItemId=100, ItemName="Sword"))
-        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=11, ItemId=101, ItemName="Axe"))
-        db_session.flush()
-
-        results = CraftingRecipeCache.get_by_profession(1, db_session)
-        assert len(results) == 2
-        assert results[0].ItemName == "Axe"
-
-    def test_delete_all(self, db_session):
-        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=10, ItemId=100, ItemName="Sword"))
-        db_session.flush()
-
-        CraftingRecipeCache.delete_all(db_session)
-        db_session.flush()
-        assert CraftingRecipeCache.get_by_profession(1, db_session) == []
-
-    def test_no_guild_isolation_needed(self, db_session):
-        """Recipe cache is bot-global — same recipe is stored once regardless of guild."""
-        db_session.add(CraftingRecipeCache(ProfessionId=1, TierId=300, RecipeId=10, ItemId=100, ItemName="Sword"))
-        db_session.flush()
-
-        results = CraftingRecipeCache.get_by_profession(1, db_session)
-        assert len(results) == 1
-        assert results[0].ItemName == "Sword"
 
 
 class TestRoleMapping:
