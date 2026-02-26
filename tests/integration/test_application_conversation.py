@@ -1185,3 +1185,57 @@ class TestSubmitConversationRoleMentions:
 
         # No mentions → thread still created but thread.send not called
         thread.send.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_managed_admin_role_not_mentioned(self, conv, mock_bot, mock_guild, review_channel_with_thread):
+        """Managed (bot/integration) admin roles must not be pinged.
+        Currently passes trivially (no thread creation yet); after Task 5 implementation
+        this correctly fails if role.managed filtering is absent from the admin sweep.
+        """
+        managed_role = MagicMock()
+        managed_role.id = 999
+        managed_role.permissions = MagicMock()
+        managed_role.permissions.administrator = True
+        managed_role.managed = True  # bot/integration role — should be filtered out
+        mock_guild.roles = [managed_role]
+
+        channel, thread = review_channel_with_thread
+        mock_bot.get_channel = MagicMock(return_value=channel)
+
+        conv.answers = {conv.questions[0][0]: "answer"}
+        conv.currentState = SubmitState.SUBMIT
+        await conv.repost_state()
+
+        thread.send.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_thread_creation_failure_is_handled(self, conv, mock_bot, mock_guild, db_session):
+        """If create_thread raises HTTPException, ReviewMessageId must still be saved and
+        no exception must propagate. Currently passes trivially (no create_thread call yet);
+        after Task 5 implementation this exercises the real exception-handling path.
+        """
+        from models.application import ApplicationSubmission
+
+        admin_role = MagicMock()
+        admin_role.id = 888
+        admin_role.permissions = MagicMock()
+        admin_role.permissions.administrator = True
+        admin_role.managed = False
+        mock_guild.roles = [admin_role]
+
+        sent_msg = MagicMock()
+        sent_msg.id = 555
+        sent_msg.create_thread = AsyncMock(side_effect=discord.HTTPException(MagicMock(), "forbidden"))
+
+        channel = MagicMock()
+        channel.send = AsyncMock(return_value=sent_msg)
+        mock_bot.get_channel = MagicMock(return_value=channel)
+
+        conv.answers = {conv.questions[0][0]: "answer"}
+        conv.currentState = SubmitState.SUBMIT
+        await conv.repost_state()  # must not raise
+
+        with mock_bot.session_scope() as session:
+            submission = session.query(ApplicationSubmission).filter_by(Id=conv.submission_id).first()
+            assert submission is not None
+            assert submission.ReviewMessageId == 555
