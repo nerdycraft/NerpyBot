@@ -1318,14 +1318,12 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             msg = await channel.send(embed=embed, view=view)
             config.BoardMessageId = msg.id
 
-        reply = get_string(lang, "wow.craftingorder.create.success", channel=channel.mention)
+        await interaction.followup.send(
+            get_string(lang, "wow.craftingorder.create.success", channel=channel.mention), ephemeral=True
+        )
+
         if unmapped:
-            unmapped_names = []
-            for rid in unmapped:
-                role = interaction.guild.get_role(rid)
-                unmapped_names.append(role.name if role else str(rid))
-            reply += "\n" + get_string(lang, "wow.craftingorder.create.unmapped_roles", roles=", ".join(unmapped_names))
-        await interaction.followup.send(reply, ephemeral=True)
+            await self._send_manual_mapping_view(interaction, unmapped, lang)
 
     @craftingorder.command(name="remove")
     @checks.has_permissions(manage_channels=True)
@@ -1371,29 +1369,21 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             current_description = config.Description
 
         # If new roles provided, update the mapping before showing the modal
-        unmapped_warning = ""
+        unmapped: list[int] = []
         if roles:
             role_ids = self._parse_role_ids(roles, interaction.guild)
             if role_ids:
                 with self.bot.session_scope() as session:
                     CraftingRoleMapping.delete_by_guild(interaction.guild_id, session)
-                    mapped, unmapped = self._auto_match_roles(interaction.guild, role_ids, session)
-                if unmapped:
-                    unmapped_names = []
-                    for rid in unmapped:
-                        role = interaction.guild.get_role(rid)
-                        unmapped_names.append(role.name if role else str(rid))
-                    unmapped_warning = get_string(
-                        lang, "wow.craftingorder.edit.unmapped_roles", roles=", ".join(unmapped_names)
-                    )
+                    _mapped, unmapped = self._auto_match_roles(interaction.guild, role_ids, session)
 
         # Show modal pre-filled with current description
         modal = _BoardDescriptionModal(self.bot, lang, mode="edit", default_text=current_description)
-        modal._unmapped_warning = unmapped_warning
+        modal._unmapped = unmapped
         await interaction.response.send_modal(modal)
 
     async def _finish_board_edit(
-        self, interaction: Interaction, new_description: str, lang: str, unmapped_warning: str = ""
+        self, interaction: Interaction, new_description: str, lang: str, unmapped: list[int] | None = None
     ):
         """Update the board description and edit the embed in-place."""
         with self.bot.session_scope() as session:
@@ -1416,10 +1406,25 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         except discord.HTTPException:
             self.bot.log.debug("Failed to edit board embed (channel=%s, msg=%s)", channel_id, message_id)
 
-        reply = get_string(lang, "wow.craftingorder.edit.success")
-        if unmapped_warning:
-            reply += "\n" + unmapped_warning
-        await interaction.followup.send(reply, ephemeral=True)
+        await interaction.followup.send(get_string(lang, "wow.craftingorder.edit.success"), ephemeral=True)
+
+        if unmapped:
+            await self._send_manual_mapping_view(interaction, unmapped, lang)
+
+    async def _send_manual_mapping_view(self, interaction: Interaction, unmapped: list[int], lang: str):
+        """Send an ephemeral followup with Select dropdowns for manual profession mapping."""
+        from modules.views.crafting_order import ManualProfessionMappingView
+
+        max_roles = ManualProfessionMappingView.MAX_ROLES
+        unmapped_roles = [
+            (rid, (interaction.guild.get_role(rid).name if interaction.guild.get_role(rid) else str(rid)))
+            for rid in unmapped[:max_roles]
+        ]
+        content = get_string(lang, "wow.craftingorder.manual_map.description")
+        if len(unmapped) > max_roles:
+            content += "\n" + get_string(lang, "wow.craftingorder.manual_map.overflow", max=max_roles)
+        view = ManualProfessionMappingView(self.bot, interaction.guild_id, unmapped_roles, lang)
+        await interaction.followup.send(content, view=view, ephemeral=True)
 
 
 class _BoardDescriptionModal(discord.ui.Modal):
@@ -1466,9 +1471,9 @@ class _BoardDescriptionModal(discord.ui.Modal):
                 interaction, self.channel, self.roles, self.description_input.value.strip(), self.lang
             )
         else:
-            unmapped_warning = getattr(self, "_unmapped_warning", "")
+            unmapped = getattr(self, "_unmapped", [])
             await cog._finish_board_edit(
-                interaction, self.description_input.value.strip(), self.lang, unmapped_warning=unmapped_warning
+                interaction, self.description_input.value.strip(), self.lang, unmapped=unmapped
             )
 
 

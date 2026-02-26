@@ -301,14 +301,12 @@ wow:
       modal_title: "Board Description"
       modal_description: "Enter the description for the crafting order board (supports markdown and emojis)"
       success: "Crafting order board created in {channel}."
-      unmapped_roles: "⚠️ Could not auto-match these roles to a profession: **{roles}**. They won't appear in the profession dropdown."
     remove:
       not_found: "No crafting order board found for this server."
       success: "Crafting order board removed."
     edit:
       not_found: "No crafting order board found for this server."
       success: "Crafting order board updated."
-      unmapped_roles: "⚠️ Could not auto-match these roles to a profession: **{roles}**. They won't appear in the profession dropdown."
     profession_select: "Select a profession"
     modal_title: "Create Crafting Order"
     modal_item_name: "Item Name"
@@ -351,6 +349,14 @@ wow:
       sent: "Your question has been posted."
       thread_failed: "Failed to create a discussion thread."
     not_found: "Order not found."
+    manual_map:
+      description: "Some roles couldn't be matched automatically. Select the WoW profession for each one, then click **Save Mappings**."
+      select_placeholder: "{role}"
+      confirm_button: "Save Mappings"
+      no_selections: "Select at least one profession before saving."
+      success: "Profession mappings saved."
+      partial: "Saved {count} mapping(s). {skipped} role(s) had no profession selected and won't appear in the dropdown."
+      overflow: "⚠️ Only the first {max} unmapped roles are shown here. Use `/wow craftingorder edit` to map the remaining ones."
 
 application:
   no_permission: "You don't have permission to manage applications."

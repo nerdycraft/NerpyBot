@@ -300,14 +300,12 @@ wow:
       modal_title: "Board-Beschreibung"
       modal_description: "Gib die Beschreibung für das Handwerksauftrags-Board ein (Markdown und Emojis werden unterstützt)"
       success: "Handwerksauftrags-Board in {channel} erstellt."
-      unmapped_roles: "⚠️ Diese Rollen konnten keinem Beruf zugeordnet werden: **{roles}**. Sie erscheinen nicht im Berufs-Dropdown."
     remove:
       not_found: "Kein Handwerksauftrags-Board für diesen Server gefunden."
       success: "Handwerksauftrags-Board entfernt."
     edit:
       not_found: "Kein Handwerksauftrags-Board für diesen Server gefunden."
       success: "Handwerksauftrags-Board aktualisiert."
-      unmapped_roles: "⚠️ Diese Rollen konnten keinem Beruf zugeordnet werden: **{roles}**. Sie erscheinen nicht im Berufs-Dropdown."
     profession_select: "Wähle einen Beruf"
     modal_title: "Handwerksauftrag erstellen"
     modal_item_name: "Gegenstandsname"
@@ -350,6 +348,14 @@ wow:
       sent: "Deine Frage wurde gepostet."
       thread_failed: "Fehler beim Erstellen eines Diskussionsthreads."
     not_found: "Auftrag nicht gefunden."
+    manual_map:
+      description: "Einige Rollen konnten nicht automatisch zugeordnet werden. Wähle für jede den WoW-Beruf aus und klicke dann auf **Zuordnungen speichern**."
+      select_placeholder: "{role}"
+      confirm_button: "Zuordnungen speichern"
+      no_selections: "Wähle mindestens einen Beruf aus, bevor du speicherst."
+      success: "Berufs-Zuordnungen gespeichert."
+      partial: "{count} Zuordnung(en) gespeichert. {skipped} Rolle(n) hatten keinen ausgewählten Beruf und erscheinen nicht im Dropdown."
+      overflow: "⚠️ Hier werden nur die ersten {max} nicht zugeordneten Rollen angezeigt. Verwende `/wow craftingorder edit`, um die restlichen zuzuordnen."
 
 application:
   no_permission: "Du hast keine Berechtigung, Bewerbungen zu verwalten."

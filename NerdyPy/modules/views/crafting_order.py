@@ -8,6 +8,7 @@ import discord
 from discord import Interaction, ui
 
 from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRoleMapping
+from utils.blizzard import CRAFTING_PROFESSIONS
 from utils.strings import get_guild_language, get_localized_string, get_string
 
 log = logging.getLogger(__name__)
@@ -530,3 +531,97 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
 
     await thread.send(f"{message}\n<@{creator_id}>")
     return True
+
+
+# ---------------------------------------------------------------------------
+# Manual Profession Mapping View (admin followup after auto-match failures)
+# ---------------------------------------------------------------------------
+
+
+class ManualProfessionMappingView(ui.View):
+    """Ephemeral followup view shown to admins when auto-match fails for some roles.
+
+    Presents one Select per unmapped role (up to MAX_ROLES).
+    The admin picks professions and clicks Save; choices are persisted as
+    CraftingRoleMapping rows.
+    """
+
+    MAX_ROLES = 4  # Discord allows 5 rows: 4 selects + 1 button
+
+    def __init__(
+        self,
+        bot,
+        guild_id: int,
+        unmapped_roles: list[tuple[int, str]],
+        lang: str = "en",
+    ):
+        super().__init__(timeout=300)
+        self.bot = bot
+        self.guild_id = guild_id
+        self.lang = lang
+        self.selections: dict[int, int] = {}  # role_id -> profession_id
+
+        prof_options = [
+            discord.SelectOption(label=name, value=str(prof_id)) for name, prof_id in CRAFTING_PROFESSIONS.items()
+        ]
+
+        for role_id, role_name in unmapped_roles[: self.MAX_ROLES]:
+            placeholder = get_string(lang, "wow.craftingorder.manual_map.select_placeholder", role=role_name)
+            select = ui.Select(
+                placeholder=placeholder,
+                options=prof_options,
+                min_values=0,
+                max_values=1,
+            )
+            select.callback = self._make_select_callback(role_id)
+            self.add_item(select)
+
+        confirm = ui.Button(
+            label=get_string(lang, "wow.craftingorder.manual_map.confirm_button"),
+            style=discord.ButtonStyle.success,
+        )
+        confirm.callback = self._on_confirm
+        self.add_item(confirm)
+
+    def _make_select_callback(self, role_id: int):
+        async def _callback(interaction: Interaction):
+            values = interaction.data.get("values", [])
+            if values:
+                self.selections[role_id] = int(values[0])
+            else:
+                self.selections.pop(role_id, None)
+            await interaction.response.defer()
+
+        return _callback
+
+    async def _on_confirm(self, interaction: Interaction):
+        if not self.selections:
+            await interaction.response.send_message(
+                get_string(self.lang, "wow.craftingorder.manual_map.no_selections"), ephemeral=True
+            )
+            return
+
+        with self.bot.session_scope() as session:
+            for role_id, prof_id in self.selections.items():
+                existing = (
+                    session.query(CraftingRoleMapping)
+                    .filter(CraftingRoleMapping.GuildId == self.guild_id, CraftingRoleMapping.RoleId == role_id)
+                    .first()
+                )
+                if existing:
+                    existing.ProfessionId = prof_id
+                else:
+                    session.add(CraftingRoleMapping(GuildId=self.guild_id, RoleId=role_id, ProfessionId=prof_id))
+
+        num_selects = sum(1 for item in self.children if isinstance(item, ui.Select))
+        skipped = num_selects - len(self.selections)
+
+        if skipped > 0:
+            reply = get_string(
+                self.lang, "wow.craftingorder.manual_map.partial", count=len(self.selections), skipped=skipped
+            )
+        else:
+            reply = get_string(self.lang, "wow.craftingorder.manual_map.success")
+
+        self.stop()
+        await interaction.response.edit_message(content=reply, view=None)
