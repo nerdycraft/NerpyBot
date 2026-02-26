@@ -285,6 +285,79 @@ wow:
     boss_desc: "**{name}** ({realm}) defeated **{boss}**"
     boss_desc_mode: "**{name}** ({realm}) defeated **{boss}** ({mode})"
 
+  craftingorder:
+    board_title: "⚒️ Crafting Order Board"
+    board_footer: "Click the button below to create a crafting order."
+    create_button: "Create Crafting Order"
+    fetch_description:
+      invalid_ref: "Invalid message reference — provide a message ID or a message link."
+      channel_inaccessible: "I can't access the channel that message is in."
+      message_not_found: "Message not found — double-check the ID or link."
+      no_read_permission: "I don't have permission to read that message."
+      no_content: "That message has no text content."
+    create:
+      already_exists: "A crafting order board already exists in {channel}. Use `/wow craftingorder remove` first."
+      no_roles: "No valid roles found. Provide role mentions separated by spaces or commas."
+      modal_title: "Board Description"
+      modal_description: "Enter the description for the crafting order board (supports markdown and emojis)"
+      success: "Crafting order board created in {channel}."
+    remove:
+      not_found: "No crafting order board found for this server."
+      success: "Crafting order board removed."
+    edit:
+      not_found: "No crafting order board found for this server."
+      success: "Crafting order board updated."
+    profession_select: "Select a profession"
+    modal_title: "Create Crafting Order"
+    modal_item_name: "Item Name"
+    modal_notes: "Additional Notes (optional)"
+    order_created: "Crafting order for **{item}** created."
+    order:
+      posted_by: "Posted by"
+      profession: "Profession"
+      notes: "Additional Notes"
+      status: "Status"
+      status_open: "Open"
+      status_in_progress: "In Progress ({crafter})"
+      status_completed: "Completed"
+      accept_button: "Accept"
+      drop_button: "Drop"
+      complete_button: "Complete"
+      cancel_button: "Cancel"
+      ask_button: "Ask Question"
+    accept:
+      no_role: "You need the {role} role to accept this order."
+      not_open: "This order is no longer open."
+      success: "You accepted this crafting order."
+    drop:
+      not_crafter: "Only the active crafter or an admin can drop this order."
+      not_in_progress: "This order is not in progress."
+      success: "Order dropped back to open."
+    complete:
+      not_crafter: "Only the active crafter or an admin can complete this order."
+      not_in_progress: "This order is not in progress."
+      done: "Order completed."
+      dm_complete: "Your crafting order for **{item}** has been completed! 🎉"
+    cancel:
+      not_allowed: "Only the order creator or an admin can cancel this order."
+      done: "Order cancelled."
+      dm_cancel: "Your crafting order for **{item}** has been cancelled."
+    ask:
+      modal_title: "Ask a Question"
+      modal_message: "Your question"
+      thread_name: "Order: {item}"
+      sent: "Your question has been posted."
+      thread_failed: "Failed to create a discussion thread."
+    not_found: "Order not found."
+    manual_map:
+      description: "Some roles couldn't be matched automatically. Select the WoW profession for each one, then click **Save Mappings**."
+      select_placeholder: "{role}"
+      confirm_button: "Save Mappings"
+      no_selections: "Select at least one profession before saving."
+      success: "Profession mappings saved."
+      partial: "Saved {count} mapping(s). {skipped} role(s) had no profession selected and won't appear in the dropdown."
+      overflow: "⚠️ Only the first {max} unmapped roles are shown here. Use `/wow craftingorder edit` to map the remaining ones."
+
 application:
   no_permission: "You don't have permission to manage applications."
   check_dms: "Check your DMs!"

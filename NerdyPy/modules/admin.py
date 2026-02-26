@@ -240,11 +240,11 @@ class Admin(NerpyBotCog, Cog):
     async def sync(
         self, ctx: Context, guilds: Greedy[Object], spec: Optional[Literal["local", "copy", "clear"]] = None
     ) -> None:
-        """Sync commands globally or to a specific guild. [operator]
+        """Sync commands. [operator]
 
         Usage:
-          `!sync`                — Sync globally
-          `!sync <guild_id> ...` — Sync to specific guild(s)
+          `!sync`                — Sync commands globally
+          `!sync <guild_id> ...` — Sync commands to specific guild(s)
           `!sync local`          — Sync current guild's commands
           `!sync copy`           — Copy global commands to current guild
           `!sync clear`          — Clear commands from current guild"""

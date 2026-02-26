@@ -3,7 +3,20 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, Unicode, asc
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    Unicode,
+    UnicodeText,
+    asc,
+)
 from utils import database as db
 
 
@@ -137,3 +150,88 @@ class WowCharacterMounts(db.BASE):
                     session.delete(entry)
                     deleted += 1
         return deleted
+
+
+class CraftingBoardConfig(db.BASE):
+    """Guild-level crafting order board configuration."""
+
+    __tablename__ = "CraftingBoardConfig"
+    __table_args__ = (Index("CraftingBoardConfig_GuildId", "GuildId", unique=True),)
+
+    Id = Column(Integer, primary_key=True)
+    GuildId = Column(BigInteger)
+    ChannelId = Column(BigInteger)
+    BoardMessageId = Column(BigInteger, nullable=True)
+    Description = Column(UnicodeText)
+    CreateDate = Column(DateTime, default=lambda: datetime.now(UTC))
+
+    @classmethod
+    def get_by_guild(cls, guild_id, session):
+        return session.query(cls).filter(cls.GuildId == guild_id).first()
+
+    @classmethod
+    def delete_by_guild(cls, guild_id, session):
+        config = cls.get_by_guild(guild_id, session)
+        if config:
+            session.delete(config)
+        return config
+
+
+class CraftingRoleMapping(db.BASE):
+    """Maps Discord roles to Blizzard profession IDs, per guild."""
+
+    __tablename__ = "CraftingRoleMapping"
+    __table_args__ = (
+        Index("CraftingRoleMapping_GuildId", "GuildId"),
+        Index("CraftingRoleMapping_Guild_Role", "GuildId", "RoleId", unique=True),
+    )
+
+    Id = Column(Integer, primary_key=True)
+    GuildId = Column(BigInteger)
+    RoleId = Column(BigInteger)
+    ProfessionId = Column(Integer)
+
+    @classmethod
+    def get_by_guild(cls, guild_id, session):
+        return session.query(cls).filter(cls.GuildId == guild_id).all()
+
+    @classmethod
+    def get_profession_id(cls, guild_id, role_id, session):
+        mapping = session.query(cls).filter(cls.GuildId == guild_id, cls.RoleId == role_id).first()
+        return mapping.ProfessionId if mapping else None
+
+    @classmethod
+    def delete_by_guild(cls, guild_id, session):
+        session.query(cls).filter(cls.GuildId == guild_id).delete()
+
+
+class CraftingOrder(db.BASE):
+    """Individual crafting order posted by a user."""
+
+    __tablename__ = "CraftingOrder"
+    __table_args__ = (
+        Index("CraftingOrder_GuildId", "GuildId"),
+        Index("CraftingOrder_Status", "Status"),
+    )
+
+    Id = Column(Integer, primary_key=True)
+    GuildId = Column(BigInteger)
+    ChannelId = Column(BigInteger)
+    OrderMessageId = Column(BigInteger, nullable=True)
+    ThreadId = Column(BigInteger, nullable=True)
+    CreatorId = Column(BigInteger)
+    CrafterId = Column(BigInteger, nullable=True)
+    ProfessionRoleId = Column(BigInteger)
+    ItemName = Column(Unicode(200))
+    IconUrl = Column(Unicode(500), nullable=True)
+    Notes = Column(UnicodeText, nullable=True)
+    Status = Column(String(20), default="open")
+    CreateDate = Column(DateTime, default=lambda: datetime.now(UTC))
+
+    @classmethod
+    def get_by_id(cls, order_id, session):
+        return session.query(cls).filter(cls.Id == order_id).first()
+
+    @classmethod
+    def get_active_by_guild(cls, guild_id, session):
+        return session.query(cls).filter(cls.GuildId == guild_id, cls.Status.notin_(["completed", "cancelled"])).all()

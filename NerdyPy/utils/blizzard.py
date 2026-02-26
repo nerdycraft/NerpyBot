@@ -45,6 +45,20 @@ def get_asset_url(response, key: str = "icon") -> str | None:
     return None
 
 
+# Only crafting professions that support the crafting order system.
+# Excludes gathering (Skinning, Mining, Herbalism) and Cooking.
+CRAFTING_PROFESSIONS = {
+    "Blacksmithing": 164,
+    "Leatherworking": 165,
+    "Tailoring": 197,
+    "Engineering": 202,
+    "Enchanting": 333,
+    "Alchemy": 171,
+    "Inscription": 773,
+    "Jewelcrafting": 755,
+}
+
+
 # ── Mount set comparison ─────────────────────────────────────────────
 
 
