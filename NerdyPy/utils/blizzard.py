@@ -45,8 +45,10 @@ def get_asset_url(response, key: str = "icon") -> str | None:
     return None
 
 
-# Only crafting professions that support the crafting order system.
-# Excludes gathering (Skinning, Mining, Herbalism) and Cooking.
+# Professions mappable in the crafting order board.
+# Excludes gathering (Skinning, Mining, Herbalism).
+# Cooking is included for role-based coordination (e.g. food tables) even though
+# it does not support the in-game crafting order system.
 CRAFTING_PROFESSIONS = {
     "Blacksmithing": 164,
     "Leatherworking": 165,
@@ -56,6 +58,7 @@ CRAFTING_PROFESSIONS = {
     "Alchemy": 171,
     "Inscription": 773,
     "Jewelcrafting": 755,
+    "Cooking": 185,
 }
 
 

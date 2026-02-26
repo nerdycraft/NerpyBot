@@ -10,10 +10,11 @@ class TestCraftingProfessions:
     def test_has_expected_professions(self):
         assert "Blacksmithing" in CRAFTING_PROFESSIONS
         assert "Jewelcrafting" in CRAFTING_PROFESSIONS
-        assert len(CRAFTING_PROFESSIONS) == 8
+        assert "Cooking" in CRAFTING_PROFESSIONS
+        assert len(CRAFTING_PROFESSIONS) == 9
 
     def test_no_gathering_professions(self):
-        for name in ("Skinning", "Mining", "Herbalism", "Cooking"):
+        for name in ("Skinning", "Mining", "Herbalism"):
             assert name not in CRAFTING_PROFESSIONS
 
 

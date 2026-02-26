@@ -1415,14 +1415,11 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         """Send an ephemeral followup with Select dropdowns for manual profession mapping."""
         from modules.views.crafting_order import ManualProfessionMappingView
 
-        max_roles = ManualProfessionMappingView.MAX_ROLES
         unmapped_roles = [
             (rid, (interaction.guild.get_role(rid).name if interaction.guild.get_role(rid) else str(rid)))
-            for rid in unmapped[:max_roles]
+            for rid in unmapped
         ]
         content = get_string(lang, "wow.craftingorder.manual_map.description")
-        if len(unmapped) > max_roles:
-            content += "\n" + get_string(lang, "wow.craftingorder.manual_map.overflow", max=max_roles)
         view = ManualProfessionMappingView(self.bot, interaction.guild_id, unmapped_roles, lang)
         await interaction.followup.send(content, view=view, ephemeral=True)
 
