@@ -204,7 +204,8 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 or not perms.send_messages_in_threads
             ):
                 await interaction.response.send_message(
-                    get_string(lang, "application.missing_send_permission", channel=channel.mention), ephemeral=True
+                    get_string(lang, "application.missing_send_permission", channel=review_channel.mention),
+                    ephemeral=True,
                 )
                 return None
 
