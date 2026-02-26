@@ -357,9 +357,11 @@ wow:
       success: "Profession mappings saved."
       partial: "Saved {count} mapping(s). {skipped} role(s) had no profession selected and won't appear in the dropdown."
       overflow: "⚠️ Only the first {max} unmapped roles are shown here. Use `/wow craftingorder edit` to map the remaining ones."
+      next_batch: "Saved {count} mapping(s) for this batch. Continue mapping the remaining roles below."
 
 application:
   no_permission: "You don't have permission to manage applications."
+  missing_send_permission: "I don't have permission to send messages in {channel}. Please check my role permissions."
   check_dms: "Check your DMs!"
   dm_forbidden: "I couldn't send you a DM. Please enable DMs from server members and try again."
   form_not_found: "Form **{name}** not found."
@@ -499,13 +501,19 @@ application:
     form_exists: "A form named **{name}** already exists in this server."
     success: "Form **{name}** imported successfully with {count} question(s)."
   managerole:
-    set_success: "Application manager role set to **{role}**."
-    remove_success: "Application manager role removed."
-    not_configured: "No manager role is configured."
+    add_success: "Role **{role}** added as application manager."
+    remove_success: "Role **{role}** removed from application managers."
+    not_found: "Role **{role}** is not configured as an application manager role."
+    clear_success: "All application manager roles cleared."
+    list_title: "Application Manager Roles"
+    list_empty: "No application manager roles are configured."
   reviewerrole:
-    set_success: "Application reviewer role set to **{role}**."
-    remove_success: "Application reviewer role removed."
-    not_configured: "No reviewer role is configured."
+    add_success: "Role **{role}** added as application reviewer."
+    remove_success: "Role **{role}** removed from application reviewers."
+    not_found: "Role **{role}** is not configured as an application reviewer role."
+    clear_success: "All application reviewer roles cleared."
+    list_title: "Application Reviewer Roles"
+    list_empty: "No application reviewer roles are configured."
   review:
     applicant: "Applicant"
     submitted: "Submitted"

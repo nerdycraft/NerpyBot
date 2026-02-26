@@ -356,9 +356,11 @@ wow:
       success: "Berufs-Zuordnungen gespeichert."
       partial: "{count} Zuordnung(en) gespeichert. {skipped} Rolle(n) hatten keinen ausgewählten Beruf und erscheinen nicht im Dropdown."
       overflow: "⚠️ Hier werden nur die ersten {max} nicht zugeordneten Rollen angezeigt. Verwende `/wow craftingorder edit`, um die restlichen zuzuordnen."
+      next_batch: "{count} Zuordnung(en) für diesen Schritt gespeichert. Fahre mit den verbleibenden Rollen unten fort."
 
 application:
   no_permission: "Du hast keine Berechtigung, Bewerbungen zu verwalten."
+  missing_send_permission: "Ich habe keine Berechtigung, Nachrichten in {channel} zu senden. Bitte überprüfe meine Rollenberechtigungen."
   check_dms: "Sieh in deinen Direktnachrichten nach!"
   dm_forbidden: "Ich konnte dir keine DM senden. Bitte aktiviere DMs von Servermitgliedern und versuche es erneut."
   form_not_found: "Formular **{name}** nicht gefunden."
@@ -498,13 +500,19 @@ application:
     form_exists: "Ein Formular mit dem Namen **{name}** existiert bereits auf diesem Server."
     success: "Formular **{name}** erfolgreich mit {count} Frage(n) importiert."
   managerole:
-    set_success: "Bewerbungs-Manager-Rolle auf **{role}** gesetzt."
-    remove_success: "Bewerbungs-Manager-Rolle entfernt."
-    not_configured: "Keine Manager-Rolle konfiguriert."
+    add_success: "Rolle **{role}** als Bewerbungsmanager hinzugefügt."
+    remove_success: "Rolle **{role}** aus den Bewerbungsmanagern entfernt."
+    not_found: "Rolle **{role}** ist nicht als Bewerbungsmanager-Rolle konfiguriert."
+    clear_success: "Alle Bewerbungsmanager-Rollen wurden entfernt."
+    list_title: "Bewerbungsmanager-Rollen"
+    list_empty: "Es sind keine Bewerbungsmanager-Rollen konfiguriert."
   reviewerrole:
-    set_success: "Bewerbungs-Prüfer-Rolle auf **{role}** gesetzt."
-    remove_success: "Bewerbungs-Prüfer-Rolle entfernt."
-    not_configured: "Keine Prüfer-Rolle konfiguriert."
+    add_success: "Rolle **{role}** als Bewerbungsprüfer hinzugefügt."
+    remove_success: "Rolle **{role}** aus den Bewerbungsprüfern entfernt."
+    not_found: "Rolle **{role}** ist nicht als Bewerbungsprüfer-Rolle konfiguriert."
+    clear_success: "Alle Bewerbungsprüfer-Rollen wurden entfernt."
+    list_title: "Bewerbungsprüfer-Rollen"
+    list_empty: "Es sind keine Bewerbungsprüfer-Rollen konfiguriert."
   review:
     applicant: "Bewerber"
     submitted: "Eingereicht"
