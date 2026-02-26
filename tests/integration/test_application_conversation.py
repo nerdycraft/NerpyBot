@@ -1093,7 +1093,7 @@ class TestApplicationCreateConversationReview:
 
 
 class TestSubmitConversationRoleMentions:
-    """Review embed should mention admin + configured roles in message content."""
+    """Review embed should mention admin + configured roles in thread, not inline content."""
 
     @pytest.fixture
     def conv(self, mock_bot, mock_user, mock_guild, db_session):
@@ -1113,63 +1113,75 @@ class TestSubmitConversationRoleMentions:
             questions=[(q.Id, "Q1")],
         )
 
+    @pytest.fixture
+    def review_channel_with_thread(self):
+        """Mock review channel whose sent message has a thread mock attached."""
+        thread = MagicMock()
+        thread.send = AsyncMock()
+
+        sent_msg = MagicMock()
+        sent_msg.id = 777
+        sent_msg.create_thread = AsyncMock(return_value=thread)
+
+        channel = MagicMock()
+        channel.send = AsyncMock(return_value=sent_msg)
+        return channel, thread
+
     @pytest.mark.asyncio
-    async def test_mentions_admin_roles(self, conv, mock_bot, mock_guild):
+    async def test_mentions_admin_roles(self, conv, mock_bot, mock_guild, review_channel_with_thread):
+        channel, thread = review_channel_with_thread
         admin_role = MagicMock()
         admin_role.id = 888
         admin_role.permissions = MagicMock()
         admin_role.permissions.administrator = True
+        admin_role.managed = False
         mock_guild.roles = [admin_role]
 
-        channel = MagicMock()
-        sent_msg = MagicMock()
-        sent_msg.id = 777
-        channel.send = AsyncMock(return_value=sent_msg)
         mock_bot.get_channel = MagicMock(return_value=channel)
 
         conv.answers = {conv.questions[0][0]: "answer"}
         conv.currentState = SubmitState.SUBMIT
         await conv.repost_state()
 
-        content = channel.send.call_args.kwargs.get("content")
-        assert "<@&888>" in (content or "")
+        # embed posted without content
+        call_kwargs = channel.send.call_args.kwargs
+        assert "content" not in call_kwargs or call_kwargs.get("content") is None
+
+        # mention sent to thread
+        thread.send.assert_called_once()
+        assert "<@&888>" in thread.send.call_args.args[0]
 
     @pytest.mark.asyncio
-    async def test_mentions_configured_roles(self, conv, mock_bot, mock_guild, db_session):
+    async def test_mentions_configured_roles(self, conv, mock_bot, mock_guild, db_session, review_channel_with_thread):
         from models.application import ApplicationGuildRole
 
         db_session.add(ApplicationGuildRole(GuildId=mock_guild.id, RoleId=111, RoleType="manager"))
         db_session.add(ApplicationGuildRole(GuildId=mock_guild.id, RoleId=222, RoleType="reviewer"))
-        db_session.flush()
-        mock_guild.roles = []
+        db_session.commit()
 
-        channel = MagicMock()
-        sent_msg = MagicMock()
-        sent_msg.id = 777
-        channel.send = AsyncMock(return_value=sent_msg)
+        mock_guild.roles = []
+        channel, thread = review_channel_with_thread
         mock_bot.get_channel = MagicMock(return_value=channel)
 
         conv.answers = {conv.questions[0][0]: "answer"}
         conv.currentState = SubmitState.SUBMIT
         await conv.repost_state()
 
-        content = channel.send.call_args.kwargs.get("content")
-        assert "<@&111>" in (content or "")
-        assert "<@&222>" in (content or "")
+        thread.send.assert_called_once()
+        mentions = thread.send.call_args.args[0]
+        assert "<@&111>" in mentions
+        assert "<@&222>" in mentions
 
     @pytest.mark.asyncio
-    async def test_no_content_when_no_roles(self, conv, mock_bot, mock_guild):
-        mock_guild.roles = []  # no admin roles, no config
+    async def test_no_thread_send_when_no_roles(self, conv, mock_bot, mock_guild, review_channel_with_thread):
+        mock_guild.roles = []
 
-        channel = MagicMock()
-        sent_msg = MagicMock()
-        sent_msg.id = 777
-        channel.send = AsyncMock(return_value=sent_msg)
+        channel, thread = review_channel_with_thread
         mock_bot.get_channel = MagicMock(return_value=channel)
 
         conv.answers = {conv.questions[0][0]: "answer"}
         conv.currentState = SubmitState.SUBMIT
         await conv.repost_state()
 
-        content = channel.send.call_args.kwargs.get("content")
-        assert not content
+        # No mentions → thread still created but thread.send not called
+        thread.send.assert_not_called()
