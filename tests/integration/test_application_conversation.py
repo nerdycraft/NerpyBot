@@ -435,10 +435,15 @@ class TestApplicationSubmitConversation:
 
     @pytest.fixture
     def mock_review_channel(self):
-        """Mock channel for review embed posting."""
-        channel = MagicMock()
+        """Mock channel for review embed posting, with thread creation support."""
+        thread = MagicMock()
+        thread.send = AsyncMock()
+
         review_msg = MagicMock()
         review_msg.id = 888777666
+        review_msg.create_thread = AsyncMock(return_value=thread)
+
+        channel = MagicMock()
         channel.send = AsyncMock(return_value=review_msg)
         return channel
 
