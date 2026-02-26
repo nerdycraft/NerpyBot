@@ -1189,14 +1189,12 @@ class TestSubmitConversationRoleMentions:
         await conv.repost_state()
 
         # No mentions → thread still created but thread.send not called
+        channel.send.return_value.create_thread.assert_called_once()
         thread.send.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_managed_admin_role_not_mentioned(self, conv, mock_bot, mock_guild, review_channel_with_thread):
-        """Managed (bot/integration) admin roles must not be pinged.
-        Currently passes trivially (no thread creation yet); after Task 5 implementation
-        this correctly fails if role.managed filtering is absent from the admin sweep.
-        """
+        """Managed (bot/integration) admin roles must not be pinged."""
         managed_role = MagicMock()
         managed_role.id = 999
         managed_role.permissions = MagicMock()
@@ -1215,10 +1213,7 @@ class TestSubmitConversationRoleMentions:
 
     @pytest.mark.asyncio
     async def test_thread_creation_failure_is_handled(self, conv, mock_bot, mock_guild, db_session):
-        """If create_thread raises HTTPException, ReviewMessageId must still be saved and
-        no exception must propagate. Currently passes trivially (no create_thread call yet);
-        after Task 5 implementation this exercises the real exception-handling path.
-        """
+        """If create_thread raises HTTPException, ReviewMessageId must still be saved and no exception must propagate."""
         from models.application import ApplicationSubmission
 
         admin_role = MagicMock()
