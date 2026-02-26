@@ -168,11 +168,6 @@ class ProfessionSelectView(ui.View):
 class CraftingOrderModal(ui.Modal):
     """Order creation modal (Step 2)."""
 
-    item_name_input = ui.TextInput(label="Item Name", max_length=200)
-    notes_input = ui.TextInput(
-        label="Additional Notes (optional)", style=discord.TextStyle.paragraph, required=False, max_length=1000
-    )
-
     def __init__(
         self,
         bot,
@@ -186,8 +181,15 @@ class CraftingOrderModal(ui.Modal):
         self.role_id = role_id
         self.role = role
         self.guild_id = guild_id
-        self.item_name_input.label = get_string(lang, "wow.craftingorder.modal_item_name")
-        self.notes_input.label = get_string(lang, "wow.craftingorder.modal_notes")
+        self.item_name_input = ui.TextInput(label=get_string(lang, "wow.craftingorder.modal_item_name"), max_length=200)
+        self.notes_input = ui.TextInput(
+            label=get_string(lang, "wow.craftingorder.modal_notes"),
+            style=discord.TextStyle.paragraph,
+            required=False,
+            max_length=1000,
+        )
+        self.add_item(self.item_name_input)
+        self.add_item(self.notes_input)
 
     async def on_submit(self, interaction: Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -447,12 +449,15 @@ class AskQuestionButton(ui.DynamicItem[ui.Button], template=r"crafting:ask:(?P<o
 
 
 class AskQuestionModal(ui.Modal):
-    message_input = ui.TextInput(label="Your question", style=discord.TextStyle.paragraph, max_length=1000)
-
     def __init__(self, order_id: int, lang: str = "en"):
         super().__init__(title=get_string(lang, "wow.craftingorder.ask.modal_title"))
         self.order_id = order_id
-        self.message_input.label = get_string(lang, "wow.craftingorder.ask.modal_message")
+        self.message_input = ui.TextInput(
+            label=get_string(lang, "wow.craftingorder.ask.modal_message"),
+            style=discord.TextStyle.paragraph,
+            max_length=1000,
+        )
+        self.add_item(self.message_input)
 
     async def on_submit(self, interaction: Interaction):
         await interaction.response.defer(ephemeral=True)

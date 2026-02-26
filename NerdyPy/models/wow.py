@@ -146,7 +146,10 @@ class WowCharacterMounts(db.BASE):
         deleted = 0
         for entry in all_entries:
             if (entry.CharacterName, entry.RealmSlug) not in active_keys:
-                if entry.LastChecked and entry.LastChecked < stale_cutoff:
+                last_checked = entry.LastChecked
+                if last_checked and last_checked.tzinfo is None:
+                    last_checked = last_checked.replace(tzinfo=UTC)
+                if last_checked and last_checked < stale_cutoff:
                     session.delete(entry)
                     deleted += 1
         return deleted
