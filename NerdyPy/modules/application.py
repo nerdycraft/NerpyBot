@@ -10,15 +10,13 @@ import discord
 from discord import Embed, Interaction, Role, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext.commands import GroupCog
-from sqlalchemy.exc import SQLAlchemyError
-
 from models.application import (
+    TEMPLATE_KEY_MAP,
     ApplicationForm,
-    ApplicationGuildConfig,
+    ApplicationGuildRole,
     ApplicationQuestion,
     ApplicationTemplate,
     ApplicationTemplateQuestion,
-    TEMPLATE_KEY_MAP,
     seed_built_in_templates,
 )
 from modules.conversations.application import (
@@ -26,6 +24,7 @@ from modules.conversations.application import (
     ApplicationEditConversation,
 )
 from modules.views.application import check_override_permission
+from sqlalchemy.exc import SQLAlchemyError
 from utils.cog import NerpyBotCog
 from utils.helpers import fetch_message_content
 from utils.strings import get_guild_language, get_raw, get_string
@@ -160,15 +159,6 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         await self._start_dm_conversation(interaction, conv, lang)
 
     @staticmethod
-    def _get_or_create_config(guild_id: int, session) -> "ApplicationGuildConfig":
-        """Return the guild's ApplicationGuildConfig, creating one if it doesn't exist."""
-        config = ApplicationGuildConfig.get(guild_id, session)
-        if config is None:
-            config = ApplicationGuildConfig(GuildId=guild_id)
-            session.add(config)
-        return config
-
-    @staticmethod
     async def _get_form_or_respond(
         interaction: Interaction, name: str, session
     ) -> tuple[str, "ApplicationForm"] | None:
@@ -187,6 +177,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         interaction: Interaction,
         description_message: str | None,
         channel: TextChannel | None,
+        review_channel: TextChannel | None,
     ) -> tuple[str, str] | None:
         """Check manage permission and resolve description_message; returns (lang, prefill) or None on error."""
         if not self._has_manage_permission(interaction):
@@ -195,6 +186,27 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             return None
 
         lang = self._lang(interaction.guild_id)
+
+        if channel is not None:
+            perms = channel.permissions_for(interaction.guild.me)
+            if not perms.send_messages or not perms.embed_links:
+                await interaction.response.send_message(
+                    get_string(lang, "application.missing_send_permission", channel=channel.mention), ephemeral=True
+                )
+                return None
+
+        if review_channel is not None:
+            perms = review_channel.permissions_for(interaction.guild.me)
+            if (
+                not perms.send_messages
+                or not perms.embed_links
+                or not perms.create_private_threads
+                or not perms.send_messages_in_threads
+            ):
+                await interaction.response.send_message(
+                    get_string(lang, "application.missing_send_permission", channel=channel.mention), ephemeral=True
+                )
+                return None
 
         prefill = ""
         if description_message:
@@ -307,7 +319,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         denials: Optional[app_commands.Range[int, 1]] = None,
     ):
         """Create a new application form via DM conversation."""
-        result = await self._check_perm_and_prefill(interaction, description_message, channel)
+        result = await self._check_perm_and_prefill(interaction, description_message, channel, review_channel)
         if result is None:
             return
         lang, prefill_description = result
@@ -478,6 +490,10 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             return
 
         lang = self._lang(interaction.guild_id)
+
+        result = await self._check_perm_and_prefill(interaction, description_message, channel, review_channel)
+        if result is None:
+            return
 
         description = None
         if description_message:
@@ -690,7 +706,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         description_message: Optional[str] = None,
     ):
         """Create a new form from a template."""
-        result = await self._check_perm_and_prefill(interaction, description_message, channel)
+        result = await self._check_perm_and_prefill(interaction, description_message, channel, review_channel)
         if result is None:
             return
         lang, prefill_description = result
@@ -1126,77 +1142,147 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             get_string(lang, "application.import.success", name=form_name, count=len(questions))
         )
 
-    # -- /application managerole set -----------------------------------------
+    # -- /application managerole add -----------------------------------------
 
-    @managerole_group.command(name="set")
+    @managerole_group.command(name="add")
     @checks.has_permissions(administrator=True)
-    @app_commands.describe(role="Role that can manage applications")
-    async def _managerole_set(self, interaction: Interaction, role: Role):
-        """Set the application manager role for this server."""
+    @app_commands.describe(role="Role to add as an application manager")
+    async def _managerole_add(self, interaction: Interaction, role: Role):
+        """Add a role to the application manager list."""
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
-            config = self._get_or_create_config(interaction.guild.id, session)
-            config.ManagerRoleId = role.id
-
+            ApplicationGuildRole.add(interaction.guild_id, role.id, "manager", session)
         await interaction.response.send_message(
-            get_string(lang, "application.managerole.set_success", role=role.name), ephemeral=True
+            get_string(lang, "application.managerole.add_success", role=role.name), ephemeral=True
         )
 
     # -- /application managerole remove --------------------------------------
 
     @managerole_group.command(name="remove")
     @checks.has_permissions(administrator=True)
-    async def _managerole_remove(self, interaction: Interaction):
-        """Remove the application manager role for this server."""
+    @app_commands.describe(role="Role to remove from application managers")
+    async def _managerole_remove(self, interaction: Interaction, role: Role):
+        """Remove a role from the application manager list."""
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
-            config = ApplicationGuildConfig.get(interaction.guild.id, session)
-            if config is None or config.ManagerRoleId is None:
-                await interaction.response.send_message(
-                    get_string(lang, "application.managerole.not_configured"), ephemeral=True
-                )
-                return
-            config.ManagerRoleId = None
-
+            found = ApplicationGuildRole.remove(interaction.guild_id, role.id, "manager", session)
+        if not found:
+            await interaction.response.send_message(
+                get_string(lang, "application.managerole.not_found", role=role.name), ephemeral=True
+            )
+            return
         await interaction.response.send_message(
-            get_string(lang, "application.managerole.remove_success"), ephemeral=True
+            get_string(lang, "application.managerole.remove_success", role=role.name), ephemeral=True
         )
 
-    # -- /application reviewerrole set -----------------------------------------
+    # -- /application managerole clear ---------------------------------------
 
-    @reviewerrole_group.command(name="set")
+    @managerole_group.command(name="clear")
     @checks.has_permissions(administrator=True)
-    @app_commands.describe(role="Role that can vote on applications")
-    async def _reviewerrole_set(self, interaction: Interaction, role: Role):
-        """Set the application reviewer role for this server."""
+    async def _managerole_clear(self, interaction: Interaction):
+        """Remove all application manager roles."""
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
-            config = self._get_or_create_config(interaction.guild.id, session)
-            config.ReviewerRoleId = role.id
-
+            ApplicationGuildRole.clear(interaction.guild_id, "manager", session)
         await interaction.response.send_message(
-            get_string(lang, "application.reviewerrole.set_success", role=role.name), ephemeral=True
+            get_string(lang, "application.managerole.clear_success"), ephemeral=True
         )
 
-    # -- /application reviewerrole remove ---------------------------------------
+    # -- /application managerole list ----------------------------------------
+
+    @managerole_group.command(name="list")
+    @checks.has_permissions(administrator=True)
+    async def _managerole_list(self, interaction: Interaction):
+        """List all configured application manager roles."""
+        lang = self._lang(interaction.guild_id)
+        with self.bot.session_scope() as session:
+            role_ids = ApplicationGuildRole.get_role_ids(interaction.guild_id, "manager", session)
+        if not role_ids:
+            await interaction.response.send_message(
+                get_string(lang, "application.managerole.list_empty"), ephemeral=True
+            )
+            return
+        lines = [
+            interaction.guild.get_role(rid).mention if interaction.guild.get_role(rid) else f"<@&{rid}>"
+            for rid in role_ids
+        ]
+        embed = discord.Embed(
+            title=get_string(lang, "application.managerole.list_title"),
+            description="\n".join(lines),
+            color=0x5865F2,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    # -- /application reviewerrole add -----------------------------------------
+
+    @reviewerrole_group.command(name="add")
+    @checks.has_permissions(administrator=True)
+    @app_commands.describe(role="Role to add as an application reviewer")
+    async def _reviewerrole_add(self, interaction: Interaction, role: Role):
+        """Add a role to the application reviewer list."""
+        lang = self._lang(interaction.guild_id)
+        with self.bot.session_scope() as session:
+            ApplicationGuildRole.add(interaction.guild_id, role.id, "reviewer", session)
+        await interaction.response.send_message(
+            get_string(lang, "application.reviewerrole.add_success", role=role.name), ephemeral=True
+        )
+
+    # -- /application reviewerrole remove --------------------------------------
 
     @reviewerrole_group.command(name="remove")
     @checks.has_permissions(administrator=True)
-    async def _reviewerrole_remove(self, interaction: Interaction):
-        """Remove the application reviewer role for this server."""
+    @app_commands.describe(role="Role to remove from application reviewers")
+    async def _reviewerrole_remove(self, interaction: Interaction, role: Role):
+        """Remove a role from the application reviewer list."""
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
-            config = ApplicationGuildConfig.get(interaction.guild.id, session)
-            if config is None or config.ReviewerRoleId is None:
-                await interaction.response.send_message(
-                    get_string(lang, "application.reviewerrole.not_configured"), ephemeral=True
-                )
-                return
-            config.ReviewerRoleId = None
-
+            found = ApplicationGuildRole.remove(interaction.guild_id, role.id, "reviewer", session)
+        if not found:
+            await interaction.response.send_message(
+                get_string(lang, "application.reviewerrole.not_found", role=role.name), ephemeral=True
+            )
+            return
         await interaction.response.send_message(
-            get_string(lang, "application.reviewerrole.remove_success"), ephemeral=True
+            get_string(lang, "application.reviewerrole.remove_success", role=role.name), ephemeral=True
         )
+
+    # -- /application reviewerrole clear ---------------------------------------
+
+    @reviewerrole_group.command(name="clear")
+    @checks.has_permissions(administrator=True)
+    async def _reviewerrole_clear(self, interaction: Interaction):
+        """Remove all application reviewer roles."""
+        lang = self._lang(interaction.guild_id)
+        with self.bot.session_scope() as session:
+            ApplicationGuildRole.clear(interaction.guild_id, "reviewer", session)
+        await interaction.response.send_message(
+            get_string(lang, "application.reviewerrole.clear_success"), ephemeral=True
+        )
+
+    # -- /application reviewerrole list ----------------------------------------
+
+    @reviewerrole_group.command(name="list")
+    @checks.has_permissions(administrator=True)
+    async def _reviewerrole_list(self, interaction: Interaction):
+        """List all configured application reviewer roles."""
+        lang = self._lang(interaction.guild_id)
+        with self.bot.session_scope() as session:
+            role_ids = ApplicationGuildRole.get_role_ids(interaction.guild_id, "reviewer", session)
+        if not role_ids:
+            await interaction.response.send_message(
+                get_string(lang, "application.reviewerrole.list_empty"), ephemeral=True
+            )
+            return
+        lines = [
+            interaction.guild.get_role(rid).mention if interaction.guild.get_role(rid) else f"<@&{rid}>"
+            for rid in role_ids
+        ]
+        embed = discord.Embed(
+            title=get_string(lang, "application.reviewerrole.list_title"),
+            description="\n".join(lines),
+            color=0x5865F2,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class _TemplateMessagesModal(discord.ui.Modal):

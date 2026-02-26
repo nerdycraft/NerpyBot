@@ -85,9 +85,11 @@ class ApplicationGuildRole(db.BASE):
             session.add(cls(GuildId=guild_id, RoleId=role_id, RoleType=role_type))
 
     @classmethod
-    def remove(cls, guild_id: int, role_id: int, session) -> bool:
-        """Remove a role mapping; returns True if it existed, False if not found."""
-        row = session.query(cls).filter(cls.GuildId == guild_id, cls.RoleId == role_id).first()
+    def remove(cls, guild_id: int, role_id: int, role_type: str, session) -> bool:
+        """Remove a role mapping of the given type; returns True if it existed, False if not found."""
+        row = (
+            session.query(cls).filter(cls.GuildId == guild_id, cls.RoleId == role_id, cls.RoleType == role_type).first()
+        )
         if row is not None:
             session.delete(row)
             return True

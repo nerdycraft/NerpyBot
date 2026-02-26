@@ -1136,9 +1136,10 @@ class TestSubmitConversationRoleMentions:
 
     @pytest.mark.asyncio
     async def test_mentions_configured_roles(self, conv, mock_bot, mock_guild, db_session):
-        from models.application import ApplicationGuildConfig
+        from models.application import ApplicationGuildRole
 
-        db_session.add(ApplicationGuildConfig(GuildId=mock_guild.id, ManagerRoleId=111, ReviewerRoleId=222))
+        db_session.add(ApplicationGuildRole(GuildId=mock_guild.id, RoleId=111, RoleType="manager"))
+        db_session.add(ApplicationGuildRole(GuildId=mock_guild.id, RoleId=222, RoleType="reviewer"))
         db_session.flush()
         mock_guild.roles = []
 

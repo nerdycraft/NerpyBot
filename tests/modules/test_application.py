@@ -14,7 +14,6 @@ from models.admin import GuildLanguageConfig
 from models.application import (
     BUILT_IN_TEMPLATES,
     ApplicationForm,
-    ApplicationGuildConfig,
     ApplicationGuildRole,
     ApplicationQuestion,
     ApplicationTemplate,
@@ -1222,61 +1221,128 @@ class TestTemplateEditMessages:
 
 
 # ---------------------------------------------------------------------------
-# /application managerole set / remove
+# /application managerole add / remove / clear / list
 # ---------------------------------------------------------------------------
 
 
-class TestManagerRole:
+class TestManagerRoleCommands:
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        load_strings()
+
     @pytest.mark.asyncio
-    async def test_managerole_set(self, app_cog, admin_interaction, db_session):
+    async def test_add_manager_role(self, app_cog, admin_interaction, db_session):
         role = MagicMock()
-        role.id = 42
-        role.name = "App Manager"
+        role.id = 111222333
+        role.name = "Moderator"
+        await app_cog._managerole_add.callback(app_cog, admin_interaction, role)
 
-        await app_cog._managerole_set.callback(app_cog, admin_interaction, role=role)
+        admin_interaction.response.send_message.assert_called_once()
+        msg = admin_interaction.response.send_message.call_args[0][0]
+        assert "Moderator" in msg
 
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "app manager" in call_args.lower()
-
-        config = ApplicationGuildConfig.get(admin_interaction.guild.id, db_session)
-        assert config is not None
-        assert config.ManagerRoleId == 42
+        rows = (
+            db_session.query(ApplicationGuildRole)
+            .filter(
+                ApplicationGuildRole.GuildId == admin_interaction.guild_id,
+                ApplicationGuildRole.RoleType == "manager",
+            )
+            .all()
+        )
+        assert len(rows) == 1
+        assert rows[0].RoleId == 111222333
 
     @pytest.mark.asyncio
-    async def test_managerole_set_updates_existing(self, app_cog, admin_interaction, db_session):
-        # Pre-populate config
-        config = ApplicationGuildConfig(GuildId=admin_interaction.guild.id, ManagerRoleId=1)
-        db_session.add(config)
+    async def test_add_manager_role_idempotent(self, app_cog, admin_interaction, db_session):
+        """Adding the same role twice should not create duplicate rows."""
+        db_session.add(ApplicationGuildRole(GuildId=admin_interaction.guild_id, RoleId=999, RoleType="manager"))
         db_session.commit()
 
         role = MagicMock()
-        role.id = 99
-        role.name = "New Role"
+        role.id = 999
+        role.name = "AlreadyAdded"
+        await app_cog._managerole_add.callback(app_cog, admin_interaction, role)
 
-        await app_cog._managerole_set.callback(app_cog, admin_interaction, role=role)
-
-        updated = ApplicationGuildConfig.get(admin_interaction.guild.id, db_session)
-        assert updated.ManagerRoleId == 99
+        count = (
+            db_session.query(ApplicationGuildRole)
+            .filter(
+                ApplicationGuildRole.GuildId == admin_interaction.guild_id,
+                ApplicationGuildRole.RoleId == 999,
+            )
+            .count()
+        )
+        assert count == 1
 
     @pytest.mark.asyncio
-    async def test_managerole_remove(self, app_cog, admin_interaction, db_session):
-        config = ApplicationGuildConfig(GuildId=admin_interaction.guild.id, ManagerRoleId=42)
-        db_session.add(config)
+    async def test_remove_manager_role(self, app_cog, admin_interaction, db_session):
+        db_session.add(ApplicationGuildRole(GuildId=admin_interaction.guild_id, RoleId=555, RoleType="manager"))
         db_session.commit()
 
-        await app_cog._managerole_remove.callback(app_cog, admin_interaction)
+        role = MagicMock()
+        role.id = 555
+        role.name = "ToRemove"
+        await app_cog._managerole_remove.callback(app_cog, admin_interaction, role)
 
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "removed" in call_args.lower()
-        updated = ApplicationGuildConfig.get(admin_interaction.guild.id, db_session)
-        assert updated.ManagerRoleId is None
+        admin_interaction.response.send_message.assert_called_once()
+        count = (
+            db_session.query(ApplicationGuildRole)
+            .filter(
+                ApplicationGuildRole.GuildId == admin_interaction.guild_id,
+                ApplicationGuildRole.RoleId == 555,
+            )
+            .count()
+        )
+        assert count == 0
 
     @pytest.mark.asyncio
-    async def test_managerole_remove_no_config(self, app_cog, admin_interaction):
-        await app_cog._managerole_remove.callback(app_cog, admin_interaction)
+    async def test_remove_manager_role_not_found(self, app_cog, admin_interaction, db_session):
+        role = MagicMock()
+        role.id = 99999
+        role.name = "DoesNotExist"
+        await app_cog._managerole_remove.callback(app_cog, admin_interaction, role)
 
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "no manager role" in call_args.lower()
+        msg = admin_interaction.response.send_message.call_args[0][0]
+        assert "DoesNotExist" in msg
+
+    @pytest.mark.asyncio
+    async def test_clear_manager_roles(self, app_cog, admin_interaction, db_session):
+        db_session.add(ApplicationGuildRole(GuildId=admin_interaction.guild_id, RoleId=1, RoleType="manager"))
+        db_session.add(ApplicationGuildRole(GuildId=admin_interaction.guild_id, RoleId=2, RoleType="manager"))
+        db_session.add(ApplicationGuildRole(GuildId=admin_interaction.guild_id, RoleId=3, RoleType="reviewer"))
+        db_session.commit()
+
+        await app_cog._managerole_clear.callback(app_cog, admin_interaction)
+
+        remaining = (
+            db_session.query(ApplicationGuildRole)
+            .filter(
+                ApplicationGuildRole.GuildId == admin_interaction.guild_id,
+            )
+            .all()
+        )
+        assert len(remaining) == 1
+        assert remaining[0].RoleType == "reviewer"
+
+    @pytest.mark.asyncio
+    async def test_list_manager_roles_empty(self, app_cog, admin_interaction):
+        await app_cog._managerole_list.callback(app_cog, admin_interaction)
+        admin_interaction.response.send_message.assert_called_once()
+        kwargs = admin_interaction.response.send_message.call_args[1]
+        assert kwargs.get("ephemeral") is True
+
+    @pytest.mark.asyncio
+    async def test_list_manager_roles_shows_roles(self, app_cog, admin_interaction, db_session):
+        db_session.add(ApplicationGuildRole(GuildId=admin_interaction.guild_id, RoleId=777, RoleType="manager"))
+        db_session.commit()
+
+        role_mock = MagicMock()
+        role_mock.mention = "<@&777>"
+        admin_interaction.guild.get_role = MagicMock(return_value=role_mock)
+
+        await app_cog._managerole_list.callback(app_cog, admin_interaction)
+        admin_interaction.response.send_message.assert_called_once()
+        kwargs = admin_interaction.response.send_message.call_args[1]
+        assert "embed" in kwargs
 
 
 # ---------------------------------------------------------------------------
@@ -1548,43 +1614,128 @@ class TestImport:
 
 
 # ---------------------------------------------------------------------------
-# /application reviewerrole set / remove
+# /application reviewerrole add / remove / clear / list
 # ---------------------------------------------------------------------------
 
 
 class TestReviewerRoleCommands:
-    @pytest.mark.asyncio
-    async def test_set_reviewer_role(self, app_cog, admin_interaction, db_session):
-        role = MagicMock()
-        role.id = 555444333
-        role.name = "Reviewer"
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        load_strings()
 
-        await app_cog._reviewerrole_set.callback(app_cog, admin_interaction, role=role)
+    @pytest.mark.asyncio
+    async def test_add_reviewer_role(self, app_cog, admin_interaction, db_session):
+        role = MagicMock()
+        role.id = 444222333
+        role.name = "Reviewer"
+        await app_cog._reviewerrole_add.callback(app_cog, admin_interaction, role)
 
         admin_interaction.response.send_message.assert_called_once()
-        config = ApplicationGuildConfig.get(admin_interaction.guild.id, db_session)
-        assert config is not None
-        assert config.ReviewerRoleId == 555444333
+        msg = admin_interaction.response.send_message.call_args[0][0]
+        assert "Reviewer" in msg
+
+        rows = (
+            db_session.query(ApplicationGuildRole)
+            .filter(
+                ApplicationGuildRole.GuildId == admin_interaction.guild_id,
+                ApplicationGuildRole.RoleType == "reviewer",
+            )
+            .all()
+        )
+        assert len(rows) == 1
+        assert rows[0].RoleId == 444222333
+
+    @pytest.mark.asyncio
+    async def test_add_reviewer_role_idempotent(self, app_cog, admin_interaction, db_session):
+        """Adding the same role twice should not create duplicate rows."""
+        db_session.add(ApplicationGuildRole(GuildId=admin_interaction.guild_id, RoleId=888, RoleType="reviewer"))
+        db_session.commit()
+
+        role = MagicMock()
+        role.id = 888
+        role.name = "AlreadyAdded"
+        await app_cog._reviewerrole_add.callback(app_cog, admin_interaction, role)
+
+        count = (
+            db_session.query(ApplicationGuildRole)
+            .filter(
+                ApplicationGuildRole.GuildId == admin_interaction.guild_id,
+                ApplicationGuildRole.RoleId == 888,
+            )
+            .count()
+        )
+        assert count == 1
 
     @pytest.mark.asyncio
     async def test_remove_reviewer_role(self, app_cog, admin_interaction, db_session):
-        config = ApplicationGuildConfig(GuildId=admin_interaction.guild.id, ReviewerRoleId=555444333)
-        db_session.add(config)
+        db_session.add(ApplicationGuildRole(GuildId=admin_interaction.guild_id, RoleId=444, RoleType="reviewer"))
         db_session.commit()
 
-        await app_cog._reviewerrole_remove.callback(app_cog, admin_interaction)
+        role = MagicMock()
+        role.id = 444
+        role.name = "ToRemove"
+        await app_cog._reviewerrole_remove.callback(app_cog, admin_interaction, role)
 
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "removed" in call_args.lower()
-        updated = ApplicationGuildConfig.get(admin_interaction.guild.id, db_session)
-        assert updated.ReviewerRoleId is None
+        admin_interaction.response.send_message.assert_called_once()
+        count = (
+            db_session.query(ApplicationGuildRole)
+            .filter(
+                ApplicationGuildRole.GuildId == admin_interaction.guild_id,
+                ApplicationGuildRole.RoleId == 444,
+            )
+            .count()
+        )
+        assert count == 0
 
     @pytest.mark.asyncio
-    async def test_remove_reviewer_role_not_configured(self, app_cog, admin_interaction, db_session):
-        await app_cog._reviewerrole_remove.callback(app_cog, admin_interaction)
+    async def test_remove_reviewer_role_not_found(self, app_cog, admin_interaction, db_session):
+        role = MagicMock()
+        role.id = 77777
+        role.name = "DoesNotExist"
+        await app_cog._reviewerrole_remove.callback(app_cog, admin_interaction, role)
 
-        call_args = str(admin_interaction.response.send_message.call_args)
-        assert "no" in call_args.lower() or "not configured" in call_args.lower()
+        msg = admin_interaction.response.send_message.call_args[0][0]
+        assert "DoesNotExist" in msg
+
+    @pytest.mark.asyncio
+    async def test_clear_reviewer_roles(self, app_cog, admin_interaction, db_session):
+        db_session.add(ApplicationGuildRole(GuildId=admin_interaction.guild_id, RoleId=10, RoleType="reviewer"))
+        db_session.add(ApplicationGuildRole(GuildId=admin_interaction.guild_id, RoleId=20, RoleType="reviewer"))
+        db_session.add(ApplicationGuildRole(GuildId=admin_interaction.guild_id, RoleId=30, RoleType="manager"))
+        db_session.commit()
+
+        await app_cog._reviewerrole_clear.callback(app_cog, admin_interaction)
+
+        remaining = (
+            db_session.query(ApplicationGuildRole)
+            .filter(
+                ApplicationGuildRole.GuildId == admin_interaction.guild_id,
+            )
+            .all()
+        )
+        assert len(remaining) == 1
+        assert remaining[0].RoleType == "manager"
+
+    @pytest.mark.asyncio
+    async def test_list_reviewer_roles_empty(self, app_cog, admin_interaction):
+        await app_cog._reviewerrole_list.callback(app_cog, admin_interaction)
+        admin_interaction.response.send_message.assert_called_once()
+        kwargs = admin_interaction.response.send_message.call_args[1]
+        assert kwargs.get("ephemeral") is True
+
+    @pytest.mark.asyncio
+    async def test_list_reviewer_roles_shows_roles(self, app_cog, admin_interaction, db_session):
+        db_session.add(ApplicationGuildRole(GuildId=admin_interaction.guild_id, RoleId=666, RoleType="reviewer"))
+        db_session.commit()
+
+        role_mock = MagicMock()
+        role_mock.mention = "<@&666>"
+        admin_interaction.guild.get_role = MagicMock(return_value=role_mock)
+
+        await app_cog._reviewerrole_list.callback(app_cog, admin_interaction)
+        admin_interaction.response.send_message.assert_called_once()
+        kwargs = admin_interaction.response.send_message.call_args[1]
+        assert "embed" in kwargs
 
 
 # ---------------------------------------------------------------------------

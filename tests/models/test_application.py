@@ -29,28 +29,19 @@ class TestApplicationGuildConfig:
 
     def test_create_and_get(self, db_session):
         """Should store and retrieve a guild config."""
-        cfg = ApplicationGuildConfig(GuildId=111, ManagerRoleId=999)
-        db_session.add(cfg)
-        db_session.commit()
-
-        result = ApplicationGuildConfig.get(111, db_session)
-        assert result is not None
-        assert result.ManagerRoleId == 999
-
-    def test_get_nonexistent_returns_none(self, db_session):
-        assert ApplicationGuildConfig.get(999, db_session) is None
-
-    def test_nullable_manager_role(self, db_session):
-        """ManagerRoleId can be None."""
         cfg = ApplicationGuildConfig(GuildId=111)
         db_session.add(cfg)
         db_session.commit()
 
         result = ApplicationGuildConfig.get(111, db_session)
-        assert result.ManagerRoleId is None
+        assert result is not None
+        assert result.GuildId == 111
+
+    def test_get_nonexistent_returns_none(self, db_session):
+        assert ApplicationGuildConfig.get(999, db_session) is None
 
     def test_delete(self, db_session):
-        cfg = ApplicationGuildConfig(GuildId=111, ManagerRoleId=999)
+        cfg = ApplicationGuildConfig(GuildId=111)
         db_session.add(cfg)
         db_session.commit()
 
@@ -887,12 +878,12 @@ class TestGuildIsolation:
         assert len(ApplicationSubmission.get_by_guild(222, db_session)) == 1
 
     def test_guild_config_is_guild_isolated(self, db_session):
-        db_session.add(ApplicationGuildConfig(GuildId=111, ManagerRoleId=10))
-        db_session.add(ApplicationGuildConfig(GuildId=222, ManagerRoleId=20))
+        db_session.add(ApplicationGuildConfig(GuildId=111))
+        db_session.add(ApplicationGuildConfig(GuildId=222))
         db_session.commit()
 
-        assert ApplicationGuildConfig.get(111, db_session).ManagerRoleId == 10
-        assert ApplicationGuildConfig.get(222, db_session).ManagerRoleId == 20
+        assert ApplicationGuildConfig.get(111, db_session).GuildId == 111
+        assert ApplicationGuildConfig.get(222, db_session).GuildId == 222
 
 
 # ---------------------------------------------------------------------------
