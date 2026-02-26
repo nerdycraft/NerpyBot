@@ -15,6 +15,7 @@ from models.application import (
     BUILT_IN_TEMPLATES,
     ApplicationForm,
     ApplicationGuildConfig,
+    ApplicationGuildRole,
     ApplicationQuestion,
     ApplicationTemplate,
     seed_built_in_templates,
@@ -230,9 +231,8 @@ class TestHasManagePermission:
         assert app_cog._has_manage_permission(non_admin_interaction) is False
 
     def test_non_admin_with_manager_role_allowed(self, app_cog, non_admin_interaction, db_session):
-        # Set up manager role config
-        config = ApplicationGuildConfig(GuildId=non_admin_interaction.guild.id, ManagerRoleId=42)
-        db_session.add(config)
+        # Set up manager role via ApplicationGuildRole
+        db_session.add(ApplicationGuildRole(GuildId=non_admin_interaction.guild.id, RoleId=42, RoleType="manager"))
         db_session.commit()
 
         role = MagicMock()
@@ -242,8 +242,7 @@ class TestHasManagePermission:
         assert app_cog._has_manage_permission(non_admin_interaction) is True
 
     def test_non_admin_with_wrong_role_denied(self, app_cog, non_admin_interaction, db_session):
-        config = ApplicationGuildConfig(GuildId=non_admin_interaction.guild.id, ManagerRoleId=42)
-        db_session.add(config)
+        db_session.add(ApplicationGuildRole(GuildId=non_admin_interaction.guild.id, RoleId=42, RoleType="manager"))
         db_session.commit()
 
         role = MagicMock()
@@ -254,8 +253,7 @@ class TestHasManagePermission:
 
     def test_reviewer_role_cannot_manage(self, app_cog, non_admin_interaction, db_session):
         """Reviewer-role holders must not be able to manage forms."""
-        config = ApplicationGuildConfig(GuildId=non_admin_interaction.guild.id, ReviewerRoleId=888)
-        db_session.add(config)
+        db_session.add(ApplicationGuildRole(GuildId=non_admin_interaction.guild.id, RoleId=888, RoleType="reviewer"))
         db_session.commit()
 
         role = MagicMock()
