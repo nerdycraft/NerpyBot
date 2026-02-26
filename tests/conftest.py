@@ -29,6 +29,7 @@ def db_engine():
         ApplicationAnswer,
         ApplicationVote,
         ApplicationGuildConfig,
+        ApplicationGuildRole,
         ApplicationTemplate,
         ApplicationTemplateQuestion,
     )

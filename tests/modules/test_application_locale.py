@@ -417,73 +417,87 @@ class TestTemplateEditMessagesLocale:
 
 
 # ---------------------------------------------------------------------------
-# /application managerole set / remove
+# /application managerole add / remove / clear / list
 # ---------------------------------------------------------------------------
 
 
 class TestManagerRoleLocale:
-    async def test_set_english(self, cog, interaction, db_session):
+    async def test_add_english(self, cog, interaction, db_session):
         role = MagicMock()
         role.id = 42
         role.name = "Manager"
-        await Application._managerole_set.callback(cog, interaction, role=role)
+        await Application._managerole_add.callback(cog, interaction, role)
         msg = interaction.response.send_message.call_args[0][0]
-        assert "manager role set" in msg.lower()
+        assert "Manager" in msg
+        assert "application manager" in msg.lower()
 
-    async def test_set_german(self, cog, interaction, db_session):
+    async def test_add_german(self, cog, interaction, db_session):
         _set_german(db_session)
         role = MagicMock()
         role.id = 42
         role.name = "Manager"
-        await Application._managerole_set.callback(cog, interaction, role=role)
+        await Application._managerole_add.callback(cog, interaction, role)
         msg = interaction.response.send_message.call_args[0][0]
-        assert "Manager-Rolle" in msg
+        assert "Bewerbungsmanager" in msg
 
-    async def test_remove_not_configured_english(self, cog, interaction, db_session):
-        await Application._managerole_remove.callback(cog, interaction)
+    async def test_remove_not_found_english(self, cog, interaction, db_session):
+        role = MagicMock()
+        role.id = 9999
+        role.name = "Ghost"
+        await Application._managerole_remove.callback(cog, interaction, role)
         msg = interaction.response.send_message.call_args[0][0]
-        assert "No manager role" in msg
+        assert "not configured" in msg.lower()
 
-    async def test_remove_not_configured_german(self, cog, interaction, db_session):
+    async def test_remove_not_found_german(self, cog, interaction, db_session):
         _set_german(db_session)
-        await Application._managerole_remove.callback(cog, interaction)
+        role = MagicMock()
+        role.id = 9999
+        role.name = "Ghost"
+        await Application._managerole_remove.callback(cog, interaction, role)
         msg = interaction.response.send_message.call_args[0][0]
-        assert "Keine Manager-Rolle" in msg
+        assert "nicht als" in msg.lower()
 
 
 # ---------------------------------------------------------------------------
-# /application reviewerrole set / remove
+# /application reviewerrole add / remove / clear / list
 # ---------------------------------------------------------------------------
 
 
 class TestReviewerRoleLocale:
-    async def test_set_english(self, cog, interaction, db_session):
+    async def test_add_english(self, cog, interaction, db_session):
         role = MagicMock()
         role.id = 55
         role.name = "Reviewer"
-        await Application._reviewerrole_set.callback(cog, interaction, role=role)
+        await Application._reviewerrole_add.callback(cog, interaction, role)
         msg = interaction.response.send_message.call_args[0][0]
-        assert "reviewer role set" in msg.lower()
+        assert "Reviewer" in msg
+        assert "application reviewer" in msg.lower()
 
-    async def test_set_german(self, cog, interaction, db_session):
+    async def test_add_german(self, cog, interaction, db_session):
         _set_german(db_session)
         role = MagicMock()
         role.id = 55
         role.name = "Reviewer"
-        await Application._reviewerrole_set.callback(cog, interaction, role=role)
+        await Application._reviewerrole_add.callback(cog, interaction, role)
         msg = interaction.response.send_message.call_args[0][0]
-        assert "Prüfer-Rolle" in msg
+        assert "Bewerbungsprüfer" in msg
 
-    async def test_remove_not_configured_english(self, cog, interaction, db_session):
-        await Application._reviewerrole_remove.callback(cog, interaction)
+    async def test_remove_not_found_english(self, cog, interaction, db_session):
+        role = MagicMock()
+        role.id = 9999
+        role.name = "Ghost"
+        await Application._reviewerrole_remove.callback(cog, interaction, role)
         msg = interaction.response.send_message.call_args[0][0]
-        assert "No reviewer role" in msg
+        assert "not configured" in msg.lower()
 
-    async def test_remove_not_configured_german(self, cog, interaction, db_session):
+    async def test_remove_not_found_german(self, cog, interaction, db_session):
         _set_german(db_session)
-        await Application._reviewerrole_remove.callback(cog, interaction)
+        role = MagicMock()
+        role.id = 9999
+        role.name = "Ghost"
+        await Application._reviewerrole_remove.callback(cog, interaction, role)
         msg = interaction.response.send_message.call_args[0][0]
-        assert "Keine Prüfer-Rolle" in msg
+        assert "nicht als" in msg.lower()
 
 
 # ---------------------------------------------------------------------------
