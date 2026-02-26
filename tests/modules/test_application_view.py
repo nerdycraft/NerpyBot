@@ -11,7 +11,7 @@ import pytest
 from models.application import (
     ApplicationAnswer,
     ApplicationForm,
-    ApplicationGuildConfig,
+    ApplicationGuildRole,
     ApplicationQuestion,
     ApplicationSubmission,
     ApplicationVote,
@@ -163,8 +163,7 @@ class TestPermissionCheck:
 
     def test_manager_role_passes(self, mock_bot, db_session):
         manager_role_id = 999888777
-        config = ApplicationGuildConfig(GuildId=GUILD_ID, ManagerRoleId=manager_role_id)
-        db_session.add(config)
+        db_session.add(ApplicationGuildRole(GuildId=GUILD_ID, RoleId=manager_role_id, RoleType="manager"))
         db_session.commit()
 
         interaction = _make_reviewer_interaction(mock_bot, is_admin=False, manager_role_id=manager_role_id)
@@ -175,13 +174,28 @@ class TestPermissionCheck:
         assert check_application_permission(interaction, mock_bot) is False
 
     def test_wrong_role_fails(self, mock_bot, db_session):
-        config = ApplicationGuildConfig(GuildId=GUILD_ID, ManagerRoleId=999888777)
-        db_session.add(config)
+        db_session.add(ApplicationGuildRole(GuildId=GUILD_ID, RoleId=999888777, RoleType="manager"))
         db_session.commit()
 
         # User has a different role
         interaction = _make_reviewer_interaction(mock_bot, is_admin=False, manager_role_id=111111111)
         assert check_application_permission(interaction, mock_bot) is False
+
+    def test_multiple_manager_roles_any_passes(self, mock_bot, db_session):
+        """Having any one of multiple manager roles grants permission."""
+        db_session.add(ApplicationGuildRole(GuildId=GUILD_ID, RoleId=111, RoleType="manager"))
+        db_session.add(ApplicationGuildRole(GuildId=GUILD_ID, RoleId=222, RoleType="manager"))
+        db_session.commit()
+        interaction = _make_reviewer_interaction(mock_bot, is_admin=False, manager_role_id=222)
+        assert check_application_permission(interaction, mock_bot) is True
+
+    def test_multiple_reviewer_roles_any_passes(self, mock_bot, db_session):
+        """Having any one of multiple reviewer roles grants permission."""
+        db_session.add(ApplicationGuildRole(GuildId=GUILD_ID, RoleId=333, RoleType="reviewer"))
+        db_session.add(ApplicationGuildRole(GuildId=GUILD_ID, RoleId=444, RoleType="reviewer"))
+        db_session.commit()
+        interaction = _make_reviewer_only_interaction(mock_bot, reviewer_role_id=444)
+        assert check_application_permission(interaction, mock_bot) is True
 
 
 # ---------------------------------------------------------------------------
@@ -1015,18 +1029,23 @@ class TestOverridePermission:
         assert check_override_permission(interaction, mock_bot) is True
 
     def test_manager_role_can_override(self, mock_bot, db_session):
-        config = ApplicationGuildConfig(GuildId=GUILD_ID, ManagerRoleId=777)
-        db_session.add(config)
+        db_session.add(ApplicationGuildRole(GuildId=GUILD_ID, RoleId=777, RoleType="manager"))
         db_session.commit()
         interaction = _make_reviewer_interaction(mock_bot, is_admin=False, manager_role_id=777)
         assert check_override_permission(interaction, mock_bot) is True
 
     def test_reviewer_role_cannot_override(self, mock_bot, db_session):
-        config = ApplicationGuildConfig(GuildId=GUILD_ID, ReviewerRoleId=888)
-        db_session.add(config)
+        db_session.add(ApplicationGuildRole(GuildId=GUILD_ID, RoleId=888, RoleType="reviewer"))
         db_session.commit()
         interaction = _make_reviewer_only_interaction(mock_bot, reviewer_role_id=888)
         assert check_override_permission(interaction, mock_bot) is False
+
+    def test_multiple_manager_roles_any_can_override(self, mock_bot, db_session):
+        db_session.add(ApplicationGuildRole(GuildId=GUILD_ID, RoleId=555, RoleType="manager"))
+        db_session.add(ApplicationGuildRole(GuildId=GUILD_ID, RoleId=666, RoleType="manager"))
+        db_session.commit()
+        interaction = _make_reviewer_interaction(mock_bot, is_admin=False, manager_role_id=666)
+        assert check_override_permission(interaction, mock_bot) is True
 
     def test_no_role_cannot_override(self, mock_bot, db_session):
         interaction = _make_reviewer_interaction(mock_bot, is_admin=False)
@@ -1040,15 +1059,13 @@ class TestOverridePermission:
 
 class TestReviewerRolePermission:
     def test_reviewer_role_can_vote(self, mock_bot, db_session):
-        config = ApplicationGuildConfig(GuildId=GUILD_ID, ReviewerRoleId=888)
-        db_session.add(config)
+        db_session.add(ApplicationGuildRole(GuildId=GUILD_ID, RoleId=888, RoleType="reviewer"))
         db_session.commit()
         interaction = _make_reviewer_only_interaction(mock_bot, reviewer_role_id=888)
         assert check_application_permission(interaction, mock_bot) is True
 
     def test_wrong_reviewer_role_fails(self, mock_bot, db_session):
-        config = ApplicationGuildConfig(GuildId=GUILD_ID, ReviewerRoleId=888)
-        db_session.add(config)
+        db_session.add(ApplicationGuildRole(GuildId=GUILD_ID, RoleId=888, RoleType="reviewer"))
         db_session.commit()
         interaction = _make_reviewer_only_interaction(mock_bot, reviewer_role_id=999)
         assert check_application_permission(interaction, mock_bot) is False
@@ -1492,8 +1509,7 @@ class TestOverrideButton:
 
     @pytest.mark.asyncio
     async def test_manager_role_opens_override_modal(self, review_view, mock_bot, db_session):
-        config = ApplicationGuildConfig(GuildId=GUILD_ID, ManagerRoleId=REVIEWER_USER_ID)
-        db_session.add(config)
+        db_session.add(ApplicationGuildRole(GuildId=GUILD_ID, RoleId=REVIEWER_USER_ID, RoleType="manager"))
         form, submission = _seed_form_and_submission(db_session)
         submission.Status = SubmissionStatus.DENIED
         db_session.commit()
@@ -1505,8 +1521,7 @@ class TestOverrideButton:
 
     @pytest.mark.asyncio
     async def test_reviewer_role_cannot_override(self, review_view, mock_bot, db_session):
-        config = ApplicationGuildConfig(GuildId=GUILD_ID, ReviewerRoleId=888)
-        db_session.add(config)
+        db_session.add(ApplicationGuildRole(GuildId=GUILD_ID, RoleId=888, RoleType="reviewer"))
         form, submission = _seed_form_and_submission(db_session)
         submission.Status = SubmissionStatus.APPROVED
         db_session.commit()

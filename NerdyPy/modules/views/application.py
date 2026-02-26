@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 
 from models.application import (
     ApplicationForm,
-    ApplicationGuildConfig,
+    ApplicationGuildRole,
     ApplicationSubmission,
     ApplicationVote,
     SubmissionStatus,
@@ -31,31 +31,29 @@ from utils.strings import get_guild_language, get_string
 
 
 def check_application_permission(interaction: discord.Interaction, bot) -> bool:
-    """Return True if the user is a guild administrator or holds the manager or reviewer role."""
+    """Return True if the user is a guild administrator, holds a manager role, or holds a reviewer role."""
     if interaction.user.guild_permissions.administrator:
         return True
+    user_role_ids = {r.id for r in interaction.user.roles}
     with bot.session_scope() as session:
-        config = ApplicationGuildConfig.get(interaction.guild.id, session)
-        if config:
-            if config.ManagerRoleId and any(r.id == config.ManagerRoleId for r in interaction.user.roles):
-                return True
-            if config.ReviewerRoleId and any(r.id == config.ReviewerRoleId for r in interaction.user.roles):
-                return True
-    return False
+        manager_ids = ApplicationGuildRole.get_role_ids(interaction.guild.id, "manager", session)
+        if any(rid in user_role_ids for rid in manager_ids):
+            return True
+        reviewer_ids = ApplicationGuildRole.get_role_ids(interaction.guild.id, "reviewer", session)
+        return any(rid in user_role_ids for rid in reviewer_ids)
 
 
 def check_override_permission(interaction: discord.Interaction, bot) -> bool:
-    """Return True if the user is a guild administrator or holds the manager role.
+    """Return True if the user is a guild administrator or holds a manager role.
 
     Reviewer role holders are NOT allowed to override decisions.
     """
     if interaction.user.guild_permissions.administrator:
         return True
+    user_role_ids = {r.id for r in interaction.user.roles}
     with bot.session_scope() as session:
-        config = ApplicationGuildConfig.get(interaction.guild.id, session)
-        if config and config.ManagerRoleId:
-            return any(r.id == config.ManagerRoleId for r in interaction.user.roles)
-    return False
+        manager_ids = ApplicationGuildRole.get_role_ids(interaction.guild.id, "manager", session)
+        return any(rid in user_role_ids for rid in manager_ids)
 
 
 # ---------------------------------------------------------------------------
