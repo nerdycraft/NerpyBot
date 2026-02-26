@@ -899,18 +899,33 @@ class ApplicationSubmitConversation(Conversation):
                 form = ApplicationForm.get_by_id(self.form_id, session)
                 lang = self.lang
                 embed = build_review_embed(submission, form, session, lang)
-                # Collect role IDs to mention: admin roles + all configured manager/reviewer roles
-                mention_ids: set[int] = {r.id for r in self.guild.roles if r.permissions.administrator}
+                # Collect role IDs to mention: non-managed admin roles + all configured manager/reviewer roles
+                mention_ids: set[int] = {
+                    r.id for r in self.guild.roles if r.permissions.administrator and not r.managed
+                }
                 guild_roles = (
                     session.query(ApplicationGuildRole).filter(ApplicationGuildRole.GuildId == self.guild.id).all()
                 )
                 for gr in guild_roles:
                     mention_ids.add(gr.RoleId)
+                submission_user_name = submission.UserName
 
             view = ApplicationReviewView(bot=self.bot)
             mention_content = " ".join(f"<@&{rid}>" for rid in sorted(mention_ids)) or None
 
-            msg = await channel.send(content=mention_content, embed=embed, view=view)
+            msg = await channel.send(embed=embed, view=view)
+
+            thread_name = submission_user_name or get_string(
+                self.lang, "application.conversation.submit.review_thread_name"
+            )
+            try:
+                thread = await msg.create_thread(name=thread_name)
+                if mention_content:
+                    await thread.send(mention_content)
+            except discord.HTTPException:
+                self.bot.log.warning(
+                    "application: failed to create review thread for msg %d", msg.id
+                )
 
             with self.bot.session_scope() as session:
                 submission = ApplicationSubmission.get_by_id(self.submission_id, session)
