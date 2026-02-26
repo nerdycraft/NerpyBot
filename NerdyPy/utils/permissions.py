@@ -25,10 +25,10 @@ REQUIRED_PERMISSIONS: dict[str, set[str]] = {
     },
     "admin": set(),
     "application": {"send_messages", "embed_links", "create_public_threads"},
-    "league": {"send_messages"},
+    "league": {"send_messages", "embed_links"},
     "leavemsg": {"send_messages"},
-    "moderation": {"send_messages", "kick_members", "manage_messages", "read_message_history"},
-    "music": {"send_messages", "embed_links", "connect", "speak", "add_reactions", "read_message_history"},
+    "moderation": {"send_messages", "kick_members", "manage_messages", "manage_threads", "read_message_history"},
+    "music": {"send_messages", "embed_links", "connect", "speak"},
     "reactionrole": {
         "send_messages",
         "manage_roles",
@@ -38,9 +38,9 @@ REQUIRED_PERMISSIONS: dict[str, set[str]] = {
     },
     "rolemanage": {"send_messages", "manage_roles"},
     "reminder": {"send_messages"},
-    "tagging": {"send_messages", "connect", "speak", "add_reactions", "read_message_history"},
+    "tagging": {"send_messages", "connect", "speak"},
     "voicecontrol": {"send_messages", "connect", "speak"},
-    "wow": {"send_messages", "embed_links"},
+    "wow": {"send_messages", "embed_links", "manage_threads"},
 }
 
 

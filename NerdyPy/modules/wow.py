@@ -1282,6 +1282,8 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             await interaction.followup.send(get_string(lang, "wow.craftingorder.create.no_roles"), ephemeral=True)
             return
 
+        validate_channel_permissions(channel, interaction.guild, "send_messages", "embed_links", "manage_threads")
+
         with self.bot.session_scope() as session:
             existing = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
             if existing:
@@ -1346,6 +1348,8 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             channel = interaction.guild.get_channel(channel_id)
             if channel and message_id:
                 msg = await channel.fetch_message(message_id)
+                if msg.thread:
+                    await msg.thread.delete()
                 await msg.delete()
         except discord.HTTPException:
             self.bot.log.debug("Failed to delete crafting board message (channel=%s, msg=%s)", channel_id, message_id)
