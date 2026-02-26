@@ -634,6 +634,7 @@ application:
       confirm_qa_line: "**Q:** {question}\n**A:** {answer}"
       error_title: "Submission error"
       error_description: "Something went wrong reaching the review channel. Your answers haven't been saved — please try again in a bit."
+      review_thread_name: "Application"
       submitted_title: "Application submitted!"
       submitted_description: "Your application has been submitted for review."
       cancelled_title: "Application cancelled"
