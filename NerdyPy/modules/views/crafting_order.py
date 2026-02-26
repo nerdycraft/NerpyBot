@@ -541,9 +541,9 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
 class ManualProfessionMappingView(ui.View):
     """Ephemeral followup view shown to admins when auto-match fails for some roles.
 
-    Presents one Select per unmapped role (up to MAX_ROLES).
-    The admin picks professions and clicks Save; choices are persisted as
-    CraftingRoleMapping rows.
+    Presents one Select per unmapped role (up to MAX_ROLES per batch).
+    If there are more roles than MAX_ROLES, confirming a batch automatically
+    advances to the next one. Choices are persisted as CraftingRoleMapping rows.
     """
 
     MAX_ROLES = 4  # Discord allows 5 rows: 4 selects + 1 button
@@ -552,20 +552,23 @@ class ManualProfessionMappingView(ui.View):
         self,
         bot,
         guild_id: int,
-        unmapped_roles: list[tuple[int, str]],
+        all_unmapped_roles: list[tuple[int, str]],
         lang: str = "en",
+        offset: int = 0,
     ):
         super().__init__(timeout=300)
         self.bot = bot
         self.guild_id = guild_id
         self.lang = lang
+        self.all_unmapped_roles = all_unmapped_roles
+        self.offset = offset
         self.selections: dict[int, int] = {}  # role_id -> profession_id
 
         prof_options = [
             discord.SelectOption(label=name, value=str(prof_id)) for name, prof_id in CRAFTING_PROFESSIONS.items()
         ]
 
-        for role_id, role_name in unmapped_roles[: self.MAX_ROLES]:
+        for role_id, role_name in all_unmapped_roles[offset : offset + self.MAX_ROLES]:
             placeholder = get_string(lang, "wow.craftingorder.manual_map.select_placeholder", role=role_name)
             select = ui.Select(
                 placeholder=placeholder,
@@ -595,7 +598,10 @@ class ManualProfessionMappingView(ui.View):
         return _callback
 
     async def _on_confirm(self, interaction: Interaction):
-        if not self.selections:
+        next_offset = self.offset + self.MAX_ROLES
+        is_last_batch = next_offset >= len(self.all_unmapped_roles)
+
+        if not self.selections and is_last_batch:
             await interaction.response.send_message(
                 get_string(self.lang, "wow.craftingorder.manual_map.no_selections"), ephemeral=True
             )
@@ -613,15 +619,22 @@ class ManualProfessionMappingView(ui.View):
                 else:
                     session.add(CraftingRoleMapping(GuildId=self.guild_id, RoleId=role_id, ProfessionId=prof_id))
 
-        num_selects = sum(1 for item in self.children if isinstance(item, ui.Select))
-        skipped = num_selects - len(self.selections)
-
-        if skipped > 0:
-            reply = get_string(
-                self.lang, "wow.craftingorder.manual_map.partial", count=len(self.selections), skipped=skipped
-            )
-        else:
-            reply = get_string(self.lang, "wow.craftingorder.manual_map.success")
-
         self.stop()
-        await interaction.response.edit_message(content=reply, view=None)
+
+        if not is_last_batch:
+            next_view = ManualProfessionMappingView(
+                self.bot, self.guild_id, self.all_unmapped_roles, self.lang, offset=next_offset
+            )
+            header = get_string(self.lang, "wow.craftingorder.manual_map.next_batch", count=len(self.selections))
+            description = get_string(self.lang, "wow.craftingorder.manual_map.description")
+            await interaction.response.edit_message(content=f"{header}\n\n{description}", view=next_view)
+        else:
+            num_selects = sum(1 for item in self.children if isinstance(item, ui.Select))
+            skipped = num_selects - len(self.selections)
+            if skipped > 0:
+                reply = get_string(
+                    self.lang, "wow.craftingorder.manual_map.partial", count=len(self.selections), skipped=skipped
+                )
+            else:
+                reply = get_string(self.lang, "wow.craftingorder.manual_map.success")
+            await interaction.response.edit_message(content=reply, view=None)
