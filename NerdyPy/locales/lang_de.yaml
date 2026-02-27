@@ -641,6 +641,7 @@ application:
       confirm_qa_line: "**F:** {question}\n**A:** {answer}"
       error_title: "Einsende-Fehler"
       error_description: "Beim Erreichen des Überprüfungskanals ist etwas schiefgelaufen. Deine Antworten wurden nicht gespeichert — bitte versuche es in Kürze erneut."
+      review_thread_name: "Bewerbung"
       submitted_title: "Bewerbung eingereicht!"
       submitted_description: "Deine Bewerbung wurde zur Überprüfung eingereicht."
       cancelled_title: "Bewerbung abgebrochen"
