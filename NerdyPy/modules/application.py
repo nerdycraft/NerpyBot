@@ -200,7 +200,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             if (
                 not perms.send_messages
                 or not perms.embed_links
-                or not perms.create_private_threads
+                or not perms.create_public_threads
                 or not perms.send_messages_in_threads
             ):
                 await interaction.response.send_message(

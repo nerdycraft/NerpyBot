@@ -136,6 +136,8 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                         f"[{guild.name} ({guild.id})]: deleting message from #{message.channel.name} "
                         f"by {message.author} ({message.author.id}), created at {message.created_at}"
                     )
+                    if message.thread:
+                        await message.thread.delete()
                     await message.delete()
         except Exception as ex:
             self.bot.log.error(f"Autodeleter: {ex}")
@@ -246,7 +248,12 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
 
             if interaction.guild.get_channel(channel_id) is not None:
                 validate_channel_permissions(
-                    channel, interaction.guild, "view_channel", "manage_messages", "read_message_history"
+                    channel,
+                    interaction.guild,
+                    "view_channel",
+                    "manage_messages",
+                    "manage_threads",
+                    "read_message_history",
                 )
                 if delete_older_than is None:
                     delete = delete_older_than
