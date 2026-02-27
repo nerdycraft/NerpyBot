@@ -208,7 +208,6 @@ database:
 
 audio:
   buffer_limit: 5
-
 # Per-module config sections (music, league, wow)
 ```
 
