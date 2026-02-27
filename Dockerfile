@@ -3,8 +3,8 @@
 # ── uv binary ──
 FROM ghcr.io/astral-sh/uv:latest AS uv
 
-# ── Builder: installs all dependency groups ──
-FROM python:3.14-alpine AS builder
+# ── Builder base: shared build tools and lockfile ──
+FROM python:3.14-alpine AS builder-base
 ENV UV_LINK_MODE=copy
 
 WORKDIR /app
@@ -15,13 +15,17 @@ RUN apk add --no-cache git libffi-dev \
     gcc g++ musl-dev python3-dev pkgconf \
     freetype-dev libpng-dev
 
+# ── Builder: bot dependencies only ──
+FROM builder-base AS builder-bot
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-managed-python --only-group bot
-RUN cp -a .venv .venv-bot && rm -rf .venv
+
+# ── Builder: migration dependencies only ──
+FROM builder-base AS builder-migrations
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-managed-python --only-group migrations
-RUN cp -a .venv .venv-migrations && rm -rf .venv
 
 # ── Runtime base: shared env for bot and migrations ──
 FROM python:3.14-alpine AS runtime
@@ -45,7 +49,7 @@ USER root
 RUN apk add --no-cache ffmpeg opus freetype libpng
 
 USER NerdyBot
-COPY --chown=${UID} --from=builder /app/.venv-bot /app/.venv
+COPY --chown=${UID} --from=builder-bot /app/.venv /app/.venv
 COPY --chown=${UID} NerdyPy /app
 
 CMD ["python", "bot.py"]
@@ -57,7 +61,7 @@ LABEL org.opencontainers.image.description="NerpyBot, the nerdiest Python Bot"
 # ── Migrations: minimal runtime ──
 FROM runtime AS migrations
 
-COPY --chown=${UID} --from=builder /app/.venv-migrations /app/.venv
+COPY --chown=${UID} --from=builder-migrations /app/.venv /app/.venv
 COPY --chown=${UID} alembic.ini ./
 COPY --chown=${UID} database-migrations /app/database-migrations/
 

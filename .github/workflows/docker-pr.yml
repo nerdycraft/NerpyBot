@@ -14,9 +14,44 @@ on:
       - ".github/workflows/docker-pr.yml"
 
 jobs:
+  changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      bot: ${{ steps.filter.outputs.bot }}
+      migrations: ${{ steps.filter.outputs.migrations }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Detect changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            bot:
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'NerdyPy/**'
+              - '.github/workflows/docker-pr.yml'
+            migrations:
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'database-migrations/**'
+              - 'alembic.ini'
+              - '.github/workflows/docker-pr.yml'
+
   validate-bot:
     name: Validate NerpyBot Image
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.bot == 'true'
     permissions:
       contents: read
 
@@ -46,6 +81,8 @@ jobs:
   validate-migrations:
     name: Validate Migrations Image
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.migrations == 'true'
     permissions:
       contents: read
 

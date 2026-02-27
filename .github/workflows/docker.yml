@@ -19,9 +19,45 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    if: github.ref_type != 'tag'
+    permissions:
+      contents: read
+    outputs:
+      bot: ${{ steps.filter.outputs.bot }}
+      migrations: ${{ steps.filter.outputs.migrations }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Detect changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            bot:
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'NerdyPy/**'
+              - '.github/workflows/docker.yml'
+            migrations:
+              - 'Dockerfile'
+              - '.dockerignore'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'database-migrations/**'
+              - 'alembic.ini'
+              - '.github/workflows/docker.yml'
+
   build-bot:
     name: Build & Push NerpyBot Image
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: always() && (needs.changes.result == 'skipped' || needs.changes.outputs.bot == 'true')
     permissions:
       contents: read
       packages: write
@@ -80,6 +116,8 @@ jobs:
   build-migrations:
     name: Build & Push Migrations Image
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: always() && (needs.changes.result == 'skipped' || needs.changes.outputs.migrations == 'true')
     permissions:
       contents: read
       packages: write
