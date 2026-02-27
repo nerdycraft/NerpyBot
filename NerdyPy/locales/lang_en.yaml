@@ -536,6 +536,10 @@ application:
     override_pending: "This application is still pending — there is no decision to override."
     override_cannot_pending: "Cannot override a pending application."
     override_success: "Decision overridden."
+    vote_select_placeholder: "Select your vote..."
+    vote_change_placeholder: "Change your vote..."
+    approve_label: "Approve"
+    deny_label: "Deny"
   decision:
     approved_title: "Application Approved"
     denied_title: "Application Denied"
@@ -554,12 +558,16 @@ application:
     edit_approve_title: "Change Vote — Approve"
     edit_deny_title: "Change Vote — Deny"
     override_title: "Override: {old} → {new}"
+    review_note_label: "Review note"
+    message_label: "Message to send"
+    override_reason_label: "Reason for override"
   apply:
     not_available: "This application is no longer available."
     not_ready: "This form is not set up yet. Please contact a server admin."
     already_applied: "You have already applied for **{form}**."
     review_unavailable: "This form's review channel is currently unavailable. Please try again later."
     default_description: "Click the button below to apply!"
+    button_label: "Apply"
   conversation:
     error:
       title: "Error"

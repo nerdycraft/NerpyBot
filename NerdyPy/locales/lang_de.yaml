@@ -535,6 +535,10 @@ application:
     override_pending: "Diese Bewerbung ist noch ausstehend — es gibt keine Entscheidung zum Überstimmen."
     override_cannot_pending: "Eine ausstehende Bewerbung kann nicht überstimmt werden."
     override_success: "Entscheidung überstimmt."
+    vote_select_placeholder: "Stimme auswählen..."
+    vote_change_placeholder: "Stimme ändern..."
+    approve_label: "Genehmigen"
+    deny_label: "Ablehnen"
   decision:
     approved_title: "Bewerbung genehmigt"
     denied_title: "Bewerbung abgelehnt"
@@ -553,12 +557,16 @@ application:
     edit_approve_title: "Stimme ändern — Genehmigen"
     edit_deny_title: "Stimme ändern — Ablehnen"
     override_title: "Überstimmen: {old} → {new}"
+    review_note_label: "Überprüfungsnotiz"
+    message_label: "Nachricht eingeben"
+    override_reason_label: "Grund für Überstimmung"
   apply:
     not_available: "Diese Bewerbung ist nicht mehr verfügbar."
     not_ready: "Dieses Formular ist noch nicht eingerichtet. Bitte kontaktiere einen Server-Admin."
     already_applied: "Du hast dich bereits für **{form}** beworben."
     review_unavailable: "Der Überprüfungskanal dieses Formulars ist derzeit nicht erreichbar. Bitte versuche es später erneut."
     default_description: "Klicke auf den Button unten, um dich zu bewerben!"
+    button_label: "Bewerben"
   conversation:
     error:
       title: "Fehler"
