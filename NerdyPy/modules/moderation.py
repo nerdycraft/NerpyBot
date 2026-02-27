@@ -248,7 +248,12 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
 
             if interaction.guild.get_channel(channel_id) is not None:
                 validate_channel_permissions(
-                    channel, interaction.guild, "view_channel", "manage_messages", "manage_threads", "read_message_history"
+                    channel,
+                    interaction.guild,
+                    "view_channel",
+                    "manage_messages",
+                    "manage_threads",
+                    "read_message_history",
                 )
                 if delete_older_than is None:
                     delete = delete_older_than
