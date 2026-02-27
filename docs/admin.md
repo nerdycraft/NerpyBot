@@ -15,7 +15,7 @@ Sets the bot-moderator role. Members with this role gain elevated bot permission
 voice).
 
 | Parameter | Type   | Description                                |
-|-----------|--------|--------------------------------------------|
+| --------- | ------ | ------------------------------------------ |
 | `role`    | `Role` | Discord role to designate as bot-moderator |
 
 ### `/modrole delete`
@@ -32,7 +32,7 @@ DM-only, operator-only** (user ID must be in `config.bot.ops`).
 Syncs slash commands with Discord. **Prefix-only, DM-only, operator-only.**
 
 | Parameter | Type                                | Description                   |
-|-----------|-------------------------------------|-------------------------------|
+| --------- | ----------------------------------- | ----------------------------- |
 | `guilds`  | `Greedy[Object]`                    | Optional guild IDs to sync to |
 | `spec`    | `Literal["local", "copy", "clear"]` | Sync mode                     |
 
@@ -80,7 +80,7 @@ Manage error notification throttling and suppression. **Prefix-only, DM-only, op
 **Subcommands:**
 
 | Subcommand       | Description                                                  |
-|------------------|--------------------------------------------------------------|
+| ---------------- | ------------------------------------------------------------ |
 | _(none)_         | Defaults to `status`                                         |
 | `status`         | Show current throttle state with per-bucket error details    |
 | `suppress <dur>` | Suppress all error DMs for duration (e.g. `30m`, `2h`, `1d`) |
@@ -99,7 +99,7 @@ Disable a module at runtime. All its slash commands will respond with an ephemer
 until re-enabled. **Prefix-only, DM-only, operator-only** (user ID must be in `config.bot.ops`).
 
 | Parameter | Type  | Description                                 |
-|-----------|-------|---------------------------------------------|
+| --------- | ----- | ------------------------------------------- |
 | `module`  | `str` | Module name (e.g. `wow`, `league`, `music`) |
 
 **Protected modules:** `admin` and `voicecontrol` cannot be disabled.
@@ -120,7 +120,7 @@ List all currently disabled modules. **Prefix-only, DM-only, operator-only** (us
 ### `BotModeratorRole`
 
 | Column  | Type            | Purpose          |
-|---------|-----------------|------------------|
+| ------- | --------------- | ---------------- |
 | GuildId | BigInteger (PK) | Discord guild ID |
 | RoleId  | BigInteger      | Discord role ID  |
 

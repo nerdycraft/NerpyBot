@@ -23,7 +23,11 @@ uv run python NerdyPy/bot.py -l DEBUG            # Debug mode (includes sqlalche
 uv run python NerdyPy/bot.py -c path             # Custom config file
 uv run python NerdyPy/bot.py -r                  # Auto-restart on failure
 
-# Code quality
+# Git hooks (run once after cloning)
+uv sync --group test                 # Installs pre-commit
+uv run pre-commit install            # Wires up .pre-commit-config.yaml into .git/hooks
+
+# Code quality (also run automatically on commit via pre-commit)
 uv run ruff check                    # Lint
 uv run ruff check --fix              # Lint with auto-fix
 uv run ruff format                   # Format code
