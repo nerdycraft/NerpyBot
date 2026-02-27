@@ -349,7 +349,7 @@ class DenyVoteModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
-        self.message._underlying.label = get_string(lang, "application.modal.review_note_label")
+        self.message.label = get_string(lang, "application.modal.review_note_label")
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
         if prefill:
@@ -416,7 +416,7 @@ class ApproveVoteModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
-        self.message._underlying.label = get_string(lang, "application.modal.review_note_label")
+        self.message.label = get_string(lang, "application.modal.review_note_label")
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
         if prefill:
@@ -484,7 +484,7 @@ class MessageModal(discord.ui.Modal):
         self.target_user_id = user_id
         self.bot = bot
         self.lang = lang
-        self.message._underlying.label = get_string(lang, "application.modal.message_label")
+        self.message.label = get_string(lang, "application.modal.message_label")
         self.submission_id = submission_id
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
@@ -700,7 +700,7 @@ class EditApproveModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
-        self.message._underlying.label = get_string(lang, "application.modal.review_note_label")
+        self.message.label = get_string(lang, "application.modal.review_note_label")
         self.previous_vote = previous_vote
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
@@ -756,7 +756,7 @@ class EditDenyModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
-        self.message._underlying.label = get_string(lang, "application.modal.review_note_label")
+        self.message.label = get_string(lang, "application.modal.review_note_label")
         self.previous_vote = previous_vote
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
@@ -817,7 +817,7 @@ class OverrideModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
-        self.reason._underlying.label = get_string(lang, "application.modal.override_reason_label")
+        self.reason.label = get_string(lang, "application.modal.override_reason_label")
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
 
