@@ -146,8 +146,8 @@ def _make_reviewer_interaction(mock_bot, *, is_admin=True, manager_role_id=None,
 
 
 @pytest.fixture
-async def review_view(mock_bot):
-    """Async fixture — discord.ui.View.__init__ needs a running event loop."""
+def review_view(mock_bot):
+    """discord.py 2.7.0+: ui.View can be initialized without a running event loop."""
     return ApplicationReviewView(bot=mock_bot)
 
 
