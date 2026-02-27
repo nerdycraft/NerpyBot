@@ -6,6 +6,7 @@ Main Class of the NerpyBot
 from argparse import ArgumentParser, Namespace
 from asyncio import run
 from contextlib import contextmanager
+from warnings import filterwarnings
 from datetime import UTC, datetime
 from itertools import cycle
 from pathlib import Path
@@ -435,6 +436,9 @@ def parse_config(config_file=None) -> dict:
 
 def main() -> None:
     """Entry point for the NerpyBot."""
+    # discord.py passes float to aiohttp ws_connect timeout instead of ClientWSTimeout
+    filterwarnings("ignore", category=DeprecationWarning, module=r"discord\.http")
+
     args = parse_arguments()
     config = parse_config(args.config)
     intents = get_intents()

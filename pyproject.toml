@@ -58,6 +58,8 @@ addopts = "-v --tb=short"
 filterwarnings = [
     # discord.py uses deprecated asyncio.iscoroutinefunction (will be fixed when discord.py updates)
     "ignore::DeprecationWarning:discord.ext.commands.core",
+    # discord.py passes float to aiohttp ws_connect timeout instead of ClientWSTimeout
+    "ignore::DeprecationWarning:discord.http",
 ]
 
 [tool.ruff]
