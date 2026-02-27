@@ -4,9 +4,19 @@ LICENSE
 CHANGELOG
 .github
 .gitignore
+.git
 config/
 docker-compose*.yml
 NerdyPy/config.yaml.template
 NerdyPy/config*.yaml
 NerdyPy/db.db
 NerdyPy/weather_cache.sqlite
+
+# Non-build files
+docs/
+tests/
+*.md
+.pre-commit-config.yaml
+.ruff.toml
+.pytest_cache/
+.venv/
