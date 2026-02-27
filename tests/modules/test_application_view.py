@@ -335,7 +335,7 @@ class TestApproveVoteModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.message._value = "Looking forward to having you!"
+        modal._message._value = "Looking forward to having you!"
 
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.message = None
@@ -360,7 +360,7 @@ class TestApproveVoteModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.message._value = "Approved!"
+        modal._message._value = "Approved!"
 
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.message = None
@@ -381,7 +381,7 @@ class TestApproveVoteModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.message._value = "Great application!"
+        modal._message._value = "Great application!"
 
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.message = None
@@ -404,7 +404,7 @@ class TestApproveVoteModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.message._value = "Welcome!"
+        modal._message._value = "Welcome!"
 
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.message = None
@@ -425,7 +425,7 @@ class TestApproveVoteModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.message._value = "Nice!"
+        modal._message._value = "Nice!"
 
         call_order = []
         interaction = _make_reviewer_interaction(mock_bot)
@@ -450,7 +450,7 @@ class TestApproveVoteModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.message._value = "Vote again!"
+        modal._message._value = "Vote again!"
 
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.message = None
@@ -471,7 +471,7 @@ class TestApproveVoteModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.message._value = "Congrats!"
+        modal._message._value = "Congrats!"
 
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.message = None
@@ -561,7 +561,7 @@ class TestDenyVoteModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.message._value = "Not a good fit"
+        modal._message._value = "Not a good fit"
 
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.message = None
@@ -587,7 +587,7 @@ class TestDenyVoteModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.message._value = "Does not meet requirements."
+        modal._message._value = "Does not meet requirements."
 
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.message = None
@@ -610,7 +610,7 @@ class TestDenyVoteModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.message._value = "Not this time."
+        modal._message._value = "Not this time."
 
         call_order = []
         interaction = _make_reviewer_interaction(mock_bot)
@@ -633,7 +633,7 @@ class TestDenyVoteModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.message._value = "Not yet."
+        modal._message._value = "Not yet."
 
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.message = None
@@ -654,7 +654,7 @@ class TestDenyVoteModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.message._value = "Too late"
+        modal._message._value = "Too late"
 
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.message = None
@@ -712,7 +712,7 @@ class TestMessageButton:
         await review_view.message_applicant.callback(interaction)
 
         modal = interaction.response.send_modal.call_args[0][0]
-        assert modal.message.default == "Welcome to the team!"
+        assert modal._message.default == "Welcome to the team!"
 
     @pytest.mark.asyncio
     async def test_message_button_no_prefill_when_pending(self, review_view, mock_bot, db_session):
@@ -723,7 +723,7 @@ class TestMessageButton:
         await review_view.message_applicant.callback(interaction)
 
         modal = interaction.response.send_modal.call_args[0][0]
-        assert modal.message.default is None
+        assert modal._message.default is None
 
     @pytest.mark.asyncio
     async def test_message_button_uses_default_approval_message_when_none_configured(
@@ -738,8 +738,8 @@ class TestMessageButton:
         await review_view.message_applicant.callback(interaction)
 
         modal = interaction.response.send_modal.call_args[0][0]
-        assert modal.message.default is not None
-        assert "approved" in modal.message.default.lower()
+        assert modal._message.default is not None
+        assert "approved" in modal._message.default.lower()
 
     @pytest.mark.asyncio
     async def test_message_button_uses_default_denial_message_when_none_configured(
@@ -754,8 +754,8 @@ class TestMessageButton:
         await review_view.message_applicant.callback(interaction)
 
         modal = interaction.response.send_modal.call_args[0][0]
-        assert modal.message.default is not None
-        assert "denied" in modal.message.default.lower()
+        assert modal._message.default is not None
+        assert "denied" in modal._message.default.lower()
 
     @pytest.mark.asyncio
     async def test_message_button_prefills_denial_message(self, review_view, mock_bot, db_session):
@@ -769,7 +769,7 @@ class TestMessageButton:
         await review_view.message_applicant.callback(interaction)
 
         modal = interaction.response.send_modal.call_args[0][0]
-        assert modal.message.default == "Unfortunately you do not meet our requirements."
+        assert modal._message.default == "Unfortunately you do not meet our requirements."
 
 
 # ---------------------------------------------------------------------------
@@ -785,7 +785,7 @@ class TestMessageModal:
         mock_bot.fetch_user = AsyncMock(return_value=mock_user)
 
         modal = MessageModal(user_id=APPLICANT_USER_ID, bot=mock_bot)
-        modal.message._value = "Please provide more details about your experience."
+        modal._message._value = "Please provide more details about your experience."
 
         interaction = _make_reviewer_interaction(mock_bot)
         await modal.on_submit(interaction)
@@ -799,7 +799,7 @@ class TestMessageModal:
         mock_bot.fetch_user = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "Cannot send messages"))
 
         modal = MessageModal(user_id=APPLICANT_USER_ID, bot=mock_bot)
-        modal.message._value = "Hello"
+        modal._message._value = "Hello"
 
         interaction = _make_reviewer_interaction(mock_bot)
         await modal.on_submit(interaction)
@@ -813,7 +813,7 @@ class TestMessageModal:
         mock_bot.fetch_user = AsyncMock(side_effect=discord.NotFound(MagicMock(status=404), "Unknown User"))
 
         modal = MessageModal(user_id=APPLICANT_USER_ID, bot=mock_bot)
-        modal.message._value = "Hello"
+        modal._message._value = "Hello"
 
         interaction = _make_reviewer_interaction(mock_bot)
         await modal.on_submit(interaction)
@@ -827,7 +827,7 @@ class TestMessageModal:
         mock_bot.fetch_user = AsyncMock()
 
         modal = MessageModal(user_id=APPLICANT_USER_ID, bot=mock_bot)
-        modal.message._value = ""
+        modal._message._value = ""
 
         interaction = _make_reviewer_interaction(mock_bot)
         await modal.on_submit(interaction)
@@ -840,7 +840,7 @@ class TestMessageModal:
     async def test_message_modal_prefill_stored(self, mock_bot):
         """Prefill string should be set as the TextInput default."""
         modal = MessageModal(user_id=APPLICANT_USER_ID, bot=mock_bot, prefill="Welcome aboard!")
-        assert modal.message.default == "Welcome aboard!"
+        assert modal._message.default == "Welcome aboard!"
 
     @pytest.mark.asyncio
     async def test_message_modal_sets_notified_on_decided_submission(self, mock_bot, db_session):
@@ -866,7 +866,7 @@ class TestMessageModal:
             review_channel_id=REVIEW_CHANNEL_ID,
             review_message_id=REVIEW_MSG_ID,
         )
-        modal.message._value = "Congratulations!"
+        modal._message._value = "Congratulations!"
 
         interaction = _make_reviewer_interaction(mock_bot)
         await modal.on_submit(interaction)
@@ -888,7 +888,7 @@ class TestMessageModal:
             bot=mock_bot,
             submission_id=submission.Id,
         )
-        modal.message._value = "Could you clarify your experience?"
+        modal._message._value = "Could you clarify your experience?"
 
         interaction = _make_reviewer_interaction(mock_bot)
         await modal.on_submit(interaction)
@@ -910,7 +910,7 @@ class TestMessageModal:
             bot=mock_bot,
             submission_id=submission.Id,
         )
-        modal.message._value = "Welcome!"
+        modal._message._value = "Welcome!"
 
         interaction = _make_reviewer_interaction(mock_bot)
         await modal.on_submit(interaction)
@@ -1183,7 +1183,7 @@ class TestEditApproveModal:
             review_channel_id=111,
             review_message_id=222,
         )
-        modal.message._value = "Looks good after all"
+        modal._message._value = "Looks good after all"
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.followup = AsyncMock()
         await modal.on_submit(interaction)
@@ -1207,7 +1207,7 @@ class TestEditApproveModal:
             review_channel_id=111,
             review_message_id=222,
         )
-        modal.message._value = "changed mind"
+        modal._message._value = "changed mind"
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.followup = AsyncMock()
         await modal.on_submit(interaction)
@@ -1232,7 +1232,7 @@ class TestEditApproveModal:
             review_channel_id=111,
             review_message_id=222,
         )
-        modal.message._value = "on second thought, yes"
+        modal._message._value = "on second thought, yes"
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.followup = AsyncMock()
         await modal.on_submit(interaction)
@@ -1254,7 +1254,7 @@ class TestEditApproveModal:
             review_channel_id=111,
             review_message_id=222,
         )
-        modal.message._value = "some note"
+        modal._message._value = "some note"
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.followup = AsyncMock()
         await modal.on_submit(interaction)
@@ -1291,7 +1291,7 @@ class TestEditDenyModal:
             review_channel_id=111,
             review_message_id=222,
         )
-        modal.message._value = "actually not good"
+        modal._message._value = "actually not good"
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.followup = AsyncMock()
         await modal.on_submit(interaction)
@@ -1315,7 +1315,7 @@ class TestEditDenyModal:
             review_channel_id=111,
             review_message_id=222,
         )
-        modal.message._value = "nope"
+        modal._message._value = "nope"
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.followup = AsyncMock()
         await modal.on_submit(interaction)
@@ -1431,7 +1431,7 @@ class TestOverrideModal:
             review_channel_id=111,
             review_message_id=222,
         )
-        modal.reason._value = "Changed due to new info"
+        modal._reason._value = "Changed due to new info"
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.followup = AsyncMock()
         await modal.on_submit(interaction)
@@ -1454,7 +1454,7 @@ class TestOverrideModal:
             review_channel_id=111,
             review_message_id=222,
         )
-        modal.reason._value = "Actually looks fine"
+        modal._reason._value = "Actually looks fine"
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.followup = AsyncMock()
         await modal.on_submit(interaction)
@@ -1477,7 +1477,7 @@ class TestOverrideModal:
             review_channel_id=111,
             review_message_id=222,
         )
-        modal.reason._value = "Override reason here"
+        modal._reason._value = "Override reason here"
         interaction = _make_reviewer_interaction(mock_bot)
         interaction.followup = AsyncMock()
         await modal.on_submit(interaction)

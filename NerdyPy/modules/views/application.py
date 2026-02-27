@@ -332,10 +332,6 @@ async def _validate_review_interaction(bot, interaction, session):
 class DenyVoteModal(discord.ui.Modal):
     """Modal that collects a required message when denying an application."""
 
-    message = discord.ui.TextInput(
-        label="Review note", style=discord.TextStyle.paragraph, required=True, max_length=1000
-    )
-
     def __init__(
         self,
         submission_id: int,
@@ -349,15 +345,18 @@ class DenyVoteModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
-        self.message.label = get_string(lang, "application.modal.review_note_label")
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
+        self._message = discord.ui.TextInput(style=discord.TextStyle.paragraph, required=True, max_length=1000)
         if prefill:
-            self.message.default = prefill
+            self._message.default = prefill
+        self.add_item(
+            discord.ui.Label(text=get_string(lang, "application.modal.review_note_label"), component=self._message)
+        )
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        message_text = self.message.value
+        message_text = self._message.value
 
         with self.bot.session_scope() as session:
             if not await _record_first_vote(
@@ -399,10 +398,6 @@ class DenyVoteModal(discord.ui.Modal):
 class ApproveVoteModal(discord.ui.Modal):
     """Modal that collects a required message when approving an application."""
 
-    message = discord.ui.TextInput(
-        label="Review note", style=discord.TextStyle.paragraph, required=True, max_length=1000
-    )
-
     def __init__(
         self,
         submission_id: int,
@@ -416,15 +411,18 @@ class ApproveVoteModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
-        self.message.label = get_string(lang, "application.modal.review_note_label")
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
+        self._message = discord.ui.TextInput(style=discord.TextStyle.paragraph, required=True, max_length=1000)
         if prefill:
-            self.message.default = prefill
+            self._message.default = prefill
+        self.add_item(
+            discord.ui.Label(text=get_string(lang, "application.modal.review_note_label"), component=self._message)
+        )
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        message_text = self.message.value
+        message_text = self._message.value
 
         with self.bot.session_scope() as session:
             if not await _record_first_vote(
@@ -466,10 +464,6 @@ class ApproveVoteModal(discord.ui.Modal):
 class MessageModal(discord.ui.Modal):
     """Modal that sends a free-form message to the applicant."""
 
-    message = discord.ui.TextInput(
-        label="Message to send", style=discord.TextStyle.paragraph, required=False, max_length=1000
-    )
-
     def __init__(
         self,
         user_id: int,
@@ -484,15 +478,18 @@ class MessageModal(discord.ui.Modal):
         self.target_user_id = user_id
         self.bot = bot
         self.lang = lang
-        self.message.label = get_string(lang, "application.modal.message_label")
         self.submission_id = submission_id
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
+        self._message = discord.ui.TextInput(style=discord.TextStyle.paragraph, required=False, max_length=1000)
         if prefill:
-            self.message.default = prefill
+            self._message.default = prefill
+        self.add_item(
+            discord.ui.Label(text=get_string(lang, "application.modal.message_label"), component=self._message)
+        )
 
     async def on_submit(self, interaction: discord.Interaction):
-        if not self.message.value:
+        if not self._message.value:
             await interaction.response.send_message(
                 get_string(self.lang, "application.message_modal.no_content"), ephemeral=True
             )
@@ -502,7 +499,7 @@ class MessageModal(discord.ui.Modal):
             user = await self.bot.fetch_user(self.target_user_id)
             embed = discord.Embed(
                 title=get_string(self.lang, "application.message_modal.reviewer_title"),
-                description=f"**From:** {interaction.user.mention}\n\n{self.message.value}",
+                description=f"**From:** {interaction.user.mention}\n\n{self._message.value}",
                 colour=discord.Colour.blurple(),
             )
             await user.send(embed=embed)
@@ -683,10 +680,6 @@ class EditVoteSelectView(discord.ui.View):
 class EditApproveModal(discord.ui.Modal):
     """Modal for changing an existing vote to Approve."""
 
-    message = discord.ui.TextInput(
-        label="Review note", style=discord.TextStyle.paragraph, required=True, max_length=1000
-    )
-
     def __init__(
         self,
         submission_id: int,
@@ -700,14 +693,17 @@ class EditApproveModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
-        self.message.label = get_string(lang, "application.modal.review_note_label")
         self.previous_vote = previous_vote
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
+        self._message = discord.ui.TextInput(style=discord.TextStyle.paragraph, required=True, max_length=1000)
+        self.add_item(
+            discord.ui.Label(text=get_string(lang, "application.modal.review_note_label"), component=self._message)
+        )
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        message_text = self.message.value
+        message_text = self._message.value
 
         with self.bot.session_scope() as session:
             if not await _record_edit_vote(
@@ -739,10 +735,6 @@ class EditApproveModal(discord.ui.Modal):
 class EditDenyModal(discord.ui.Modal):
     """Modal for changing an existing vote to Deny."""
 
-    message = discord.ui.TextInput(
-        label="Review note", style=discord.TextStyle.paragraph, required=True, max_length=1000
-    )
-
     def __init__(
         self,
         submission_id: int,
@@ -756,14 +748,17 @@ class EditDenyModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
-        self.message.label = get_string(lang, "application.modal.review_note_label")
         self.previous_vote = previous_vote
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
+        self._message = discord.ui.TextInput(style=discord.TextStyle.paragraph, required=True, max_length=1000)
+        self.add_item(
+            discord.ui.Label(text=get_string(lang, "application.modal.review_note_label"), component=self._message)
+        )
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        message_text = self.message.value
+        message_text = self._message.value
 
         with self.bot.session_scope() as session:
             if not await _record_edit_vote(
@@ -793,10 +788,6 @@ class EditDenyModal(discord.ui.Modal):
 class OverrideModal(discord.ui.Modal):
     """Admin/manager modal to flip a decided application APPROVED↔DENIED."""
 
-    reason = discord.ui.TextInput(
-        label="Reason for override", style=discord.TextStyle.paragraph, required=True, max_length=1000
-    )
-
     def __init__(
         self,
         current_status: SubmissionStatus,
@@ -817,13 +808,16 @@ class OverrideModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
-        self.reason.label = get_string(lang, "application.modal.override_reason_label")
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
+        self._reason = discord.ui.TextInput(style=discord.TextStyle.paragraph, required=True, max_length=1000)
+        self.add_item(
+            discord.ui.Label(text=get_string(lang, "application.modal.override_reason_label"), component=self._reason)
+        )
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        reason_text = self.reason.value
+        reason_text = self._reason.value
 
         with self.bot.session_scope() as session:
             submission = ApplicationSubmission.get_by_id(self.submission_id, session)
