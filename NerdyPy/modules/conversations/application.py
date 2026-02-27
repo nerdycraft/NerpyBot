@@ -923,9 +923,7 @@ class ApplicationSubmitConversation(Conversation):
                 if mention_content:
                     await thread.send(mention_content)
             except discord.HTTPException:
-                self.bot.log.warning(
-                    "application: failed to create review thread for msg %d", msg.id
-                )
+                self.bot.log.warning("application: failed to create review thread for msg %d", msg.id)
 
             with self.bot.session_scope() as session:
                 submission = ApplicationSubmission.get_by_id(self.submission_id, session)
