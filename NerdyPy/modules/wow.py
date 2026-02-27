@@ -1232,9 +1232,10 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             return
 
         await interaction.response.defer(ephemeral=True)
-        await self._finish_board_create(interaction, channel, roles, description, lang)
+        await self.finish_board_create(interaction, channel, roles, description, lang)
 
-    def _parse_role_ids(self, roles_str: str, guild: discord.Guild) -> list[int]:
+    @staticmethod
+    def _parse_role_ids(roles_str: str, guild: discord.Guild) -> list[int]:
         """Parse role mentions/IDs from a space/comma-separated string."""
         role_ids = []
         for part in roles_str.replace(",", " ").split():
@@ -1245,7 +1246,8 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                     role_ids.append(role.id)
         return role_ids
 
-    def _auto_match_roles(self, guild: discord.Guild, role_ids: list[int], session) -> tuple[list[int], list[int]]:
+    @staticmethod
+    def _auto_match_roles(guild: discord.Guild, role_ids: list[int], session) -> tuple[list[int], list[int]]:
         """Auto-match Discord roles to Blizzard profession IDs.
 
         Returns (mapped_role_ids, unmapped_role_ids).
@@ -1272,7 +1274,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
         return mapped, unmapped
 
-    async def _finish_board_create(
+    async def finish_board_create(
         self, interaction: Interaction, channel: TextChannel, roles: str, description: str, lang: str
     ):
         """Shared board creation logic used by both the command and the description modal."""
@@ -1386,7 +1388,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         modal._unmapped = unmapped
         await interaction.response.send_modal(modal)
 
-    async def _finish_board_edit(
+    async def finish_board_edit(
         self, interaction: Interaction, new_description: str, lang: str, unmapped: list[int] | None = None
     ):
         """Update the board description and edit the embed in-place."""
@@ -1432,7 +1434,7 @@ class _BoardDescriptionModal(discord.ui.Modal):
     """Modal for collecting/editing board description.
 
     Supports two modes:
-    - "create": calls _finish_board_create after submission
+    - "create": calls finish_board_create after submission
     - "edit": updates existing board config and edits the embed in-place
     """
 
@@ -1468,14 +1470,12 @@ class _BoardDescriptionModal(discord.ui.Modal):
         cog = self.bot.get_cog("WorldofWarcraft")
 
         if self.mode == "create":
-            await cog._finish_board_create(
+            await cog.finish_board_create(
                 interaction, self.channel, self.roles, self.description_input.value.strip(), self.lang
             )
         else:
             unmapped = getattr(self, "_unmapped", [])
-            await cog._finish_board_edit(
-                interaction, self.description_input.value.strip(), self.lang, unmapped=unmapped
-            )
+            await cog.finish_board_edit(interaction, self.description_input.value.strip(), self.lang, unmapped=unmapped)
 
 
 async def setup(bot):

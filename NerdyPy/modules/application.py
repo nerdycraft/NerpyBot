@@ -38,11 +38,13 @@ async def _send_ephemeral(interaction: Interaction, msg: str) -> None:
         await interaction.followup.send(msg, ephemeral=True)
 
 
-def _localize_field(field: discord.ui.TextInput, lang: str, key_prefix: str, default: str = "") -> None:
-    """Set label, placeholder, and default on a TextInput from locale keys."""
-    field.label = get_string(lang, f"{key_prefix}_label")
+def _localize_field(
+    modal: discord.ui.Modal, field: discord.ui.TextInput, lang: str, key_prefix: str, default: str = ""
+) -> None:
+    """Set placeholder and default on a TextInput and add it to the modal via a Label wrapper."""
     field.placeholder = get_string(lang, f"{key_prefix}_placeholder")
     field.default = default
+    modal.add_item(discord.ui.Label(text=get_string(lang, f"{key_prefix}_label"), component=field))
 
 
 def _filter_choices(items, current: str) -> list[app_commands.Choice[str]]:
@@ -1289,28 +1291,17 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 class _TemplateMessagesModal(discord.ui.Modal):
     """Two-field modal for editing template approval/denial messages."""
 
-    approval_input = discord.ui.TextInput(
-        label="Approval Message",
-        style=discord.TextStyle.paragraph,
-        max_length=2000,
-        required=False,
-    )
-    denial_input = discord.ui.TextInput(
-        label="Denial Message",
-        style=discord.TextStyle.paragraph,
-        max_length=2000,
-        required=False,
-    )
-
     def __init__(self, bot, template_name: str, current_approval: str, current_denial: str, lang: str):
         super().__init__(title=get_string(lang, "application.template.edit_messages.modal_title"))
         self.bot = bot
         self.template_name = template_name
         self.lang = lang
+        self.approval_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
+        self.denial_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
         _p = "application.template.edit_messages.modal_approval"
-        _localize_field(self.approval_input, lang, _p, current_approval)
+        _localize_field(self, self.approval_input, lang, _p, current_approval)
         _p = "application.template.edit_messages.modal_denial"
-        _localize_field(self.denial_input, lang, _p, current_denial)
+        _localize_field(self, self.denial_input, lang, _p, current_denial)
 
     async def on_submit(self, interaction: Interaction):
         approval = self.approval_input.value.strip() or None
@@ -1321,25 +1312,6 @@ class _TemplateMessagesModal(discord.ui.Modal):
 
 class _FormMessagesModal(discord.ui.Modal):
     """Shared 3-field modal (description + approval + denial), driven by a callback closure."""
-
-    description_input = discord.ui.TextInput(
-        label="Description",
-        style=discord.TextStyle.paragraph,
-        max_length=2000,
-        required=False,
-    )
-    approval_input = discord.ui.TextInput(
-        label="Approval Message",
-        style=discord.TextStyle.paragraph,
-        max_length=2000,
-        required=False,
-    )
-    denial_input = discord.ui.TextInput(
-        label="Denial Message",
-        style=discord.TextStyle.paragraph,
-        max_length=2000,
-        required=False,
-    )
 
     def __init__(
         self,
@@ -1353,10 +1325,15 @@ class _FormMessagesModal(discord.ui.Modal):
     ):
         super().__init__(title=title)
         self._callback = callback
+        self.description_input = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph, max_length=2000, required=False
+        )
+        self.approval_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
+        self.denial_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
         _f = "application.modal_fields"
-        _localize_field(self.description_input, lang, f"{_f}.description", default_description)
-        _localize_field(self.approval_input, lang, f"{_f}.approval", default_approval)
-        _localize_field(self.denial_input, lang, f"{_f}.denial", default_denial)
+        _localize_field(self, self.description_input, lang, f"{_f}.description", default_description)
+        _localize_field(self, self.approval_input, lang, f"{_f}.approval", default_approval)
+        _localize_field(self, self.denial_input, lang, f"{_f}.denial", default_denial)
 
     async def on_submit(self, interaction: Interaction):
         desc = self.description_input.value.strip() or None
@@ -1368,19 +1345,6 @@ class _FormMessagesModal(discord.ui.Modal):
 class _TemplateCreateMessagesModal(discord.ui.Modal):
     """Two-field modal (approval + denial) for template create — stores context to start conversation."""
 
-    approval_input = discord.ui.TextInput(
-        label="Approval Message",
-        style=discord.TextStyle.paragraph,
-        max_length=2000,
-        required=False,
-    )
-    denial_input = discord.ui.TextInput(
-        label="Denial Message",
-        style=discord.TextStyle.paragraph,
-        max_length=2000,
-        required=False,
-    )
-
     def __init__(self, bot, user, guild, template_name: str, lang: str):
         super().__init__(title=get_string(lang, "application.template.create.modal_title"))
         self.bot = bot
@@ -1388,9 +1352,11 @@ class _TemplateCreateMessagesModal(discord.ui.Modal):
         self.guild = guild
         self.template_name = template_name
         self.lang = lang
+        self.approval_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
+        self.denial_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
         _f = "application.modal_fields"
-        _localize_field(self.approval_input, lang, f"{_f}.approval")
-        _localize_field(self.denial_input, lang, f"{_f}.denial")
+        _localize_field(self, self.approval_input, lang, f"{_f}.approval")
+        _localize_field(self, self.denial_input, lang, f"{_f}.denial")
 
     async def on_submit(self, interaction: Interaction):
         approval = self.approval_input.value.strip() or None
@@ -1402,20 +1368,16 @@ class _TemplateCreateMessagesModal(discord.ui.Modal):
 class _SettingsDescriptionModal(discord.ui.Modal):
     """Single-field modal (description) for /application settings edit-description."""
 
-    description_input = discord.ui.TextInput(
-        label="Description",
-        style=discord.TextStyle.paragraph,
-        max_length=2000,
-        required=False,
-    )
-
     def __init__(self, bot, form_name: str, current_description: str, settings_kwargs: dict, lang: str):
         super().__init__(title=get_string(lang, "application.settings.modal_title"))
         self.bot = bot
         self.form_name = form_name
         self.settings_kwargs = settings_kwargs
         self.lang = lang
-        _localize_field(self.description_input, lang, "application.modal_fields.description", current_description)
+        self.description_input = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph, max_length=2000, required=False
+        )
+        _localize_field(self, self.description_input, lang, "application.modal_fields.description", current_description)
 
     async def on_submit(self, interaction: Interaction):
         desc = self.description_input.value.strip() or None
