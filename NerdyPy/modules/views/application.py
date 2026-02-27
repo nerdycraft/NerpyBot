@@ -349,6 +349,7 @@ class DenyVoteModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
+        self.message.label = get_string(lang, "application.modal.review_note_label")
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
         if prefill:
@@ -390,9 +391,9 @@ class DenyVoteModal(discord.ui.Modal):
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         self.bot.log.error("Error in DenyVoteModal: %s", error, exc_info=error)
         if not interaction.response.is_done():
-            await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
+            await interaction.response.send_message(get_string(self.lang, "application.error_generic"), ephemeral=True)
         else:
-            await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
+            await interaction.followup.send(get_string(self.lang, "application.error_generic"), ephemeral=True)
 
 
 class ApproveVoteModal(discord.ui.Modal):
@@ -415,6 +416,7 @@ class ApproveVoteModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
+        self.message.label = get_string(lang, "application.modal.review_note_label")
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
         if prefill:
@@ -456,9 +458,9 @@ class ApproveVoteModal(discord.ui.Modal):
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         self.bot.log.error("Error in ApproveVoteModal: %s", error, exc_info=error)
         if not interaction.response.is_done():
-            await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
+            await interaction.response.send_message(get_string(self.lang, "application.error_generic"), ephemeral=True)
         else:
-            await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
+            await interaction.followup.send(get_string(self.lang, "application.error_generic"), ephemeral=True)
 
 
 class MessageModal(discord.ui.Modal):
@@ -482,6 +484,7 @@ class MessageModal(discord.ui.Modal):
         self.target_user_id = user_id
         self.bot = bot
         self.lang = lang
+        self.message.label = get_string(lang, "application.modal.message_label")
         self.submission_id = submission_id
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
@@ -534,9 +537,9 @@ class MessageModal(discord.ui.Modal):
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         self.bot.log.error("Error in MessageModal: %s", error, exc_info=error)
         if not interaction.response.is_done():
-            await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
+            await interaction.response.send_message(get_string(self.lang, "application.error_generic"), ephemeral=True)
         else:
-            await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
+            await interaction.followup.send(get_string(self.lang, "application.error_generic"), ephemeral=True)
 
 
 # ---------------------------------------------------------------------------
@@ -565,6 +568,13 @@ class VoteSelectView(discord.ui.View):
         self.lang = lang
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
+        self.vote_select.placeholder = get_string(lang, "application.review.vote_select_placeholder")
+        self.vote_select.options = [
+            discord.SelectOption(
+                label=get_string(lang, "application.review.approve_label"), value="approve", emoji="✅"
+            ),
+            discord.SelectOption(label=get_string(lang, "application.review.deny_label"), value="deny", emoji="❌"),
+        ]
 
     @discord.ui.select(
         placeholder="Select your vote...",
@@ -618,12 +628,21 @@ class EditVoteSelectView(discord.ui.View):
         self.current_vote = current_vote
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
-        # Override class-level options to mark the current vote as default
+        # Override class-level placeholder and options; mark the current vote as default
+        self.vote_select.placeholder = get_string(lang, "application.review.vote_change_placeholder")
         self.vote_select.options = [
             discord.SelectOption(
-                label="Approve", value="approve", emoji="✅", default=(current_vote == VoteType.APPROVE)
+                label=get_string(lang, "application.review.approve_label"),
+                value="approve",
+                emoji="✅",
+                default=(current_vote == VoteType.APPROVE),
             ),
-            discord.SelectOption(label="Deny", value="deny", emoji="❌", default=(current_vote == VoteType.DENY)),
+            discord.SelectOption(
+                label=get_string(lang, "application.review.deny_label"),
+                value="deny",
+                emoji="❌",
+                default=(current_vote == VoteType.DENY),
+            ),
         ]
 
     @discord.ui.select(
@@ -681,6 +700,7 @@ class EditApproveModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
+        self.message.label = get_string(lang, "application.modal.review_note_label")
         self.previous_vote = previous_vote
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
@@ -711,9 +731,9 @@ class EditApproveModal(discord.ui.Modal):
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         self.bot.log.error("Error in EditApproveModal: %s", error, exc_info=error)
         if not interaction.response.is_done():
-            await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
+            await interaction.response.send_message(get_string(self.lang, "application.error_generic"), ephemeral=True)
         else:
-            await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
+            await interaction.followup.send(get_string(self.lang, "application.error_generic"), ephemeral=True)
 
 
 class EditDenyModal(discord.ui.Modal):
@@ -736,6 +756,7 @@ class EditDenyModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
+        self.message.label = get_string(lang, "application.modal.review_note_label")
         self.previous_vote = previous_vote
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
@@ -764,9 +785,9 @@ class EditDenyModal(discord.ui.Modal):
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         self.bot.log.error("Error in EditDenyModal: %s", error, exc_info=error)
         if not interaction.response.is_done():
-            await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
+            await interaction.response.send_message(get_string(self.lang, "application.error_generic"), ephemeral=True)
         else:
-            await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
+            await interaction.followup.send(get_string(self.lang, "application.error_generic"), ephemeral=True)
 
 
 class OverrideModal(discord.ui.Modal):
@@ -796,6 +817,7 @@ class OverrideModal(discord.ui.Modal):
         self.submission_id = submission_id
         self.bot = bot
         self.lang = lang
+        self.reason.label = get_string(lang, "application.modal.override_reason_label")
         self.review_channel_id = review_channel_id
         self.review_message_id = review_message_id
 
@@ -835,9 +857,9 @@ class OverrideModal(discord.ui.Modal):
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         self.bot.log.error("Error in OverrideModal: %s", error, exc_info=error)
         if not interaction.response.is_done():
-            await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
+            await interaction.response.send_message(get_string(self.lang, "application.error_generic"), ephemeral=True)
         else:
-            await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
+            await interaction.followup.send(get_string(self.lang, "application.error_generic"), ephemeral=True)
 
 
 # ---------------------------------------------------------------------------
@@ -859,10 +881,15 @@ class ApplicationReviewView(discord.ui.View):
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
         if self.bot:
             self.bot.log.error("Error in ApplicationReviewView: %s", error, exc_info=error)
-        if not interaction.response.is_done():
-            await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
+            with self.bot.session_scope() as session:
+                lang = get_guild_language(interaction.guild_id, session)
         else:
-            await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
+            lang = "en"
+        msg = get_string(lang, "application.error_generic")
+        if not interaction.response.is_done():
+            await interaction.response.send_message(msg, ephemeral=True)
+        else:
+            await interaction.followup.send(msg, ephemeral=True)
 
     # -- Vote --------------------------------------------------------------
 
@@ -1079,7 +1106,7 @@ async def post_apply_button_message(bot, form_id: int) -> None:
             return
 
     embed = build_apply_embed(form_name, description, lang)
-    view = ApplicationApplyView(bot=bot)
+    view = ApplicationApplyView(bot=bot, lang=lang)
     msg = await channel.send(embed=embed, view=view)
 
     with bot.session_scope() as session:
@@ -1123,17 +1150,23 @@ class ApplicationApplyView(discord.ui.View):
     across all guilds — the form is looked up via ``interaction.message.id``.
     """
 
-    def __init__(self, bot=None):
+    def __init__(self, bot=None, lang: str = "en"):
         super().__init__(timeout=None)  # persistent — survives bot restarts
         self.bot = bot
+        self.apply_button.label = get_string(lang, "application.apply.button_label")
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
         if self.bot:
             self.bot.log.error("Error in ApplicationApplyView: %s", error, exc_info=error)
-        if not interaction.response.is_done():
-            await interaction.response.send_message("An error occurred. Please try again later.", ephemeral=True)
+            with self.bot.session_scope() as session:
+                lang = get_guild_language(interaction.guild_id, session)
         else:
-            await interaction.followup.send("An error occurred. Please try again later.", ephemeral=True)
+            lang = "en"
+        msg = get_string(lang, "application.error_generic")
+        if not interaction.response.is_done():
+            await interaction.response.send_message(msg, ephemeral=True)
+        else:
+            await interaction.followup.send(msg, ephemeral=True)
 
     @discord.ui.button(label="Apply", style=discord.ButtonStyle.green, custom_id="app_apply_button")
     async def apply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
