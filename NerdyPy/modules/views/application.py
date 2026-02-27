@@ -1106,7 +1106,8 @@ async def post_apply_button_message(bot, form_id: int) -> None:
             return
 
     embed = build_apply_embed(form_name, description, lang)
-    view = ApplicationApplyView(bot=bot, lang=lang)
+    view = ApplicationApplyView(bot=bot)
+    view.apply_button.label = get_string(lang, "application.apply.button_label")
     msg = await channel.send(embed=embed, view=view)
 
     with bot.session_scope() as session:
@@ -1150,10 +1151,9 @@ class ApplicationApplyView(discord.ui.View):
     across all guilds — the form is looked up via ``interaction.message.id``.
     """
 
-    def __init__(self, bot=None, lang: str = "en"):
+    def __init__(self, bot=None):
         super().__init__(timeout=None)  # persistent — survives bot restarts
         self.bot = bot
-        self.apply_button.label = get_string(lang, "application.apply.button_label")
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
         if self.bot:
