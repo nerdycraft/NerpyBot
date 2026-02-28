@@ -4,12 +4,12 @@ Main Class of the NerpyBot
 """
 
 from argparse import ArgumentParser, Namespace
-from asyncio import run
+from asyncio import CancelledError, create_task, run, sleep
 from contextlib import contextmanager
 from warnings import filterwarnings
 from datetime import UTC, datetime
-from itertools import cycle
 from pathlib import Path
+from random import choices as random_choices, uniform as random_uniform
 from traceback import format_exc, print_exc, print_tb
 from typing import Any, Generator
 
@@ -25,7 +25,7 @@ from discord import (
     RawReactionActionEvent,
     app_commands,
 )
-from discord.ext import commands, tasks
+from discord.ext import commands
 from discord.ext.commands import (
     Bot,
     CommandError,
@@ -58,7 +58,14 @@ ACTIVITIES = [
     "🤖 Beep boop, I'm helping!",
     "🎯 Use / for commands",
     "🧠 Trust the process.",
+    "🌀 Spinning up something fun!",
+    "👾 404: Chill not found",
+    "🎲 Rolling the dice…",
+    "🫡 At your service!",
 ]
+
+# "Use / for commands" entries get 3× higher chance than flavor entries
+ACTIVITY_WEIGHTS = [3 if "/" in a else 1 for a in ACTIVITIES]
 
 
 class NerpyBot(Bot):
@@ -84,7 +91,6 @@ class NerpyBot(Bot):
 
         self.audio = Audio(self)
         self.convMan = ConversationManager(self)
-        self._activity_cycle = cycle(ACTIVITIES)
         self.error_throttle = ErrorThrottle()
         self.disabled_modules: set[str] = set()
 
@@ -245,9 +251,17 @@ class NerpyBot(Bot):
 
         return True
 
-    @tasks.loop(minutes=5)
-    async def _rotate_activity(self) -> None:
-        await self.change_presence(activity=Game(name=next(self._activity_cycle)))
+    async def _activity_loop(self) -> None:
+        try:
+            while not self.is_closed():
+                activity = random_choices(ACTIVITIES, weights=ACTIVITY_WEIGHTS)[0]
+                await self.change_presence(activity=Game(name=activity))
+                await sleep(random_uniform(120, 420))
+        except CancelledError:
+            # Task was cancelled during shutdown; exit silently as this is expected.
+            return
+        except Exception as e:
+            self.log.error(f"Activity loop crashed: {e}")
 
     async def on_ready(self) -> None:
         """calls when successfully logged in"""
@@ -255,8 +269,8 @@ class NerpyBot(Bot):
 
         self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
 
-        if not self._rotate_activity.is_running():
-            self._rotate_activity.start()
+        if not hasattr(self, "_activity_task") or self._activity_task.done():
+            self._activity_task = create_task(self._activity_loop())
 
         required = required_permissions_for(self.modules)
         for guild in self.guilds:
