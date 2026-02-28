@@ -4,7 +4,6 @@ Main Class of the NerpyBot
 """
 
 import os
-from argparse import ArgumentParser, Namespace
 from asyncio import CancelledError, create_task, run, sleep
 from contextlib import contextmanager
 from warnings import filterwarnings
@@ -12,7 +11,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from random import choices as random_choices, uniform as random_uniform
 from traceback import format_exc, print_exc, print_tb
-from typing import Any, Generator, Optional
+from typing import Annotated, Any, Generator, Optional
+
+import typer
 
 import yaml
 from discord import (
@@ -415,22 +416,6 @@ def get_intents() -> Intents:
     return Intents.all()
 
 
-def parse_arguments() -> Namespace:
-    """
-    parser for starting arguments
-
-    currently only supports auto restart
-    """
-    parser = ArgumentParser(description="-> NerpyBot <-")
-    parser.add_argument("-r", "--auto-restart", help="Autorestarts NerdyPy in case of issues", action="store_true")
-    parser.add_argument("-c", "--config", help="Specify config file for NerdyPy", nargs=1)
-    parser.add_argument("-d", "--debug", help="Enable debug logging", action="store_true")
-    parser.add_argument("-v", "--verbose", action="count", required=False, dest="verbosity", default=0)
-    parser.add_argument("-l", "--loglevel", action="store", required=False, dest="loglevel", default="INFO")
-
-    return parser.parse_args()
-
-
 def _csv(value: str) -> list[str]:
     return [x.strip() for x in value.split(",") if x.strip()]
 
@@ -500,25 +485,33 @@ def parse_config(config_path: Optional[Path] = None) -> dict:
     return deep_merge(config, parse_env_config())
 
 
-def main() -> None:
-    """Entry point for the NerpyBot."""
-    # discord.py passes float to aiohttp ws_connect timeout instead of ClientWSTimeout
+app = typer.Typer(add_completion=False)
+
+
+@app.command()
+def main(
+    config: Annotated[Optional[Path], typer.Option("--config", "-c", help="Config file path")] = None,
+    debug: Annotated[bool, typer.Option("--debug", "-d", help="Enable debug logging")] = False,
+    auto_restart: Annotated[bool, typer.Option("--auto-restart", "-r", help="Auto-restart on failure")] = False,
+    loglevel: Annotated[str, typer.Option("--loglevel", "-l", help="Log level (DEBUG, INFO, WARNING, ERROR)")] = "INFO",
+    verbosity: Annotated[int, typer.Option("--verbosity", "-v", help="Verbosity level 0-3")] = 0,
+) -> None:
+    """NerpyBot — the nerdiest Discord bot."""
     filterwarnings("ignore", category=DeprecationWarning, module=r"discord\.http")
 
-    args = parse_arguments()
-    config = parse_config(args.config)
+    resolved_config = parse_config(config)
     intents = get_intents()
 
-    debug = args.debug or str(args.loglevel).upper() == "DEBUG" or args.verbosity > 0
+    is_debug = debug or str(loglevel).upper() == "DEBUG" or verbosity > 0
     loggers = ["nerpybot"]
-    if args.verbosity >= 3 or str(args.loglevel).upper() == "DEBUG":
+    if verbosity >= 3 or str(loglevel).upper() == "DEBUG":
         loggers.append("sqlalchemy.engine")
 
-    if "bot" in config:
-        loglevel = "DEBUG" if args.debug else args.loglevel
+    if "bot" in resolved_config:
+        resolved_loglevel = "DEBUG" if debug else loglevel
         for logger_name in loggers:
-            logging.create_logger(args.verbosity, loglevel, logger_name)
-        bot = NerpyBot(config, intents, debug)
+            logging.create_logger(verbosity, resolved_loglevel, logger_name)
+        bot = NerpyBot(resolved_config, intents, is_debug)
 
         try:
             run(bot.start())
@@ -544,5 +537,4 @@ if __name__ == "__main__":
 ..::::..::........::..:::::..::..::::::::::::..::::::::........::::.......::::::..:::::
 """
     )
-
-    main()
+    app()
