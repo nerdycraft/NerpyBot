@@ -8,8 +8,3 @@ services:
     build:
       context: .
       target: bot
-
-  humanmusic:
-    build:
-      context: .
-      target: bot
