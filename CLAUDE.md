@@ -19,7 +19,7 @@ uv sync --only-group migrations      # Migration tools only
 # Run the bot
 uv run python NerdyPy/bot.py                    # Start with default config
 uv run python NerdyPy/bot.py -d                 # Debug logging (no sqlalchemy noise)
-uv run python NerdyPy/bot.py -l DEBUG            # Debug mode (includes sqlalchemy)
+uv run python NerdyPy/bot.py --verbosity 3      # Max verbosity (includes sqlalchemy)
 uv run python NerdyPy/bot.py -c path             # Custom config file
 uv run python NerdyPy/bot.py -r                  # Auto-restart on failure
 
@@ -141,6 +141,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **Localization strings vs user-defined templates** — `get_string()` only processes bot-authored strings from `NerdyPy/locales/lang_*.yaml`. User-defined content (leave messages, custom tags) must never pass through `get_string()` — format them at the call site instead.
 - **Adding a new language** — Create `NerdyPy/locales/lang_<code>.yaml`, restart the bot. No code changes needed. English keys are canonical — any missing key in other languages falls back to English automatically.
 - **Guild language is global** — `GuildLanguageConfig` is the single source of truth for a guild's language preference. Modules calling external APIs (Blizzard, Riot) should honor this setting when the API supports it, falling back to English otherwise.
+- **Full env var config** — All config keys can be set via `NERPYBOT_*` environment variables (see `docker-compose.yml` for the full list). Env vars take priority over `config.yaml` when both are present. Lists (`modules`, `ops`, `error_recipients`) use comma-separated values.
 
 ## Configuration
 
