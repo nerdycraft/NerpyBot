@@ -153,6 +153,11 @@ class TestParseEnvConfig:
         result = parse_env_config()
         assert result["notifications"]["error_recipients"] == ["111", "222"]
 
+    def test_empty_string_int_var_is_skipped(self, monkeypatch):
+        monkeypatch.setenv("NERPYBOT_AUDIO_BUFFER_LIMIT", "")
+        result = parse_env_config()
+        assert "audio" not in result
+
     def test_only_set_vars_appear_in_result(self, monkeypatch):
         monkeypatch.setenv("NERPYBOT_TOKEN", "tok")
         monkeypatch.delenv("NERPYBOT_CLIENT_ID", raising=False)

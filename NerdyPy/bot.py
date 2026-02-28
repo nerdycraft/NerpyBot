@@ -457,7 +457,7 @@ def parse_env_config() -> dict:
     ]
     for var_name, keys, converter in mappings:
         value = os.environ.get(var_name)
-        if value is not None:
+        if value:
             _set_nested(env, keys, converter(value))
     return env
 
