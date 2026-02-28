@@ -19,7 +19,9 @@ uv sync --only-group migrations      # Migration tools only
 # Run the bot
 uv run python NerdyPy/bot.py                    # Start with default config
 uv run python NerdyPy/bot.py -d                 # Debug logging (no sqlalchemy noise)
-uv run python NerdyPy/bot.py --verbosity 3      # Max verbosity (includes sqlalchemy)
+uv run python NerdyPy/bot.py --verbosity 1      # DEBUG (bot only)
+uv run python NerdyPy/bot.py --verbosity 2      # DEBUG + discord.py verbose
+uv run python NerdyPy/bot.py --verbosity 3      # DEBUG + discord.py + sqlalchemy
 uv run python NerdyPy/bot.py -c path             # Custom config file
 uv run python NerdyPy/bot.py -r                  # Auto-restart on failure
 
