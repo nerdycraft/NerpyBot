@@ -6,15 +6,15 @@ Main Class of the NerpyBot
 import os
 from asyncio import CancelledError, create_task, run, sleep
 from contextlib import contextmanager
-from warnings import filterwarnings
 from datetime import UTC, datetime
 from pathlib import Path
-from random import choices as random_choices, uniform as random_uniform
+from random import choices as random_choices
+from random import uniform as random_uniform
 from traceback import format_exc, print_exc, print_tb
 from typing import Annotated, Any, Generator, Optional
+from warnings import filterwarnings
 
 import typer
-
 import yaml
 from discord import (
     ClientException,
@@ -47,7 +47,6 @@ from utils.errors import NerpyException, NerpyInfraException, SilentCheckFailure
 from utils.helpers import error_context, notify_error, parse_id
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 from utils.strings import get_localized_string, get_string, load_strings
-
 
 ACTIVITIES = [
     "💡 Use / for commands",
@@ -508,7 +507,7 @@ def main(
     loggers = ["nerpybot"]
     if verbosity >= 2:
         loggers.append("discord")
-    if verbosity >= 3 or str(loglevel).upper() == "DEBUG":
+    if verbosity >= 3:
         loggers.append("sqlalchemy.engine")
 
     if "bot" in resolved_config:
