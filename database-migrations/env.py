@@ -50,14 +50,48 @@ def _build_url_from_bot_config(bot_config: dict) -> str | None:
     return f"{db_type}://{db_authentication}/{db_name}"
 
 
+def _build_url_from_nerpybot_env() -> str | None:
+    """Build a SQLAlchemy URL from NERPYBOT_DB_* environment variables."""
+    db_type = os.environ.get("NERPYBOT_DB_TYPE")
+    if not db_type:
+        return None
+
+    db_name = os.environ.get("NERPYBOT_DB_NAME", "db.db")
+    db_username = os.environ.get("NERPYBOT_DB_USERNAME", "")
+    db_password = os.environ.get("NERPYBOT_DB_PASSWORD", "")
+    db_host = os.environ.get("NERPYBOT_DB_HOST", "")
+    db_port = os.environ.get("NERPYBOT_DB_PORT", "")
+
+    if "postgresql" in db_type:
+        db_type = f"{db_type}+psycopg"
+
+    if db_password:
+        db_password = f":{db_password}"
+    if db_host:
+        db_host = f"@{db_host}"
+    if db_port:
+        db_port = f":{db_port}"
+
+    auth = f"{db_username}{db_password}{db_host}{db_port}"
+    return f"{db_type}://{auth}/{db_name}"
+
+
 def _resolve_database_url() -> str | None:
-    """Resolve the database URL with priority: DATABASE_URL env > bot config.yaml > alembic.ini default."""
-    # 1. Explicit env var override
+    """Resolve the database URL.
+
+    Priority: DATABASE_URL env > NERPYBOT_DB_* env vars > bot config.yaml > alembic.ini default.
+    """
+    # 1. Explicit DATABASE_URL override
     database_url = os.environ.get("DATABASE_URL")
     if database_url:
         return database_url
 
-    # 2. Bot config.yaml (works in Docker where config is mounted)
+    # 2. NERPYBOT_DB_* env vars
+    nerpybot_url = _build_url_from_nerpybot_env()
+    if nerpybot_url:
+        return nerpybot_url
+
+    # 3. Bot config.yaml (works in local dev where config is present)
     config_path = Path(os.environ.get("BOT_CONFIG", "config.yaml"))
     if config_path.exists():
         with open(config_path) as f:
@@ -65,7 +99,7 @@ def _resolve_database_url() -> str | None:
         if bot_config:
             return _build_url_from_bot_config(bot_config)
 
-    # 3. Fall back to alembic.ini default
+    # 4. Fall back to alembic.ini default
     return None
 
 
