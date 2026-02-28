@@ -258,7 +258,8 @@ class NerpyBot(Bot):
                 await self.change_presence(activity=Game(name=activity))
                 await sleep(random_uniform(120, 420))
         except CancelledError:
-            pass
+            # Task was cancelled during shutdown; exit silently as this is expected.
+            return
         except Exception as e:
             self.log.error(f"Activity loop crashed: {e}")
 
