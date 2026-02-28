@@ -3,6 +3,7 @@
 Main Class of the NerpyBot
 """
 
+import os
 from argparse import ArgumentParser, Namespace
 from asyncio import CancelledError, create_task, run, sleep
 from contextlib import contextmanager
@@ -11,7 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from random import choices as random_choices, uniform as random_uniform
 from traceback import format_exc, print_exc, print_tb
-from typing import Any, Generator
+from typing import Any, Generator, Optional
 
 import yaml
 from discord import (
@@ -430,22 +431,73 @@ def parse_arguments() -> Namespace:
     return parser.parse_args()
 
 
-def parse_config(config_file=None) -> dict:
+def _csv(value: str) -> list[str]:
+    return [x.strip() for x in value.split(",") if x.strip()]
+
+
+def _to_bool(value: str) -> bool:
+    return value.lower() in ("1", "true", "yes")
+
+
+def _set_nested(d: dict, keys: list[str], value) -> None:
+    for key in keys[:-1]:
+        d = d.setdefault(key, {})
+    d[keys[-1]] = value
+
+
+def parse_env_config() -> dict:
+    """Read NERPYBOT_* environment variables and return a config dict."""
+    env: dict = {}
+    mappings = [
+        ("NERPYBOT_TOKEN", ["bot", "token"], str),
+        ("NERPYBOT_CLIENT_ID", ["bot", "client_id"], str),
+        ("NERPYBOT_OPS", ["bot", "ops"], _csv),
+        ("NERPYBOT_MODULES", ["bot", "modules"], _csv),
+        ("NERPYBOT_DB_TYPE", ["database", "db_type"], str),
+        ("NERPYBOT_DB_NAME", ["database", "db_name"], str),
+        ("NERPYBOT_DB_USERNAME", ["database", "db_username"], str),
+        ("NERPYBOT_DB_PASSWORD", ["database", "db_password"], str),
+        ("NERPYBOT_DB_HOST", ["database", "db_host"], str),
+        ("NERPYBOT_DB_PORT", ["database", "db_port"], str),
+        ("NERPYBOT_AUDIO_BUFFER_LIMIT", ["audio", "buffer_limit"], int),
+        ("NERPYBOT_YOUTUBE_KEY", ["music", "ytkey"], str),
+        ("NERPYBOT_RIOT_KEY", ["league", "riot"], str),
+        ("NERPYBOT_WOW_CLIENT_ID", ["wow", "wow_id"], str),
+        ("NERPYBOT_WOW_CLIENT_SECRET", ["wow", "wow_secret"], str),
+        ("NERPYBOT_WOW_POLL_INTERVAL_MINUTES", ["wow", "guild_news", "poll_interval_minutes"], int),
+        ("NERPYBOT_WOW_MOUNT_BATCH_SIZE", ["wow", "guild_news", "mount_batch_size"], int),
+        ("NERPYBOT_WOW_TRACK_MOUNTS", ["wow", "guild_news", "track_mounts"], _to_bool),
+        ("NERPYBOT_WOW_ACTIVE_DAYS", ["wow", "guild_news", "active_days"], int),
+        ("NERPYBOT_ERROR_RECIPIENTS", ["notifications", "error_recipients"], _csv),
+    ]
+    for var_name, keys, converter in mappings:
+        value = os.environ.get(var_name)
+        if value is not None:
+            _set_nested(env, keys, converter(value))
+    return env
+
+
+def deep_merge(base: dict, override: dict) -> dict:
+    """Recursively merge override into base; override wins on conflicts."""
+    result = dict(base)
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def parse_config(config_path: Optional[Path] = None) -> dict:
     config = {}
-
-    if config_file is None:
-        config_file = Path("./config.yaml")
-    else:
-        config_file = Path(config_file[0])
-
-    if config_file.exists():
-        with open(config_file, "r") as stream:
+    path = config_path or Path("./config.yaml")
+    if path.exists():
+        with open(path) as stream:
             try:
-                config = yaml.safe_load(stream)
+                config = yaml.safe_load(stream) or {}
             except yaml.YAMLError as exc:
                 print(f"Error in configuration file: {exc}")
-
-    return config
+    return deep_merge(config, parse_env_config())
 
 
 def main() -> None:
