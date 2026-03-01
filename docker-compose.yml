@@ -2,9 +2,18 @@ services:
   nerpybot-migrations:
     image: ghcr.io/nerdycraft/nerpybot-database-migrations:latest
     restart: "no"
+    environment:
+      NERPYBOT_DB_TYPE: sqlite
+      NERPYBOT_DB_NAME: /data/db.db
+      # ── PostgreSQL alternative ──
+      # NERPYBOT_DB_TYPE: postgresql
+      # NERPYBOT_DB_NAME: nerpybot
+      # NERPYBOT_DB_USERNAME: nerpybot
+      # NERPYBOT_DB_PASSWORD: changeme
+      # NERPYBOT_DB_HOST: postgres
+      # NERPYBOT_DB_PORT: "5432"
     volumes:
       - nerpybot-data:/data
-      - ./config/nerpybot.yaml:/app/config.yaml:ro
     # depends_on:
     #   postgres:
     #     condition: service_healthy
@@ -17,16 +26,35 @@ services:
         condition: service_completed_successfully
       # postgres:
       #   condition: service_healthy
+    environment:
+      # ── Required ──
+      NERPYBOT_TOKEN: "your_bot_token_here"
+      NERPYBOT_CLIENT_ID: "your_client_id_here"
+      NERPYBOT_OPS: "your_discord_id_here"
+      NERPYBOT_MODULES: "application,league,leavemsg,moderation,reactionrole,rolemanage,reminder,tagging,wow"
+      # ── Database (SQLite default) ──
+      NERPYBOT_DB_TYPE: sqlite
+      NERPYBOT_DB_NAME: /data/db.db
+      # ── Database (PostgreSQL alternative) ──
+      # NERPYBOT_DB_TYPE: postgresql
+      # NERPYBOT_DB_NAME: nerpybot
+      # NERPYBOT_DB_USERNAME: nerpybot
+      # NERPYBOT_DB_PASSWORD: changeme
+      # NERPYBOT_DB_HOST: postgres
+      # NERPYBOT_DB_PORT: "5432"
+      # ── Music (requires tagging in NERPYBOT_MODULES) ──
+      # NERPYBOT_YOUTUBE_KEY: "your_youtube_key_here"
+      # ── League of Legends ──
+      # NERPYBOT_RIOT_KEY: "your_riot_api_key_here"
+      # ── World of Warcraft ──
+      # NERPYBOT_WOW_CLIENT_ID: "your_wow_client_id_here"
+      # NERPYBOT_WOW_CLIENT_SECRET: "your_wow_client_secret_here"
+      # ── Error notifications (comma-separated Discord user IDs) ──
+      # NERPYBOT_ERROR_RECIPIENTS: "your_discord_id_here"
+      # ── Audio tuning ──
+      # NERPYBOT_AUDIO_BUFFER_LIMIT: "5"
     volumes:
       - nerpybot-data:/data
-      - ./config/nerpybot.yaml:/app/config.yaml:ro
-
-  humanmusic:
-    image: ghcr.io/nerdycraft/nerpybot:latest
-    restart: unless-stopped
-    volumes:
-      - humanmusic-data:/data
-      - ./config/humanmusic.yaml:/app/config.yaml:ro
 
   # ── Uncomment to use PostgreSQL instead of SQLite ──
   # postgres:
@@ -46,5 +74,4 @@ services:
 
 volumes:
   nerpybot-data:
-  humanmusic-data:
   # postgres-data:

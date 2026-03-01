@@ -1,3 +1,13 @@
+# All keys in this file can also be set via NERPYBOT_* environment variables.
+# Environment variables take priority over this file when both are present.
+# See docker-compose.yml for the full variable reference.
+#
+# Examples:
+#   NERPYBOT_TOKEN=your_token
+#   NERPYBOT_MODULES=wow,league,tagging
+#   NERPYBOT_DB_TYPE=sqlite
+#   NERPYBOT_DB_NAME=/data/db.db
+
 bot:
   client_id: "your_client_id_here"  # quoted to prevent formatter corruption
   token: your_bot_token_here
