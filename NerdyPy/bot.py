@@ -491,7 +491,6 @@ app = typer.Typer(add_completion=False)
 def main(
     config: Annotated[Optional[Path], typer.Option("--config", "-c", help="Config file path")] = None,
     debug: Annotated[bool, typer.Option("--debug", "-d", help="Enable debug logging")] = False,
-    auto_restart: Annotated[bool, typer.Option("--auto-restart", "-r", help="Auto-restart on failure")] = False,
     loglevel: Annotated[str, typer.Option("--loglevel", "-l", help="Log level (DEBUG, INFO, WARNING, ERROR)")] = "INFO",
     verbosity: Annotated[
         int, typer.Option("--verbosity", "-v", help="Verbosity: 1=DEBUG, 2=+discord, 3=+sqlalchemy")
@@ -516,13 +515,21 @@ def main(
             logging.create_logger(resolved_loglevel, logger_name)
         bot = NerpyBot(resolved_config, intents, is_debug)
 
-        try:
-            run(bot.start())
-        except LoginFailure:
-            bot.log.error(format_exc())
-            bot.log.error("Failed to login")
-        except KeyboardInterrupt:
-            bot.log.info("Received KeyboardInterrupt, shutting down.")
+        while True:
+            try:
+                run(bot.start())
+                break  # clean exit
+            except LoginFailure:
+                bot.log.error(format_exc())
+                bot.log.error("Failed to login — not restarting.")
+                break
+            except KeyboardInterrupt:
+                bot.log.info("Received KeyboardInterrupt, shutting down.")
+                break
+            except Exception as e:
+                bot.log.error(f"Crashed: {e}")
+                bot.log.warning("Restarting in 5s...")
+                sleep(5)
     else:
         raise NerpyInfraException("Bot config not found.")
 
