@@ -395,6 +395,20 @@ class TestPlaylistRemove:
         entries = PlaylistEntry.get_by_playlist(pl.Id, db_session)
         assert entries == []
 
+    @pytest.mark.asyncio
+    async def test_remove_url_not_found_sends_error(self, music_cog_new, mock_interaction, db_session):
+        pl = Playlist(GuildId=mock_interaction.guild_id, UserId=mock_interaction.user.id, Name="nodelmatch")
+        db_session.add(pl)
+        db_session.flush()
+        db_session.commit()
+
+        await Music.playlist._children["remove"].callback(
+            music_cog_new, mock_interaction, name="nodelmatch", url="https://yt/nonexistent"
+        )
+
+        call_args = mock_interaction.followup.send.call_args
+        assert "not found in the playlist" in call_args.args[0]
+
 
 from collections import deque  # noqa: E402
 

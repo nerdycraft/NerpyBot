@@ -298,7 +298,10 @@ class Music(NerpyBotCog, QueueMixin, Cog):
             if pl is None:
                 await interaction.followup.send(get_string(lang, "music.playlist.not_found", name=name), ephemeral=True)
                 return
-            PlaylistEntry.delete_by_url(pl.Id, url, session)
+            deleted = PlaylistEntry.delete_by_url(pl.Id, url, session)
+            if deleted == 0:
+                await interaction.followup.send(get_string(lang, "music.playlist.song_not_found"), ephemeral=True)
+                return
         await interaction.followup.send(get_string(lang, "music.playlist.removed"), ephemeral=True)
 
     # ---- old commands below — removed in Task 13 ----
