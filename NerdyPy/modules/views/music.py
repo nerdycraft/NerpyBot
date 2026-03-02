@@ -88,9 +88,11 @@ class NowPlayingView(discord.ui.View):
         if self.audio.is_paused(interaction.guild_id):
             self.audio.resume(interaction.guild_id)
             button.label = "\u23f8 Pause"
+            button.style = discord.ButtonStyle.primary
         else:
             self.audio.pause(interaction.guild_id)
-            button.label = "\u25b6 Resume"
+            button.label = "\u23f5 Resume"
+            button.style = discord.ButtonStyle.success
         await interaction.response.edit_message(view=self)
 
     @discord.ui.button(label="\u23e9 Skip", style=discord.ButtonStyle.primary, custom_id="music:skip")
