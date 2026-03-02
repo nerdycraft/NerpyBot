@@ -45,5 +45,6 @@ class PlaylistEntry(db.BASE):
         return session.query(cls).filter(cls.PlaylistId == playlist_id).order_by(cls.Position).all()
 
     @classmethod
-    def delete_by_url(cls, playlist_id: int, url: str, session):
-        session.query(cls).filter(cls.PlaylistId == playlist_id, cls.Url == url).delete()
+    def delete_by_url(cls, playlist_id: int, url: str, session) -> int:
+        """Delete entries matching url. Returns the number of rows deleted."""
+        return session.query(cls).filter(cls.PlaylistId == playlist_id, cls.Url == url).delete()

@@ -68,6 +68,30 @@ class TestPlaylistEntry:
         db_session.flush()
         db_session.add(PlaylistEntry(PlaylistId=p.Id, Url="https://yt/1", Title="X", Position=0))
         db_session.commit()
-        PlaylistEntry.delete_by_url(p.Id, "https://yt/1", db_session)
+        deleted = PlaylistEntry.delete_by_url(p.Id, "https://yt/1", db_session)
         db_session.commit()
+        assert deleted == 1
         assert PlaylistEntry.get_by_playlist(p.Id, db_session) == []
+
+    def test_delete_entry_by_url_missing_returns_zero(self, db_session):
+        p = Playlist(GuildId=1, UserId=2, Name="nomatch")
+        db_session.add(p)
+        db_session.flush()
+        db_session.commit()
+        deleted = PlaylistEntry.delete_by_url(p.Id, "https://yt/nonexistent", db_session)
+        assert deleted == 0
+
+    def test_cascade_delete_playlist_removes_entries(self, db_session):
+        """DB-level CASCADE: deleting a Playlist bulk-deletes its entries."""
+        p = Playlist(GuildId=1, UserId=2, Name="cascade-test")
+        db_session.add(p)
+        db_session.flush()
+        playlist_id = p.Id
+        db_session.add(PlaylistEntry(PlaylistId=playlist_id, Url="https://yt/a", Title="A", Position=0))
+        db_session.add(PlaylistEntry(PlaylistId=playlist_id, Url="https://yt/b", Title="B", Position=1))
+        db_session.commit()
+
+        db_session.query(Playlist).filter(Playlist.Id == playlist_id).delete(synchronize_session="fetch")
+        db_session.commit()
+
+        assert PlaylistEntry.get_by_playlist(playlist_id, db_session) == []
