@@ -5,8 +5,16 @@ import discord
 from utils.strings import get_string
 
 
-def build_progress_bar(elapsed: float, total: float, width: int = 20) -> str:
-    """Return a progress bar string, e.g. `[=====>-----] 2:30 / 5:00`."""
+def _fmt_time(seconds: float) -> str:
+    """Format seconds as H:MM:SS."""
+    t = int(seconds)
+    h, rem = divmod(t, 3600)
+    m, sec = divmod(rem, 60)
+    return f"{h}:{m:02d}:{sec:02d}"
+
+
+def build_progress_bar(elapsed: float, total: float, width: int = 16) -> str:
+    """Return a two-line code-block progress bar, e.g.:\n```[>---------------]\n0:00:00 / 0:05:00```"""
     if total <= 0:
         return ""
     elapsed = min(elapsed, total)
@@ -16,24 +24,29 @@ def build_progress_bar(elapsed: float, total: float, width: int = 20) -> str:
         bar = "=" * width
     else:
         bar = "=" * filled + ">" + "-" * (width - filled - 1)
-    elapsed_str = f"{int(elapsed // 60)}:{int(elapsed % 60):02d}"
-    total_str = f"{int(total // 60)}:{int(total % 60):02d}"
-    return f"`[{bar}] {elapsed_str} / {total_str}`"
+    return f"```\n[{bar}]\n{_fmt_time(elapsed)} / {_fmt_time(total)}\n```"
 
 
 def build_now_playing_embed(song, elapsed: float, lang: str) -> discord.Embed:
     """Build the now-playing embed for a given song and elapsed time."""
     duration = song.duration or 0
     emb = discord.Embed(
-        title=get_string(lang, "music.now_playing.title"),
-        description=f"[{song.title}]({song.fetch_data})" if song.title else song.fetch_data,
-        color=discord.Color(0x0099FF),
+        title=f"\U0001f3b5 {song.title}" if song.title else "\U0001f3b5 Unknown",
+        url=song.fetch_data,
+        color=discord.Color(0xFF7700),
     )
+    desc_lines = []
+    if song.artist:
+        artist_label = get_string(lang, "music.now_playing.artist")
+        desc_lines.append(f"**{artist_label}:** {song.artist}")
+    if song.requester is not None:
+        req_label = get_string(lang, "music.now_playing.requested_by")
+        desc_lines.append(f"**{req_label}:** {song.requester.mention}")
+    if desc_lines:
+        emb.description = "\n".join(desc_lines)
     progress = build_progress_bar(elapsed, duration)
     if progress:
-        emb.add_field(name="\u200b", value=progress, inline=False)
-    if song.requester is not None:
-        emb.set_footer(text=get_string(lang, "music.now_playing.requested_by", user=song.requester.display_name))
+        emb.add_field(name=get_string(lang, "music.now_playing.progress"), value=progress, inline=False)
     if song.thumbnail:
         emb.set_thumbnail(url=song.thumbnail)
     return emb
@@ -67,18 +80,20 @@ class NowPlayingView(discord.ui.View):
         except discord.HTTPException:
             pass
 
-    @discord.ui.button(emoji="\u23ef\ufe0f", style=discord.ButtonStyle.primary, custom_id="music:pause_resume")
+    @discord.ui.button(label="\u23f8 Pause", style=discord.ButtonStyle.primary, custom_id="music:pause_resume")
     async def pause_resume(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self._in_same_channel(interaction):
             await self._reject(interaction)
             return
         if self.audio.is_paused(interaction.guild_id):
             self.audio.resume(interaction.guild_id)
+            button.label = "\u23f8 Pause"
         else:
             self.audio.pause(interaction.guild_id)
-        await interaction.response.defer()
+            button.label = "\u25b6 Resume"
+        await interaction.response.edit_message(view=self)
 
-    @discord.ui.button(emoji="\u23ed\ufe0f", style=discord.ButtonStyle.secondary, custom_id="music:skip")
+    @discord.ui.button(label="\u23e9 Skip", style=discord.ButtonStyle.primary, custom_id="music:skip")
     async def skip(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self._in_same_channel(interaction):
             await self._reject(interaction)
@@ -86,7 +101,7 @@ class NowPlayingView(discord.ui.View):
         self.audio.stop(interaction.guild_id)
         await interaction.response.defer()
 
-    @discord.ui.button(emoji="\u23f9\ufe0f", style=discord.ButtonStyle.danger, custom_id="music:stop")
+    @discord.ui.button(label="\u23f9 Stop", style=discord.ButtonStyle.danger, custom_id="music:stop")
     async def stop(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self._in_same_channel(interaction):
             await self._reject(interaction)
@@ -100,7 +115,7 @@ class NowPlayingView(discord.ui.View):
                 pass
         await interaction.response.defer()
 
-    @discord.ui.button(emoji="\U0001f4cb", style=discord.ButtonStyle.secondary, custom_id="music:queue")
+    @discord.ui.button(label="\U0001f4cb Queue", style=discord.ButtonStyle.secondary, custom_id="music:queue")
     async def show_queue(self, interaction: discord.Interaction, button: discord.ui.Button):
         queue = self.audio.list_queue(interaction.guild_id)
         if not queue:

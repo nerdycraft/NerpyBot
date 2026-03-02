@@ -143,6 +143,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         duration = info.get("duration")
         thumbnails = info.get("thumbnails") or []
         thumbnail_url = thumbnails[0].get("url") if thumbnails else None
+        artist = info.get("uploader") or info.get("channel")
 
         song = QueuedSong(
             channel=interaction.user.voice.channel,
@@ -153,6 +154,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
             duration=duration,
             requester=interaction.user,
             thumbnail=thumbnail_url,
+            artist=artist,
         )
         self.bot.log.info(f'{error_context(interaction)}: requesting "{title}" to play')
         await self.audio.play(interaction.guild.id, song)

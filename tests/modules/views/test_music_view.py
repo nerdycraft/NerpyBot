@@ -12,16 +12,16 @@ from utils.strings import load_strings
 class TestBuildProgressBar:
     def test_at_zero_elapsed(self):
         bar = build_progress_bar(0, 300)
-        assert bar.startswith("`[")
-        assert "0:00 / 5:00" in bar
+        assert "```" in bar
+        assert "0:00:00 / 0:05:00" in bar
 
     def test_at_half_elapsed(self):
         bar = build_progress_bar(150, 300)
-        assert "2:30 / 5:00" in bar
+        assert "0:02:30 / 0:05:00" in bar
 
     def test_at_full_elapsed(self):
         bar = build_progress_bar(300, 300)
-        assert "5:00 / 5:00" in bar
+        assert "0:05:00 / 0:05:00" in bar
 
     def test_no_duration_returns_empty(self):
         bar = build_progress_bar(10, 0)
@@ -30,7 +30,7 @@ class TestBuildProgressBar:
     def test_elapsed_beyond_duration_clamped(self):
         """Should not crash or show > 100% progress."""
         bar = build_progress_bar(400, 300)
-        assert "5:00 / 5:00" in bar
+        assert "0:05:00 / 0:05:00" in bar
 
     def test_bar_contains_arrow(self):
         bar = build_progress_bar(60, 300)
@@ -38,7 +38,11 @@ class TestBuildProgressBar:
 
     def test_minutes_and_seconds_formatting(self):
         bar = build_progress_bar(65, 125)
-        assert "1:05 / 2:05" in bar
+        assert "0:01:05 / 0:02:05" in bar
+
+    def test_hours_formatting(self):
+        bar = build_progress_bar(3661, 7200)
+        assert "1:01:01 / 2:00:00" in bar
 
 
 class TestBuildNowPlayingEmbed:
@@ -46,20 +50,26 @@ class TestBuildNowPlayingEmbed:
     def _load_locale_strings(self):
         load_strings()
 
-    def _make_song(self, title="Test Song", duration=300, requester=None, thumbnail=None):
+    def _make_song(self, title="Test Song", duration=300, requester=None, thumbnail=None, artist=None):
         song = MagicMock()
         song.title = title
         song.fetch_data = "https://youtube.com/watch?v=test"
         song.duration = duration
         song.requester = requester
         song.thumbnail = thumbnail
+        song.artist = artist
         return song
 
     def test_embed_has_title(self):
         song = self._make_song()
         emb = build_now_playing_embed(song, 60, "en")
         assert isinstance(emb, discord.Embed)
-        assert emb.title == "Now Playing"
+        assert emb.title == "\U0001f3b5 Test Song"
+
+    def test_embed_url_is_song_link(self):
+        song = self._make_song()
+        emb = build_now_playing_embed(song, 60, "en")
+        assert emb.url == "https://youtube.com/watch?v=test"
 
     def test_embed_has_progress_bar_when_duration(self):
         song = self._make_song(duration=300)
@@ -71,13 +81,24 @@ class TestBuildNowPlayingEmbed:
         emb = build_now_playing_embed(song, 0, "en")
         assert len(emb.fields) == 0
 
-    def test_embed_footer_when_requester_set(self):
+    def test_embed_requester_in_description(self):
         member = MagicMock()
-        member.display_name = "Alice"
+        member.mention = "<@123456>"
         song = self._make_song(requester=member)
         emb = build_now_playing_embed(song, 0, "en")
-        assert emb.footer.text is not None
-        assert "Alice" in emb.footer.text
+        assert emb.description is not None
+        assert "<@123456>" in emb.description
+
+    def test_embed_no_description_without_artist_or_requester(self):
+        song = self._make_song(requester=None, artist=None)
+        emb = build_now_playing_embed(song, 0, "en")
+        assert not emb.description
+
+    def test_embed_artist_in_description(self):
+        song = self._make_song(artist="Queen Official")
+        emb = build_now_playing_embed(song, 0, "en")
+        assert emb.description is not None
+        assert "Queen Official" in emb.description
 
     def test_embed_no_footer_without_requester(self):
         song = self._make_song(requester=None)
@@ -114,6 +135,7 @@ def _make_interaction(in_channel=True, guild_id=1):
     interaction.response = MagicMock()
     interaction.response.send_message = AsyncMock()
     interaction.response.defer = AsyncMock()
+    interaction.response.edit_message = AsyncMock()
     interaction.response.is_done = MagicMock(return_value=False)
     interaction.followup = MagicMock()
     interaction.followup.send = AsyncMock()
@@ -170,6 +192,16 @@ class TestNowPlayingViewPermissions:
         interaction = _make_interaction(in_channel=True)
         await view.pause_resume.callback(interaction)
         audio.pause.assert_called_once_with(interaction.guild_id)
+        interaction.response.edit_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_pause_resume_shows_resume_label_after_pause(self):
+        audio = MagicMock()
+        audio.is_paused = MagicMock(return_value=False)
+        view = NowPlayingView(audio)
+        interaction = _make_interaction(in_channel=True)
+        await view.pause_resume.callback(interaction)
+        assert "Resume" in view.pause_resume.label
 
     @pytest.mark.asyncio
     async def test_pause_resume_resumes_when_paused(self):
@@ -180,6 +212,16 @@ class TestNowPlayingViewPermissions:
         interaction = _make_interaction(in_channel=True)
         await view.pause_resume.callback(interaction)
         audio.resume.assert_called_once_with(interaction.guild_id)
+        interaction.response.edit_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_pause_resume_shows_pause_label_after_resume(self):
+        audio = MagicMock()
+        audio.is_paused = MagicMock(return_value=True)
+        view = NowPlayingView(audio)
+        interaction = _make_interaction(in_channel=True)
+        await view.pause_resume.callback(interaction)
+        assert "Pause" in view.pause_resume.label
 
     @pytest.mark.asyncio
     async def test_stop_clears_queue_and_deletes_embed(self):

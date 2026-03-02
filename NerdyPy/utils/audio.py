@@ -51,9 +51,8 @@ class QueueMixin:
         await send_paginated(interaction, msg, title="\U0001f3b5 Queue", color=0x0099FF)
 
     def _stop_and_clear_queue(self, guild_id: int) -> None:
-        """Stop playback, clear the audio buffer, and clear the module queue."""
-        self.audio.stop(guild_id)
-        self.audio.clear_buffer(guild_id)
+        """Stop playback, flush the audio queue, and clear the module queue."""
+        self.audio.stop_and_clear(guild_id)
         self._clear_queue(guild_id)
 
 
@@ -70,6 +69,7 @@ class QueuedSong:
         duration: int = None,
         requester=None,
         thumbnail: str = None,
+        artist: str = None,
     ):
         self.stream = None
         self.title = title
@@ -80,6 +80,7 @@ class QueuedSong:
         self.duration = duration
         self.requester = requester
         self.thumbnail = thumbnail
+        self.artist = artist
         self.log = logging.getLogger("nerpybot")
 
     async def fetch_buffer(self):

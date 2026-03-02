@@ -40,7 +40,9 @@ admin:
 music:
   now_playing:
     title: "Wird gespielt"
-    requested_by: "Angefragt von {user}"
+    artist: "Künstler"
+    requested_by: "Angefragt von"
+    progress: "Fortschritt"
     not_in_channel: "Du musst im Sprachkanal sein, um dies zu verwenden."
     queue_empty: "Warteschlange ist leer."
     queue_header: "\U0001f3b5 Warteschlange"
