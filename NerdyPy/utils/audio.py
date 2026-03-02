@@ -263,6 +263,20 @@ class Audio:
             if vc is not None:
                 vc.stop()
 
+    def stop_and_clear(self, guild_id: int) -> None:
+        """Stop playback and flush the queue, but stay in the voice channel.
+
+        Resets session state and refreshes lastPlayed so _timeout_manager
+        can eventually auto-disconnect the idle bot.
+        """
+        self.stop(guild_id)
+        if self._has_buffer(guild_id):
+            self.buffer[guild_id][BufferKey.QUEUE] = queue.Queue()
+            self.lastPlayed[guild_id] = datetime.now()
+        self.current_song.pop(guild_id, None)
+        self.play_start.pop(guild_id, None)
+        self.paused_at.pop(guild_id, None)
+
     async def leave(self, guild_id):
         if self._has_buffer(guild_id):
             vc = self.buffer[guild_id].get(BufferKey.VOICE_CLIENT)

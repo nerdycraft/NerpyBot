@@ -308,3 +308,41 @@ class TestAudioLeaveCleanup:
 
         assert guild_id not in audio.current_song
         assert guild_id not in audio.play_start
+
+
+class TestAudioStopAndClear:
+    def test_stop_and_clear_calls_stop(self):
+        audio = _make_audio()
+        vc = _make_vc()
+        _attach_vc(audio, 1, vc)
+        audio.current_song[1] = MagicMock()
+        audio.play_start[1] = datetime.now(UTC)
+        audio.stop_and_clear(1)
+        vc.stop.assert_called_once()
+
+    def test_stop_and_clear_empties_queue(self):
+
+        audio = _make_audio()
+        _attach_vc(audio, 1, _make_vc())
+        q = audio.buffer[1][BufferKey.QUEUE]
+        q.put(MagicMock())
+        q.put(MagicMock())
+        audio.stop_and_clear(1)
+        assert audio.buffer[1][BufferKey.QUEUE].qsize() == 0
+
+    def test_stop_and_clear_resets_session_state(self):
+        audio = _make_audio()
+        _attach_vc(audio, 1, _make_vc())
+        audio.current_song[1] = MagicMock()
+        audio.play_start[1] = datetime.now(UTC)
+        audio.paused_at[1] = datetime.now(UTC)
+        audio.stop_and_clear(1)
+        assert 1 not in audio.current_song
+        assert 1 not in audio.play_start
+        assert 1 not in audio.paused_at
+
+    def test_stop_and_clear_keeps_last_played_for_timeout_manager(self):
+        audio = _make_audio()
+        _attach_vc(audio, 1, _make_vc())
+        audio.stop_and_clear(1)
+        assert 1 in audio.lastPlayed

@@ -260,6 +260,46 @@ class TestPlaylistAdd:
         called = mock_interaction.followup.send.called or mock_interaction.response.send_message.called
         assert called
 
+    @pytest.mark.asyncio
+    async def test_add_duplicate_url_sends_error(self, music_cog_new, mock_interaction, db_session, monkeypatch):
+        pl = Playlist(GuildId=mock_interaction.guild_id, UserId=mock_interaction.user.id, Name="dupes")
+        db_session.add(pl)
+        db_session.flush()
+        db_session.add(PlaylistEntry(PlaylistId=pl.Id, Url="https://yt/dup", Title="Dup", Position=0))
+        db_session.commit()
+        monkeypatch.setattr("modules.music.fetch_yt_infos", lambda url: {"title": "Dup", "id": "1"})
+
+        await Music.playlist._children["add"].callback(
+            music_cog_new, mock_interaction, name="dupes", url="https://yt/dup"
+        )
+
+        entries = PlaylistEntry.get_by_playlist(pl.Id, db_session)
+        assert len(entries) == 1  # not duplicated
+        call_args = mock_interaction.followup.send.call_args
+        assert "already" in call_args.args[0].lower()
+
+
+class TestPlaylistDelete:
+    @pytest.mark.asyncio
+    async def test_delete_removes_playlist_and_entries(self, music_cog_new, mock_interaction, db_session):
+        pl = Playlist(GuildId=mock_interaction.guild_id, UserId=mock_interaction.user.id, Name="gone")
+        db_session.add(pl)
+        db_session.flush()
+        playlist_id = pl.Id
+        db_session.add(PlaylistEntry(PlaylistId=playlist_id, Url="https://yt/1", Title="X", Position=0))
+        db_session.commit()
+
+        await Music.playlist._children["delete"].callback(music_cog_new, mock_interaction, name="gone")
+
+        assert Playlist.get_by_name(mock_interaction.guild_id, mock_interaction.user.id, "gone", db_session) is None
+        assert PlaylistEntry.get_by_playlist(playlist_id, db_session) == []
+
+    @pytest.mark.asyncio
+    async def test_delete_not_found_sends_error(self, music_cog_new, mock_interaction, db_session):
+        await Music.playlist._children["delete"].callback(music_cog_new, mock_interaction, name="no-such-list")
+        call_args = mock_interaction.followup.send.call_args
+        assert "not found" in call_args.args[0].lower()
+
 
 class TestPlaylistRemove:
     @pytest.mark.asyncio

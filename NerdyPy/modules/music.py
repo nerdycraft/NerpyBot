@@ -136,6 +136,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
     async def _enqueue(self, interaction: Interaction, url: str, info: dict) -> bool:
         """Build a QueuedSong from yt-dlp info and add it to the audio queue. Returns True on success."""
         if interaction.user.voice is None:
+            self.bot.log.warning(f"{error_context(interaction)}: _enqueue skipped — user has no voice state")
             return False
         title = info.get("title", url)
         idn = info.get("id")
@@ -229,7 +230,10 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                 await interaction.followup.send(get_string(lang, "music.playlist.not_found", name=name), ephemeral=True)
                 return
             existing = PlaylistEntry.get_by_playlist(pl.Id, session)
-            position = len(existing)
+            if any(e.Url == url for e in existing):
+                await interaction.followup.send(get_string(lang, "music.playlist.already_in_playlist"), ephemeral=True)
+                return
+            position = (max(e.Position for e in existing) + 1) if existing else 0
             session.add(PlaylistEntry(PlaylistId=pl.Id, Url=url, Title=title, Position=position))
         await interaction.followup.send(
             get_string(lang, "music.playlist.added_song", title=title, name=name), ephemeral=True
@@ -302,6 +306,20 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                 await interaction.followup.send(get_string(lang, "music.playlist.song_not_found"), ephemeral=True)
                 return
         await interaction.followup.send(get_string(lang, "music.playlist.removed"), ephemeral=True)
+
+    @playlist.command(name="delete")
+    @app_commands.describe(name="Playlist name to delete")
+    async def _playlist_delete(self, interaction: Interaction, name: str):
+        """Delete one of your playlists and all its songs."""
+        await interaction.response.defer(ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+        with self.bot.session_scope() as session:
+            pl = Playlist.get_by_name(interaction.guild_id, interaction.user.id, name, session)
+            if pl is None:
+                await interaction.followup.send(get_string(lang, "music.playlist.not_found", name=name), ephemeral=True)
+                return
+            session.delete(pl)
+        await interaction.followup.send(get_string(lang, "music.playlist.deleted", name=name), ephemeral=True)
 
     @playlist.command(name="load")
     @app_commands.check(is_connected_to_voice)

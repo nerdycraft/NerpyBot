@@ -182,13 +182,17 @@ class TestNowPlayingViewPermissions:
         audio.resume.assert_called_once_with(interaction.guild_id)
 
     @pytest.mark.asyncio
-    async def test_stop_calls_leave(self):
+    async def test_stop_clears_queue_and_deletes_embed(self):
         audio = MagicMock()
-        audio.leave = AsyncMock()
+        audio.stop_and_clear = MagicMock()
+        msg = AsyncMock()
+        msg.delete = AsyncMock()
+        audio.now_playing_message = {1: msg}
         view = NowPlayingView(audio)
         interaction = _make_interaction(in_channel=True)
         await view.stop.callback(interaction)
-        audio.leave.assert_called_once_with(interaction.guild_id)
+        audio.stop_and_clear.assert_called_once_with(interaction.guild_id)
+        msg.delete.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_stop_blocked_when_not_in_channel(self):

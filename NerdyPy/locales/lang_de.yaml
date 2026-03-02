@@ -60,6 +60,8 @@ music:
     list_empty: "Du hast keine gespeicherten Playlists."
     empty: "Diese Playlist ist leer."
     added_song: "**{title}** zu **{name}** hinzugefügt."
+    already_in_playlist: "Dieser Song ist bereits in der Playlist."
+    deleted: "Playlist **{name}** gelöscht."
     removed: "Song aus der Playlist entfernt."
     song_not_found: "Dieser Song wurde nicht in der Playlist gefunden."
     saved: "{count} Songs in **{name}** gespeichert."

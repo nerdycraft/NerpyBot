@@ -91,7 +91,13 @@ class NowPlayingView(discord.ui.View):
         if not self._in_same_channel(interaction):
             await self._reject(interaction)
             return
-        await self.audio.leave(interaction.guild_id)
+        self.audio.stop_and_clear(interaction.guild_id)
+        msg = self.audio.now_playing_message.pop(interaction.guild_id, None)
+        if msg is not None:
+            try:
+                await msg.delete()
+            except discord.NotFound:
+                pass
         await interaction.response.defer()
 
     @discord.ui.button(emoji="\U0001f4cb", style=discord.ButtonStyle.secondary, custom_id="music:queue")

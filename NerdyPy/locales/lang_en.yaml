@@ -60,6 +60,8 @@ music:
     list_empty: "You have no saved playlists."
     empty: "This playlist is empty."
     added_song: "Added **{title}** to **{name}**."
+    already_in_playlist: "That song is already in the playlist."
+    deleted: "Playlist **{name}** deleted."
     removed: "Removed song from playlist."
     song_not_found: "That song was not found in the playlist."
     saved: "Saved {count} songs to **{name}**."
