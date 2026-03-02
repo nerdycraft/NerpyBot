@@ -47,6 +47,7 @@ def db_engine():
         CraftingRoleMapping,
         CraftingOrder,
     )
+    from models.music import Playlist, PlaylistEntry  # noqa: F401
 
     BASE.metadata.create_all(engine)
     yield engine
