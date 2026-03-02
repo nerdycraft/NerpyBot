@@ -236,6 +236,57 @@ class Music(NerpyBotCog, QueueMixin, Cog):
             get_string(lang, "music.playlist.added_song", title=title, name=name), ephemeral=True
         )
 
+    @playlist.command(name="save")
+    @app_commands.describe(
+        name="Name for the playlist",
+        count="Number of recently played songs to save (omit to save current queue)",
+    )
+    async def _playlist_save(self, interaction: Interaction, name: str, count: int = None):
+        """Save the current queue (or last N played songs) as a playlist."""
+        await interaction.response.defer(ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+
+        if count is not None:
+            history = list(self.audio.history.get(interaction.guild_id, []))
+            available = len(history)
+            if available < count:
+                await interaction.followup.send(
+                    get_string(lang, "music.playlist.history_insufficient", available=available, count=count),
+                    ephemeral=True,
+                )
+                return
+            songs = history[-count:]
+        else:
+            songs = self.audio.list_queue(interaction.guild_id)
+
+        with self.bot.session_scope() as session:
+            pl = Playlist.get_by_name(interaction.guild_id, interaction.user.id, name, session)
+            if pl is None:
+                pl = Playlist(
+                    GuildId=interaction.guild_id,
+                    UserId=interaction.user.id,
+                    Name=name,
+                )
+                session.add(pl)
+                session.flush()
+            else:
+                session.query(PlaylistEntry).filter(PlaylistEntry.PlaylistId == pl.Id).delete()
+                session.flush()
+
+            for pos, song in enumerate(songs):
+                session.add(
+                    PlaylistEntry(
+                        PlaylistId=pl.Id,
+                        Url=song.fetch_data,
+                        Title=song.title or song.fetch_data,
+                        Position=pos,
+                    )
+                )
+
+        await interaction.followup.send(
+            get_string(lang, "music.playlist.saved", count=len(songs), name=name), ephemeral=True
+        )
+
     @playlist.command(name="remove")
     @app_commands.describe(name="Playlist name", url="Song URL to remove")
     async def _playlist_remove(self, interaction: Interaction, name: str, url: str):

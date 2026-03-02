@@ -394,3 +394,70 @@ class TestPlaylistRemove:
 
         entries = PlaylistEntry.get_by_playlist(pl.Id, db_session)
         assert entries == []
+
+
+from collections import deque  # noqa: E402
+
+
+def _make_song(title, url):
+    s = MagicMock()
+    s.title = title
+    s.fetch_data = url
+    return s
+
+
+class TestPlaylistSave:
+    @pytest.mark.asyncio
+    async def test_save_current_queue(self, music_cog_new, mock_interaction, db_session):
+        """No count -> saves current queue."""
+        songs = [_make_song("A", "https://yt/a"), _make_song("B", "https://yt/b")]
+        music_cog_new.audio.list_queue = MagicMock(return_value=songs)
+
+        await Music.playlist._children["save"].callback(music_cog_new, mock_interaction, name="queue-snap")
+
+        pl = Playlist.get_by_name(mock_interaction.guild_id, mock_interaction.user.id, "queue-snap", db_session)
+        assert pl is not None
+        entries = PlaylistEntry.get_by_playlist(pl.Id, db_session)
+        assert len(entries) == 2
+        assert entries[0].Title == "A"
+
+    @pytest.mark.asyncio
+    async def test_save_history_n_songs(self, music_cog_new, mock_interaction, db_session):
+        """count=2 -> saves last 2 songs from history."""
+        history = deque([_make_song("Old", "https://yt/old"), _make_song("New", "https://yt/new")], maxlen=50)
+        music_cog_new.audio.history = {mock_interaction.guild_id: history}
+        music_cog_new.audio.list_queue = MagicMock(return_value=[])
+
+        await Music.playlist._children["save"].callback(music_cog_new, mock_interaction, name="history-snap", count=2)
+
+        pl = Playlist.get_by_name(mock_interaction.guild_id, mock_interaction.user.id, "history-snap", db_session)
+        entries = PlaylistEntry.get_by_playlist(pl.Id, db_session)
+        assert len(entries) == 2
+
+    @pytest.mark.asyncio
+    async def test_save_history_too_few_sends_error(self, music_cog_new, mock_interaction, db_session):
+        music_cog_new.audio.history = {mock_interaction.guild_id: deque([_make_song("X", "u")], maxlen=50)}
+        music_cog_new.audio.list_queue = MagicMock(return_value=[])
+
+        await Music.playlist._children["save"].callback(music_cog_new, mock_interaction, name="oops", count=5)
+
+        pl = Playlist.get_by_name(mock_interaction.guild_id, mock_interaction.user.id, "oops", db_session)
+        assert pl is None
+
+    @pytest.mark.asyncio
+    async def test_save_overwrites_existing_playlist(self, music_cog_new, mock_interaction, db_session):
+        """Saving to an existing playlist name should replace its entries."""
+        pl = Playlist(GuildId=mock_interaction.guild_id, UserId=mock_interaction.user.id, Name="replace-me")
+        db_session.add(pl)
+        db_session.flush()
+        db_session.add(PlaylistEntry(PlaylistId=pl.Id, Url="https://old", Title="Old", Position=0))
+        db_session.commit()
+
+        songs = [_make_song("New", "https://new")]
+        music_cog_new.audio.list_queue = MagicMock(return_value=songs)
+
+        await Music.playlist._children["save"].callback(music_cog_new, mock_interaction, name="replace-me")
+
+        entries = PlaylistEntry.get_by_playlist(pl.Id, db_session)
+        assert len(entries) == 1
+        assert entries[0].Title == "New"
