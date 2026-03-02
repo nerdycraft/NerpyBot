@@ -40,7 +40,6 @@ admin:
 music:
   now_playing:
     title: "Now Playing"
-    paused_title: "Now Playing (Paused)"
     requested_by: "Requested by {user}"
     not_in_channel: "You must be in the voice channel to use this."
     queue_empty: "Queue is empty."
@@ -57,11 +56,11 @@ music:
     created: "Playlist **{name}** created."
     already_exists: "A playlist named **{name}** already exists."
     not_found: "Playlist **{name}** not found."
+    list_header: "Your playlists"
     list_empty: "You have no saved playlists."
     empty: "This playlist is empty."
     added_song: "Added **{title}** to **{name}**."
     removed: "Removed song from playlist."
-    removed_song: "Removed **{title}** from **{name}**."
     song_not_found: "That song was not found in the playlist."
     saved: "Saved {count} songs to **{name}**."
     history_insufficient: "Only {available} song(s) in history (requested {count})."

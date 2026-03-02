@@ -40,7 +40,6 @@ admin:
 music:
   now_playing:
     title: "Wird gespielt"
-    paused_title: "Wird gespielt (Pausiert)"
     requested_by: "Angefragt von {user}"
     not_in_channel: "Du musst im Sprachkanal sein, um dies zu verwenden."
     queue_empty: "Warteschlange ist leer."
@@ -57,11 +56,11 @@ music:
     created: "Playlist **{name}** erstellt."
     already_exists: "Eine Playlist namens **{name}** existiert bereits."
     not_found: "Playlist **{name}** nicht gefunden."
+    list_header: "Deine Playlists"
     list_empty: "Du hast keine gespeicherten Playlists."
     empty: "Diese Playlist ist leer."
     added_song: "**{title}** zu **{name}** hinzugefügt."
     removed: "Song aus der Playlist entfernt."
-    removed_song: "**{title}** aus **{name}** entfernt."
     song_not_found: "Dieser Song wurde nicht in der Playlist gefunden."
     saved: "{count} Songs in **{name}** gespeichert."
     history_insufficient: "Nur {available} Song(s) in der Historie (angefordert: {count})."

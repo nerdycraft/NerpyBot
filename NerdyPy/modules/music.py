@@ -59,13 +59,13 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         else:
             try:
                 await existing_msg.edit(embed=emb, view=view)
-            except discord.NotFound:
+            except (discord.NotFound, discord.Forbidden):
+                self.audio.now_playing_message.pop(guild_id, None)
                 try:
                     msg = await song.channel.send(embed=emb, view=view)
                     self.audio.now_playing_message[guild_id] = msg
                 except discord.HTTPException as e:
                     self.bot.log.error(f"[{guild_id}]: Failed to re-send now-playing embed: {e}")
-                    self.audio.now_playing_message.pop(guild_id, None)
 
     @tasks.loop(seconds=10)
     async def _progress_updater(self):
@@ -108,7 +108,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                 return
             url = found
 
-        info = await asyncio.get_event_loop().run_in_executor(None, fetch_yt_infos, url)
+        info = await asyncio.to_thread(fetch_yt_infos, url)
 
         if info.get("_type") == "playlist":
             entries = info.get("entries", [])
@@ -118,7 +118,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                 if not entry_url:
                     continue
                 try:
-                    entry_info = await asyncio.get_event_loop().run_in_executor(None, fetch_yt_infos, entry_url)
+                    entry_info = await asyncio.to_thread(fetch_yt_infos, entry_url)
                 except Exception:
                     continue
                 if await self._enqueue(interaction, entry_url, entry_info):
@@ -194,7 +194,8 @@ class Music(NerpyBotCog, QueueMixin, Cog):
             await interaction.followup.send(get_string(lang, "music.playlist.list_empty"), ephemeral=True)
             return
         lines = "\n".join(f"• **{p.Name}**" for p in playlists)
-        await interaction.followup.send(f"\U0001f4c2 **Your playlists**\n{lines}", ephemeral=True)
+        header = get_string(lang, "music.playlist.list_header")
+        await interaction.followup.send(f"\U0001f4c2 **{header}**\n{lines}", ephemeral=True)
 
     @playlist.command(name="show")
     @app_commands.describe(name="Playlist name to display")
@@ -220,7 +221,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         """Add a song to one of your playlists."""
         await interaction.response.defer(ephemeral=True)
         lang = self._lang(interaction.guild_id)
-        info = await asyncio.get_event_loop().run_in_executor(None, fetch_yt_infos, url)
+        info = await asyncio.to_thread(fetch_yt_infos, url)
         title = info.get("title", url)
         with self.bot.session_scope() as session:
             pl = Playlist.get_by_name(interaction.guild_id, interaction.user.id, name, session)
