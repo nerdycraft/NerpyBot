@@ -216,6 +216,40 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         lines = "\n".join(f"`{i}` [{e.Title}]({e.Url})" for i, e in enumerate(entries, 1))
         await interaction.followup.send(f"\U0001f3b5 **{name}**\n{lines}", ephemeral=True)
 
+    @playlist.command(name="add")
+    @app_commands.describe(name="Playlist name", url="Song URL to add")
+    async def _playlist_add(self, interaction: Interaction, name: str, url: str):
+        """Add a song to one of your playlists."""
+        await interaction.response.defer(ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+        info = await asyncio.get_event_loop().run_in_executor(None, fetch_yt_infos, url)
+        title = info.get("title", url)
+        with self.bot.session_scope() as session:
+            pl = Playlist.get_by_name(interaction.guild_id, interaction.user.id, name, session)
+            if pl is None:
+                await interaction.followup.send(get_string(lang, "music.playlist.not_found", name=name), ephemeral=True)
+                return
+            existing = PlaylistEntry.get_by_playlist(pl.Id, session)
+            position = len(existing)
+            session.add(PlaylistEntry(PlaylistId=pl.Id, Url=url, Title=title, Position=position))
+        await interaction.followup.send(
+            get_string(lang, "music.playlist.added_song", title=title, name=name), ephemeral=True
+        )
+
+    @playlist.command(name="remove")
+    @app_commands.describe(name="Playlist name", url="Song URL to remove")
+    async def _playlist_remove(self, interaction: Interaction, name: str, url: str):
+        """Remove a song from one of your playlists."""
+        await interaction.response.defer(ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+        with self.bot.session_scope() as session:
+            pl = Playlist.get_by_name(interaction.guild_id, interaction.user.id, name, session)
+            if pl is None:
+                await interaction.followup.send(get_string(lang, "music.playlist.not_found", name=name), ephemeral=True)
+                return
+            PlaylistEntry.delete_by_url(pl.Id, url, session)
+        await interaction.followup.send(get_string(lang, "music.playlist.removed"), ephemeral=True)
+
     # ---- old commands below — removed in Task 13 ----
 
     @app_commands.command(name="skip")

@@ -348,3 +348,49 @@ class TestPlaylistShow:
         if mock_interaction.followup.send.called:
             msg = mock_interaction.followup.send.call_args[0][0]
             assert "missing" in msg.lower() or "not found" in msg.lower()
+
+
+from models.music import PlaylistEntry  # noqa: E402
+
+
+class TestPlaylistAdd:
+    @pytest.mark.asyncio
+    async def test_add_creates_entry(self, music_cog_new, mock_interaction, db_session, monkeypatch):
+        db_session.add(Playlist(GuildId=mock_interaction.guild_id, UserId=mock_interaction.user.id, Name="favs"))
+        db_session.commit()
+        monkeypatch.setattr(
+            "modules.music.fetch_yt_infos", lambda url: {"title": "My Song", "id": "1", "duration": 180}
+        )
+
+        await Music.playlist._children["add"].callback(music_cog_new, mock_interaction, name="favs", url="https://yt/1")
+
+        pl = Playlist.get_by_name(mock_interaction.guild_id, mock_interaction.user.id, "favs", db_session)
+        entries = PlaylistEntry.get_by_playlist(pl.Id, db_session)
+        assert len(entries) == 1
+        assert entries[0].Title == "My Song"
+
+    @pytest.mark.asyncio
+    async def test_add_playlist_not_found(self, music_cog_new, mock_interaction, db_session, monkeypatch):
+        monkeypatch.setattr("modules.music.fetch_yt_infos", lambda url: {"title": "x", "id": "1"})
+        await Music.playlist._children["add"].callback(
+            music_cog_new, mock_interaction, name="missing", url="https://yt/1"
+        )
+        called = mock_interaction.followup.send.called or mock_interaction.response.send_message.called
+        assert called
+
+
+class TestPlaylistRemove:
+    @pytest.mark.asyncio
+    async def test_remove_deletes_entry(self, music_cog_new, mock_interaction, db_session):
+        pl = Playlist(GuildId=mock_interaction.guild_id, UserId=mock_interaction.user.id, Name="del")
+        db_session.add(pl)
+        db_session.flush()
+        db_session.add(PlaylistEntry(PlaylistId=pl.Id, Url="https://yt/1", Title="Gone", Position=0))
+        db_session.commit()
+
+        await Music.playlist._children["remove"].callback(
+            music_cog_new, mock_interaction, name="del", url="https://yt/1"
+        )
+
+        entries = PlaylistEntry.get_by_playlist(pl.Id, db_session)
+        assert entries == []

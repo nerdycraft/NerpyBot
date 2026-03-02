@@ -60,9 +60,11 @@ music:
     list_empty: "You have no saved playlists."
     empty: "This playlist is empty."
     added_song: "Added **{title}** to **{name}**."
+    removed: "Removed song from playlist."
     removed_song: "Removed **{title}** from **{name}**."
     song_not_found: "That song was not found in the playlist."
     saved: "Saved {count} songs to **{name}**."
+    history_insufficient: "Only {available} song(s) in history (requested {count})."
   play:
     added: "Added: **{title}**"
     added_playlist: "Added **{count}** songs from *{title}*"
