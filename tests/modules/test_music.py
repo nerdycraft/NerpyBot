@@ -357,3 +357,52 @@ class TestPlaylistSave:
         entries = PlaylistEntry.get_by_playlist(pl.Id, db_session)
         assert len(entries) == 1
         assert entries[0].Title == "New"
+
+
+class TestPlaylistLoad:
+    @pytest.mark.asyncio
+    async def test_load_queues_all_entries(self, music_cog_new, mock_interaction, db_session):
+        from models.music import Playlist, PlaylistEntry  # noqa: E402
+
+        pl = Playlist(GuildId=mock_interaction.guild_id, UserId=mock_interaction.user.id, Name="mylist")
+        db_session.add(pl)
+        db_session.flush()
+        db_session.add(PlaylistEntry(PlaylistId=pl.Id, Url="https://yt/1", Title="Song A", Position=0))
+        db_session.add(PlaylistEntry(PlaylistId=pl.Id, Url="https://yt/2", Title="Song B", Position=1))
+        db_session.commit()
+
+        music_cog_new.audio.play = AsyncMock()
+        mock_interaction.user.voice = MagicMock()
+        mock_interaction.user.voice.channel = MagicMock()
+
+        await Music.playlist._children["load"].callback(music_cog_new, mock_interaction, name="mylist")
+
+        assert music_cog_new.audio.play.call_count == 2
+        call_args = mock_interaction.followup.send.call_args
+        assert "2" in call_args.args[0]
+
+    @pytest.mark.asyncio
+    async def test_load_unknown_playlist_sends_error(self, music_cog_new, mock_interaction, db_session):
+        mock_interaction.user.voice = MagicMock()
+
+        await Music.playlist._children["load"].callback(music_cog_new, mock_interaction, name="no-such-list")
+
+        call_args = mock_interaction.followup.send.call_args
+        assert "not found" in call_args.args[0].lower()
+
+    @pytest.mark.asyncio
+    async def test_load_empty_playlist_sends_error(self, music_cog_new, mock_interaction, db_session):
+        from models.music import Playlist  # noqa: E402
+
+        pl = Playlist(GuildId=mock_interaction.guild_id, UserId=mock_interaction.user.id, Name="empty")
+        db_session.add(pl)
+        db_session.commit()
+
+        music_cog_new.audio.play = AsyncMock()
+        mock_interaction.user.voice = MagicMock()
+
+        await Music.playlist._children["load"].callback(music_cog_new, mock_interaction, name="empty")
+
+        music_cog_new.audio.play.assert_not_called()
+        call_args = mock_interaction.followup.send.call_args
+        assert "empty" in call_args.args[0].lower()

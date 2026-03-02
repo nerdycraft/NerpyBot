@@ -63,6 +63,8 @@ music:
     removed: "Removed song from playlist."
     song_not_found: "That song was not found in the playlist."
     saved: "Saved {count} songs to **{name}**."
+    loaded: "Queued {count} songs from **{name}**."
+    load_empty: "Playlist **{name}** is empty."
     history_insufficient: "Only {available} song(s) in history (requested {count})."
   play:
     added: "Added: **{title}**"

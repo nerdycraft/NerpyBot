@@ -63,6 +63,8 @@ music:
     removed: "Song aus der Playlist entfernt."
     song_not_found: "Dieser Song wurde nicht in der Playlist gefunden."
     saved: "{count} Songs in **{name}** gespeichert."
+    loaded: "{count} Songs aus **{name}** zur Warteschlange hinzugefügt."
+    load_empty: "Playlist **{name}** ist leer."
     history_insufficient: "Nur {available} Song(s) in der Historie (angefordert: {count})."
   play:
     added: "Hinzugefügt: **{title}**"

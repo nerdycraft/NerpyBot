@@ -303,6 +303,40 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                 return
         await interaction.followup.send(get_string(lang, "music.playlist.removed"), ephemeral=True)
 
+    @playlist.command(name="load")
+    @app_commands.check(is_connected_to_voice)
+    @app_commands.describe(name="Playlist name to queue")
+    async def _playlist_load(self, interaction: Interaction, name: str):
+        """Queue all songs from one of your saved playlists."""
+        await interaction.response.defer(ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+        with self.bot.session_scope() as session:
+            pl = Playlist.get_by_name(interaction.guild_id, interaction.user.id, name, session)
+            if pl is None:
+                await interaction.followup.send(get_string(lang, "music.playlist.not_found", name=name), ephemeral=True)
+                return
+            entries = PlaylistEntry.get_by_playlist(pl.Id, session)
+
+        if not entries:
+            await interaction.followup.send(get_string(lang, "music.playlist.load_empty", name=name), ephemeral=True)
+            return
+
+        channel = interaction.user.voice.channel
+        enqueued = 0
+        for entry in entries:
+            song = QueuedSong(
+                channel=channel,
+                fetcher=self._fetch,
+                fetch_data=entry.Url,
+                title=entry.Title,
+            )
+            await self.audio.play(interaction.guild.id, song)
+            enqueued += 1
+
+        await interaction.followup.send(
+            get_string(lang, "music.playlist.loaded", count=enqueued, name=name), ephemeral=True
+        )
+
 
 async def setup(bot):
     """adds this module to the bot"""
