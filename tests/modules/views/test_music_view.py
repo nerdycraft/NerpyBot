@@ -3,9 +3,9 @@
 
 import discord
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
-from modules.views.music import build_progress_bar, build_now_playing_embed
+from modules.views.music import build_progress_bar, build_now_playing_embed, NowPlayingView
 from utils.strings import load_strings
 
 
@@ -93,3 +93,102 @@ class TestBuildNowPlayingEmbed:
         song = self._make_song(thumbnail=None)
         emb = build_now_playing_embed(song, 0, "en")
         assert not emb.thumbnail.url
+
+
+def _make_view(audio=None):
+    if audio is None:
+        audio = MagicMock()
+        audio.is_paused = MagicMock(return_value=False)
+        audio.pause = MagicMock()
+        audio.resume = MagicMock()
+        audio.stop = MagicMock()
+        audio.clear_buffer = MagicMock()
+        audio.leave = AsyncMock()
+        audio.list_queue = MagicMock(return_value=[])
+    return NowPlayingView(audio)
+
+
+def _make_interaction(in_channel=True, guild_id=1):
+    interaction = MagicMock()
+    interaction.guild_id = guild_id
+    interaction.response = MagicMock()
+    interaction.response.send_message = AsyncMock()
+    interaction.response.defer = AsyncMock()
+    interaction.response.is_done = MagicMock(return_value=False)
+    interaction.followup = MagicMock()
+    interaction.followup.send = AsyncMock()
+
+    bot_vc = MagicMock()
+    bot_vc.channel = MagicMock()
+    interaction.guild = MagicMock()
+    interaction.guild.voice_client = bot_vc
+
+    if in_channel:
+        interaction.user = MagicMock()
+        interaction.user.voice = MagicMock()
+        interaction.user.voice.channel = bot_vc.channel
+    else:
+        interaction.user = MagicMock()
+        interaction.user.voice = None
+    return interaction
+
+
+class TestNowPlayingViewPermissions:
+    @pytest.mark.asyncio
+    async def test_skip_blocked_when_not_in_channel(self):
+        view = _make_view()
+        interaction = _make_interaction(in_channel=False)
+        await view.skip.callback(interaction)
+        interaction.response.send_message.assert_called_once()
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "voice channel" in msg.lower()
+
+    @pytest.mark.asyncio
+    async def test_skip_defers_when_in_channel(self):
+        view = _make_view()
+        interaction = _make_interaction(in_channel=True)
+        await view.skip.callback(interaction)
+        interaction.response.defer.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_pause_resume_blocked_when_not_in_channel(self):
+        view = _make_view()
+        interaction = _make_interaction(in_channel=False)
+        await view.pause_resume.callback(interaction)
+        interaction.response.send_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_pause_resume_pauses_when_playing(self):
+        audio = MagicMock()
+        audio.is_paused = MagicMock(return_value=False)
+        audio.pause = MagicMock()
+        view = NowPlayingView(audio)
+        interaction = _make_interaction(in_channel=True)
+        await view.pause_resume.callback(interaction)
+        audio.pause.assert_called_once_with(interaction.guild_id)
+
+    @pytest.mark.asyncio
+    async def test_pause_resume_resumes_when_paused(self):
+        audio = MagicMock()
+        audio.is_paused = MagicMock(return_value=True)
+        audio.resume = MagicMock()
+        view = NowPlayingView(audio)
+        interaction = _make_interaction(in_channel=True)
+        await view.pause_resume.callback(interaction)
+        audio.resume.assert_called_once_with(interaction.guild_id)
+
+    @pytest.mark.asyncio
+    async def test_stop_calls_leave(self):
+        audio = MagicMock()
+        audio.leave = AsyncMock()
+        view = NowPlayingView(audio)
+        interaction = _make_interaction(in_channel=True)
+        await view.stop.callback(interaction)
+        audio.leave.assert_called_once_with(interaction.guild_id)
+
+    @pytest.mark.asyncio
+    async def test_stop_blocked_when_not_in_channel(self):
+        view = _make_view()
+        interaction = _make_interaction(in_channel=False)
+        await view.stop.callback(interaction)
+        interaction.response.send_message.assert_called_once()

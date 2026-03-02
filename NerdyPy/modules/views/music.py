@@ -37,3 +37,58 @@ def build_now_playing_embed(song, elapsed: float, lang: str) -> discord.Embed:
     if song.thumbnail:
         emb.set_thumbnail(url=song.thumbnail)
     return emb
+
+
+class NowPlayingView(discord.ui.View):
+    """Interactive controls attached to the now-playing embed."""
+
+    def __init__(self, audio):
+        super().__init__(timeout=None)
+        self.audio = audio
+
+    def _in_same_channel(self, interaction: discord.Interaction) -> bool:
+        bot_vc = interaction.guild.voice_client
+        if bot_vc is None:
+            return False
+        if interaction.user.voice is None:
+            return False
+        return interaction.user.voice.channel == bot_vc.channel
+
+    async def _reject(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_message("You must be in the voice channel to use this.", ephemeral=True)
+
+    @discord.ui.button(emoji="\u23ef\ufe0f", style=discord.ButtonStyle.primary, custom_id="music:pause_resume")
+    async def pause_resume(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self._in_same_channel(interaction):
+            await self._reject(interaction)
+            return
+        if self.audio.is_paused(interaction.guild_id):
+            self.audio.resume(interaction.guild_id)
+        else:
+            self.audio.pause(interaction.guild_id)
+        await interaction.response.defer()
+
+    @discord.ui.button(emoji="\u23ed\ufe0f", style=discord.ButtonStyle.secondary, custom_id="music:skip")
+    async def skip(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self._in_same_channel(interaction):
+            await self._reject(interaction)
+            return
+        self.audio.stop(interaction.guild_id)
+        await interaction.response.defer()
+
+    @discord.ui.button(emoji="\u23f9\ufe0f", style=discord.ButtonStyle.danger, custom_id="music:stop")
+    async def stop(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self._in_same_channel(interaction):
+            await self._reject(interaction)
+            return
+        await self.audio.leave(interaction.guild_id)
+        await interaction.response.defer()
+
+    @discord.ui.button(emoji="\U0001f4cb", style=discord.ButtonStyle.secondary, custom_id="music:queue")
+    async def show_queue(self, interaction: discord.Interaction, button: discord.ui.Button):
+        queue = self.audio.list_queue(interaction.guild_id)
+        if not queue:
+            await interaction.response.send_message("Queue is empty.", ephemeral=True)
+            return
+        lines = "\n".join(f"`{i}` {s.title}" for i, s in enumerate(queue, 1))
+        await interaction.response.send_message(f"\U0001f3b5 **Queue**\n{lines}", ephemeral=True)
