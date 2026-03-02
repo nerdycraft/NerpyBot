@@ -90,6 +90,67 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         self.bot.log.info("Progress Updater: Waiting for Bot to be ready...")
         await self.bot.wait_until_ready()
 
+    @app_commands.command(name="play")
+    @app_commands.guild_only()
+    @app_commands.check(is_connected_to_voice)
+    @app_commands.describe(url="Song URL, playlist URL, or search query")
+    async def _play(self, interaction: Interaction, url: str):
+        """Play a song, playlist, or search YouTube. Joins your voice channel automatically."""
+        await interaction.response.defer(ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+
+        is_url = "://" in url
+        if not is_url:
+            found = youtube(self.config.get("ytkey", ""), "url", url)
+            if found is None:
+                await interaction.followup.send(get_string(lang, "music.play.not_found"), ephemeral=True)
+                return
+            url = found
+
+        info = fetch_yt_infos(url)
+
+        if info.get("_type") == "playlist":
+            entries = info.get("entries", [])
+            for entry in entries:
+                entry_url = entry.get("webpage_url", entry.get("url", ""))
+                entry_info = fetch_yt_infos(entry_url)
+                await self._enqueue(interaction, entry_url, entry_info)
+            count = len(entries)
+            await interaction.followup.send(
+                get_string(lang, "music.play.added_playlist", count=count, title=info.get("title", "Playlist")),
+                ephemeral=True,
+            )
+            return
+
+        await self._enqueue(interaction, url, info)
+        title = info.get("title", url)
+        await interaction.followup.send(get_string(lang, "music.play.added", title=title), ephemeral=True)
+
+    async def _enqueue(self, interaction: Interaction, url: str, info: dict) -> None:
+        """Build a QueuedSong from yt-dlp info and add it to the audio queue."""
+        title = info.get("title", url)
+        idn = info.get("id")
+        duration = info.get("duration")
+        thumbnails = info.get("thumbnails") or []
+        thumbnail_url = thumbnails[0].get("url") if thumbnails else None
+
+        song = QueuedSong(
+            channel=interaction.user.voice.channel,
+            fetcher=self._fetch,
+            fetch_data=url,
+            title=title,
+            idn=idn,
+            duration=duration,
+            requester=interaction.user,
+            thumbnail=thumbnail_url,
+        )
+        self.bot.log.info(f'{error_context(interaction)}: requesting "{title}" to play')
+        await self.audio.play(interaction.guild.id, song)
+
+    @staticmethod
+    def _fetch(song: QueuedSong):
+        song.stream = download(song.fetch_data, video_id=song.idn)
+
     # ---- old commands below — removed in Task 13 ----
 
     @app_commands.command(name="skip")
@@ -174,10 +235,6 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         song = QueuedSong(interaction.user.voice.channel, self._fetch, video_url, video_title, video_idn)
         await interaction.followup.send(embed=emb)
         await self.audio.play(interaction.guild.id, song)
-
-    @staticmethod
-    def _fetch(song: QueuedSong):
-        song.stream = download(song.fetch_data, video_id=song.idn)
 
 
 async def setup(bot):

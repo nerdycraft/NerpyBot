@@ -225,3 +225,71 @@ class TestMusicHookAndProgressLoop:
 
         song.channel.send.assert_called_once()
         assert music_cog_new.audio.now_playing_message[guild_id] is new_msg
+
+
+class TestPlayCommand:
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        from utils.strings import load_strings
+
+        load_strings()
+
+    @pytest.mark.asyncio
+    async def test_play_single_song_queues_and_responds_ephemeral(self, music_cog_new, mock_interaction, monkeypatch):
+        monkeypatch.setattr(
+            "modules.music.fetch_yt_infos",
+            lambda url: {
+                "title": "Test Song",
+                "id": "abc123",
+                "duration": 210,
+                "thumbnails": [{"url": "https://img.yt/thumb.jpg"}],
+            },
+        )
+        music_cog_new.audio.play = AsyncMock()
+
+        await Music._play.callback(music_cog_new, mock_interaction, "https://youtube.com/watch?v=abc123")
+
+        music_cog_new.audio.play.assert_called_once()
+        mock_interaction.followup.send.assert_called_once()
+        assert mock_interaction.followup.send.call_args[1].get("ephemeral") is True
+
+    @pytest.mark.asyncio
+    async def test_play_playlist_url_queues_all_entries(self, music_cog_new, mock_interaction, monkeypatch):
+        entries = [
+            {"webpage_url": "https://yt/1", "title": "A", "id": "1", "duration": 100, "thumbnails": []},
+            {"webpage_url": "https://yt/2", "title": "B", "id": "2", "duration": 200, "thumbnails": []},
+        ]
+
+        def fake_fetch(url):
+            if "playlist" in url:
+                return {"_type": "playlist", "title": "My PL", "entries": entries}
+            return {"title": url, "id": url[-1], "duration": 100, "thumbnails": []}
+
+        monkeypatch.setattr("modules.music.fetch_yt_infos", fake_fetch)
+        music_cog_new.audio.play = AsyncMock()
+
+        await Music._play.callback(music_cog_new, mock_interaction, "https://youtube.com/playlist?list=PL")
+
+        assert music_cog_new.audio.play.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_play_search_query_uses_youtube_helper(self, music_cog_new, mock_interaction, monkeypatch):
+        monkeypatch.setattr("modules.music.youtube", lambda *a, **kw: "https://yt/found")
+        monkeypatch.setattr(
+            "modules.music.fetch_yt_infos",
+            lambda url: {"title": "Found Song", "id": "xyz", "duration": 180, "thumbnails": []},
+        )
+        music_cog_new.audio.play = AsyncMock()
+
+        await Music._play.callback(music_cog_new, mock_interaction, "some search query")
+
+        music_cog_new.audio.play.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_play_search_no_results_sends_ephemeral_error(self, music_cog_new, mock_interaction, monkeypatch):
+        monkeypatch.setattr("modules.music.youtube", lambda *a, **kw: None)
+
+        await Music._play.callback(music_cog_new, mock_interaction, "unfindable query")
+
+        mock_interaction.followup.send.assert_called_once()
+        assert mock_interaction.followup.send.call_args[1].get("ephemeral") is True

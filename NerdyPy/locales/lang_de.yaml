@@ -54,6 +54,10 @@ music:
     not_a_playlist: "Das ist keine Playlist. Bitte füge ein einzelnes Video direkt mit dem Play-Befehl hinzu."
     loading: "Bitte hab etwas Geduld. Das kann eine Weile dauern."
     use_playlist_command: "Bitte verwende den Playlist-Befehl für Playlists."
+  play:
+    added: "Hinzugefügt: **{title}**"
+    added_playlist: "**{count}** Songs aus *{title}* hinzugefügt"
+    not_found: "Keine Ergebnisse für diese Suche."
   search:
     no_results: "Deine Suche hat keine Ergebnisse geliefert."
 
