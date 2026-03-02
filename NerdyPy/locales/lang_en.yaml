@@ -74,6 +74,7 @@ music:
     added: "Added: **{title}**"
     added_playlist: "Added **{count}** songs from *{title}*"
     not_found: "No results found for that search."
+    fetch_error: "Couldn't retrieve that video. The URL may be invalid or the video is unavailable."
   search:
     no_results: "Your search did not yield any results."
 

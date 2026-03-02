@@ -68,6 +68,12 @@ class NowPlayingView(discord.ui.View):
             return False
         return interaction.user.voice.channel == bot_vc.channel
 
+    def _can_control(self, interaction: discord.Interaction) -> bool:
+        """Mods (mute_members) can control from anywhere; other users must be in the same voice channel."""
+        if interaction.user.guild_permissions.mute_members:
+            return True
+        return self._in_same_channel(interaction)
+
     async def _reject(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_message(
             get_string(self.lang, "music.now_playing.not_in_channel"), ephemeral=True
@@ -82,7 +88,7 @@ class NowPlayingView(discord.ui.View):
 
     @discord.ui.button(label="\u23f8 Pause", style=discord.ButtonStyle.primary, custom_id="music:pause_resume")
     async def pause_resume(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not self._in_same_channel(interaction):
+        if not self._can_control(interaction):
             await self._reject(interaction)
             return
         if self.audio.is_paused(interaction.guild_id):
@@ -97,7 +103,7 @@ class NowPlayingView(discord.ui.View):
 
     @discord.ui.button(label="\u23e9 Skip", style=discord.ButtonStyle.primary, custom_id="music:skip")
     async def skip(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not self._in_same_channel(interaction):
+        if not self._can_control(interaction):
             await self._reject(interaction)
             return
         self.audio.stop(interaction.guild_id)
@@ -105,7 +111,7 @@ class NowPlayingView(discord.ui.View):
 
     @discord.ui.button(label="\u23f9 Stop", style=discord.ButtonStyle.danger, custom_id="music:stop")
     async def stop(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not self._in_same_channel(interaction):
+        if not self._can_control(interaction):
             await self._reject(interaction)
             return
         self.audio.stop_and_clear(interaction.guild_id)

@@ -108,7 +108,11 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                 return
             url = found
 
-        info = await asyncio.to_thread(fetch_yt_infos, url)
+        try:
+            info = await asyncio.to_thread(fetch_yt_infos, url)
+        except Exception:
+            await interaction.followup.send(get_string(lang, "music.play.fetch_error"), ephemeral=True)
+            return
 
         if info.get("_type") == "playlist":
             entries = info.get("entries", [])
@@ -224,7 +228,11 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         """Add a song to one of your playlists."""
         await interaction.response.defer(ephemeral=True)
         lang = self._lang(interaction.guild_id)
-        info = await asyncio.to_thread(fetch_yt_infos, url)
+        try:
+            info = await asyncio.to_thread(fetch_yt_infos, url)
+        except Exception:
+            await interaction.followup.send(get_string(lang, "music.play.fetch_error"), ephemeral=True)
+            return
         title = info.get("title", url)
         with self.bot.session_scope() as session:
             pl = Playlist.get_by_name(interaction.guild_id, interaction.user.id, name, session)

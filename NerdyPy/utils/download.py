@@ -23,22 +23,6 @@ DL_DIR = Path(tempfile.gettempdir()) / "nerpybot-dl"
 DL_DIR.mkdir(exist_ok=True)
 
 
-class _YtdlLogger:
-    """Routes yt-dlp internal log messages through the bot's own logger."""
-
-    def debug(self, msg):
-        LOG.debug(msg)
-
-    def info(self, msg):
-        LOG.info(msg)
-
-    def warning(self, msg):
-        LOG.warning(msg)
-
-    def error(self, msg):
-        LOG.error(msg)
-
-
 YTDL_ARGS = {
     "format": "bestaudio/best",
     "outtmpl": str(DL_DIR / "%(id)s"),
@@ -56,7 +40,7 @@ YTDL_ARGS = {
     "extractor_args": {
         "youtube": {"player_client": ["android", "tv"]}
     },  # android/tv don't require GVS PO Token or JS n-challenge solver
-    "logger": _YtdlLogger(),
+    "logger": LOG,
 }
 # noinspection PyTypeChecker
 YTDL = YoutubeDL(YTDL_ARGS)

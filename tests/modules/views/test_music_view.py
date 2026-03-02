@@ -129,7 +129,7 @@ def _make_view(audio=None):
     return NowPlayingView(audio)
 
 
-def _make_interaction(in_channel=True, guild_id=1):
+def _make_interaction(in_channel=True, guild_id=1, is_mod=False):
     interaction = MagicMock()
     interaction.guild_id = guild_id
     interaction.response = MagicMock()
@@ -152,6 +152,7 @@ def _make_interaction(in_channel=True, guild_id=1):
     else:
         interaction.user = MagicMock()
         interaction.user.voice = None
+    interaction.user.guild_permissions.mute_members = is_mod
     return interaction
 
 
@@ -252,6 +253,35 @@ class TestNowPlayingViewPermissions:
         interaction.user.voice.channel = MagicMock()  # different object = different channel
         await view.skip.callback(interaction)
         interaction.response.send_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_mod_can_skip_without_being_in_channel(self):
+        """Users with mute_members permission bypass the voice channel check."""
+        view = _make_view()
+        interaction = _make_interaction(in_channel=False, is_mod=True)
+        await view.skip.callback(interaction)
+        interaction.response.defer.assert_called_once()
+        interaction.response.send_message.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_mod_can_pause_without_being_in_channel(self):
+        audio = MagicMock()
+        audio.is_paused = MagicMock(return_value=False)
+        audio.pause = MagicMock()
+        view = NowPlayingView(audio)
+        interaction = _make_interaction(in_channel=False, is_mod=True)
+        await view.pause_resume.callback(interaction)
+        audio.pause.assert_called_once_with(interaction.guild_id)
+
+    @pytest.mark.asyncio
+    async def test_mod_can_stop_without_being_in_channel(self):
+        audio = MagicMock()
+        audio.stop_and_clear = MagicMock()
+        audio.now_playing_message = {}
+        view = NowPlayingView(audio)
+        interaction = _make_interaction(in_channel=False, is_mod=True)
+        await view.stop.callback(interaction)
+        audio.stop_and_clear.assert_called_once_with(interaction.guild_id)
 
     @pytest.mark.asyncio
     async def test_show_queue_empty(self):

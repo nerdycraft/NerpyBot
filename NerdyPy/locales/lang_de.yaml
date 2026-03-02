@@ -74,6 +74,7 @@ music:
     added: "Hinzugefügt: **{title}**"
     added_playlist: "**{count}** Songs aus *{title}* hinzugefügt"
     not_found: "Keine Ergebnisse für diese Suche."
+    fetch_error: "Das Video konnte nicht abgerufen werden. Die URL ist möglicherweise ungültig oder das Video ist nicht verfügbar."
   search:
     no_results: "Deine Suche hat keine Ergebnisse geliefert."
 
