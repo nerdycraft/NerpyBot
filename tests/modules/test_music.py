@@ -228,12 +228,6 @@ class TestMusicHookAndProgressLoop:
 
 
 class TestPlayCommand:
-    @pytest.fixture(autouse=True)
-    def _load_locale_strings(self):
-        from utils.strings import load_strings
-
-        load_strings()
-
     @pytest.mark.asyncio
     async def test_play_single_song_queues_and_responds_ephemeral(self, music_cog_new, mock_interaction, monkeypatch):
         monkeypatch.setattr(
@@ -299,12 +293,6 @@ from models.music import Playlist  # noqa: E402
 
 
 class TestPlaylistCreate:
-    @pytest.fixture(autouse=True)
-    def _load_locale_strings(self):
-        from utils.strings import load_strings
-
-        load_strings()
-
     @pytest.mark.asyncio
     async def test_create_stores_playlist(self, music_cog_new, mock_interaction, db_session):
         await Music.playlist._children["create"].callback(music_cog_new, mock_interaction, name="bops")
@@ -330,12 +318,6 @@ class TestPlaylistCreate:
 
 
 class TestPlaylistList:
-    @pytest.fixture(autouse=True)
-    def _load_locale_strings(self):
-        from utils.strings import load_strings
-
-        load_strings()
-
     @pytest.mark.asyncio
     async def test_list_empty(self, music_cog_new, mock_interaction, db_session):
         await Music.playlist._children["list"].callback(music_cog_new, mock_interaction)
@@ -343,7 +325,7 @@ class TestPlaylistList:
             msg = mock_interaction.followup.send.call_args[0][0]
         else:
             msg = mock_interaction.response.send_message.call_args[0][0]
-        assert msg
+        assert "playlist" in msg.lower() or "no" in msg.lower()
 
     @pytest.mark.asyncio
     async def test_list_shows_names(self, music_cog_new, mock_interaction, db_session):
@@ -358,14 +340,11 @@ class TestPlaylistList:
 
 
 class TestPlaylistShow:
-    @pytest.fixture(autouse=True)
-    def _load_locale_strings(self):
-        from utils.strings import load_strings
-
-        load_strings()
-
     @pytest.mark.asyncio
     async def test_show_not_found(self, music_cog_new, mock_interaction, db_session):
         await Music.playlist._children["show"].callback(music_cog_new, mock_interaction, name="missing")
         called = mock_interaction.followup.send.called or mock_interaction.response.send_message.called
         assert called
+        if mock_interaction.followup.send.called:
+            msg = mock_interaction.followup.send.call_args[0][0]
+            assert "missing" in msg.lower() or "not found" in msg.lower()

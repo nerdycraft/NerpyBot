@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import asyncio
+
 import discord
 from discord import Color, Embed, Interaction, app_commands
 from discord.ext import tasks
@@ -108,17 +110,23 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                 return
             url = found
 
-        info = fetch_yt_infos(url)
+        info = await asyncio.get_event_loop().run_in_executor(None, fetch_yt_infos, url)
 
         if info.get("_type") == "playlist":
             entries = info.get("entries", [])
+            enqueued = 0
             for entry in entries:
                 entry_url = entry.get("webpage_url", entry.get("url", ""))
-                entry_info = fetch_yt_infos(entry_url)
-                await self._enqueue(interaction, entry_url, entry_info)
-            count = len(entries)
+                if not entry_url:
+                    continue
+                try:
+                    entry_info = await asyncio.get_event_loop().run_in_executor(None, fetch_yt_infos, entry_url)
+                except Exception:
+                    continue
+                if await self._enqueue(interaction, entry_url, entry_info):
+                    enqueued += 1
             await interaction.followup.send(
-                get_string(lang, "music.play.added_playlist", count=count, title=info.get("title", "Playlist")),
+                get_string(lang, "music.play.added_playlist", count=enqueued, title=info.get("title", "Playlist")),
                 ephemeral=True,
             )
             return
@@ -127,8 +135,10 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         title = info.get("title", url)
         await interaction.followup.send(get_string(lang, "music.play.added", title=title), ephemeral=True)
 
-    async def _enqueue(self, interaction: Interaction, url: str, info: dict) -> None:
-        """Build a QueuedSong from yt-dlp info and add it to the audio queue."""
+    async def _enqueue(self, interaction: Interaction, url: str, info: dict) -> bool:
+        """Build a QueuedSong from yt-dlp info and add it to the audio queue. Returns True on success."""
+        if interaction.user.voice is None:
+            return False
         title = info.get("title", url)
         idn = info.get("id")
         duration = info.get("duration")
@@ -147,6 +157,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         )
         self.bot.log.info(f'{error_context(interaction)}: requesting "{title}" to play')
         await self.audio.play(interaction.guild.id, song)
+        return True
 
     @staticmethod
     def _fetch(song: QueuedSong):
