@@ -198,3 +198,30 @@ class TestMusicHookAndProgressLoop:
 
         existing_msg.edit.assert_called_once()
         song.channel.send.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_handle_song_start_not_found_falls_back_to_send(self, music_cog_new, db_session):
+        """When edit raises NotFound, a new message should be sent and stored."""
+        import discord as _discord
+
+        guild_id = 987654321
+        existing_msg = AsyncMock()
+        existing_msg.edit = AsyncMock(
+            side_effect=_discord.NotFound(MagicMock(status=404, reason="Not Found"), "not found")
+        )
+        new_msg = MagicMock()
+        music_cog_new.audio.now_playing_message = {guild_id: existing_msg}
+
+        song = MagicMock()
+        song.title = "New Song"
+        song.fetch_data = "https://youtube.com/watch?v=new"
+        song.duration = 120
+        song.requester = None
+        song.thumbnail = None
+        song.channel = MagicMock()
+        song.channel.send = AsyncMock(return_value=new_msg)
+
+        await music_cog_new._handle_song_start(guild_id, song)
+
+        song.channel.send.assert_called_once()
+        assert music_cog_new.audio.now_playing_message[guild_id] is new_msg

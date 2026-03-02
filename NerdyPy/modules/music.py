@@ -50,14 +50,21 @@ class Music(NerpyBotCog, QueueMixin, Cog):
 
         existing_msg = self.audio.now_playing_message.get(guild_id)
         if existing_msg is None:
-            msg = await song.channel.send(embed=emb, view=view)
-            self.audio.now_playing_message[guild_id] = msg
+            try:
+                msg = await song.channel.send(embed=emb, view=view)
+                self.audio.now_playing_message[guild_id] = msg
+            except discord.HTTPException as e:
+                self.bot.log.error(f"[{guild_id}]: Failed to send now-playing embed: {e}")
         else:
             try:
                 await existing_msg.edit(embed=emb, view=view)
             except discord.NotFound:
-                msg = await song.channel.send(embed=emb, view=view)
-                self.audio.now_playing_message[guild_id] = msg
+                try:
+                    msg = await song.channel.send(embed=emb, view=view)
+                    self.audio.now_playing_message[guild_id] = msg
+                except discord.HTTPException as e:
+                    self.bot.log.error(f"[{guild_id}]: Failed to re-send now-playing embed: {e}")
+                    self.audio.now_playing_message.pop(guild_id, None)
 
     @tasks.loop(seconds=10)
     async def _progress_updater(self):
@@ -75,7 +82,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
             emb = build_now_playing_embed(song, elapsed, lang)
             try:
                 await msg.edit(embed=emb)
-            except discord.NotFound:
+            except (discord.NotFound, discord.Forbidden):
                 self.audio.now_playing_message.pop(guild_id, None)
 
     @_progress_updater.before_loop
