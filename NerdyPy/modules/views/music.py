@@ -84,7 +84,7 @@ class NowPlayingView(discord.ui.View):
             if not interaction.response.is_done():
                 await interaction.response.defer()
         except discord.HTTPException:
-            pass
+            pass  # Interaction already expired or responded to; defer is a best-effort fallback
 
     @discord.ui.button(label="\u23f8 Pause", style=discord.ButtonStyle.primary, custom_id="music:pause_resume")
     async def pause_resume(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -120,7 +120,7 @@ class NowPlayingView(discord.ui.View):
             try:
                 await msg.delete()
             except discord.NotFound:
-                pass
+                pass  # Message already deleted; nothing to clean up
         await interaction.response.defer()
 
     @discord.ui.button(label="\U0001f4cb Queue", style=discord.ButtonStyle.secondary, custom_id="music:queue")

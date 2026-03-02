@@ -289,7 +289,7 @@ class Audio:
             try:
                 await msg.delete()
             except discord.NotFound:
-                pass
+                pass  # Message already deleted; nothing to clean up
         self.clear_buffer(guild_id)
         self.current_song.pop(guild_id, None)
         self.play_start.pop(guild_id, None)
