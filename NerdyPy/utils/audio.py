@@ -69,6 +69,7 @@ class QueuedSong:
         idn: str = None,
         duration: int = None,
         requester=None,
+        thumbnail: str = None,
     ):
         self.stream = None
         self.title = title
@@ -78,6 +79,7 @@ class QueuedSong:
         self.fetch_data = fetch_data
         self.duration = duration
         self.requester = requester
+        self.thumbnail = thumbnail
         self.log = logging.getLogger("nerpybot")
 
     async def fetch_buffer(self):

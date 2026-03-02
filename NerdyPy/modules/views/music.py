@@ -2,6 +2,7 @@
 """Now-playing embed builder and interactive view for the music module."""
 
 import discord
+from utils.strings import get_string
 
 
 def build_progress_bar(elapsed: float, total: float, width: int = 20) -> str:
@@ -22,8 +23,6 @@ def build_progress_bar(elapsed: float, total: float, width: int = 20) -> str:
 
 def build_now_playing_embed(song, elapsed: float, lang: str) -> discord.Embed:
     """Build the now-playing embed for a given song and elapsed time."""
-    from utils.strings import get_string
-
     duration = song.duration or 0
     emb = discord.Embed(
         title=get_string(lang, "music.now_playing.title"),
@@ -35,6 +34,6 @@ def build_now_playing_embed(song, elapsed: float, lang: str) -> discord.Embed:
         emb.add_field(name="\u200b", value=progress, inline=False)
     if song.requester is not None:
         emb.set_footer(text=get_string(lang, "music.now_playing.requested_by", user=song.requester.display_name))
-    if hasattr(song, "_thumbnail") and song._thumbnail:
-        emb.set_thumbnail(url=song._thumbnail)
+    if song.thumbnail:
+        emb.set_thumbnail(url=song.thumbnail)
     return emb

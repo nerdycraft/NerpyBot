@@ -38,6 +38,10 @@ admin:
     unsubscribed: "Berechtigungsbenachrichtigungen für diesen Server abbestellt."
 
 music:
+  now_playing:
+    title: "Wird gespielt"
+    paused_title: "Wird gespielt (Pausiert)"
+    requested_by: "Angefragt von {user}"
   skip:
     success: "Aktuellen Titel übersprungen."
   queue:

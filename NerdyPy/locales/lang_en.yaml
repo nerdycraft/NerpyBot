@@ -38,6 +38,10 @@ admin:
     unsubscribed: "Unsubscribed from permission notifications for this server."
 
 music:
+  now_playing:
+    title: "Now Playing"
+    paused_title: "Now Playing (Paused)"
+    requested_by: "Requested by {user}"
   skip:
     success: "Skipped current track."
   queue:
