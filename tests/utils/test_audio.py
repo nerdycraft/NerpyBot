@@ -3,8 +3,9 @@
 
 from collections import defaultdict, deque
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 
 from utils.audio import Audio, BufferKey, QueuedSong
 
@@ -146,3 +147,164 @@ class TestAudioPauseResume:
         elapsed = audio.get_elapsed(1)
         # 30s total wall time - 5s paused = ~25s
         assert 23 < elapsed < 28
+
+
+class TestAudioPlayHook:
+    @pytest.mark.asyncio
+    async def test_play_sets_current_song(self):
+        audio = _make_audio()
+        guild_id = 1
+        song = MagicMock()
+        song.stream = MagicMock()  # pre-fetched, skip fetch_buffer
+        song.channel = MagicMock()
+        song.channel.connect = AsyncMock(return_value=MagicMock())
+        song.channel.name = "voice"
+        song.channel.id = 111
+        song.channel.guild.id = guild_id
+        song.channel.guild.name = "Test Guild"
+        vc = MagicMock()
+        vc.is_connected = MagicMock(return_value=True)
+        vc.play = MagicMock()
+        song.channel.guild.voice_client = vc
+        audio.buffer[guild_id] = {
+            BufferKey.VOICE_CLIENT: vc,
+            BufferKey.CHANNEL: song.channel,
+            BufferKey.QUEUE: MagicMock(),
+        }
+        audio.lastPlayed[guild_id] = datetime.now(UTC)
+
+        await audio._play(song)
+
+        assert audio.current_song.get(guild_id) is song
+        assert audio.play_start.get(guild_id) is not None
+        assert audio.paused_at.get(guild_id) is None
+
+    @pytest.mark.asyncio
+    async def test_play_appends_old_song_to_history(self):
+        audio = _make_audio()
+        guild_id = 1
+        old_song = MagicMock()
+        old_song.title = "Old Song"
+        audio.current_song[guild_id] = old_song
+
+        new_song = MagicMock()
+        new_song.stream = MagicMock()
+        new_song.channel = MagicMock()
+        new_song.channel.connect = AsyncMock(return_value=MagicMock())
+        new_song.channel.name = "voice"
+        new_song.channel.id = 111
+        new_song.channel.guild.id = guild_id
+        new_song.channel.guild.name = "Test Guild"
+        vc = MagicMock()
+        vc.is_connected = MagicMock(return_value=True)
+        vc.play = MagicMock()
+        new_song.channel.guild.voice_client = vc
+        audio.buffer[guild_id] = {
+            BufferKey.VOICE_CLIENT: vc,
+            BufferKey.CHANNEL: new_song.channel,
+            BufferKey.QUEUE: MagicMock(),
+        }
+        audio.lastPlayed[guild_id] = datetime.now(UTC)
+
+        await audio._play(new_song)
+
+        assert old_song in audio.history[guild_id]
+
+    @pytest.mark.asyncio
+    async def test_play_calls_song_start_hook(self):
+        audio = _make_audio()
+        guild_id = 1
+        hook_called = []
+
+        async def fake_hook(gid, s):
+            hook_called.append((gid, s))
+
+        audio._on_song_start_hook = fake_hook
+
+        song = MagicMock()
+        song.stream = MagicMock()
+        song.channel = MagicMock()
+        song.channel.connect = AsyncMock(return_value=MagicMock())
+        song.channel.name = "voice"
+        song.channel.id = 111
+        song.channel.guild.id = guild_id
+        song.channel.guild.name = "Test Guild"
+        vc = MagicMock()
+        vc.is_connected = MagicMock(return_value=True)
+        vc.play = MagicMock()
+        song.channel.guild.voice_client = vc
+        audio.buffer[guild_id] = {
+            BufferKey.VOICE_CLIENT: vc,
+            BufferKey.CHANNEL: song.channel,
+            BufferKey.QUEUE: MagicMock(),
+        }
+        audio.lastPlayed[guild_id] = datetime.now(UTC)
+
+        await audio._play(song)
+
+        assert hook_called == [(guild_id, song)]
+
+
+class TestAudioLeaveCleanup:
+    @pytest.mark.asyncio
+    async def test_leave_deletes_now_playing_message(self):
+        audio = _make_audio()
+        guild_id = 1
+        msg = AsyncMock()
+        msg.delete = AsyncMock()
+        audio.now_playing_message[guild_id] = msg
+        vc = AsyncMock()
+        vc.disconnect = AsyncMock()
+        _attach_vc(audio, guild_id, vc)
+        audio.buffer[guild_id][BufferKey.VOICE_CLIENT] = vc
+
+        await audio.leave(guild_id)
+
+        msg.delete.assert_called_once()
+        assert audio.now_playing_message.get(guild_id) is None
+
+    @pytest.mark.asyncio
+    async def test_leave_handles_missing_message(self):
+        """Should not raise if now_playing_message is None."""
+        audio = _make_audio()
+        guild_id = 1
+        vc = AsyncMock()
+        vc.disconnect = AsyncMock()
+        _attach_vc(audio, guild_id, vc)
+        audio.buffer[guild_id][BufferKey.VOICE_CLIENT] = vc
+
+        await audio.leave(guild_id)  # no error
+
+    @pytest.mark.asyncio
+    async def test_leave_handles_deleted_message(self):
+        """discord.NotFound on delete should be swallowed."""
+        import discord
+
+        audio = _make_audio()
+        guild_id = 1
+        msg = AsyncMock()
+        msg.delete = AsyncMock(side_effect=discord.NotFound(MagicMock(status=404, reason="Not Found"), "not found"))
+        audio.now_playing_message[guild_id] = msg
+        vc = AsyncMock()
+        vc.disconnect = AsyncMock()
+        _attach_vc(audio, guild_id, vc)
+        audio.buffer[guild_id][BufferKey.VOICE_CLIENT] = vc
+
+        await audio.leave(guild_id)  # should not raise
+
+    @pytest.mark.asyncio
+    async def test_leave_clears_session_state(self):
+        audio = _make_audio()
+        guild_id = 1
+        audio.current_song[guild_id] = MagicMock()
+        audio.play_start[guild_id] = datetime.now(UTC)
+        audio.paused_at[guild_id] = None
+        vc = AsyncMock()
+        vc.disconnect = AsyncMock()
+        _attach_vc(audio, guild_id, vc)
+        audio.buffer[guild_id][BufferKey.VOICE_CLIENT] = vc
+
+        await audio.leave(guild_id)
+
+        assert guild_id not in audio.current_song
+        assert guild_id not in audio.play_start

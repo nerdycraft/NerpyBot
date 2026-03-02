@@ -10,6 +10,7 @@ import queue
 from collections import defaultdict, deque
 from datetime import UTC, datetime
 
+import discord
 from discord import Interaction, VoiceChannel, VoiceClient
 from discord.ext import tasks
 from utils.helpers import send_paginated
@@ -133,6 +134,8 @@ class Audio:
             await song.fetch_buffer()
         await self._join_channel(song.channel)
 
+        guild_id = song.channel.guild.id
+
         if not song.channel.guild.voice_client or not song.channel.guild.voice_client.is_connected():
             guild = song.channel.guild
             self.bot.log.error(
@@ -140,6 +143,16 @@ class Audio:
                 f"failed to connect to voice channel {song.channel.name} ({song.channel.id})"
             )
             return
+
+        # Save old song to history before overwriting
+        old = self.current_song.get(guild_id)
+        if old is not None:
+            self.history[guild_id].append(old)
+
+        # Update session state
+        self.current_song[guild_id] = song
+        self.play_start[guild_id] = datetime.now(UTC)
+        self.paused_at.pop(guild_id, None)
 
         self.bot.log.debug(f"Playing Song {song.title} in channel {song.channel.name} ({song.channel.id})")
         song.channel.guild.voice_client.play(
@@ -150,8 +163,10 @@ class Audio:
                 else None
             ),
         )
+        self.lastPlayed[guild_id] = datetime.now()
 
-        self.lastPlayed[song.channel.guild.id] = datetime.now()
+        if self._on_song_start_hook is not None:
+            await self._on_song_start_hook(guild_id, song)
 
     async def _join_channel(self, channel: VoiceChannel):
         try:
@@ -251,7 +266,17 @@ class Audio:
             vc = self.buffer[guild_id].get(BufferKey.VOICE_CLIENT)
             if vc is not None:
                 await vc.disconnect()
+        # Delete the now-playing embed (marks end of session)
+        msg = self.now_playing_message.pop(guild_id, None)
+        if msg is not None:
+            try:
+                await msg.delete()
+            except discord.NotFound:
+                pass
         self.clear_buffer(guild_id)
+        self.current_song.pop(guild_id, None)
+        self.play_start.pop(guild_id, None)
+        self.paused_at.pop(guild_id, None)
 
     def pause(self, guild_id: int) -> None:
         """Pause playback and record the pause start time."""
