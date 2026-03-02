@@ -5,6 +5,7 @@ from discord import Color, Embed, Interaction, app_commands
 from discord.ext import tasks
 from discord.ext.commands import Cog
 
+from models.music import Playlist, PlaylistEntry
 from modules.views.music import NowPlayingView, build_now_playing_embed
 from utils.audio import QueuedSong, QueueMixin
 from utils.checks import can_stop_playback, is_connected_to_voice
@@ -150,6 +151,59 @@ class Music(NerpyBotCog, QueueMixin, Cog):
     @staticmethod
     def _fetch(song: QueuedSong):
         song.stream = download(song.fetch_data, video_id=song.idn)
+
+    @playlist.command(name="create")
+    @app_commands.describe(name="Name for the new playlist")
+    async def _playlist_create(self, interaction: Interaction, name: str):
+        """Create a new empty playlist."""
+        await interaction.response.defer(ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+        with self.bot.session_scope() as session:
+            existing = Playlist.get_by_name(interaction.guild_id, interaction.user.id, name, session)
+            if existing is not None:
+                await interaction.followup.send(
+                    get_string(lang, "music.playlist.already_exists", name=name), ephemeral=True
+                )
+                return
+            session.add(
+                Playlist(
+                    GuildId=interaction.guild_id,
+                    UserId=interaction.user.id,
+                    Name=name,
+                )
+            )
+        await interaction.followup.send(get_string(lang, "music.playlist.created", name=name), ephemeral=True)
+
+    @playlist.command(name="list")
+    async def _playlist_list(self, interaction: Interaction):
+        """Show your saved playlists."""
+        await interaction.response.defer(ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+        with self.bot.session_scope() as session:
+            playlists = Playlist.get_by_user(interaction.guild_id, interaction.user.id, session)
+        if not playlists:
+            await interaction.followup.send(get_string(lang, "music.playlist.list_empty"), ephemeral=True)
+            return
+        lines = "\n".join(f"• **{p.Name}**" for p in playlists)
+        await interaction.followup.send(f"\U0001f4c2 **Your playlists**\n{lines}", ephemeral=True)
+
+    @playlist.command(name="show")
+    @app_commands.describe(name="Playlist name to display")
+    async def _playlist_show(self, interaction: Interaction, name: str):
+        """Show songs in one of your playlists."""
+        await interaction.response.defer(ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+        with self.bot.session_scope() as session:
+            pl = Playlist.get_by_name(interaction.guild_id, interaction.user.id, name, session)
+            if pl is None:
+                await interaction.followup.send(get_string(lang, "music.playlist.not_found", name=name), ephemeral=True)
+                return
+            entries = PlaylistEntry.get_by_playlist(pl.Id, session)
+        if not entries:
+            await interaction.followup.send(get_string(lang, "music.playlist.empty"), ephemeral=True)
+            return
+        lines = "\n".join(f"`{i}` [{e.Title}]({e.Url})" for i, e in enumerate(entries, 1))
+        await interaction.followup.send(f"\U0001f3b5 **{name}**\n{lines}", ephemeral=True)
 
     # ---- old commands below — removed in Task 13 ----
 

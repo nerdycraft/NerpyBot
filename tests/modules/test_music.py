@@ -293,3 +293,79 @@ class TestPlayCommand:
 
         mock_interaction.followup.send.assert_called_once()
         assert mock_interaction.followup.send.call_args[1].get("ephemeral") is True
+
+
+from models.music import Playlist  # noqa: E402
+
+
+class TestPlaylistCreate:
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        from utils.strings import load_strings
+
+        load_strings()
+
+    @pytest.mark.asyncio
+    async def test_create_stores_playlist(self, music_cog_new, mock_interaction, db_session):
+        await Music.playlist._children["create"].callback(music_cog_new, mock_interaction, name="bops")
+        p = Playlist.get_by_name(mock_interaction.guild_id, mock_interaction.user.id, "bops", db_session)
+        assert p is not None
+
+    @pytest.mark.asyncio
+    async def test_create_duplicate_sends_error(self, music_cog_new, mock_interaction, db_session):
+        db_session.add(Playlist(GuildId=mock_interaction.guild_id, UserId=mock_interaction.user.id, Name="dup"))
+        db_session.commit()
+        await Music.playlist._children["create"].callback(music_cog_new, mock_interaction, name="dup")
+        if mock_interaction.followup.send.called:
+            msg = mock_interaction.followup.send.call_args[0][0]
+        else:
+            msg = mock_interaction.response.send_message.call_args[0][0]
+        assert "already" in msg.lower()
+
+    @pytest.mark.asyncio
+    async def test_create_responds_ephemeral(self, music_cog_new, mock_interaction, db_session):
+        await Music.playlist._children["create"].callback(music_cog_new, mock_interaction, name="new")
+        if mock_interaction.followup.send.called:
+            assert mock_interaction.followup.send.call_args[1].get("ephemeral") is True
+
+
+class TestPlaylistList:
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        from utils.strings import load_strings
+
+        load_strings()
+
+    @pytest.mark.asyncio
+    async def test_list_empty(self, music_cog_new, mock_interaction, db_session):
+        await Music.playlist._children["list"].callback(music_cog_new, mock_interaction)
+        if mock_interaction.followup.send.called:
+            msg = mock_interaction.followup.send.call_args[0][0]
+        else:
+            msg = mock_interaction.response.send_message.call_args[0][0]
+        assert msg
+
+    @pytest.mark.asyncio
+    async def test_list_shows_names(self, music_cog_new, mock_interaction, db_session):
+        db_session.add(Playlist(GuildId=mock_interaction.guild_id, UserId=mock_interaction.user.id, Name="jazz"))
+        db_session.commit()
+        await Music.playlist._children["list"].callback(music_cog_new, mock_interaction)
+        if mock_interaction.followup.send.called:
+            content = str(mock_interaction.followup.send.call_args)
+        else:
+            content = str(mock_interaction.response.send_message.call_args)
+        assert "jazz" in content
+
+
+class TestPlaylistShow:
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        from utils.strings import load_strings
+
+        load_strings()
+
+    @pytest.mark.asyncio
+    async def test_show_not_found(self, music_cog_new, mock_interaction, db_session):
+        await Music.playlist._children["show"].callback(music_cog_new, mock_interaction, name="missing")
+        called = mock_interaction.followup.send.called or mock_interaction.response.send_message.called
+        assert called
