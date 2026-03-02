@@ -42,9 +42,10 @@ def build_now_playing_embed(song, elapsed: float, lang: str) -> discord.Embed:
 class NowPlayingView(discord.ui.View):
     """Interactive controls attached to the now-playing embed."""
 
-    def __init__(self, audio):
+    def __init__(self, audio, lang: str = "en"):
         super().__init__(timeout=None)
         self.audio = audio
+        self.lang = lang
 
     def _in_same_channel(self, interaction: discord.Interaction) -> bool:
         bot_vc = interaction.guild.voice_client
@@ -55,7 +56,16 @@ class NowPlayingView(discord.ui.View):
         return interaction.user.voice.channel == bot_vc.channel
 
     async def _reject(self, interaction: discord.Interaction) -> None:
-        await interaction.response.send_message("You must be in the voice channel to use this.", ephemeral=True)
+        await interaction.response.send_message(
+            get_string(self.lang, "music.now_playing.not_in_channel"), ephemeral=True
+        )
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item) -> None:
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+        except discord.HTTPException:
+            pass
 
     @discord.ui.button(emoji="\u23ef\ufe0f", style=discord.ButtonStyle.primary, custom_id="music:pause_resume")
     async def pause_resume(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -88,7 +98,14 @@ class NowPlayingView(discord.ui.View):
     async def show_queue(self, interaction: discord.Interaction, button: discord.ui.Button):
         queue = self.audio.list_queue(interaction.guild_id)
         if not queue:
-            await interaction.response.send_message("Queue is empty.", ephemeral=True)
+            await interaction.response.send_message(
+                get_string(self.lang, "music.now_playing.queue_empty"), ephemeral=True
+            )
             return
-        lines = "\n".join(f"`{i}` {s.title}" for i, s in enumerate(queue, 1))
-        await interaction.response.send_message(f"\U0001f3b5 **Queue**\n{lines}", ephemeral=True)
+        # Cap display to first 10 entries to stay within Discord's 2000-char limit
+        shown = queue[:10]
+        lines = "\n".join(f"`{i}` {s.title}" for i, s in enumerate(shown, 1))
+        if len(queue) > 10:
+            lines += f"\n… and {len(queue) - 10} more"
+        header = get_string(self.lang, "music.now_playing.queue_header")
+        await interaction.response.send_message(f"**{header}**\n{lines}", ephemeral=True)

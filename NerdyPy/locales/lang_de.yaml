@@ -42,6 +42,9 @@ music:
     title: "Wird gespielt"
     paused_title: "Wird gespielt (Pausiert)"
     requested_by: "Angefragt von {user}"
+    not_in_channel: "Du musst im Sprachkanal sein, um dies zu verwenden."
+    queue_empty: "Warteschlange ist leer."
+    queue_header: "\U0001f3b5 Warteschlange"
   skip:
     success: "Aktuellen Titel übersprungen."
   queue:

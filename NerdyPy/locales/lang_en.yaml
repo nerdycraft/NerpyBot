@@ -42,6 +42,9 @@ music:
     title: "Now Playing"
     paused_title: "Now Playing (Paused)"
     requested_by: "Requested by {user}"
+    not_in_channel: "You must be in the voice channel to use this."
+    queue_empty: "Queue is empty."
+    queue_header: "\U0001f3b5 Queue"
   skip:
     success: "Skipped current track."
   queue:

@@ -134,6 +134,10 @@ def _make_interaction(in_channel=True, guild_id=1):
 
 
 class TestNowPlayingViewPermissions:
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        load_strings()
+
     @pytest.mark.asyncio
     async def test_skip_blocked_when_not_in_channel(self):
         view = _make_view()
@@ -192,3 +196,52 @@ class TestNowPlayingViewPermissions:
         interaction = _make_interaction(in_channel=False)
         await view.stop.callback(interaction)
         interaction.response.send_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_user_in_wrong_channel_is_blocked(self):
+        """User has voice state but is in a different channel than the bot."""
+        view = _make_view()
+        interaction = _make_interaction(in_channel=True)  # sets up same channel
+        # Now put the user in a different channel
+        interaction.user.voice.channel = MagicMock()  # different object = different channel
+        await view.skip.callback(interaction)
+        interaction.response.send_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_show_queue_empty(self):
+        audio = MagicMock()
+        audio.list_queue = MagicMock(return_value=[])
+        view = NowPlayingView(audio)
+        interaction = _make_interaction()
+        await view.show_queue.callback(interaction)
+        interaction.response.send_message.assert_called_once()
+        args = interaction.response.send_message.call_args
+        assert args[1].get("ephemeral") is True
+
+    @pytest.mark.asyncio
+    async def test_show_queue_non_empty(self):
+        audio = MagicMock()
+        song1 = MagicMock()
+        song1.title = "Song One"
+        song2 = MagicMock()
+        song2.title = "Song Two"
+        audio.list_queue = MagicMock(return_value=[song1, song2])
+        view = NowPlayingView(audio)
+        interaction = _make_interaction()
+        await view.show_queue.callback(interaction)
+        interaction.response.send_message.assert_called_once()
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "Song One" in msg
+        assert "Song Two" in msg
+
+    @pytest.mark.asyncio
+    async def test_show_queue_caps_at_10(self):
+        """More than 10 songs should show '… and N more'."""
+        audio = MagicMock()
+        songs = [MagicMock(title=f"Song {i}") for i in range(15)]
+        audio.list_queue = MagicMock(return_value=songs)
+        view = NowPlayingView(audio)
+        interaction = _make_interaction()
+        await view.show_queue.callback(interaction)
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "5 more" in msg
