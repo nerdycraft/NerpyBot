@@ -277,14 +277,21 @@ class Audio:
 
     def is_paused(self, guild_id: int) -> bool:
         """Return True if the guild is currently paused."""
+        vc = self.buffer.get(guild_id, {}).get(BufferKey.VOICE_CLIENT)
+        if vc is not None:
+            return vc.is_paused()
         return self.paused_at.get(guild_id) is not None
 
     def get_elapsed(self, guild_id: int) -> float:
-        """Return seconds elapsed since playback started (excluding paused time)."""
+        """Return seconds elapsed since playback started, excluding any paused time."""
         start = self.play_start.get(guild_id)
         if start is None:
             return 0.0
-        return (datetime.now(UTC) - start).total_seconds()
+        elapsed = (datetime.now(UTC) - start).total_seconds()
+        paused_since = self.paused_at.get(guild_id)
+        if paused_since is not None:
+            elapsed -= (datetime.now(UTC) - paused_since).total_seconds()
+        return max(0.0, elapsed)
 
     @_timeout_manager.before_loop
     async def _before_timeout_manager(self):

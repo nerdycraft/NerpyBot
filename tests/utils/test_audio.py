@@ -108,13 +108,23 @@ class TestAudioPauseResume:
         # Should be ~25s (30s total - 5s paused), not 30s
         assert 23 < elapsed < 28
 
-    def test_is_paused_true(self):
+    def test_is_paused_true_via_vc(self):
         audio = _make_audio()
+        vc = _make_vc(is_paused=True)
+        _attach_vc(audio, 1, vc)
         audio.paused_at[1] = datetime.now(UTC)
         assert audio.is_paused(1) is True
 
     def test_is_paused_false_when_not_set(self):
         audio = _make_audio()
+        assert audio.is_paused(1) is False
+
+    def test_is_paused_uses_vc_state_as_authority(self):
+        """VC reports not-paused → is_paused returns False even if paused_at has a stale entry."""
+        audio = _make_audio()
+        vc = _make_vc(is_paused=False)
+        _attach_vc(audio, 1, vc)
+        audio.paused_at[1] = datetime.now(UTC)  # stale entry
         assert audio.is_paused(1) is False
 
     def test_get_elapsed_no_state(self):
@@ -126,3 +136,13 @@ class TestAudioPauseResume:
         audio.play_start[1] = datetime.now(UTC) - timedelta(seconds=42)
         elapsed = audio.get_elapsed(1)
         assert 40 < elapsed < 45
+
+    def test_get_elapsed_does_not_count_paused_time(self):
+        """get_elapsed must freeze at the moment of pause — not keep ticking."""
+        audio = _make_audio()
+        now = datetime.now(UTC)
+        audio.play_start[1] = now - timedelta(seconds=30)
+        audio.paused_at[1] = now - timedelta(seconds=5)  # paused 5s ago
+        elapsed = audio.get_elapsed(1)
+        # 30s total wall time - 5s paused = ~25s
+        assert 23 < elapsed < 28
