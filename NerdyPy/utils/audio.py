@@ -7,7 +7,8 @@ import asyncio
 import enum
 import logging
 import queue
-from datetime import datetime
+from collections import defaultdict, deque
+from datetime import UTC, datetime
 
 from discord import Interaction, VoiceChannel, VoiceClient
 from discord.ext import tasks
@@ -58,13 +59,24 @@ class QueueMixin:
 class QueuedSong:
     """Models Class for Queued Songs"""
 
-    def __init__(self, channel: VoiceChannel, fetcher, fetch_data, title: str = None, idn: str = None):
+    def __init__(
+        self,
+        channel: VoiceChannel,
+        fetcher,
+        fetch_data,
+        title: str = None,
+        idn: str = None,
+        duration: int = None,
+        requester=None,
+    ):
         self.stream = None
         self.title = title
         self.idn = idn
         self.channel = channel
         self._fetcher = fetcher
         self.fetch_data = fetch_data
+        self.duration = duration
+        self.requester = requester
         self.log = logging.getLogger("nerpybot")
 
     async def fetch_buffer(self):
@@ -80,6 +92,12 @@ class Audio:
         self.buffer = {}
         self.lastPlayed = {}
         self.buffer_limit = self.bot.config["audio"]["buffer_limit"]
+        self.current_song: dict = {}
+        self.play_start: dict = {}
+        self.paused_at: dict = {}
+        self.now_playing_message: dict = {}
+        self.history: dict = defaultdict(lambda: deque(maxlen=50))
+        self._on_song_start_hook = None
 
     @tasks.loop(seconds=10)
     async def _timeout_manager(self):
@@ -234,6 +252,39 @@ class Audio:
             if vc is not None:
                 await vc.disconnect()
         self.clear_buffer(guild_id)
+
+    def pause(self, guild_id: int) -> None:
+        """Pause playback and record the pause start time."""
+        if not self._has_buffer(guild_id):
+            return
+        vc = self.buffer[guild_id].get(BufferKey.VOICE_CLIENT)
+        if vc is not None and vc.is_playing():
+            vc.pause()
+            self.paused_at[guild_id] = datetime.now(UTC)
+
+    def resume(self, guild_id: int) -> None:
+        """Resume playback and adjust play_start so elapsed time stays accurate."""
+        if not self._has_buffer(guild_id):
+            return
+        vc = self.buffer[guild_id].get(BufferKey.VOICE_CLIENT)
+        if vc is None or not vc.is_paused():
+            return
+        paused_since = self.paused_at.pop(guild_id, None)
+        if paused_since is not None and guild_id in self.play_start:
+            pause_duration = datetime.now(UTC) - paused_since
+            self.play_start[guild_id] = self.play_start[guild_id] + pause_duration
+        vc.resume()
+
+    def is_paused(self, guild_id: int) -> bool:
+        """Return True if the guild is currently paused."""
+        return self.paused_at.get(guild_id) is not None
+
+    def get_elapsed(self, guild_id: int) -> float:
+        """Return seconds elapsed since playback started (excluding paused time)."""
+        start = self.play_start.get(guild_id)
+        if start is None:
+            return 0.0
+        return (datetime.now(UTC) - start).total_seconds()
 
     @_timeout_manager.before_loop
     async def _before_timeout_manager(self):
