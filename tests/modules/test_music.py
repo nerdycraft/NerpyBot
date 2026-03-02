@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for modules.music — localized music command responses."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from models.admin import GuildLanguageConfig
@@ -129,3 +129,72 @@ class TestPlaylistNotAPlaylist:
 
         msg = interaction.followup.send.call_args[0][0]
         assert "keine Playlist" in msg
+
+
+@pytest.fixture
+def music_cog_new(mock_bot):
+    """Create a Music cog (new design) with loops stopped."""
+    mock_bot.config = {"music": {"ytkey": "fake-key"}}
+    mock_bot.audio = MagicMock()
+    mock_bot.audio.stop = MagicMock()
+    mock_bot.audio.is_paused = MagicMock(return_value=False)
+    mock_bot.audio.now_playing_message = {}
+    mock_bot.audio.current_song = {}
+    mock_bot.audio.play_start = {}
+    mock_bot.audio.paused_at = {}
+    mock_bot.audio.list_queue = MagicMock(return_value=[])
+    mock_bot.audio.get_elapsed = MagicMock(return_value=30.0)
+    mock_bot.audio._on_song_start_hook = None
+
+    with patch.object(Music, "_progress_updater"):
+        cog = Music.__new__(Music)
+        cog.bot = mock_bot
+        cog.config = mock_bot.config["music"]
+        cog.audio = mock_bot.audio
+        cog._progress_updater = MagicMock()
+        cog._progress_updater.start = MagicMock()
+        cog._progress_updater.cancel = MagicMock()
+    return cog
+
+
+class TestMusicHookAndProgressLoop:
+    @pytest.mark.asyncio
+    async def test_handle_song_start_new_session_sends_message(self, music_cog_new, db_session):
+        """When now_playing_message is None/absent, a new message should be sent to the voice channel."""
+        guild_id = 987654321
+        music_cog_new.audio.now_playing_message = {}  # no existing message
+
+        song = MagicMock()
+        song.title = "Test Song"
+        song.fetch_data = "https://youtube.com/watch?v=test"
+        song.duration = 180
+        song.requester = None
+        song.thumbnail = None
+        song.channel = MagicMock()
+        song.channel.send = AsyncMock(return_value=MagicMock())
+
+        await music_cog_new._handle_song_start(guild_id, song)
+
+        song.channel.send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_song_start_existing_session_edits_message(self, music_cog_new, db_session):
+        """When now_playing_message exists, it should be edited rather than a new one sent."""
+        guild_id = 987654321
+        existing_msg = AsyncMock()
+        existing_msg.edit = AsyncMock()
+        music_cog_new.audio.now_playing_message = {guild_id: existing_msg}
+
+        song = MagicMock()
+        song.title = "Next Song"
+        song.fetch_data = "https://youtube.com/watch?v=next"
+        song.duration = 240
+        song.requester = None
+        song.thumbnail = None
+        song.channel = MagicMock()
+        song.channel.send = AsyncMock()
+
+        await music_cog_new._handle_song_start(guild_id, song)
+
+        existing_msg.edit.assert_called_once()
+        song.channel.send.assert_not_called()

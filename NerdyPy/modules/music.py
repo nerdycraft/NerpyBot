@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 
+import discord
 from discord import Color, Embed, Interaction, app_commands
-from discord.ext.commands import GroupCog
+from discord.ext import tasks
+from discord.ext.commands import Cog
 
+from modules.views.music import NowPlayingView, build_now_playing_embed
 from utils.audio import QueuedSong, QueueMixin
 from utils.checks import can_stop_playback, is_connected_to_voice
 from utils.cog import NerpyBotCog
@@ -13,8 +16,8 @@ from utils.strings import get_guild_language, get_string
 
 @app_commands.guild_only()
 @app_commands.checks.bot_has_permissions(send_messages=True, speak=True)
-class Music(NerpyBotCog, QueueMixin, GroupCog):
-    """Command group for sound and text tags"""
+class Music(NerpyBotCog, QueueMixin, Cog):
+    """Music playback and playlist management."""
 
     queue_group = app_commands.Group(name="queue", description="Manage the Playlist Queue")
     play = app_commands.Group(name="play", description="Play music from YouTube and more")
@@ -25,9 +28,61 @@ class Music(NerpyBotCog, QueueMixin, GroupCog):
         self.queue = {}
         self.audio = self.bot.audio
 
+    async def cog_load(self):
+        self.audio._on_song_start_hook = self._handle_song_start
+        self._progress_updater.start()
+
+    async def cog_unload(self):
+        self._progress_updater.cancel()
+        self.audio._on_song_start_hook = None
+
     def _lang(self, guild_id: int) -> str:
         with self.bot.session_scope() as session:
             return get_guild_language(guild_id, session)
+
+    async def _handle_song_start(self, guild_id: int, song: QueuedSong) -> None:
+        """Called by Audio._play() when a new song starts. Creates or updates the now-playing embed."""
+        lang = self._lang(guild_id)
+        elapsed = self.audio.get_elapsed(guild_id)
+        emb = build_now_playing_embed(song, elapsed, lang)
+        view = NowPlayingView(self.audio, lang)
+
+        existing_msg = self.audio.now_playing_message.get(guild_id)
+        if existing_msg is None:
+            msg = await song.channel.send(embed=emb, view=view)
+            self.audio.now_playing_message[guild_id] = msg
+        else:
+            try:
+                await existing_msg.edit(embed=emb, view=view)
+            except discord.NotFound:
+                msg = await song.channel.send(embed=emb, view=view)
+                self.audio.now_playing_message[guild_id] = msg
+
+    @tasks.loop(seconds=10)
+    async def _progress_updater(self):
+        """Edit the now-playing embed for every active guild to update the progress bar."""
+        for guild_id, msg in list(self.audio.now_playing_message.items()):
+            if msg is None:
+                continue
+            if self.audio.is_paused(guild_id):
+                continue
+            song = self.audio.current_song.get(guild_id)
+            if song is None:
+                continue
+            lang = self._lang(guild_id)
+            elapsed = self.audio.get_elapsed(guild_id)
+            emb = build_now_playing_embed(song, elapsed, lang)
+            try:
+                await msg.edit(embed=emb)
+            except discord.NotFound:
+                self.audio.now_playing_message.pop(guild_id, None)
+
+    @_progress_updater.before_loop
+    async def _before_progress_updater(self):
+        self.bot.log.info("Progress Updater: Waiting for Bot to be ready...")
+        await self.bot.wait_until_ready()
+
+    # ---- old commands below — removed in Task 13 ----
 
     @app_commands.command(name="skip")
     @app_commands.check(can_stop_playback)
