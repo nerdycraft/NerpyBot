@@ -21,6 +21,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
 
     queue_group = app_commands.Group(name="queue", description="Manage the Playlist Queue")
     play = app_commands.Group(name="play", description="Play music from YouTube and more")
+    playlist = app_commands.Group(name="playlist", description="Manage your saved playlists")
 
     def __init__(self, bot):
         super().__init__(bot)
