@@ -38,6 +38,15 @@ admin:
     unsubscribed: "Unsubscribed from permission notifications for this server."
 
 music:
+  now_playing:
+    title: "Now Playing"
+    artist: "Artist"
+    requested_by: "Requested by"
+    progress: "Progress"
+    not_in_channel: "You must be in the voice channel to use this."
+    queue_empty: "Queue is empty."
+    queue_header: "\U0001f3b5 Queue"
+    queue_footer: "{count} songs"
   skip:
     success: "Skipped current track."
   queue:
@@ -47,6 +56,26 @@ music:
     not_a_playlist: "This is not a playlist. Please add a single video directly with the play command."
     loading: "Please bear with me. This can take a while."
     use_playlist_command: "Please use the playlist command for playlists."
+    created: "Playlist **{name}** created."
+    already_exists: "A playlist named **{name}** already exists."
+    not_found: "Playlist **{name}** not found."
+    list_header: "Your playlists"
+    list_empty: "You have no saved playlists."
+    empty: "This playlist is empty."
+    added_song: "Added **{title}** to **{name}**."
+    already_in_playlist: "That song is already in the playlist."
+    deleted: "Playlist **{name}** deleted."
+    removed: "Removed song from playlist."
+    song_not_found: "That song was not found in the playlist."
+    saved: "Saved {count} songs to **{name}**."
+    loaded: "Queued {count} songs from **{name}**."
+    load_empty: "Playlist **{name}** is empty."
+    history_insufficient: "Only {available} song(s) in history (requested {count})."
+  play:
+    added: "Added: **{title}**"
+    added_playlist: "Added **{count}** songs from *{title}*"
+    not_found: "No results found for that search."
+    fetch_error: "Couldn't retrieve that video. The URL may be invalid or the video is unavailable."
   search:
     no_results: "Your search did not yield any results."
 

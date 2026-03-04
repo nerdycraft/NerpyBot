@@ -22,6 +22,7 @@ CACHE = TTLCache(maxsize=100, ttl=600)
 DL_DIR = Path(tempfile.gettempdir()) / "nerpybot-dl"
 DL_DIR.mkdir(exist_ok=True)
 
+
 YTDL_ARGS = {
     "format": "bestaudio/best",
     "outtmpl": str(DL_DIR / "%(id)s"),
@@ -32,12 +33,14 @@ YTDL_ARGS = {
     "logtostderr": False,
     "quiet": True,
     "verbose": False,
-    "no_warnings": True,
     "extractaudio": True,
     "audioformat": "mp3",
     "default_search": "auto",
     "source_address": "0.0.0.0",  # bind to ipv4 since ipv6 addresses cause issues sometimes
-    "extractor_args": {"youtube": {"player_client": ["ios"]}},  # bypass web bot-check via iOS app API
+    "extractor_args": {
+        "youtube": {"player_client": ["android", "tv"]}
+    },  # android/tv don't require GVS PO Token or JS n-challenge solver
+    "logger": LOG,
 }
 # noinspection PyTypeChecker
 YTDL = YoutubeDL(YTDL_ARGS)

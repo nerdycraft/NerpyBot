@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 # Add NerdyPy to path so we can import modules
@@ -20,6 +20,12 @@ from utils.database import BASE
 def db_engine():
     """Create an in-memory SQLite engine for testing."""
     engine = create_engine("sqlite:///:memory:", echo=False)
+
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, _connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
     # Import all models to ensure they're registered with BASE.metadata
     from models.application import (  # noqa: F401
@@ -47,6 +53,7 @@ def db_engine():
         CraftingRoleMapping,
         CraftingOrder,
     )
+    from models.music import Playlist, PlaylistEntry  # noqa: F401
 
     BASE.metadata.create_all(engine)
     yield engine

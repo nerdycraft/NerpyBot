@@ -1,103 +1,172 @@
 # Music Module
 
-YouTube music playback in voice channels. Uses `yt-dlp` for video extraction and `ffmpeg` for audio conversion. Inherits queue management from `QueueMixin`.
+YouTube music playback in voice channels. Uses `yt-dlp` for video extraction and `ffmpeg` for audio conversion. Supports search queries, direct URLs, YouTube playlist URLs, and user-saved playlists. An interactive now-playing embed with playback controls is posted to the voice channel when a song starts.
 
 ## Commands
 
-### `/play [song_url]`
+### `/play <url>`
 
-Play audio from a URL or search YouTube.
+Play a song, enqueue a YouTube playlist, or search YouTube by keyword. Joins the user's voice channel automatically.
 
-| Parameter  | Type  | Description         |
-| ---------- | ----- | ------------------- |
-| `song_url` | `str` | URL or search query |
+| Parameter | Type  | Description                             |
+| --------- | ----- | --------------------------------------- |
+| `url`     | `str` | Song URL, playlist URL, or search query |
 
-**Behavior depends on input:**
+**Behavior by input:**
 
-- **Direct URL** — Fetches video info, queues, and plays
-- **YouTube playlist URL** — Redirects to `play playlist`
-- **Text query** — Redirects to `play search`
+- **Direct URL** — Fetches video info via `yt-dlp` and enqueues the song.
+- **YouTube playlist URL** — Extracts all entries and enqueues each one individually.
+- **Text query (no `://`)** — Calls the YouTube Data API v3 to find the top result, then enqueues it.
 
 **Requires:** User must be connected to a voice channel.
 
-### `/play song <song_url>`
+### `/playlist create <name>`
 
-Play a single song by direct URL. Hidden subcommand (used internally).
+Create a new empty playlist owned by the calling user.
 
-| Parameter  | Type  | Description               |
-| ---------- | ----- | ------------------------- |
-| `song_url` | `str` | Direct URL to audio/video |
+| Parameter | Type  | Description               |
+| --------- | ----- | ------------------------- |
+| `name`    | `str` | Name for the new playlist |
 
-### `/play playlist <playlist_url>`
+Fails with an error if a playlist with the same name already exists for the user in this guild.
 
-Add all videos from a YouTube playlist to the queue.
+### `/playlist list`
 
-| Parameter      | Type  | Description          |
-| -------------- | ----- | -------------------- |
-| `playlist_url` | `str` | YouTube playlist URL |
+Show all playlists saved by the calling user in this guild.
 
-**Process:**
+### `/playlist show <name>`
 
-1. Extract playlist via `yt-dlp` (`extract_flat` mode for speed)
-2. Create a `QueuedSong` for each entry with the video title and ID
-3. Queue all songs — playback starts automatically via the queue manager
+Show the songs in one of your playlists, numbered in order with linked titles.
 
-### `/play search <query>`
+| Parameter | Type  | Description   |
+| --------- | ----- | ------------- |
+| `name`    | `str` | Playlist name |
 
-Search YouTube and play the first result.
+### `/playlist add <name> <url>`
 
-| Parameter | Type  | Description  |
-| --------- | ----- | ------------ |
-| `query`   | `str` | Search terms |
+Add a song to an existing playlist. The song title is fetched from `yt-dlp` at the time of adding.
 
-Uses the YouTube Data API v3 (`config.search.ytkey`) to find the top result, then queues it.
+| Parameter | Type  | Description     |
+| --------- | ----- | --------------- |
+| `name`    | `str` | Playlist name   |
+| `url`     | `str` | Song URL to add |
 
-### `/skip`
+### `/playlist remove <name> <url>`
 
-Skip the currently playing track. The queue manager automatically starts the next song. Any user in the same voice channel as the bot can skip; moderators can skip from anywhere.
+Remove a song from a playlist by its URL.
 
-### `/queue list`
+| Parameter | Type  | Description        |
+| --------- | ----- | ------------------ |
+| `name`    | `str` | Playlist name      |
+| `url`     | `str` | Song URL to remove |
 
-List all songs currently in the queue with their positions.
+### `/playlist save <name> [count]`
 
-### `/queue drop`
+Save the current queue (or the last N played songs) as a playlist. Creates the playlist if it does not exist; overwrites entries if it does.
 
-Clear the entire queue and stop playback.
+| Parameter | Type             | Description                                                              |
+| --------- | ---------------- | ------------------------------------------------------------------------ |
+| `name`    | `str`            | Name for the playlist                                                    |
+| `count`   | `int` (optional) | Number of recently played songs to save. Omit to save the current queue. |
 
-**Permission:** `mute_members`
+When `count` is provided, songs are taken from the guild's playback history (most recent N entries). The history buffer holds up to 50 songs per guild.
 
-## How Playback Works
+## Now Playing Embed and View
 
-1. **User requests a song** — a `QueuedSong` object is created with a fetcher function and metadata
-2. **`Audio.play()`** adds it to the guild's queue buffer
-3. **`Audio._queue_manager`** (1-second loop) detects the queue has items and the bot isn't currently playing
-4. **`QueuedSong.fetch_buffer()`** is called — downloads audio via `yt-dlp`, converts with `ffmpeg` to `FFmpegOpusAudio`
-5. **`Audio._play()`** joins the voice channel (if not already) and starts streaming
-6. When playback finishes, the queue manager picks up the next song
+When a song starts, the bot posts an embed to the voice channel with:
 
-## Audio Pipeline
+- **Title** — "Now Playing"
+- **Description** — Song title as a hyperlink to the source URL
+- **Progress bar** — `[====>------] 1:23 / 3:45` updated every 10 seconds by `_progress_updater`
+- **Footer** — "Requested by \<username\>"
+- **Thumbnail** — Video thumbnail image (when available)
 
-```
-URL → yt-dlp (extract info) → HTTP download → ffmpeg (loudnorm filter, opus encoding) → Discord voice
-```
+The embed has four persistent buttons:
 
-- **Caching:** Video metadata cached in a `TTLCache` (10-minute TTL, 100 entries max)
-- **Download directory:** `tmp/` (temporary files)
-- **Timeout:** Bot automatically leaves voice after 600 seconds of inactivity (`Audio._timeout_manager`)
+| Button | Action                                                                                |
+| ------ | ------------------------------------------------------------------------------------- |
+| ⏯     | Pause or resume playback                                                              |
+| ⏭     | Skip the current track (triggers `Audio.stop()`; the queue manager picks up the next) |
+| ⏹     | Stop playback and disconnect from the voice channel (`Audio.leave()`)                 |
+| 📋     | Show the current queue as an ephemeral message (capped at 10 entries)                 |
 
-## Queue System
-
-The queue is stored per-guild in `Audio.buffer[guild_id][BufferKey.QUEUE]` as a list of `QueuedSong` objects. The `QueueMixin` class provides:
-
-- `_has_queue(guild_id)` — Check if queue is non-empty
-- `_clear_queue(guild_id)` — Empty the queue
+All buttons require the user to be in the same voice channel as the bot. The embed is deleted when the bot disconnects.
 
 ## Configuration
 
 ```yaml
-audio:
-  buffer_limit: 5 # Max queued songs per guild
+music:
+  ytkey: your_youtube_api_key # Required for text-based search queries
 
-search:
-  ytkey: your_youtube_api_key # Required for /play search
+audio:
+  buffer_limit: 5 # Max songs pre-fetched ahead in the queue
 ```
+
+The `ytkey` is only needed for search queries. Direct URL and playlist URL playback works without it.
+
+## Background Tasks
+
+### `Audio._queue_manager`
+
+**Schedule:** 1-second loop.
+
+Pops the next `QueuedSong` from the guild's queue buffer when the bot is not currently playing. Calls `Audio._play()` to start streaming, then pre-fetches the next `buffer_limit` songs via `_update_buffer()`.
+
+### `Audio._timeout_manager`
+
+**Schedule:** 10-second loop.
+
+Disconnects from the voice channel if the bot has been idle (not playing) for more than 600 seconds. Resets the idle timer whenever a song is actively playing.
+
+### `Music._progress_updater`
+
+**Schedule:** 10-second loop.
+
+Edits the now-playing embed for every active guild to advance the progress bar. Skips guilds where playback is paused. Removes the guild's embed reference if the message has been deleted (discord.NotFound).
+
+## Database Models
+
+### `Playlist`
+
+Table: `MusicPlaylist`
+
+| Column    | Type         | Purpose                         |
+| --------- | ------------ | ------------------------------- |
+| Id        | Integer (PK) | Auto-increment                  |
+| GuildId   | BigInteger   | Discord guild ID                |
+| UserId    | BigInteger   | Discord user ID (owner)         |
+| Name      | Unicode(100) | Playlist name                   |
+| CreatedAt | DateTime     | Creation timestamp (UTC, naive) |
+
+**Unique constraint:** `(GuildId, UserId, Name)` — one playlist per name per user per guild.
+
+**Index:** `(GuildId, UserId)` — efficient per-user lookups.
+
+### `PlaylistEntry`
+
+Table: `MusicPlaylistEntry`
+
+| Column     | Type         | Purpose                                     |
+| ---------- | ------------ | ------------------------------------------- |
+| Id         | Integer (PK) | Auto-increment                              |
+| PlaylistId | Integer (FK) | Parent `Playlist.Id` (CASCADE delete)       |
+| Url        | UnicodeText  | Song URL                                    |
+| Title      | Unicode(200) | Song title (captured at the time of adding) |
+| Position   | Integer      | Order within the playlist (0-indexed)       |
+
+**Index:** `PlaylistId` — fast entry lookups by playlist.
+
+## Data Flow
+
+```
+/play <url>
+  └─ _enqueue()                  Build QueuedSong with fetcher, metadata, requester
+       └─ Audio.play()           Add to guild queue buffer (or play immediately if idle)
+            └─ _queue_manager    1s loop detects idle + queued item
+                 └─ Audio._play()  fetch_buffer() → join channel → VoiceClient.play()
+                      └─ _on_song_start_hook
+                           └─ Music._handle_song_start()
+                                └─ NowPlayingView posted to voice channel
+```
+
+After posting the embed, `_progress_updater` edits it every 10 seconds to update the progress bar.
