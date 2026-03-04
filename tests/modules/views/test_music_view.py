@@ -12,7 +12,7 @@ from utils.strings import load_strings
 class TestBuildProgressBar:
     def test_at_zero_elapsed(self):
         bar = build_progress_bar(0, 300)
-        assert "```" in bar
+        assert "░" in bar
         assert "0:00:00 / 0:05:00" in bar
 
     def test_at_half_elapsed(self):
@@ -32,9 +32,9 @@ class TestBuildProgressBar:
         bar = build_progress_bar(400, 300)
         assert "0:05:00 / 0:05:00" in bar
 
-    def test_bar_contains_arrow(self):
+    def test_bar_contains_filled_block(self):
         bar = build_progress_bar(60, 300)
-        assert ">" in bar
+        assert "█" in bar
 
     def test_minutes_and_seconds_formatting(self):
         bar = build_progress_bar(65, 125)
@@ -74,7 +74,7 @@ class TestBuildNowPlayingEmbed:
     def test_embed_has_progress_bar_when_duration(self):
         song = self._make_song(duration=300)
         emb = build_now_playing_embed(song, 60, "en")
-        assert any(f.value for f in emb.fields if ">" in f.value or "=" in f.value)
+        assert any(f.value for f in emb.fields if "█" in f.value or "░" in f.value)
 
     def test_embed_no_progress_bar_when_no_duration(self):
         song = self._make_song(duration=0)
@@ -299,25 +299,35 @@ class TestNowPlayingViewPermissions:
         audio = MagicMock()
         song1 = MagicMock()
         song1.title = "Song One"
+        song1.fetch_data = "https://yt/1"
+        song1.duration = 180
         song2 = MagicMock()
         song2.title = "Song Two"
+        song2.fetch_data = "https://yt/2"
+        song2.duration = 240
         audio.list_queue = MagicMock(return_value=[song1, song2])
         view = NowPlayingView(audio)
         interaction = _make_interaction()
         await view.show_queue.callback(interaction)
         interaction.response.send_message.assert_called_once()
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "Song One" in msg
-        assert "Song Two" in msg
+        embed = interaction.response.send_message.call_args.kwargs["embed"]
+        assert "Song One" in embed.description
+        assert "Song Two" in embed.description
 
     @pytest.mark.asyncio
     async def test_show_queue_caps_at_10(self):
         """More than 10 songs should show '… and N more'."""
         audio = MagicMock()
-        songs = [MagicMock(title=f"Song {i}") for i in range(15)]
+        songs = []
+        for i in range(15):
+            s = MagicMock()
+            s.title = f"Song {i}"
+            s.fetch_data = f"https://yt/{i}"
+            s.duration = 180
+            songs.append(s)
         audio.list_queue = MagicMock(return_value=songs)
         view = NowPlayingView(audio)
         interaction = _make_interaction()
         await view.show_queue.callback(interaction)
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "5 more" in msg
+        embed = interaction.response.send_message.call_args.kwargs["embed"]
+        assert "5 more" in embed.description

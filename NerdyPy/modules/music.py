@@ -132,15 +132,20 @@ class Music(NerpyBotCog, QueueMixin, Cog):
 
     async def _load_playlist_entries(self, interaction: Interaction, entries: list) -> None:
         """Background task: fetch info and enqueue each playlist entry without blocking interactions."""
-        for entry in entries:
-            entry_url = entry.get("webpage_url", entry.get("url", ""))
-            if not entry_url:
-                continue
-            try:
-                entry_info = await asyncio.to_thread(fetch_yt_infos, entry_url)
-            except Exception:
-                continue
-            await self._enqueue(interaction, entry_url, entry_info)
+        try:
+            for entry in entries:
+                if interaction.user.voice is None:
+                    break
+                entry_url = entry.get("webpage_url", entry.get("url", ""))
+                if not entry_url:
+                    continue
+                try:
+                    entry_info = await asyncio.to_thread(fetch_yt_infos, entry_url)
+                except Exception:
+                    continue
+                await self._enqueue(interaction, entry_url, entry_info)
+        except Exception as e:
+            self.bot.log.error(f"[{interaction.guild_id}]: playlist load failed mid-stream: {e}")
 
     async def _enqueue(self, interaction: Interaction, url: str, info: dict) -> bool:
         """Build a QueuedSong from yt-dlp info and add it to the audio queue. Returns True on success."""
@@ -176,6 +181,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
     # ── Autocomplete helpers ───────────────────────────────────────────────
 
     async def _ac_playlist_name(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
+        """Autocomplete for playlist name from the user's saved playlists."""
         with self.bot.session_scope() as session:
             playlists = Playlist.get_by_user(interaction.guild_id, interaction.user.id, session)
         return [app_commands.Choice(name=p.Name, value=p.Name) for p in playlists if current.lower() in p.Name.lower()][
@@ -413,12 +419,17 @@ class Music(NerpyBotCog, QueueMixin, Cog):
 
     async def _load_saved_playlist(self, interaction: Interaction, entries: list) -> None:
         """Background task: re-fetch yt-dlp info for each saved entry (needed for video_id) and enqueue."""
-        for entry in entries:
-            try:
-                info = await asyncio.to_thread(fetch_yt_infos, entry.Url)
-            except Exception:
-                continue
-            await self._enqueue(interaction, entry.Url, info)
+        try:
+            for entry in entries:
+                if interaction.user.voice is None:
+                    break
+                try:
+                    info = await asyncio.to_thread(fetch_yt_infos, entry.Url)
+                except Exception:
+                    continue
+                await self._enqueue(interaction, entry.Url, info)
+        except Exception as e:
+            self.bot.log.error(f"[{interaction.guild_id}]: saved playlist load failed mid-stream: {e}")
 
 
 async def setup(bot):

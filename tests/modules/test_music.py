@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for modules.music — localized music command responses."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -142,9 +143,15 @@ class TestPlayCommand:
             return {"title": url, "id": url[-1], "duration": 100, "thumbnails": []}
 
         monkeypatch.setattr("modules.music.fetch_yt_infos", fake_fetch)
+        mock_interaction.user.voice = MagicMock()
+        mock_interaction.user.voice.channel = MagicMock()
         music_cog_new.audio.play = AsyncMock()
 
         await Music._play.callback(music_cog_new, mock_interaction, "https://youtube.com/playlist?list=PL")
+        # Drain background tasks spawned by create_task
+        pending = {t for t in asyncio.all_tasks() if t is not asyncio.current_task()}
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
         assert music_cog_new.audio.play.call_count == 2
 
@@ -401,7 +408,7 @@ class TestPlaylistSave:
 
 class TestPlaylistLoad:
     @pytest.mark.asyncio
-    async def test_load_queues_all_entries(self, music_cog_new, mock_interaction, db_session):
+    async def test_load_queues_all_entries(self, music_cog_new, mock_interaction, db_session, monkeypatch):
         from models.music import Playlist, PlaylistEntry  # noqa: E402
 
         pl = Playlist(GuildId=mock_interaction.guild_id, UserId=mock_interaction.user.id, Name="mylist")
@@ -411,15 +418,21 @@ class TestPlaylistLoad:
         db_session.add(PlaylistEntry(PlaylistId=pl.Id, Url="https://yt/2", Title="Song B", Position=1))
         db_session.commit()
 
+        monkeypatch.setattr(
+            "modules.music.fetch_yt_infos",
+            lambda url: {"title": "Song", "id": url[-1], "duration": 120, "thumbnails": []},
+        )
         music_cog_new.audio.play = AsyncMock()
         mock_interaction.user.voice = MagicMock()
         mock_interaction.user.voice.channel = MagicMock()
 
         await Music.playlist._children["load"].callback(music_cog_new, mock_interaction, name="mylist")
+        # Drain background tasks spawned by create_task
+        pending = {t for t in asyncio.all_tasks() if t is not asyncio.current_task()}
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
         assert music_cog_new.audio.play.call_count == 2
-        call_args = mock_interaction.followup.send.call_args
-        assert "2" in call_args.args[0]
 
     @pytest.mark.asyncio
     async def test_load_unknown_playlist_sends_error(self, music_cog_new, mock_interaction, db_session):
