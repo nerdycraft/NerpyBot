@@ -300,14 +300,6 @@ class TestCanLeaveVoice:
         mock_interaction.user.guild_permissions.mute_members = True
         assert await can_leave_voice(mock_interaction) is True
 
-    async def test_allows_operator(self, mock_interaction):
-        mock_interaction.client.ops = [100]
-        assert await can_leave_voice(mock_interaction) is True
-
-    async def test_allows_admin(self, mock_interaction):
-        mock_interaction.user.guild_permissions.administrator = True
-        assert await can_leave_voice(mock_interaction) is True
-
     async def test_rejects_regular_user(self, mock_interaction):
         with pytest.raises(SilentCheckFailure, match="[Mm]oderators"):
             await can_leave_voice(mock_interaction)

@@ -63,14 +63,11 @@ class TestParseEnvConfig:
             monkeypatch.delenv(key, raising=False)
         assert parse_env_config() == {}
 
-    def test_token(self, monkeypatch):
+    def test_token_and_client_id(self, monkeypatch):
         monkeypatch.setenv("NERPYBOT_TOKEN", "my_token")
-        result = parse_env_config()
-        assert result["bot"]["token"] == "my_token"
-
-    def test_client_id(self, monkeypatch):
         monkeypatch.setenv("NERPYBOT_CLIENT_ID", "111222333")
         result = parse_env_config()
+        assert result["bot"]["token"] == "my_token"
         assert result["bot"]["client_id"] == "111222333"
 
     def test_ops_comma_separated(self, monkeypatch):
@@ -109,14 +106,11 @@ class TestParseEnvConfig:
         result = parse_env_config()
         assert result["audio"]["buffer_limit"] == 10
 
-    def test_youtube_key(self, monkeypatch):
+    def test_api_keys(self, monkeypatch):
         monkeypatch.setenv("NERPYBOT_YOUTUBE_KEY", "yt_key_abc")
-        result = parse_env_config()
-        assert result["music"]["ytkey"] == "yt_key_abc"
-
-    def test_riot_key(self, monkeypatch):
         monkeypatch.setenv("NERPYBOT_RIOT_KEY", "riot_key_abc")
         result = parse_env_config()
+        assert result["music"]["ytkey"] == "yt_key_abc"
         assert result["league"]["riot"] == "riot_key_abc"
 
     def test_wow_credentials(self, monkeypatch):
@@ -136,17 +130,10 @@ class TestParseEnvConfig:
         assert gn["mount_batch_size"] == 50
         assert gn["active_days"] == 14
 
-    def test_wow_track_mounts_true(self, monkeypatch):
-        monkeypatch.setenv("NERPYBOT_WOW_TRACK_MOUNTS", "true")
-        assert parse_env_config()["wow"]["guild_news"]["track_mounts"] is True
-
-    def test_wow_track_mounts_false(self, monkeypatch):
-        monkeypatch.setenv("NERPYBOT_WOW_TRACK_MOUNTS", "false")
-        assert parse_env_config()["wow"]["guild_news"]["track_mounts"] is False
-
-    def test_wow_track_mounts_yes(self, monkeypatch):
-        monkeypatch.setenv("NERPYBOT_WOW_TRACK_MOUNTS", "yes")
-        assert parse_env_config()["wow"]["guild_news"]["track_mounts"] is True
+    def test_wow_track_mounts_bool_parsing(self, monkeypatch):
+        for value, expected in [("true", True), ("false", False), ("yes", True)]:
+            monkeypatch.setenv("NERPYBOT_WOW_TRACK_MOUNTS", value)
+            assert parse_env_config()["wow"]["guild_news"]["track_mounts"] is expected, f"failed for {value!r}"
 
     def test_error_recipients_comma_separated(self, monkeypatch):
         monkeypatch.setenv("NERPYBOT_ERROR_RECIPIENTS", "111,222")
