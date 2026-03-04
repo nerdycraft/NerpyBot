@@ -46,6 +46,7 @@ music:
     not_in_channel: "You must be in the voice channel to use this."
     queue_empty: "Queue is empty."
     queue_header: "\U0001f3b5 Queue"
+    queue_footer: "{count} songs"
   skip:
     success: "Skipped current track."
   queue:

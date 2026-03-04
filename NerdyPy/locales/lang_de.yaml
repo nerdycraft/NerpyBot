@@ -46,6 +46,7 @@ music:
     not_in_channel: "Du musst im Sprachkanal sein, um dies zu verwenden."
     queue_empty: "Warteschlange ist leer."
     queue_header: "\U0001f3b5 Warteschlange"
+    queue_footer: "{count} Songs"
   skip:
     success: "Aktuellen Titel übersprungen."
   queue:

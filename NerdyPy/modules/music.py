@@ -116,26 +116,31 @@ class Music(NerpyBotCog, QueueMixin, Cog):
 
         if info.get("_type") == "playlist":
             entries = info.get("entries", [])
-            enqueued = 0
-            for entry in entries:
-                entry_url = entry.get("webpage_url", entry.get("url", ""))
-                if not entry_url:
-                    continue
-                try:
-                    entry_info = await asyncio.to_thread(fetch_yt_infos, entry_url)
-                except Exception:
-                    continue
-                if await self._enqueue(interaction, entry_url, entry_info):
-                    enqueued += 1
-            await interaction.followup.send(
-                get_string(lang, "music.play.added_playlist", count=enqueued, title=info.get("title", "Playlist")),
-                ephemeral=True,
-            )
+            if not entries:
+                await interaction.followup.send(
+                    get_string(lang, "music.play.added_playlist", count=0, title=info.get("title", "Playlist")),
+                    ephemeral=True,
+                )
+                return
+            await interaction.followup.send(get_string(lang, "music.playlist.loading"), ephemeral=True)
+            asyncio.create_task(self._load_playlist_entries(interaction, entries))
             return
 
         await self._enqueue(interaction, url, info)
         title = info.get("title", url)
         await interaction.followup.send(get_string(lang, "music.play.added", title=title), ephemeral=True)
+
+    async def _load_playlist_entries(self, interaction: Interaction, entries: list) -> None:
+        """Background task: fetch info and enqueue each playlist entry without blocking interactions."""
+        for entry in entries:
+            entry_url = entry.get("webpage_url", entry.get("url", ""))
+            if not entry_url:
+                continue
+            try:
+                entry_info = await asyncio.to_thread(fetch_yt_infos, entry_url)
+            except Exception:
+                continue
+            await self._enqueue(interaction, entry_url, entry_info)
 
     async def _enqueue(self, interaction: Interaction, url: str, info: dict) -> bool:
         """Build a QueuedSong from yt-dlp info and add it to the audio queue. Returns True on success."""
@@ -167,6 +172,54 @@ class Music(NerpyBotCog, QueueMixin, Cog):
     @staticmethod
     def _fetch(song: QueuedSong):
         song.stream = download(song.fetch_data, video_id=song.idn)
+
+    # ── Autocomplete helpers ───────────────────────────────────────────────
+
+    async def _ac_playlist_name(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
+        with self.bot.session_scope() as session:
+            playlists = Playlist.get_by_user(interaction.guild_id, interaction.user.id, session)
+        return [app_commands.Choice(name=p.Name, value=p.Name) for p in playlists if current.lower() in p.Name.lower()][
+            :25
+        ]
+
+    async def _ac_playlist_url(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
+        """Autocomplete for song URL within a named playlist (reads sibling `name` field)."""
+        name = interaction.namespace.name
+        if not name:
+            return []
+        with self.bot.session_scope() as session:
+            pl = Playlist.get_by_name(interaction.guild_id, interaction.user.id, name, session)
+            if pl is None:
+                return []
+            entries = PlaylistEntry.get_by_playlist(pl.Id, session)
+        return [
+            app_commands.Choice(name=e.Title[:100], value=e.Url)
+            for e in entries
+            if current.lower() in e.Title.lower() or current.lower() in e.Url.lower()
+        ][:25]
+
+    async def _ac_queue_url(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
+        """Autocomplete for song URL from the current queue and recent history."""
+        candidates: list[QueuedSong] = []
+        current_song = self.audio.current_song.get(interaction.guild_id)
+        if current_song:
+            candidates.append(current_song)
+        candidates.extend(self.audio.list_queue(interaction.guild_id))
+        candidates.extend(reversed(list(self.audio.history.get(interaction.guild_id, []))))
+        seen: set[str] = set()
+        choices: list[app_commands.Choice[str]] = []
+        for s in candidates:
+            if s.fetch_data in seen:
+                continue
+            seen.add(s.fetch_data)
+            label = (s.title or s.fetch_data)[:100]
+            if current.lower() in label.lower() or current.lower() in s.fetch_data.lower():
+                choices.append(app_commands.Choice(name=label, value=s.fetch_data))
+            if len(choices) >= 25:
+                break
+        return choices
+
+    # ── Playlist commands ──────────────────────────────────────────────────
 
     @playlist.command(name="create")
     @app_commands.describe(name="Name for the new playlist")
@@ -206,6 +259,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
 
     @playlist.command(name="show")
     @app_commands.describe(name="Playlist name to display")
+    @app_commands.autocomplete(name=_ac_playlist_name)
     async def _playlist_show(self, interaction: Interaction, name: str):
         """Show songs in one of your playlists."""
         await interaction.response.defer(ephemeral=True)
@@ -224,6 +278,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
 
     @playlist.command(name="add")
     @app_commands.describe(name="Playlist name", url="Song URL to add")
+    @app_commands.autocomplete(name=_ac_playlist_name, url=_ac_queue_url)
     async def _playlist_add(self, interaction: Interaction, name: str, url: str):
         """Add a song to one of your playlists."""
         await interaction.response.defer(ephemeral=True)
@@ -254,6 +309,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         name="Name for the playlist",
         count="Number of recently played songs to save (omit to save current queue)",
     )
+    @app_commands.autocomplete(name=_ac_playlist_name)
     async def _playlist_save(self, interaction: Interaction, name: str, count: int = None):
         """Save the current queue (or last N played songs) as a playlist."""
         await interaction.response.defer(ephemeral=True)
@@ -302,6 +358,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
 
     @playlist.command(name="remove")
     @app_commands.describe(name="Playlist name", url="Song URL to remove")
+    @app_commands.autocomplete(name=_ac_playlist_name, url=_ac_playlist_url)
     async def _playlist_remove(self, interaction: Interaction, name: str, url: str):
         """Remove a song from one of your playlists."""
         await interaction.response.defer(ephemeral=True)
@@ -319,6 +376,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
 
     @playlist.command(name="delete")
     @app_commands.describe(name="Playlist name to delete")
+    @app_commands.autocomplete(name=_ac_playlist_name)
     async def _playlist_delete(self, interaction: Interaction, name: str):
         """Delete one of your playlists and all its songs."""
         await interaction.response.defer(ephemeral=True)
@@ -334,6 +392,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
     @playlist.command(name="load")
     @app_commands.check(is_connected_to_voice)
     @app_commands.describe(name="Playlist name to queue")
+    @app_commands.autocomplete(name=_ac_playlist_name)
     async def _playlist_load(self, interaction: Interaction, name: str):
         """Queue all songs from one of your saved playlists."""
         await interaction.response.defer(ephemeral=True)
@@ -349,21 +408,17 @@ class Music(NerpyBotCog, QueueMixin, Cog):
             await interaction.followup.send(get_string(lang, "music.playlist.load_empty", name=name), ephemeral=True)
             return
 
-        channel = interaction.user.voice.channel
-        enqueued = 0
-        for entry in entries:
-            song = QueuedSong(
-                channel=channel,
-                fetcher=self._fetch,
-                fetch_data=entry.Url,
-                title=entry.Title,
-            )
-            await self.audio.play(interaction.guild.id, song)
-            enqueued += 1
+        await interaction.followup.send(get_string(lang, "music.playlist.loading"), ephemeral=True)
+        asyncio.create_task(self._load_saved_playlist(interaction, entries))
 
-        await interaction.followup.send(
-            get_string(lang, "music.playlist.loaded", count=enqueued, name=name), ephemeral=True
-        )
+    async def _load_saved_playlist(self, interaction: Interaction, entries: list) -> None:
+        """Background task: re-fetch yt-dlp info for each saved entry (needed for video_id) and enqueue."""
+        for entry in entries:
+            try:
+                info = await asyncio.to_thread(fetch_yt_infos, entry.Url)
+            except Exception:
+                continue
+            await self._enqueue(interaction, entry.Url, info)
 
 
 async def setup(bot):

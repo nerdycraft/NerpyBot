@@ -85,7 +85,7 @@ class QueuedSong:
 
     async def fetch_buffer(self):
         """Fetches the buffer for the song"""
-        self._fetcher(self)
+        await asyncio.to_thread(self._fetcher, self)
 
 
 class Audio:
@@ -120,7 +120,12 @@ class Audio:
     async def _queue_manager(self):
         last = dict(self.lastPlayed)
         for guild_id in last:
-            if self._has_buffer(guild_id) and self._has_item_in_buffer(guild_id) and not self._is_playing(guild_id):
+            if (
+                self._has_buffer(guild_id)
+                and self._has_item_in_buffer(guild_id)
+                and not self._is_playing(guild_id)
+                and not self.is_paused(guild_id)
+            ):
                 queued_song = self.buffer[guild_id][BufferKey.QUEUE].get()
                 await self._play(queued_song)
                 await self._update_buffer(guild_id)

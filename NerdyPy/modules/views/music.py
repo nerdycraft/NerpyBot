@@ -13,18 +13,22 @@ def _fmt_time(seconds: float) -> str:
     return f"{h}:{m:02d}:{sec:02d}"
 
 
-def build_progress_bar(elapsed: float, total: float, width: int = 16) -> str:
-    """Return a two-line code-block progress bar, e.g.:\n```[>---------------]\n0:00:00 / 0:05:00```"""
+def _fmt_duration(seconds: float) -> str:
+    """Format seconds as M:SS, or H:MM:SS when >= 1 hour."""
+    t = int(seconds)
+    h, rem = divmod(t, 3600)
+    m, sec = divmod(rem, 60)
+    return f"{h}:{m:02d}:{sec:02d}" if h else f"{m}:{sec:02d}"
+
+
+def build_progress_bar(elapsed: float, total: float, width: int = 20) -> str:
+    """Return a two-line progress bar using Unicode block characters."""
     if total <= 0:
         return ""
     elapsed = min(elapsed, total)
-    ratio = elapsed / total
-    filled = int(ratio * width)
-    if filled >= width:
-        bar = "=" * width
-    else:
-        bar = "=" * filled + ">" + "-" * (width - filled - 1)
-    return f"```\n[{bar}]\n{_fmt_time(elapsed)} / {_fmt_time(total)}\n```"
+    filled = round((elapsed / total) * width)
+    bar = "█" * filled + "░" * (width - filled)
+    return f"{bar}\n{_fmt_time(elapsed)} / {_fmt_time(total)}"
 
 
 def build_now_playing_embed(song, elapsed: float, lang: str) -> discord.Embed:
@@ -49,6 +53,34 @@ def build_now_playing_embed(song, elapsed: float, lang: str) -> discord.Embed:
         emb.add_field(name=get_string(lang, "music.now_playing.progress"), value=progress, inline=False)
     if song.thumbnail:
         emb.set_thumbnail(url=song.thumbnail)
+    return emb
+
+
+def build_queue_embed(queue: list, lang: str) -> discord.Embed:
+    """Build the queue embed showing up to 10 entries with duration and a total runtime footer."""
+    shown = queue[:10]
+    lines = []
+    for i, s in enumerate(shown, 1):
+        title = s.title or "Unknown"
+        entry = f"`{i}` [{title}]({s.fetch_data})" if s.fetch_data else f"`{i}` {title}"
+        if s.duration:
+            entry += f" · `{_fmt_duration(s.duration)}`"
+        lines.append(entry)
+    if len(queue) > 10:
+        lines.append(f"*… and {len(queue) - 10} more*")
+
+    emb = discord.Embed(
+        title=get_string(lang, "music.now_playing.queue_header"),
+        description="\n".join(lines),
+        color=discord.Color(0xFF7700),
+    )
+
+    total_songs = len(queue)
+    total_secs = sum(s.duration for s in queue if s.duration)
+    footer = get_string(lang, "music.now_playing.queue_footer", count=total_songs)
+    if total_secs:
+        footer += f" · {_fmt_time(total_secs)}"
+    emb.set_footer(text=footer)
     return emb
 
 
@@ -131,10 +163,4 @@ class NowPlayingView(discord.ui.View):
                 get_string(self.lang, "music.now_playing.queue_empty"), ephemeral=True
             )
             return
-        # Cap display to first 10 entries to stay within Discord's 2000-char limit
-        shown = queue[:10]
-        lines = "\n".join(f"`{i}` {s.title}" for i, s in enumerate(shown, 1))
-        if len(queue) > 10:
-            lines += f"\n… and {len(queue) - 10} more"
-        header = get_string(self.lang, "music.now_playing.queue_header")
-        await interaction.response.send_message(f"**{header}**\n{lines}", ephemeral=True)
+        await interaction.response.send_message(embed=build_queue_embed(queue, self.lang), ephemeral=True)
