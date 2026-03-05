@@ -3,8 +3,9 @@
 Main Class of the NerpyBot
 """
 
+import json
 import os
-from asyncio import CancelledError, create_task, run, sleep
+from asyncio import CancelledError, create_task, run, sleep, to_thread
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -68,6 +69,89 @@ ACTIVITIES = [
 
 # "Use / for commands" entries get 3× higher chance than flavor entries
 ACTIVITY_WEIGHTS = [3 if "/" in a else 1 for a in ACTIVITIES]
+
+
+def handle_valkey_command(bot, command: str, payload: dict) -> dict:
+    """Synchronous dispatcher for Valkey pub/sub commands from the web dashboard."""
+    if command == "health":
+        import sys
+
+        import discord
+
+        uptime_seconds = (datetime.now(UTC) - bot.uptime).total_seconds()
+        return {
+            "guild_count": len(bot.guilds),
+            "voice_connections": len(bot.voice_clients),
+            "latency_ms": round(bot.latency * 1000, 2),
+            "uptime_seconds": round(uptime_seconds, 2),
+            "python_version": sys.version.split()[0],
+            "discord_py_version": discord.__version__,
+            "bot_version": pkg_version("NerpyBot"),
+        }
+    elif command == "list_modules":
+        modules = []
+        for ext_name in bot.extensions:
+            name = ext_name.replace("modules.", "")
+            modules.append({"name": name, "loaded": True})
+        return {"modules": modules}
+    elif command == "module_load":
+        module = payload.get("module", "")
+        try:
+            from asyncio import run_coroutine_threadsafe
+
+            future = run_coroutine_threadsafe(bot.load_extension(f"modules.{module}"), bot.loop)
+            future.result(timeout=5)
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    elif command == "module_unload":
+        module = payload.get("module", "")
+        try:
+            from asyncio import run_coroutine_threadsafe
+
+            future = run_coroutine_threadsafe(bot.unload_extension(f"modules.{module}"), bot.loop)
+            future.result(timeout=5)
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    else:
+        return {"error": f"Unknown command: {command}"}
+
+
+async def _valkey_listener_loop(bot, valkey_url: str) -> None:
+    """Background task that subscribes to Valkey pub/sub for web dashboard commands."""
+    try:
+        import valkey as valkey_lib
+
+        client = valkey_lib.from_url(valkey_url, decode_responses=True)
+        pubsub = client.pubsub()
+        pubsub.subscribe("nerpybot:cmd")
+        bot.log.info("Valkey pub/sub listener started")
+
+        while not bot.is_closed():
+            msg = await to_thread(pubsub.get_message, ignore_subscribe_messages=True, timeout=1.0)
+            if msg and msg["type"] == "message":
+                try:
+                    data = json.loads(msg["data"])
+                    request_id = data.pop("request_id", None)
+                    command = data.pop("command", "")
+                    result = handle_valkey_command(bot, command, data)
+                    if request_id:
+                        reply_key = f"nerpybot:reply:{request_id}"
+                        client.lpush(reply_key, json.dumps(result))
+                        client.expire(reply_key, 10)
+                except Exception as e:
+                    bot.log.error(f"Valkey command handler error: {e}")
+    except CancelledError:
+        return
+    except Exception as e:
+        bot.log.error(f"Valkey listener error: {e}")
+    finally:
+        try:
+            pubsub.unsubscribe()
+            client.close()
+        except Exception:
+            pass
 
 
 class NerpyBot(Bot):
@@ -273,6 +357,11 @@ class NerpyBot(Bot):
 
         if not hasattr(self, "_activity_task") or self._activity_task.done():
             self._activity_task = create_task(self._activity_loop())
+
+        # Start Valkey listener for web dashboard commands (if configured)
+        valkey_url = self.config.get("web", {}).get("valkey_url")
+        if valkey_url and (not hasattr(self, "_valkey_task") or self._valkey_task.done()):
+            self._valkey_task = create_task(_valkey_listener_loop(self, valkey_url))
 
         required = required_permissions_for(self.modules)
         for guild in self.guilds:
