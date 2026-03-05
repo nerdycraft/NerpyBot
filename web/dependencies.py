@@ -1,0 +1,63 @@
+"""FastAPI dependency injection stubs and auth dependencies."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError
+from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from web.config import WebConfig
+    from web.valkey import ValkeyClient
+
+security = HTTPBearer(auto_error=False)
+
+
+def get_db_session() -> Session:
+    """Placeholder — overridden at app startup."""
+    raise NotImplementedError
+
+
+def get_config() -> WebConfig:
+    """Placeholder — overridden at app startup."""
+    raise NotImplementedError
+
+
+def get_valkey() -> ValkeyClient:
+    """Placeholder — overridden at app startup."""
+    raise NotImplementedError
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    config: WebConfig = Depends(get_config),
+) -> dict:
+    """Extract and validate the current user from JWT.
+
+    Returns dict with 'sub' (user_id) and 'username'.
+    """
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    from web.auth.jwt import decode_access_token
+
+    try:
+        payload = decode_access_token(credentials.credentials, config.jwt_secret)
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+
+    return payload
+
+
+def require_operator(
+    user: dict = Depends(get_current_user),
+    config: WebConfig = Depends(get_config),
+) -> dict:
+    """Require the current user to be a bot operator."""
+    user_id = int(user["sub"])
+    if user_id not in config.ops:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Operator access required")
+    return user
