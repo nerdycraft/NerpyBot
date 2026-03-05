@@ -62,3 +62,99 @@ class TestModeratorRoleEndpoints:
     def test_delete_nonexistent_role_returns_404(self, client, auth_header):
         response = client.delete(f"/api/guilds/{GUILD_ID}/moderator-roles/999", headers=auth_header)
         assert response.status_code == 404
+
+
+class TestLeaveMessageEndpoints:
+    def test_get_default(self, client, auth_header):
+        response = client.get(f"/api/guilds/{GUILD_ID}/leave-messages", headers=auth_header)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["enabled"] is False
+        assert data["channel_id"] is None
+
+    def test_put_creates(self, client, auth_header):
+        response = client.put(
+            f"/api/guilds/{GUILD_ID}/leave-messages",
+            json={"channel_id": "111222333", "message": "Bye {user}!", "enabled": True},
+            headers=auth_header,
+        )
+        assert response.status_code == 200
+        assert response.json()["enabled"] is True
+        assert response.json()["message"] == "Bye {user}!"
+
+    def test_get_after_set(self, client, auth_header):
+        client.put(
+            f"/api/guilds/{GUILD_ID}/leave-messages",
+            json={"channel_id": "111222333", "message": "Goodbye!", "enabled": True},
+            headers=auth_header,
+        )
+        response = client.get(f"/api/guilds/{GUILD_ID}/leave-messages", headers=auth_header)
+        assert response.json()["message"] == "Goodbye!"
+        assert response.json()["channel_id"] == "111222333"
+
+
+class TestAutoDeleteEndpoints:
+    def test_get_empty_list(self, client, auth_header):
+        response = client.get(f"/api/guilds/{GUILD_ID}/auto-delete", headers=auth_header)
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_create_rule(self, client, auth_header):
+        response = client.post(
+            f"/api/guilds/{GUILD_ID}/auto-delete",
+            json={"channel_id": "444555666", "keep_messages": 10, "delete_older_than": 86400},
+            headers=auth_header,
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["channel_id"] == "444555666"
+        assert data["keep_messages"] == 10
+
+    def test_update_rule(self, client, auth_header):
+        resp = client.post(
+            f"/api/guilds/{GUILD_ID}/auto-delete",
+            json={"channel_id": "444555666"},
+            headers=auth_header,
+        )
+        rule_id = resp.json()["id"]
+        response = client.put(
+            f"/api/guilds/{GUILD_ID}/auto-delete/{rule_id}",
+            json={"keep_messages": 50, "enabled": False},
+            headers=auth_header,
+        )
+        assert response.status_code == 200
+        assert response.json()["keep_messages"] == 50
+        assert response.json()["enabled"] is False
+
+    def test_delete_rule(self, client, auth_header):
+        resp = client.post(
+            f"/api/guilds/{GUILD_ID}/auto-delete",
+            json={"channel_id": "444555666"},
+            headers=auth_header,
+        )
+        rule_id = resp.json()["id"]
+        response = client.delete(f"/api/guilds/{GUILD_ID}/auto-delete/{rule_id}", headers=auth_header)
+        assert response.status_code == 204
+
+    def test_delete_nonexistent_returns_404(self, client, auth_header):
+        response = client.delete(f"/api/guilds/{GUILD_ID}/auto-delete/9999", headers=auth_header)
+        assert response.status_code == 404
+
+
+class TestAutoKickerEndpoints:
+    def test_get_default(self, client, auth_header):
+        response = client.get(f"/api/guilds/{GUILD_ID}/auto-kicker", headers=auth_header)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["kick_after"] == 0
+        assert data["enabled"] is False
+
+    def test_put_creates(self, client, auth_header):
+        response = client.put(
+            f"/api/guilds/{GUILD_ID}/auto-kicker",
+            json={"kick_after": 7, "enabled": True, "reminder_message": "You'll be kicked!"},
+            headers=auth_header,
+        )
+        assert response.status_code == 200
+        assert response.json()["kick_after"] == 7
+        assert response.json()["enabled"] is True
