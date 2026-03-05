@@ -5,21 +5,25 @@ FROM ghcr.io/astral-sh/uv:latest AS uv
 
 # ── Builder base: shared build tools and lockfile ──
 FROM python:3.14-alpine AS builder-base
-ENV UV_LINK_MODE=copy
+
+# Version from git tag (passed via --build-arg in CI, defaults to dev)
+ARG VERSION=0.0.0.dev0
+ENV UV_LINK_MODE=copy \
+    SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
 
 WORKDIR /app
 COPY --from=uv /uv /usr/local/bin/uv
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 
 RUN apk add --no-cache git libffi-dev \
     gcc g++ musl-dev python3-dev pkgconf \
     freetype-dev libpng-dev
 
-# ── Builder: bot dependencies only ──
+# ── Builder: bot dependencies + project metadata ──
 FROM builder-base AS builder-bot
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-managed-python --only-group bot
+    uv sync --frozen --no-managed-python --group bot
 
 # ── Builder: migration dependencies only ──
 FROM builder-base AS builder-migrations

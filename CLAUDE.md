@@ -23,7 +23,7 @@ uv run python NerdyPy/bot.py --verbosity 1      # DEBUG (bot only)
 uv run python NerdyPy/bot.py --verbosity 2      # DEBUG + discord.py verbose
 uv run python NerdyPy/bot.py --verbosity 3      # DEBUG + discord.py + sqlalchemy
 uv run python NerdyPy/bot.py -c path             # Custom config file
-uv run python NerdyPy/bot.py -r                  # Auto-restart on failure
+uv run python NerdyPy/bot.py -V                  # Show version and exit
 
 # Git hooks (run once after cloning)
 uv sync --group test                 # Installs pre-commit
@@ -48,7 +48,7 @@ uv run alembic revision --autogenerate -m "description"  # Create migration
 # When adding columns to existing tables, use server_default (not just ORM default) so existing rows get a value.
 
 # Docker builds (two targets)
-docker buildx build --target bot -t nerpybot .
+docker buildx build --target bot --build-arg VERSION=0.6.0 -t nerpybot .
 docker buildx build --target migrations -t nerpybot-migrations .
 
 # Validate GitHub Actions workflows
@@ -137,7 +137,8 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **Alembic migrations must be dialect-aware** — SQLite uses `datetime()`, PostgreSQL uses `make_interval()`. Use `op.get_bind().dialect.name` to branch. Always use `batch_alter_table` for SQLite column operations. Note: `op.alter_column()` **without** a `batch_alter_table` context crashes on SQLite — and type-only encoding migrations (e.g. `Text` → `UnicodeText`) can skip SQLite entirely since it stores all text as Unicode internally.
 - **All Alembic migrations must guard column/index existence, not just table existence** — `create_all()` on a fresh install already builds the latest schema; a subsequent `alembic upgrade head` must be a no-op. Before `add_column`, check `{c["name"] for c in inspect(conn).get_columns(table)}`; before `create_index`, check `{i["name"] for i in inspect(conn).get_indexes(table)}`. The return-early guard must cover both the "table absent" and "schema already current" cases.
 - **`interaction.response.is_done()` returns `False` after a failed `send_message()`** — If `send_message()` raises (e.g. 10062 Unknown interaction), `is_done()` is still `False`. In `_on_app_command_error`, wrap the user-facing response in `try/except` _before_ `notify_error`, or `notify_error` will never be reached.
-- **`pyproject.toml` requires `packages = []`** — Without `[tool.setuptools] packages = []`, setuptools auto-discovers `config/` and `NerdyPy/` as a flat-layout conflict, breaking all `uv` commands.
+- **Version is derived from git tags** — `hatch-vcs` reads the version from git tags (e.g. `v0.6.0` → `0.6.0`). No static version in `pyproject.toml`. In Docker, `SETUPTOOLS_SCM_PRETEND_VERSION` build arg supplies the version since there's no `.git` dir. `hatch.build.targets.wheel.packages = []` prevents hatchling from trying to include `config/` or `NerdyPy/` as installable packages.
+- **`uv sync --only-group` skips the project package** — Only `--group` (without `only-`) installs the project metadata alongside dependencies. The bot Docker image needs `--group bot` so `importlib.metadata.version("NerpyBot")` works at runtime.
 - **`cog_load` runs before `create_all()`** — `setup_hook` calls `load_extension()` (triggering `cog_load`) before `create_all()`. If a cog accesses new tables in `cog_load`, call `self.bot.create_all()` at the top of `cog_load` to ensure tables exist on existing databases.
 - **SQLite enforces unique constraints row-by-row, not deferred** — Swapping two values under a unique column in a single flush raises `IntegrityError`. Use a two-phase update: write temporary/offset values and flush, then write final values and flush.
 - **Module-specific permission helpers stay with the module** — Only move a permission check to `utils/checks.py` if it is purely based on Discord roles/permissions. If it queries a module-specific table (e.g. `ApplicationGuildConfig`), keep it in the module's own file.

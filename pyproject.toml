@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 [project]
 name = "NerpyBot"
 description = "The nerdiest Bot on Discord!"
-version = "0.5.0"
+dynamic = ["version"]
 authors = [
     { name = "Rico Wesenberg", email = "r.wesenberg@gmail.com" },
     { name = "Dennis Bernardy", email = "bernardyd@gmail.com" }
@@ -47,7 +47,13 @@ migrations = [
     "pyyaml",
 ]
 
-[tool.setuptools]
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "_version.py"
+
+[tool.hatch.build.targets.wheel]
 packages = []
 
 [tool.pytest.ini_options]
