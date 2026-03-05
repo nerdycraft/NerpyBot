@@ -61,7 +61,7 @@ class WebConfig:
         env = _env_to_dict()
         sources = [env, file_cfg]
 
-        client_id = _require(_get(sources, "bot", "client_id"), "bot.client_id / NERPYBOT_CLIENT_ID")
+        client_id = _require(_get(sources, "bot", "client_id"), "bot.client_id / NERPYBOT_WEB_CLIENT_ID")
         client_secret = _require(
             _get(sources, "web", "client_secret"), "web.client_secret / NERPYBOT_WEB_CLIENT_SECRET"
         )
@@ -69,7 +69,7 @@ class WebConfig:
 
         ops = _resolve_ops(sources)
         if not ops:
-            _require("", "bot.ops / NERPYBOT_OPS")
+            _require("", "bot.ops / NERPYBOT_WEB_OPS")
 
         redirect_uri = _get(sources, "web", "redirect_uri", default="http://localhost:8000/api/auth/callback")
         jwt_expiry_hours = int(_get(sources, "web", "jwt_expiry_hours", default="24"))
@@ -114,25 +114,36 @@ def _load_config_file(config_path: Path | str | None) -> dict:
 
 
 def _env_to_dict() -> dict:
-    """Map NERPYBOT_* env vars into a nested dict matching config.yaml structure."""
+    """Map NERPYBOT_WEB_* env vars into a nested dict matching config.yaml structure.
+
+    For shared values (client_id, ops, database) the WEB-prefixed var is checked
+    first, falling back to the unprefixed bot var.  This lets the web container use
+    its own ``NERPYBOT_WEB_*`` namespace while still working when co-located with
+    the bot (sharing ``NERPYBOT_*`` vars).
+    """
     cfg: dict = {}
-    mappings = [
-        ("NERPYBOT_CLIENT_ID", ("bot", "client_id")),
-        ("NERPYBOT_OPS", ("bot", "ops")),
-        ("NERPYBOT_WEB_CLIENT_SECRET", ("web", "client_secret")),
-        ("NERPYBOT_WEB_JWT_SECRET", ("web", "jwt_secret")),
-        ("NERPYBOT_WEB_JWT_EXPIRY_HOURS", ("web", "jwt_expiry_hours")),
-        ("NERPYBOT_WEB_VALKEY_URL", ("web", "valkey_url")),
-        ("NERPYBOT_WEB_REDIRECT_URI", ("web", "redirect_uri")),
-        ("NERPYBOT_DB_TYPE", ("database", "db_type")),
-        ("NERPYBOT_DB_NAME", ("database", "db_name")),
-        ("NERPYBOT_DB_USERNAME", ("database", "db_username")),
-        ("NERPYBOT_DB_PASSWORD", ("database", "db_password")),
-        ("NERPYBOT_DB_HOST", ("database", "db_host")),
-        ("NERPYBOT_DB_PORT", ("database", "db_port")),
+    # (env_vars_to_try, config_key_path) — first env var found wins
+    mappings: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
+        (("NERPYBOT_WEB_CLIENT_ID", "NERPYBOT_CLIENT_ID"), ("bot", "client_id")),
+        (("NERPYBOT_WEB_OPS", "NERPYBOT_OPS"), ("bot", "ops")),
+        (("NERPYBOT_WEB_CLIENT_SECRET",), ("web", "client_secret")),
+        (("NERPYBOT_WEB_JWT_SECRET",), ("web", "jwt_secret")),
+        (("NERPYBOT_WEB_JWT_EXPIRY_HOURS",), ("web", "jwt_expiry_hours")),
+        (("NERPYBOT_WEB_VALKEY_URL",), ("web", "valkey_url")),
+        (("NERPYBOT_WEB_REDIRECT_URI",), ("web", "redirect_uri")),
+        (("NERPYBOT_WEB_DB_TYPE", "NERPYBOT_DB_TYPE"), ("database", "db_type")),
+        (("NERPYBOT_WEB_DB_NAME", "NERPYBOT_DB_NAME"), ("database", "db_name")),
+        (("NERPYBOT_WEB_DB_USERNAME", "NERPYBOT_DB_USERNAME"), ("database", "db_username")),
+        (("NERPYBOT_WEB_DB_PASSWORD", "NERPYBOT_DB_PASSWORD"), ("database", "db_password")),
+        (("NERPYBOT_WEB_DB_HOST", "NERPYBOT_DB_HOST"), ("database", "db_host")),
+        (("NERPYBOT_WEB_DB_PORT", "NERPYBOT_DB_PORT"), ("database", "db_port")),
     ]
-    for env_var, keys in mappings:
-        value = os.environ.get(env_var, "").strip()
+    for env_vars, keys in mappings:
+        value = ""
+        for env_var in env_vars:
+            value = os.environ.get(env_var, "").strip()
+            if value:
+                break
         if value:
             node = cfg
             for key in keys[:-1]:

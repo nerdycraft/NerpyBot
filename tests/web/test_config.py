@@ -5,17 +5,17 @@ import pytest
 
 
 class TestWebConfigFromEnv:
-    def test_from_env_minimal(self):
-        """Config loads from NERPYBOT_* env vars."""
+    def test_from_env_with_web_prefix(self):
+        """Config loads from NERPYBOT_WEB_* env vars (canonical names)."""
         from web.config import WebConfig
 
         env = {
-            "NERPYBOT_CLIENT_ID": "123456",
-            "NERPYBOT_OPS": "111,222",
+            "NERPYBOT_WEB_CLIENT_ID": "123456",
+            "NERPYBOT_WEB_OPS": "111,222",
             "NERPYBOT_WEB_CLIENT_SECRET": "secret123",
             "NERPYBOT_WEB_JWT_SECRET": "jwtsecret",
         }
-        with patch.dict(os.environ, env, clear=False):
+        with patch.dict(os.environ, env, clear=True):
             cfg = WebConfig.from_env()
 
         assert cfg.client_id == "123456"
@@ -26,26 +26,66 @@ class TestWebConfigFromEnv:
         assert cfg.valkey_url == "valkey://localhost:6379"  # default
         assert "callback" in cfg.redirect_uri  # default
 
-    def test_from_env_all_overrides(self):
-        """All env vars override defaults."""
+    def test_from_env_unprefixed_fallback(self):
+        """Unprefixed NERPYBOT_* vars work as fallback for shared values."""
         from web.config import WebConfig
 
         env = {
-            "NERPYBOT_CLIENT_ID": "999",
+            "NERPYBOT_CLIENT_ID": "fallback_id",
             "NERPYBOT_OPS": "42",
+            "NERPYBOT_WEB_CLIENT_SECRET": "s",
+            "NERPYBOT_WEB_JWT_SECRET": "j",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            cfg = WebConfig.from_env()
+
+        assert cfg.client_id == "fallback_id"
+        assert cfg.ops == [42]
+
+    def test_web_prefix_takes_priority_over_unprefixed(self):
+        """NERPYBOT_WEB_* wins over NERPYBOT_* when both are set."""
+        from web.config import WebConfig
+
+        env = {
+            "NERPYBOT_CLIENT_ID": "old_id",
+            "NERPYBOT_WEB_CLIENT_ID": "web_id",
+            "NERPYBOT_OPS": "1",
+            "NERPYBOT_WEB_OPS": "2",
+            "NERPYBOT_WEB_CLIENT_SECRET": "s",
+            "NERPYBOT_WEB_JWT_SECRET": "j",
+            "NERPYBOT_DB_TYPE": "sqlite",
+            "NERPYBOT_WEB_DB_TYPE": "postgresql",
+            "NERPYBOT_WEB_DB_NAME": "webdb",
+            "NERPYBOT_WEB_DB_USERNAME": "u",
+            "NERPYBOT_WEB_DB_HOST": "h",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            cfg = WebConfig.from_env()
+
+        assert cfg.client_id == "web_id"
+        assert cfg.ops == [2]
+        assert "postgresql+psycopg" in cfg.db_connection_string
+
+    def test_from_env_all_overrides(self):
+        """All NERPYBOT_WEB_* env vars override defaults."""
+        from web.config import WebConfig
+
+        env = {
+            "NERPYBOT_WEB_CLIENT_ID": "999",
+            "NERPYBOT_WEB_OPS": "42",
             "NERPYBOT_WEB_CLIENT_SECRET": "s",
             "NERPYBOT_WEB_JWT_SECRET": "j",
             "NERPYBOT_WEB_JWT_EXPIRY_HOURS": "48",
             "NERPYBOT_WEB_VALKEY_URL": "valkey://redis:6380/1",
             "NERPYBOT_WEB_REDIRECT_URI": "https://example.com/cb",
-            "NERPYBOT_DB_TYPE": "postgresql",
-            "NERPYBOT_DB_NAME": "mydb",
-            "NERPYBOT_DB_USERNAME": "user",
-            "NERPYBOT_DB_PASSWORD": "pass",
-            "NERPYBOT_DB_HOST": "dbhost",
-            "NERPYBOT_DB_PORT": "5432",
+            "NERPYBOT_WEB_DB_TYPE": "postgresql",
+            "NERPYBOT_WEB_DB_NAME": "mydb",
+            "NERPYBOT_WEB_DB_USERNAME": "user",
+            "NERPYBOT_WEB_DB_PASSWORD": "pass",
+            "NERPYBOT_WEB_DB_HOST": "dbhost",
+            "NERPYBOT_WEB_DB_PORT": "5432",
         }
-        with patch.dict(os.environ, env, clear=False):
+        with patch.dict(os.environ, env, clear=True):
             cfg = WebConfig.from_env()
 
         assert cfg.jwt_expiry_hours == 48
@@ -59,7 +99,7 @@ class TestWebConfigFromEnv:
         from web.config import WebConfig
 
         with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="client_id"):
+            with pytest.raises(ValueError, match="CLIENT_ID"):
                 WebConfig.from_env()
 
     def test_db_connection_string_sqlite_default(self):
@@ -67,12 +107,12 @@ class TestWebConfigFromEnv:
         from web.config import WebConfig
 
         env = {
-            "NERPYBOT_CLIENT_ID": "123",
-            "NERPYBOT_OPS": "1",
+            "NERPYBOT_WEB_CLIENT_ID": "123",
+            "NERPYBOT_WEB_OPS": "1",
             "NERPYBOT_WEB_CLIENT_SECRET": "s",
             "NERPYBOT_WEB_JWT_SECRET": "j",
         }
-        with patch.dict(os.environ, env, clear=False):
+        with patch.dict(os.environ, env, clear=True):
             cfg = WebConfig.from_env()
 
         assert cfg.db_connection_string == "sqlite:///db.db"
@@ -125,7 +165,7 @@ class TestWebConfigFromFile:
             "  valkey_url: valkey://from-file:6379\n"
         )
 
-        env = {"NERPYBOT_CLIENT_ID": "from_env", "NERPYBOT_WEB_VALKEY_URL": "valkey://from-env:6380"}
+        env = {"NERPYBOT_WEB_CLIENT_ID": "from_env", "NERPYBOT_WEB_VALKEY_URL": "valkey://from-env:6380"}
         with patch.dict(os.environ, env, clear=True):
             cfg = WebConfig.load(config_file)
 
@@ -139,8 +179,8 @@ class TestWebConfigFromFile:
         from web.config import WebConfig
 
         env = {
-            "NERPYBOT_CLIENT_ID": "env_id",
-            "NERPYBOT_OPS": "42",
+            "NERPYBOT_WEB_CLIENT_ID": "env_id",
+            "NERPYBOT_WEB_OPS": "42",
             "NERPYBOT_WEB_CLIENT_SECRET": "env_secret",
             "NERPYBOT_WEB_JWT_SECRET": "env_jwt",
         }
