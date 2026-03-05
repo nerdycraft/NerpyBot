@@ -1,4 +1,5 @@
 ### Custom
+_version.py
 NerdyPy/audio
 NerdyPy/*.db
 NerdyPy/*.dll

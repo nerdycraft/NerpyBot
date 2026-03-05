@@ -16,6 +16,7 @@ NerdyPy/weather_cache.sqlite
 docs/
 tests/
 *.md
+!README.md
 .pre-commit-config.yaml
 .ruff.toml
 .pytest_cache/

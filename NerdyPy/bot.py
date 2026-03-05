@@ -15,6 +15,7 @@ from typing import Annotated, Any, Generator, Optional
 from warnings import filterwarnings
 
 import typer
+from importlib.metadata import version as pkg_version
 import yaml
 from discord import (
     ClientException,
@@ -484,6 +485,12 @@ def parse_config(config_path: Optional[Path] = None) -> dict:
     return deep_merge(config, parse_env_config())
 
 
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"NerpyBot v{pkg_version('NerpyBot')}")
+        raise typer.Exit()
+
+
 app = typer.Typer(add_completion=False)
 
 
@@ -495,8 +502,12 @@ def main(
     verbosity: Annotated[
         int, typer.Option("--verbosity", "-v", help="Verbosity: 1=DEBUG, 2=+discord, 3=+sqlalchemy")
     ] = 0,
+    version: Annotated[
+        bool, typer.Option("--version", "-V", callback=_version_callback, is_eager=True, help="Show version and exit")
+    ] = False,
 ) -> None:
     """NerpyBot — the nerdiest Discord bot."""
+    print(BANNER)
     filterwarnings("ignore", category=DeprecationWarning, module=r"discord\.http")
 
     resolved_config = parse_config(config)
@@ -534,9 +545,7 @@ def main(
         raise NerpyInfraException("Bot config not found.")
 
 
-if __name__ == "__main__":
-    print(
-        """
+BANNER = """
 '##::: ##:'########:'########::'########::'##:::'##::::'########:::'#######::'########:
  ###:: ##: ##.....:: ##.... ##: ##.... ##:. ##:'##::::: ##.... ##:'##.... ##:... ##..::
  ####: ##: ##::::::: ##:::: ##: ##:::: ##::. ####:::::: ##:::: ##: ##:::: ##:::: ##::::
@@ -546,5 +555,6 @@ if __name__ == "__main__":
  ##::. ##: ########: ##:::. ##: ##::::::::::: ##::::::: ########::. #######::::: ##::::
 ..::::..::........::..:::::..::..::::::::::::..::::::::........::::.......::::::..:::::
 """
-    )
+
+if __name__ == "__main__":
     app()
