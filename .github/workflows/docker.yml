@@ -130,14 +130,14 @@ jobs:
         run: |
           IMAGE="${REGISTRY}/${IMAGE_NAME,,}:${GITHUB_SHA::7}"
           docker pull "${IMAGE}"
-          ACTUAL=$(docker run --rm "${IMAGE}" python -c "from importlib.metadata import version; print(version('NerpyBot'))")
+          ACTUAL=$(docker run --rm "${IMAGE}" python bot.py -V | sed 's/NerpyBot v//')
           echo "Expected: ${EXPECTED_VERSION}"
           echo "Actual:   ${ACTUAL}"
           if [[ "${ACTUAL}" != "${EXPECTED_VERSION}" ]]; then
             echo "::error::Version mismatch in pushed image!"
             exit 1
           fi
-          echo "✅ NerpyBot image verified (v${ACTUAL})"
+          echo "NerpyBot image verified (v${ACTUAL})"
 
   build-migrations:
     name: Build & Push Migrations Image
