@@ -53,6 +53,53 @@ services:
       # NERPYBOT_ERROR_RECIPIENTS: "your_discord_id_here"
       # ── Audio tuning ──
       # NERPYBOT_AUDIO_BUFFER_LIMIT: "5"
+      # ── Web Dashboard (Valkey bridge) ──
+      # NERPYBOT_WEB_VALKEY_URL: "valkey://valkey:6379"
+    volumes:
+      - nerpybot-data:/data
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  nerpybot-web:
+    image: ghcr.io/nerdycraft/nerpybot-web:latest
+    restart: unless-stopped
+    depends_on:
+      nerpybot-migrations:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+      # postgres:
+      #   condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      # ── Required ──
+      NERPYBOT_WEB_CLIENT_ID: "your_client_id_here"
+      NERPYBOT_WEB_CLIENT_SECRET: "your_discord_client_secret_here"
+      NERPYBOT_WEB_REDIRECT_URI: "http://localhost:8000/api/auth/callback"
+      NERPYBOT_WEB_JWT_SECRET: "change_me_random_string"
+      NERPYBOT_WEB_OPS: "your_discord_id_here"
+      NERPYBOT_WEB_VALKEY_URL: "valkey://valkey:6379"
+      # ── Database (must match bot config) ──
+      NERPYBOT_WEB_DB_TYPE: sqlite
+      NERPYBOT_WEB_DB_NAME: /data/db.db
+      # NERPYBOT_WEB_DB_TYPE: postgresql
+      # NERPYBOT_WEB_DB_NAME: nerpybot
+      # NERPYBOT_WEB_DB_USERNAME: nerpybot
+      # NERPYBOT_WEB_DB_PASSWORD: changeme
+      # NERPYBOT_WEB_DB_HOST: postgres
+      # NERPYBOT_WEB_DB_PORT: "5432"
+      # ── Optional ──
+      # NERPYBOT_WEB_JWT_EXPIRY_HOURS: "24"
     volumes:
       - nerpybot-data:/data
 
@@ -74,4 +121,5 @@ services:
 
 volumes:
   nerpybot-data:
+  valkey-data:
   # postgres-data:

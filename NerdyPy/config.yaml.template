@@ -60,3 +60,11 @@ wow:
   #   mount_batch_size: 20
   #   track_mounts: true
   #   active_days: 7
+
+# ── Web Dashboard (optional) ──
+# web:
+#   client_secret: your_discord_client_secret
+#   redirect_uri: http://localhost:8000/api/auth/callback
+#   jwt_secret: change_me_random_string
+#   jwt_expiry_hours: 24
+#   valkey_url: valkey://localhost:6379

@@ -25,6 +25,12 @@ FROM builder-base AS builder-bot
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-managed-python --group bot
 
+# ── Builder: web dependencies ──
+FROM builder-base AS builder-web
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-managed-python --group web
+
 # ── Builder: migration dependencies only ──
 FROM builder-base AS builder-migrations
 
@@ -73,3 +79,18 @@ CMD ["alembic", "upgrade", "head"]
 
 LABEL org.opencontainers.image.source=https://github.com/nerdycraft/NerpyBot
 LABEL org.opencontainers.image.description="Database migrations for the nerdiest Python Bot"
+
+
+# ── Web dashboard: FastAPI API ──
+FROM runtime AS web
+
+COPY --chown=${UID} --from=builder-web /app/.venv /app/.venv
+COPY --chown=${UID} NerdyPy /app/NerdyPy/
+COPY --chown=${UID} web /app/web/
+
+ENV PYTHONPATH=/app/NerdyPy
+
+CMD ["python", "-m", "uvicorn", "web.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+
+LABEL org.opencontainers.image.source=https://github.com/nerdycraft/NerpyBot
+LABEL org.opencontainers.image.description="NerpyBot Web Dashboard API"
