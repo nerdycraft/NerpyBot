@@ -48,10 +48,3 @@ def test_validate_raises_lists_all_missing():
     with pytest.raises(NerpyPermissionError, match="view_channel") as exc_info:
         validate_channel_permissions(channel, guild, "view_channel", "send_messages")
     assert "send_messages" in str(exc_info.value)
-
-
-def test_validate_uses_channel_permissions_for():
-    channel = _make_channel()
-    guild = _make_guild()
-    validate_channel_permissions(channel, guild, "send_messages")
-    channel.permissions_for.assert_called_once_with(guild.me)

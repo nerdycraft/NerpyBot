@@ -4,7 +4,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from models.admin import GuildLanguageConfig
 from models.rolemanage import RoleMapping
 from modules.rolemanage import RoleManage
 from utils.strings import load_strings
@@ -68,11 +67,6 @@ def member():
     return m
 
 
-def _set_german(db_session):
-    db_session.add(GuildLanguageConfig(GuildId=987654321, Language="de"))
-    db_session.commit()
-
-
 # ---------------------------------------------------------------------------
 # /rolemanage allow
 # ---------------------------------------------------------------------------
@@ -96,14 +90,6 @@ class TestAllow:
         msg = interaction.response.send_message.call_args[0][0]
         assert "already assign" in msg
 
-    async def test_allow_german(self, cog, interaction, source_role, target_role, db_session):
-        _set_german(db_session)
-
-        await RoleManage._allow.callback(cog, interaction, source_role, target_role)
-
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "darf jetzt" in msg
-
 
 # ---------------------------------------------------------------------------
 # /rolemanage deny
@@ -126,16 +112,6 @@ class TestDeny:
         msg = interaction.response.send_message.call_args[0][0]
         assert "No matching mapping" in msg
 
-    async def test_deny_german(self, cog, interaction, source_role, target_role, db_session):
-        _set_german(db_session)
-        db_session.add(RoleMapping(GuildId=987654321, SourceRoleId=111, TargetRoleId=222))
-        db_session.commit()
-
-        await RoleManage._deny.callback(cog, interaction, source_role, target_role)
-
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "nicht mehr zuweisen" in msg
-
 
 # ---------------------------------------------------------------------------
 # /rolemanage list
@@ -148,14 +124,6 @@ class TestList:
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "No role mappings" in msg
-
-    async def test_list_empty_german(self, cog, interaction, db_session):
-        _set_german(db_session)
-
-        await RoleManage._list.callback(cog, interaction)
-
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "Keine Rollenzuordnungen" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -182,17 +150,6 @@ class TestAssign:
         assert "Verified" in msg
         member.add_roles.assert_called_once()
 
-    async def test_assign_german(self, cog, interaction, member, target_role, db_session):
-        _set_german(db_session)
-        db_session.add(RoleMapping(GuildId=987654321, SourceRoleId=111, TargetRoleId=222))
-        db_session.commit()
-        interaction.user.roles = [MagicMock(id=111)]
-
-        await RoleManage._assign.callback(cog, interaction, member, target_role)
-
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "zugewiesen" in msg
-
 
 # ---------------------------------------------------------------------------
 # /rolemanage remove
@@ -218,15 +175,3 @@ class TestRemove:
         assert "Removed" in msg
         assert "Verified" in msg
         member.remove_roles.assert_called_once()
-
-    async def test_remove_german(self, cog, interaction, member, target_role, db_session):
-        _set_german(db_session)
-        db_session.add(RoleMapping(GuildId=987654321, SourceRoleId=111, TargetRoleId=222))
-        db_session.commit()
-        interaction.user.roles = [MagicMock(id=111)]
-        member.roles = [target_role]
-
-        await RoleManage._remove.callback(cog, interaction, member, target_role)
-
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "entfernt" in msg

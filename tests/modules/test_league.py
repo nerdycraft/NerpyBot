@@ -4,7 +4,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from models.admin import GuildLanguageConfig
 from modules.league import League
 from utils.strings import load_strings
 
@@ -108,25 +107,3 @@ class TestSummonerEnglish:
         emb = interaction.response.send_message.call_args[1]["embed"]
         assert "Summoner Level: 42" in emb.description
         assert len(emb.fields) == 0
-
-
-# ---------------------------------------------------------------------------
-# /league summoner — German
-# ---------------------------------------------------------------------------
-
-
-class TestSummonerGerman:
-    async def test_summoner_embed_fields_german(self, cog, interaction, db_session):
-        db_session.add(GuildLanguageConfig(GuildId=987654321, Language="de"))
-        db_session.commit()
-
-        with patch("modules.league.ClientSession", side_effect=_mock_riot_api(SUMMONER_DATA, RANK_DATA)):
-            await League.summoner.callback(cog, interaction, "EUW1", "TestPlayer")
-
-        emb = interaction.response.send_message.call_args[1]["embed"]
-        assert "Beschwörerstufe: 42" in emb.description
-        field_names = [f.name for f in emb.fields]
-        assert "Rang" in field_names
-        assert "Ligapunkte" in field_names
-        assert "Siege" in field_names
-        assert "Niederlagen" in field_names

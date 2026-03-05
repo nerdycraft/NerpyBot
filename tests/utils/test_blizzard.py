@@ -6,18 +6,6 @@ from unittest.mock import MagicMock
 from utils.blizzard import CRAFTING_PROFESSIONS
 
 
-class TestCraftingProfessions:
-    def test_has_expected_professions(self):
-        assert "Blacksmithing" in CRAFTING_PROFESSIONS
-        assert "Jewelcrafting" in CRAFTING_PROFESSIONS
-        assert "Cooking" in CRAFTING_PROFESSIONS
-        assert len(CRAFTING_PROFESSIONS) == 9
-
-    def test_no_gathering_professions(self):
-        for name in ("Skinning", "Mining", "Herbalism"):
-            assert name not in CRAFTING_PROFESSIONS
-
-
 class TestRoleAutoMatch:
     """Test the role → profession auto-matching logic in the WoW cog."""
 

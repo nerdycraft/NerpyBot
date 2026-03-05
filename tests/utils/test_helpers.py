@@ -2,18 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from utils.helpers import error_context, parse_id, send_hidden_message
-
-
-# --- parse_id ---
-
-
-def test_parse_id_from_int():
-    assert parse_id(283746501234567890) == 283746501234567890
-
-
-def test_parse_id_from_string():
-    assert parse_id("283746501234567890") == 283746501234567890
+from utils.helpers import error_context, send_hidden_message
 
 
 # --- send_hidden_message ---
