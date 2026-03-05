@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 # Ensure NerdyPy is on the path (same as main conftest.py)
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "NerdyPy"))
@@ -18,7 +19,12 @@ from utils.database import BASE
 @pytest.fixture
 def web_db_engine():
     """In-memory SQLite for web API tests."""
-    engine = create_engine("sqlite:///:memory:", echo=False)
+    engine = create_engine(
+        "sqlite:///:memory:",
+        echo=False,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
 
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_conn, _connection_record):
