@@ -61,3 +61,27 @@ def require_operator(
     if user_id not in config.ops:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Operator access required")
     return user
+
+
+def require_guild_access(
+    guild_id: int,
+    user: dict = Depends(get_current_user),
+    config: WebConfig = Depends(get_config),
+    vk: ValkeyClient = Depends(get_valkey),
+) -> dict:
+    """Require the user has admin/mod access to the given guild. Operators bypass."""
+    user_id = int(user["sub"])
+    if user_id in config.ops:
+        return user
+
+    perms = vk.get_permissions(user["sub"])
+    if perms is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No guild permissions found — re-login")
+
+    guild_str = str(guild_id)
+    level = perms.get(guild_str)
+    if level not in ("admin", "mod"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient guild permissions")
+
+    user["guild_permission"] = level
+    return user
