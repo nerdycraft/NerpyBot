@@ -1,0 +1,134 @@
+# -*- coding: utf-8 -*-
+"""Tests for LeaveMsg.on_member_remove event listener."""
+
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from discord import TextChannel
+
+from models.leavemsg import LeaveMessage
+from modules.leavemsg import LeaveMsg
+from utils.strings import load_strings
+
+
+@pytest.fixture(autouse=True)
+def _load_locale_strings():
+    """Load locale YAML files before each test."""
+    load_strings()
+
+
+@pytest.fixture
+def cog(mock_bot):
+    return LeaveMsg(mock_bot)
+
+
+class TestOnMemberRemove:
+    """Tests for the on_member_remove event listener."""
+
+    @pytest.mark.asyncio
+    async def test_sends_formatted_message_on_member_leave(self, cog, db_session):
+        """A formatted message should be sent to the configured channel when a member leaves."""
+        guild_id = 987654321
+        channel_id = 111222333
+
+        db_session.add(
+            LeaveMessage(
+                GuildId=guild_id,
+                ChannelId=channel_id,
+                Message="Goodbye {member}!",
+                Enabled=True,
+            )
+        )
+        db_session.commit()
+
+        # Build mock channel
+        mock_channel = MagicMock(spec=TextChannel)
+        mock_channel.id = channel_id
+        mock_channel.send = AsyncMock()
+
+        # Build mock guild
+        mock_guild = MagicMock()
+        mock_guild.id = guild_id
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        # Build mock member
+        member = MagicMock()
+        member.bot = False
+        member.display_name = "Alice"
+        member.name = "alice123"
+        member.guild = mock_guild
+
+        await cog.on_member_remove(member)
+
+        mock_channel.send.assert_awaited_once()
+        sent_text = mock_channel.send.call_args[0][0]
+        assert "Alice" in sent_text
+        assert "Goodbye" in sent_text
+
+    @pytest.mark.asyncio
+    async def test_disabled_config_does_not_send(self, cog, db_session):
+        """When Enabled=False, no message should be sent."""
+        guild_id = 987654321
+        channel_id = 111222333
+
+        db_session.add(
+            LeaveMessage(
+                GuildId=guild_id,
+                ChannelId=channel_id,
+                Message="Goodbye {member}!",
+                Enabled=False,
+            )
+        )
+        db_session.commit()
+
+        mock_channel = MagicMock(spec=TextChannel)
+        mock_channel.send = AsyncMock()
+
+        mock_guild = MagicMock()
+        mock_guild.id = guild_id
+        mock_guild.name = "Test Guild"
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        member = MagicMock()
+        member.bot = False
+        member.display_name = "Alice"
+        member.name = "alice123"
+        member.guild = mock_guild
+
+        await cog.on_member_remove(member)
+
+        mock_channel.send.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_channel_not_found_does_not_crash(self, cog, db_session):
+        """When the channel no longer exists, on_member_remove should not raise."""
+        guild_id = 987654321
+        channel_id = 999999999
+
+        db_session.add(
+            LeaveMessage(
+                GuildId=guild_id,
+                ChannelId=channel_id,
+                Message="Goodbye {member}!",
+                Enabled=True,
+            )
+        )
+        db_session.commit()
+
+        mock_guild = MagicMock()
+        mock_guild.id = guild_id
+        mock_guild.name = "Test Guild"
+        # Returning None simulates a missing/deleted channel
+        mock_guild.get_channel = MagicMock(return_value=None)
+
+        member = MagicMock()
+        member.bot = False
+        member.display_name = "Alice"
+        member.name = "alice123"
+        member.guild = mock_guild
+
+        # Should not raise
+        await cog.on_member_remove(member)
+
+        # Nothing to assert regarding send — channel is None so the method returns early

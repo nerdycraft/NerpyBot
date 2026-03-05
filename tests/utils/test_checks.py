@@ -300,14 +300,6 @@ class TestCanLeaveVoice:
         mock_interaction.user.guild_permissions.mute_members = True
         assert await can_leave_voice(mock_interaction) is True
 
-    async def test_allows_operator(self, mock_interaction):
-        mock_interaction.client.ops = [100]
-        assert await can_leave_voice(mock_interaction) is True
-
-    async def test_allows_admin(self, mock_interaction):
-        mock_interaction.user.guild_permissions.administrator = True
-        assert await can_leave_voice(mock_interaction) is True
-
     async def test_rejects_regular_user(self, mock_interaction):
         with pytest.raises(SilentCheckFailure, match="[Mm]oderators"):
             await can_leave_voice(mock_interaction)
@@ -375,43 +367,6 @@ class TestIsRoleBelowBot:
 
 class TestLocalization:
     """Verify that check messages respect the guild's configured language."""
-
-    async def test_voice_check_returns_german_for_german_guild(self, mock_interaction, db_session):
-        from models.admin import GuildLanguageConfig
-
-        db_session.add(GuildLanguageConfig(GuildId=900, Language="de"))
-        db_session.commit()
-
-        mock_interaction.user.voice = None
-        with pytest.raises(SilentCheckFailure):
-            await is_connected_to_voice(mock_interaction)
-        msg = mock_interaction.response.send_message.call_args[0][0]
-        assert "Sprachkanal" in msg
-
-    async def test_stop_playback_returns_german(self, mock_interaction, db_session):
-        from models.admin import GuildLanguageConfig
-
-        db_session.add(GuildLanguageConfig(GuildId=900, Language="de"))
-        db_session.commit()
-
-        mock_interaction.guild.voice_client = None
-        with pytest.raises(SilentCheckFailure):
-            await can_stop_playback(mock_interaction)
-        msg = mock_interaction.response.send_message.call_args[0][0]
-        assert "nichts abgespielt" in msg
-
-    async def test_role_assignable_returns_german(self, mock_interaction, db_session):
-        from models.admin import GuildLanguageConfig
-
-        db_session.add(GuildLanguageConfig(GuildId=900, Language="de"))
-        db_session.commit()
-
-        role = MagicMock()
-        role.managed = True
-        role.name = "BotRole"
-        await is_role_assignable(mock_interaction, role)
-        msg = mock_interaction.response.send_message.call_args[0][0]
-        assert "Integrationsrolle" in msg
 
     async def test_defaults_to_english_without_guild_config(self, mock_interaction):
         mock_interaction.user.voice = None

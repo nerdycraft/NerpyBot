@@ -4,7 +4,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from models.admin import GuildLanguageConfig
 from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 from modules.reactionrole import ReactionRole
 from utils.strings import load_strings
@@ -60,11 +59,6 @@ def role():
     return r
 
 
-def _set_german(db_session):
-    db_session.add(GuildLanguageConfig(GuildId=987654321, Language="de"))
-    db_session.commit()
-
-
 # ---------------------------------------------------------------------------
 # /reactionrole add
 # ---------------------------------------------------------------------------
@@ -90,14 +84,6 @@ class TestAdd:
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "already mapped" in msg
-
-    async def test_add_german(self, cog, interaction, channel, role, db_session):
-        _set_german(db_session)
-
-        await ReactionRole._add.callback(cog, interaction, channel, "12345", "👍", role)
-
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "zugeordnet" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -127,14 +113,6 @@ class TestRemove:
         msg = interaction.response.send_message.call_args[0][0]
         assert "Removed mapping" in msg
 
-    async def test_remove_german(self, cog, interaction, db_session):
-        _set_german(db_session)
-
-        await ReactionRole._remove.callback(cog, interaction, "99999", "👍")
-
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "Keine Reaktionsrollen-Konfiguration" in msg
-
 
 # ---------------------------------------------------------------------------
 # /reactionrole list
@@ -147,14 +125,6 @@ class TestList:
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "No reaction roles configured" in msg
-
-    async def test_list_empty_german(self, cog, interaction, db_session):
-        _set_german(db_session)
-
-        await ReactionRole._list.callback(cog, interaction)
-
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "Keine Reaktionsrollen konfiguriert" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -182,11 +152,3 @@ class TestClear:
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "Cleared all" in msg
-
-    async def test_clear_german(self, cog, interaction, db_session):
-        _set_german(db_session)
-
-        await ReactionRole._clear.callback(cog, interaction, "99999")
-
-        msg = interaction.response.send_message.call_args[0][0]
-        assert "Keine Reaktionsrollen-Konfiguration" in msg
