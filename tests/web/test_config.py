@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 
 
-class TestWebConfig:
+class TestWebConfigFromEnv:
     def test_from_env_minimal(self):
         """Config loads from NERPYBOT_* env vars."""
         from web.config import WebConfig
@@ -59,7 +59,7 @@ class TestWebConfig:
         from web.config import WebConfig
 
         with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="NERPYBOT_CLIENT_ID"):
+            with pytest.raises(ValueError, match="client_id"):
                 WebConfig.from_env()
 
     def test_db_connection_string_sqlite_default(self):
@@ -76,3 +76,87 @@ class TestWebConfig:
             cfg = WebConfig.from_env()
 
         assert cfg.db_connection_string == "sqlite:///db.db"
+
+
+class TestWebConfigFromFile:
+    def test_load_from_config_file(self, tmp_path):
+        """Config loads values from a YAML config file."""
+        from web.config import WebConfig
+
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "bot:\n"
+            '  client_id: "file_client_id"\n'
+            "  ops:\n"
+            '    - "111"\n'
+            '    - "222"\n'
+            "web:\n"
+            "  client_secret: file_secret\n"
+            "  jwt_secret: file_jwt\n"
+            "  valkey_url: valkey://filehost:6379\n"
+            "database:\n"
+            "  db_type: sqlite\n"
+            "  db_name: test.db\n"
+        )
+
+        with patch.dict(os.environ, {}, clear=True):
+            cfg = WebConfig.load(config_file)
+
+        assert cfg.client_id == "file_client_id"
+        assert cfg.ops == [111, 222]
+        assert cfg.client_secret == "file_secret"
+        assert cfg.jwt_secret == "file_jwt"
+        assert cfg.valkey_url == "valkey://filehost:6379"
+        assert cfg.db_connection_string == "sqlite:///test.db"
+
+    def test_env_vars_override_file(self, tmp_path):
+        """Env vars take priority over config file values."""
+        from web.config import WebConfig
+
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "bot:\n"
+            '  client_id: "from_file"\n'
+            "  ops:\n"
+            '    - "100"\n'
+            "web:\n"
+            "  client_secret: from_file\n"
+            "  jwt_secret: from_file\n"
+            "  valkey_url: valkey://from-file:6379\n"
+        )
+
+        env = {"NERPYBOT_CLIENT_ID": "from_env", "NERPYBOT_WEB_VALKEY_URL": "valkey://from-env:6380"}
+        with patch.dict(os.environ, env, clear=True):
+            cfg = WebConfig.load(config_file)
+
+        assert cfg.client_id == "from_env"  # env wins
+        assert cfg.valkey_url == "valkey://from-env:6380"  # env wins
+        assert cfg.client_secret == "from_file"  # file provides
+        assert cfg.ops == [100]  # file provides
+
+    def test_missing_file_falls_back_to_env(self, tmp_path):
+        """If config file doesn't exist, env vars are used."""
+        from web.config import WebConfig
+
+        env = {
+            "NERPYBOT_CLIENT_ID": "env_id",
+            "NERPYBOT_OPS": "42",
+            "NERPYBOT_WEB_CLIENT_SECRET": "env_secret",
+            "NERPYBOT_WEB_JWT_SECRET": "env_jwt",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            cfg = WebConfig.load(tmp_path / "nonexistent.yaml")
+
+        assert cfg.client_id == "env_id"
+        assert cfg.ops == [42]
+
+    def test_load_missing_required_from_both_raises(self, tmp_path):
+        """Missing required values from both file and env raise ValueError."""
+        from web.config import WebConfig
+
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("bot:\n  client_id: test\n")
+
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(ValueError, match="client_secret"):
+                WebConfig.load(config_file)

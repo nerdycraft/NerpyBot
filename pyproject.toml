@@ -51,6 +51,7 @@ web = [
     "python-jose[cryptography]",
     "httpx",
     "valkey",
+    "pyyaml",
 ]
 
 [tool.hatch.version]

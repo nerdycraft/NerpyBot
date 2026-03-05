@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
@@ -15,15 +16,25 @@ if TYPE_CHECKING:
     from web.valkey import ValkeyClient
 
 
-def create_app(config: WebConfig | None = None, valkey_client: ValkeyClient | None = None) -> FastAPI:
-    """Create and configure the FastAPI application."""
+def create_app(
+    config: WebConfig | None = None,
+    valkey_client: ValkeyClient | None = None,
+    config_path: Path | str | None = None,
+) -> FastAPI:
+    """Create and configure the FastAPI application.
+
+    Config resolution order:
+    1. Explicit ``config`` parameter (used by tests)
+    2. ``config_path`` → load from YAML file + env var overlay
+    3. Fall back to env vars only (``WebConfig.from_env()``)
+    """
     from web.config import WebConfig
     from web.dependencies import get_config, get_db_session, get_valkey
     from web.routes import auth, guilds, health, operator
     from web.valkey import ValkeyClient
 
     if config is None:
-        config = WebConfig.from_env()
+        config = WebConfig.load(config_path) if config_path else WebConfig.from_env()
 
     engine = create_engine(config.db_connection_string)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)

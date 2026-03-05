@@ -1,15 +1,35 @@
-"""Web dashboard configuration — reads from NERPYBOT_* environment variables."""
+"""Web dashboard configuration — reads from config.yaml and/or NERPYBOT_* env vars.
+
+Follows the same pattern as the bot: config file provides defaults, env vars override.
+"""
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
+import yaml
 
 
-def _require_env(name: str) -> str:
-    value = os.environ.get(name, "").strip()
+def _get(sources: list[dict], *keys: str, default: str = "") -> str:
+    """Look up a value from a list of dicts (first wins), falling back to default."""
+    for src in sources:
+        node = src
+        for key in keys:
+            if isinstance(node, dict) and key in node:
+                node = node[key]
+            else:
+                node = None
+                break
+        if node is not None and not isinstance(node, dict):
+            return str(node).strip()
+    return default
+
+
+def _require(value: str, name: str) -> str:
     if not value:
-        raise ValueError(f"Required environment variable {name} is not set")
+        raise ValueError(f"Required config value {name!r} is not set (via config file or env var)")
     return value
 
 
@@ -25,18 +45,36 @@ class WebConfig:
     db_connection_string: str
 
     @classmethod
+    def load(cls, config_path: Path | str | None = None) -> WebConfig:
+        """Load config from file + env vars.  Env vars take priority."""
+        file_cfg = _load_config_file(config_path)
+        return cls._build(file_cfg)
+
+    @classmethod
     def from_env(cls) -> WebConfig:
-        client_id = _require_env("NERPYBOT_CLIENT_ID")
-        client_secret = _require_env("NERPYBOT_WEB_CLIENT_SECRET")
-        jwt_secret = _require_env("NERPYBOT_WEB_JWT_SECRET")
+        """Load config from env vars only (no config file)."""
+        return cls._build({})
 
-        ops_raw = _require_env("NERPYBOT_OPS")
-        ops = [int(o.strip()) for o in ops_raw.split(",") if o.strip()]
+    @classmethod
+    def _build(cls, file_cfg: dict) -> WebConfig:
+        # Layer: env vars (highest priority) → file config → defaults
+        env = _env_to_dict()
+        sources = [env, file_cfg]
 
-        redirect_uri = os.environ.get("NERPYBOT_WEB_REDIRECT_URI", "http://localhost:8000/api/auth/callback")
-        jwt_expiry_hours = int(os.environ.get("NERPYBOT_WEB_JWT_EXPIRY_HOURS", "24"))
-        valkey_url = os.environ.get("NERPYBOT_WEB_VALKEY_URL", "valkey://localhost:6379")
-        db_connection_string = _build_db_connection_string()
+        client_id = _require(_get(sources, "bot", "client_id"), "bot.client_id / NERPYBOT_CLIENT_ID")
+        client_secret = _require(
+            _get(sources, "web", "client_secret"), "web.client_secret / NERPYBOT_WEB_CLIENT_SECRET"
+        )
+        jwt_secret = _require(_get(sources, "web", "jwt_secret"), "web.jwt_secret / NERPYBOT_WEB_JWT_SECRET")
+
+        ops = _resolve_ops(sources)
+        if not ops:
+            _require("", "bot.ops / NERPYBOT_OPS")
+
+        redirect_uri = _get(sources, "web", "redirect_uri", default="http://localhost:8000/api/auth/callback")
+        jwt_expiry_hours = int(_get(sources, "web", "jwt_expiry_hours", default="24"))
+        valkey_url = _get(sources, "web", "valkey_url", default="valkey://localhost:6379")
+        db_connection_string = _build_db_connection_string(sources)
 
         return cls(
             client_id=client_id,
@@ -50,21 +88,71 @@ class WebConfig:
         )
 
 
-def _build_db_connection_string() -> str:
-    """Build SQLAlchemy connection string from NERPYBOT_DB_* env vars.
+def _resolve_ops(sources: list[dict]) -> list[int]:
+    """Resolve ops from sources — handles both YAML lists and CSV strings."""
+    for src in sources:
+        raw = src.get("bot", {}).get("ops")
+        if raw is None:
+            continue
+        if isinstance(raw, list):
+            return [int(o) for o in raw]
+        if isinstance(raw, str) and raw.strip():
+            return [int(o.strip()) for o in raw.split(",") if o.strip()]
+    return []
 
-    Mirrors the logic in NerdyPy/bot.py NerpyBot.build_connection_string().
-    """
-    db_type = os.environ.get("NERPYBOT_DB_TYPE", "sqlite")
-    db_name = os.environ.get("NERPYBOT_DB_NAME", "db.db")
+
+def _load_config_file(config_path: Path | str | None) -> dict:
+    """Load YAML config file, returning {} if not found."""
+    path = Path(config_path) if config_path else Path("./config.yaml")
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        try:
+            return yaml.safe_load(f) or {}
+        except yaml.YAMLError:
+            return {}
+
+
+def _env_to_dict() -> dict:
+    """Map NERPYBOT_* env vars into a nested dict matching config.yaml structure."""
+    cfg: dict = {}
+    mappings = [
+        ("NERPYBOT_CLIENT_ID", ("bot", "client_id")),
+        ("NERPYBOT_OPS", ("bot", "ops")),
+        ("NERPYBOT_WEB_CLIENT_SECRET", ("web", "client_secret")),
+        ("NERPYBOT_WEB_JWT_SECRET", ("web", "jwt_secret")),
+        ("NERPYBOT_WEB_JWT_EXPIRY_HOURS", ("web", "jwt_expiry_hours")),
+        ("NERPYBOT_WEB_VALKEY_URL", ("web", "valkey_url")),
+        ("NERPYBOT_WEB_REDIRECT_URI", ("web", "redirect_uri")),
+        ("NERPYBOT_DB_TYPE", ("database", "db_type")),
+        ("NERPYBOT_DB_NAME", ("database", "db_name")),
+        ("NERPYBOT_DB_USERNAME", ("database", "db_username")),
+        ("NERPYBOT_DB_PASSWORD", ("database", "db_password")),
+        ("NERPYBOT_DB_HOST", ("database", "db_host")),
+        ("NERPYBOT_DB_PORT", ("database", "db_port")),
+    ]
+    for env_var, keys in mappings:
+        value = os.environ.get(env_var, "").strip()
+        if value:
+            node = cfg
+            for key in keys[:-1]:
+                node = node.setdefault(key, {})
+            node[keys[-1]] = value
+    return cfg
+
+
+def _build_db_connection_string(sources: list[dict]) -> str:
+    """Build SQLAlchemy connection string from config sources."""
+    db_type = _get(sources, "database", "db_type", default="sqlite")
+    db_name = _get(sources, "database", "db_name", default="db.db")
 
     if "postgresql" in db_type:
         db_type = f"{db_type}+psycopg"
 
-    db_username = os.environ.get("NERPYBOT_DB_USERNAME", "")
-    db_password = os.environ.get("NERPYBOT_DB_PASSWORD", "")
-    db_host = os.environ.get("NERPYBOT_DB_HOST", "")
-    db_port = os.environ.get("NERPYBOT_DB_PORT", "")
+    db_username = _get(sources, "database", "db_username")
+    db_password = _get(sources, "database", "db_password")
+    db_host = _get(sources, "database", "db_host")
+    db_port = _get(sources, "database", "db_port")
 
     if not db_username and not db_host:
         return f"{db_type}:///{db_name}"

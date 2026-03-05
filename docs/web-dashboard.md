@@ -95,17 +95,30 @@ docker run -d --name valkey -p 6379:6379 valkey/valkey:8-alpine
 # 2. Start the bot with Valkey URL configured
 NERPYBOT_WEB_VALKEY_URL=valkey://localhost:6379 uv run python NerdyPy/bot.py
 
-# 3. Start the web service
-NERPYBOT_WEB_CLIENT_ID=... \
-NERPYBOT_WEB_CLIENT_SECRET=... \
-NERPYBOT_WEB_REDIRECT_URI=http://localhost:8000/api/auth/callback \
-NERPYBOT_WEB_JWT_SECRET=dev-secret \
-NERPYBOT_WEB_OPS=your_discord_id \
-NERPYBOT_WEB_VALKEY_URL=valkey://localhost:6379 \
-NERPYBOT_WEB_DB_TYPE=sqlite \
-NERPYBOT_WEB_DB_NAME=NerdyPy/db.db \
+# 3. Start the web service (using config file — easiest for local dev)
 uv run python -m uvicorn web.app:create_app --factory --reload
 ```
+
+### Config File vs Environment Variables
+
+The web service supports both **config file** and **env vars** (env vars override file values):
+
+**Option A: Config file** (recommended for local development) — add a `web` section to your existing
+`NerdyPy/config.yaml`. The web service reads the same `config.yaml` as the bot:
+
+```yaml
+web:
+  client_secret: your_discord_client_secret
+  redirect_uri: http://localhost:8000/api/auth/callback
+  jwt_secret: dev-secret
+  valkey_url: valkey://localhost:6379
+```
+
+The `bot.client_id`, `bot.ops`, and `database` sections are shared with the bot config.
+
+**Option B: Env vars** (used in Docker) — set `NERPYBOT_WEB_*` variables as shown in the env vars table above.
+
+**Option C: Both** — base config in file, overrides via env vars. Env vars always win.
 
 ## API Documentation
 
