@@ -158,3 +158,129 @@ class TestAutoKickerEndpoints:
         assert response.status_code == 200
         assert response.json()["kick_after"] == 7
         assert response.json()["enabled"] is True
+
+
+class TestReactionRoleEndpoints:
+    def test_get_empty(self, client, auth_header):
+        response = client.get(f"/api/guilds/{GUILD_ID}/reaction-roles", headers=auth_header)
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_get_with_data(self, client, auth_header, web_db_session):
+        from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
+
+        msg = ReactionRoleMessage(GuildId=GUILD_ID, ChannelId=111, MessageId=222)
+        web_db_session.add(msg)
+        web_db_session.flush()
+        entry = ReactionRoleEntry(ReactionRoleMessageId=msg.Id, Emoji="👍", RoleId=333)
+        web_db_session.add(entry)
+        web_db_session.commit()
+
+        response = client.get(f"/api/guilds/{GUILD_ID}/reaction-roles", headers=auth_header)
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["message_id"] == "222"
+        assert len(data[0]["entries"]) == 1
+        assert data[0]["entries"][0]["emoji"] == "👍"
+
+
+class TestRoleMappingEndpoints:
+    def test_get_empty(self, client, auth_header):
+        response = client.get(f"/api/guilds/{GUILD_ID}/role-mappings", headers=auth_header)
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_create_and_list(self, client, auth_header):
+        client.post(
+            f"/api/guilds/{GUILD_ID}/role-mappings",
+            json={"source_role_id": "100", "target_role_id": "200"},
+            headers=auth_header,
+        )
+        response = client.get(f"/api/guilds/{GUILD_ID}/role-mappings", headers=auth_header)
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["source_role_id"] == "100"
+
+    def test_delete_mapping(self, client, auth_header):
+        resp = client.post(
+            f"/api/guilds/{GUILD_ID}/role-mappings",
+            json={"source_role_id": "100", "target_role_id": "200"},
+            headers=auth_header,
+        )
+        mapping_id = resp.json()["id"]
+        response = client.delete(f"/api/guilds/{GUILD_ID}/role-mappings/{mapping_id}", headers=auth_header)
+        assert response.status_code == 204
+
+    def test_delete_nonexistent_returns_404(self, client, auth_header):
+        response = client.delete(f"/api/guilds/{GUILD_ID}/role-mappings/9999", headers=auth_header)
+        assert response.status_code == 404
+
+
+class TestReminderEndpoints:
+    def test_get_empty(self, client, auth_header):
+        response = client.get(f"/api/guilds/{GUILD_ID}/reminders", headers=auth_header)
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_get_with_data(self, client, auth_header, web_db_session):
+        from datetime import UTC, datetime
+
+        from models.reminder import ReminderMessage
+
+        reminder = ReminderMessage(
+            GuildId=GUILD_ID,
+            ChannelId=111,
+            ChannelName="general",
+            CreateDate=datetime.now(UTC),
+            Author="TestUser",
+            Message="Don't forget!",
+            Enabled=True,
+            Count=5,
+            NextFire=datetime.now(UTC),
+            ScheduleType="daily",
+        )
+        web_db_session.add(reminder)
+        web_db_session.commit()
+
+        response = client.get(f"/api/guilds/{GUILD_ID}/reminders", headers=auth_header)
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["message"] == "Don't forget!"
+        assert data[0]["schedule_type"] == "daily"
+
+
+class TestApplicationFormEndpoints:
+    def test_get_empty(self, client, auth_header):
+        response = client.get(f"/api/guilds/{GUILD_ID}/application-forms", headers=auth_header)
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_get_with_data(self, client, auth_header, web_db_session):
+        from models.application import ApplicationForm, ApplicationQuestion
+
+        form = ApplicationForm(
+            GuildId=GUILD_ID,
+            Name="Apply",
+            RequiredApprovals=2,
+            RequiredDenials=1,
+        )
+        web_db_session.add(form)
+        web_db_session.flush()
+        q = ApplicationQuestion(FormId=form.Id, QuestionText="Why join?", SortOrder=1)
+        web_db_session.add(q)
+        web_db_session.commit()
+
+        response = client.get(f"/api/guilds/{GUILD_ID}/application-forms", headers=auth_header)
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["name"] == "Apply"
+        assert len(data[0]["questions"]) == 1
+
+
+class TestWowEndpoints:
+    def test_get_empty(self, client, auth_header):
+        response = client.get(f"/api/guilds/{GUILD_ID}/wow", headers=auth_header)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["guild_news"] == []
+        assert data["crafting_board"] is None

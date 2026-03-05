@@ -7,17 +7,26 @@ from sqlalchemy.orm import Session
 
 from web.dependencies import get_current_user, get_db_session, require_guild_access
 from web.schemas import (
+    ApplicationFormSchema,
+    ApplicationQuestionSchema,
     AutoDeleteCreate,
     AutoDeleteRule,
     AutoDeleteUpdate,
     AutoKickerConfig,
     AutoKickerUpdate,
+    CraftingBoardSchema,
     LanguageConfig,
     LanguageUpdate,
     LeaveMessageConfig,
     LeaveMessageUpdate,
     ModeratorRole,
     ModeratorRoleCreate,
+    ReactionRoleEntrySchema,
+    ReactionRoleMessageSchema,
+    ReminderSchema,
+    RoleMappingCreate,
+    RoleMappingSchema,
+    WowGuildNewsSchema,
 )
 
 router = APIRouter(prefix="/guilds", tags=["guilds"])
@@ -317,3 +326,185 @@ async def set_auto_kicker(
         enabled=cfg.Enabled,
         reminder_message=cfg.ReminderMessage,
     )
+
+
+# ── Reaction Roles (read-only) ──
+
+
+@router.get("/{guild_id}/reaction-roles", response_model=list[ReactionRoleMessageSchema])
+async def list_reaction_roles(
+    guild_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    from models.reactionrole import ReactionRoleMessage
+
+    messages = ReactionRoleMessage.get_by_guild(guild_id, session)
+    return [
+        ReactionRoleMessageSchema(
+            id=m.Id,
+            channel_id=str(m.ChannelId),
+            message_id=str(m.MessageId),
+            entries=[
+                ReactionRoleEntrySchema(emoji=e.Emoji, role_id=str(e.RoleId))
+                for e in m.entries
+            ],
+        )
+        for m in messages
+    ]
+
+
+# ── Role Mappings ──
+
+
+@router.get("/{guild_id}/role-mappings", response_model=list[RoleMappingSchema])
+async def list_role_mappings(
+    guild_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    from models.rolemanage import RoleMapping
+
+    mappings = RoleMapping.get_by_guild(guild_id, session)
+    return [
+        RoleMappingSchema(
+            id=m.Id,
+            guild_id=str(guild_id),
+            source_role_id=str(m.SourceRoleId),
+            target_role_id=str(m.TargetRoleId),
+        )
+        for m in mappings
+    ]
+
+
+@router.post("/{guild_id}/role-mappings", status_code=status.HTTP_201_CREATED, response_model=RoleMappingSchema)
+async def create_role_mapping(
+    guild_id: int,
+    body: RoleMappingCreate,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    from models.rolemanage import RoleMapping
+
+    mapping = RoleMapping(
+        GuildId=guild_id,
+        SourceRoleId=int(body.source_role_id),
+        TargetRoleId=int(body.target_role_id),
+    )
+    session.add(mapping)
+    session.flush()
+    return RoleMappingSchema(
+        id=mapping.Id,
+        guild_id=str(guild_id),
+        source_role_id=str(mapping.SourceRoleId),
+        target_role_id=str(mapping.TargetRoleId),
+    )
+
+
+@router.delete("/{guild_id}/role-mappings/{mapping_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_role_mapping(
+    guild_id: int,
+    mapping_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    from models.rolemanage import RoleMapping
+
+    mapping = session.query(RoleMapping).filter(RoleMapping.Id == mapping_id, RoleMapping.GuildId == guild_id).first()
+    if mapping is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role mapping not found")
+    session.delete(mapping)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ── Reminders (read-only) ──
+
+
+@router.get("/{guild_id}/reminders", response_model=list[ReminderSchema])
+async def list_reminders(
+    guild_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    from models.reminder import ReminderMessage
+
+    reminders = ReminderMessage.get_all_by_guild(guild_id, session)
+    return [
+        ReminderSchema(
+            id=r.Id,
+            channel_id=str(r.ChannelId),
+            channel_name=r.ChannelName,
+            author=r.Author,
+            message=r.Message,
+            enabled=r.Enabled,
+            schedule_type=r.ScheduleType,
+            next_fire=str(r.NextFire),
+            count=r.Count or 0,
+        )
+        for r in reminders
+    ]
+
+
+# ── Application Forms (read-only) ──
+
+
+@router.get("/{guild_id}/application-forms", response_model=list[ApplicationFormSchema])
+async def list_application_forms(
+    guild_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    from models.application import ApplicationForm
+
+    forms = ApplicationForm.get_all_by_guild(guild_id, session)
+    return [
+        ApplicationFormSchema(
+            id=f.Id,
+            name=f.Name,
+            required_approvals=f.RequiredApprovals,
+            required_denials=f.RequiredDenials,
+            questions=[
+                ApplicationQuestionSchema(
+                    id=q.Id,
+                    question_text=q.QuestionText,
+                    sort_order=q.SortOrder,
+                )
+                for q in f.questions
+            ],
+        )
+        for f in forms
+    ]
+
+
+# ── WoW (read-only) ──
+
+
+@router.get("/{guild_id}/wow")
+async def get_wow_config(
+    guild_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    from models.wow import CraftingBoardConfig, WowGuildNewsConfig
+
+    news_configs = WowGuildNewsConfig.get_all_by_guild(guild_id, session)
+    crafting = CraftingBoardConfig.get_by_guild(guild_id, session)
+
+    return {
+        "guild_news": [
+            WowGuildNewsSchema(
+                id=n.Id,
+                channel_id=str(n.ChannelId),
+                wow_guild_name=n.WowGuildName,
+                wow_realm_slug=n.WowRealmSlug,
+                region=n.Region,
+                enabled=n.Enabled,
+            )
+            for n in news_configs
+        ],
+        "crafting_board": CraftingBoardSchema(
+            id=crafting.Id,
+            channel_id=str(crafting.ChannelId),
+            description=crafting.Description,
+        ) if crafting else None,
+    }
