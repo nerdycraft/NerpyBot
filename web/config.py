@@ -33,9 +33,7 @@ class WebConfig:
         ops_raw = _require_env("NERPYBOT_OPS")
         ops = [int(o.strip()) for o in ops_raw.split(",") if o.strip()]
 
-        redirect_uri = os.environ.get(
-            "NERPYBOT_WEB_REDIRECT_URI", "http://localhost:8000/api/auth/callback"
-        )
+        redirect_uri = os.environ.get("NERPYBOT_WEB_REDIRECT_URI", "http://localhost:8000/api/auth/callback")
         jwt_expiry_hours = int(os.environ.get("NERPYBOT_WEB_JWT_EXPIRY_HOURS", "24"))
         valkey_url = os.environ.get("NERPYBOT_WEB_VALKEY_URL", "valkey://localhost:6379")
         db_connection_string = _build_db_connection_string()

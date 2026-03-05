@@ -1,9 +1,7 @@
 """Shared fixtures for web API tests."""
 
 import sys
-from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from sqlalchemy import create_engine, event

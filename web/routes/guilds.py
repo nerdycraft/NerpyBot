@@ -345,10 +345,7 @@ async def list_reaction_roles(
             id=m.Id,
             channel_id=str(m.ChannelId),
             message_id=str(m.MessageId),
-            entries=[
-                ReactionRoleEntrySchema(emoji=e.Emoji, role_id=str(e.RoleId))
-                for e in m.entries
-            ],
+            entries=[ReactionRoleEntrySchema(emoji=e.Emoji, role_id=str(e.RoleId)) for e in m.entries],
         )
         for m in messages
     ]
@@ -506,5 +503,7 @@ async def get_wow_config(
             id=crafting.Id,
             channel_id=str(crafting.ChannelId),
             description=crafting.Description,
-        ) if crafting else None,
+        )
+        if crafting
+        else None,
     }

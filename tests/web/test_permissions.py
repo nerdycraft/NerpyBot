@@ -1,6 +1,3 @@
-from tests.web.conftest import make_auth_header
-
-
 class TestPermissionEnforcement:
     def test_unauthenticated_returns_401(self, client):
         response = client.get("/api/guilds/")

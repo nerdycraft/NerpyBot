@@ -1,6 +1,5 @@
 import pytest
 
-from tests.web.conftest import make_auth_header
 
 GUILD_ID = 987654321
 

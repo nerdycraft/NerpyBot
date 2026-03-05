@@ -1,5 +1,3 @@
-from datetime import UTC, datetime, timedelta
-
 import pytest
 
 
@@ -37,9 +35,7 @@ class TestJWT:
 
         from web.auth.jwt import create_access_token, decode_access_token
 
-        token = create_access_token(
-            user_id="123", username="User", secret="correct", expiry_hours=1
-        )
+        token = create_access_token(user_id="123", username="User", secret="correct", expiry_hours=1)
         with pytest.raises(JWTError):
             decode_access_token(token, secret="wrong")
 
@@ -48,9 +44,7 @@ class TestJWT:
 
         from web.auth.jwt import create_access_token, decode_access_token
 
-        token = create_access_token(
-            user_id="123", username="User", secret="s", expiry_hours=1
-        )
+        token = create_access_token(user_id="123", username="User", secret="s", expiry_hours=1)
         # Flip a character in the payload section
         parts = token.split(".")
         parts[1] = parts[1][:-1] + ("A" if parts[1][-1] != "A" else "B")

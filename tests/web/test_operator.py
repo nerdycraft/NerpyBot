@@ -1,10 +1,3 @@
-from unittest.mock import AsyncMock, patch
-
-import pytest
-
-from tests.web.conftest import make_auth_header
-
-
 class TestHealthEndpoint:
     def test_health_requires_operator(self, client, auth_header):
         response = client.get("/api/operator/health", headers=auth_header)

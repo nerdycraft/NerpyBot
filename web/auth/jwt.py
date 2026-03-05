@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from jose import JWTError, jwt
+from jose import jwt
 
 ALGORITHM = "HS256"
 

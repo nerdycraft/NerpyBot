@@ -1,6 +1,5 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
-import pytest
 
 from tests.web.conftest import make_auth_header
 

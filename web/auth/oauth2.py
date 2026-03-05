@@ -21,9 +21,7 @@ def build_authorize_url(client_id: str, redirect_uri: str) -> str:
     return f"{DISCORD_OAUTH2_URL}?{query}"
 
 
-async def exchange_code(
-    code: str, client_id: str, client_secret: str, redirect_uri: str
-) -> dict:
+async def exchange_code(code: str, client_id: str, client_secret: str, redirect_uri: str) -> dict:
     """Exchange an authorization code for an access token."""
     async with httpx.AsyncClient() as http:
         resp = await http.post(
