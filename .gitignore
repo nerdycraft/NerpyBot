@@ -5,7 +5,8 @@ NerdyPy/*.db
 NerdyPy/*.dll
 NerdyPy/tmp/
 NerdyPy/config.yaml
-NerdyPy/config_humanmusic.yaml
+NerdyPy/nerdybot.yaml
+NerdyPy/humanmusic.yaml
 NerdyPy/weather_cache.sqlite
 NerpyBot.code-workspace
 config/*.yaml
@@ -177,6 +178,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
+*.env
 .env
 .venv
 env/
