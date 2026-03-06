@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 if TYPE_CHECKING:
     from web.config import WebConfig
-    from web.valkey import ValkeyClient
+    from web.cache import ValkeyClient
 
 security = HTTPBearer(auto_error=False)
 

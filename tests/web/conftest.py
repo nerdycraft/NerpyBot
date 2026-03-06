@@ -62,7 +62,7 @@ def web_db_session(web_db_engine):
 @pytest.fixture
 def fake_valkey():
     """Dict-backed fake Valkey client."""
-    from web.valkey import ValkeyClient
+    from web.cache import ValkeyClient
 
     return ValkeyClient.create_fake()
 

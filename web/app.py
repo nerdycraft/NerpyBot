@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 
 if TYPE_CHECKING:
     from web.config import WebConfig
-    from web.valkey import ValkeyClient
+    from web.cache import ValkeyClient
 
 
 def create_app(
@@ -25,16 +25,15 @@ def create_app(
 
     Config resolution order:
     1. Explicit ``config`` parameter (used by tests)
-    2. ``config_path`` → load from YAML file + env var overlay
-    3. Fall back to env vars only (``WebConfig.from_env()``)
+    2. Load from ``config_path`` (or ``./config.yaml`` if None) + env var overlay
     """
     from web.config import WebConfig
     from web.dependencies import get_config, get_db_session, get_valkey
     from web.routes import auth, guilds, health, operator
-    from web.valkey import ValkeyClient
+    from web.cache import ValkeyClient
 
     if config is None:
-        config = WebConfig.load(config_path) if config_path else WebConfig.from_env()
+        config = WebConfig.load(config_path)
 
     engine = create_engine(config.db_connection_string)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)

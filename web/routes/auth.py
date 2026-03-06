@@ -11,7 +11,7 @@ from web.auth.permissions import resolve_guild_permissions
 from web.config import WebConfig
 from web.dependencies import get_config, get_current_user, get_valkey
 from web.schemas import GuildSummary, TokenResponse, UserInfo
-from web.valkey import ValkeyClient
+from web.cache import ValkeyClient
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

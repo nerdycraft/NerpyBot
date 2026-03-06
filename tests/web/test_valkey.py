@@ -2,7 +2,7 @@ class TestValkeyHelpers:
     """Test Valkey helper functions with a dict-based fake."""
 
     def test_permission_cache_roundtrip(self):
-        from web.valkey import ValkeyClient
+        from web.cache import ValkeyClient
 
         client = ValkeyClient.create_fake()
         perms = {"987654321": "admin", "111222333": "mod"}
@@ -11,26 +11,26 @@ class TestValkeyHelpers:
         assert result == perms
 
     def test_permission_cache_miss_returns_none(self):
-        from web.valkey import ValkeyClient
+        from web.cache import ValkeyClient
 
         client = ValkeyClient.create_fake()
         assert client.get_permissions("nonexistent") is None
 
     def test_discord_token_roundtrip(self):
-        from web.valkey import ValkeyClient
+        from web.cache import ValkeyClient
 
         client = ValkeyClient.create_fake()
         client.set_discord_token("123", "discord_access_token", ttl=3600)
         assert client.get_discord_token("123") == "discord_access_token"
 
     def test_discord_token_miss_returns_none(self):
-        from web.valkey import ValkeyClient
+        from web.cache import ValkeyClient
 
         client = ValkeyClient.create_fake()
         assert client.get_discord_token("nonexistent") is None
 
     def test_delete_user_cache(self):
-        from web.valkey import ValkeyClient
+        from web.cache import ValkeyClient
 
         client = ValkeyClient.create_fake()
         client.set_permissions("123", {"guild": "admin"}, ttl=300)

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import valkey
+
 
 class ValkeyClient:
     """Wrapper around Valkey operations with namespaced keys."""
@@ -17,8 +19,6 @@ class ValkeyClient:
     @classmethod
     def create(cls, url: str) -> ValkeyClient:
         """Connect to a real Valkey instance."""
-        import valkey
-
         client = valkey.from_url(url, decode_responses=True)
         return cls(client)
 

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 
 from web.dependencies import get_valkey, require_operator
 from web.schemas import HealthResponse, ModuleActionResponse
-from web.valkey import ValkeyClient
+from web.cache import ValkeyClient
 
 router = APIRouter(prefix="/operator", tags=["operator"])
 
