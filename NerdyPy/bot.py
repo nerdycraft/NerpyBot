@@ -150,8 +150,8 @@ async def _valkey_listener_loop(bot, valkey_url: str) -> None:
         try:
             pubsub.unsubscribe()
             client.close()
-        except Exception:
-            pass
+        except Exception as e:
+            bot.log.debug(f"Valkey cleanup error: {e}")
 
 
 class NerpyBot(Bot):

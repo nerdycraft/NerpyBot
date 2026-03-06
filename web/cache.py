@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 import valkey
+
+_log = logging.getLogger(__name__)
 
 
 class ValkeyClient:
@@ -84,8 +87,10 @@ class ValkeyClient:
             if result:
                 _, data = result
                 return json.loads(data)
-        except (asyncio.TimeoutError, Exception):
-            pass
+        except asyncio.TimeoutError:
+            pass  # expected — no reply within timeout window
+        except Exception as exc:
+            _log.warning("Unexpected error waiting for bot command reply: %s", exc)
         return None
 
     def push_reply(self, request_id: str, data: dict) -> None:
