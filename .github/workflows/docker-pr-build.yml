@@ -89,6 +89,10 @@ jobs:
           ref: ${{ needs.check-trigger.outputs.pr_head_sha }}
           fetch-depth: 0
 
+      - name: Lowercase image name
+        id: repo
+        run: echo "image_name=${IMAGE_NAME,,}" >> "$GITHUB_OUTPUT"
+
       - name: Extract version from git
         id: version
         run: |
@@ -122,7 +126,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ needs.check-trigger.outputs.pr_number }}
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.image_name }}:pr-${{ needs.check-trigger.outputs.pr_number }}
           labels: |
             org.opencontainers.image.title=NerpyBot
             org.opencontainers.image.description=PR build for testing
@@ -156,7 +160,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-database-migrations:pr-${{ needs.check-trigger.outputs.pr_number }}
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.image_name }}-database-migrations:pr-${{ needs.check-trigger.outputs.pr_number }}
           labels: |
             org.opencontainers.image.title=NerpyBot Database Migrations
             org.opencontainers.image.description=PR build for testing
@@ -178,8 +182,8 @@ jobs:
           script: |
             const pr = ${{ needs.check-trigger.outputs.pr_number }};
             const sha = '${{ needs.check-trigger.outputs.pr_head_sha }}'.substring(0, 7);
-            const bot = `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${pr}`;
-            const migrations = `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-database-migrations:pr-${pr}`;
+            const bot = `${{ env.REGISTRY }}/${{ steps.repo.outputs.image_name }}:pr-${pr}`;
+            const migrations = `${{ env.REGISTRY }}/${{ steps.repo.outputs.image_name }}-database-migrations:pr-${pr}`;
             const body = [
               `## PR Docker Images Built`,
               ``,
