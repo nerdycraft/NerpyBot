@@ -70,8 +70,15 @@ async def me(
 
     guilds = []
     if perms:
-        for guild_id, level in perms.items():
-            guilds.append(GuildSummary(id=guild_id, name="", icon=None, permission_level=level))
+        for guild_id, entry in perms.items():
+            guilds.append(
+                GuildSummary(
+                    id=guild_id,
+                    name=entry["name"],
+                    icon=entry.get("icon"),
+                    permission_level=entry["level"],
+                )
+            )
 
     return UserInfo(
         id=user_id,

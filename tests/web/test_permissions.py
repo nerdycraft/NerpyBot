@@ -27,7 +27,9 @@ class TestPermissionEnforcement:
 
     def test_guild_route_with_admin_returns_200(self, client, auth_header, fake_valkey, web_db_session):
         """User with admin permission can access guild routes."""
-        fake_valkey.set_permissions("123456", {"987654321": "admin"}, ttl=300)
+        fake_valkey.set_permissions(
+            "123456", {"987654321": {"level": "admin", "name": "Test Guild", "icon": None}}, ttl=300
+        )
         response = client.get("/api/guilds/987654321/language", headers=auth_header)
         assert response.status_code == 200
 

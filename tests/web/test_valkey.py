@@ -5,7 +5,10 @@ class TestValkeyHelpers:
         from web.cache import ValkeyClient
 
         client = ValkeyClient.create_fake()
-        perms = {"987654321": "admin", "111222333": "mod"}
+        perms = {
+            "987654321": {"level": "admin", "name": "Guild A", "icon": None},
+            "111222333": {"level": "mod", "name": "Guild B", "icon": "abc123"},
+        }
         client.set_permissions("123", perms, ttl=300)
         result = client.get_permissions("123")
         assert result == perms

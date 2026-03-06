@@ -79,7 +79,8 @@ def require_guild_access(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No guild permissions found — re-login")
 
     guild_str = str(guild_id)
-    level = perms.get(guild_str)
+    entry = perms.get(guild_str)
+    level = entry["level"] if isinstance(entry, dict) else None
     if level not in ("admin", "mod"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient guild permissions")
 

@@ -46,7 +46,9 @@ class TestAuthMe:
 
     def test_me_returns_user_info(self, client, fake_valkey):
         # Seed permission cache
-        fake_valkey.set_permissions("123456", {"987654321": "admin"}, ttl=300)
+        fake_valkey.set_permissions(
+            "123456", {"987654321": {"level": "admin", "name": "Test Guild", "icon": None}}, ttl=300
+        )
 
         headers = make_auth_header()
         response = client.get("/api/auth/me", headers=headers)

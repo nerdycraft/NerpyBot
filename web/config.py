@@ -129,7 +129,7 @@ def _env_to_dict() -> dict:
         (("NERPYBOT_WEB_CLIENT_SECRET",), ("web", "client_secret")),
         (("NERPYBOT_WEB_JWT_SECRET",), ("web", "jwt_secret")),
         (("NERPYBOT_WEB_JWT_EXPIRY_HOURS",), ("web", "jwt_expiry_hours")),
-        (("NERPYBOT_WEB_VALKEY_URL",), ("web", "valkey_url")),
+        (("NERPYBOT_WEB_VALKEY_URL", "NERPYBOT_VALKEY_URL"), ("web", "valkey_url")),
         (("NERPYBOT_WEB_REDIRECT_URI",), ("web", "redirect_uri")),
         (("NERPYBOT_WEB_DB_TYPE", "NERPYBOT_DB_TYPE"), ("database", "db_type")),
         (("NERPYBOT_WEB_DB_NAME", "NERPYBOT_DB_NAME"), ("database", "db_name")),

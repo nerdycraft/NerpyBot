@@ -543,6 +543,7 @@ def parse_env_config() -> dict:
         ("NERPYBOT_WOW_TRACK_MOUNTS", ["wow", "guild_news", "track_mounts"], _to_bool),
         ("NERPYBOT_WOW_ACTIVE_DAYS", ["wow", "guild_news", "active_days"], int),
         ("NERPYBOT_ERROR_RECIPIENTS", ["notifications", "error_recipients"], _csv),
+        ("NERPYBOT_VALKEY_URL", ["web", "valkey_url"], str),
         ("NERPYBOT_WEB_VALKEY_URL", ["web", "valkey_url"], str),
     ]
     for var_name, keys, converter in mappings:

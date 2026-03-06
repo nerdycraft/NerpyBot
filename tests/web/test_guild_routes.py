@@ -7,7 +7,9 @@ GUILD_ID = 987654321
 @pytest.fixture(autouse=True)
 def seed_permissions(fake_valkey):
     """Give the default test user admin on the test guild."""
-    fake_valkey.set_permissions("123456", {str(GUILD_ID): "admin"}, ttl=300)
+    fake_valkey.set_permissions(
+        "123456", {str(GUILD_ID): {"level": "admin", "name": "Test Guild", "icon": None}}, ttl=300
+    )
 
 
 class TestLanguageEndpoints:
