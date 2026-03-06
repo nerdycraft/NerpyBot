@@ -45,7 +45,7 @@ async def callback(
 
     # Cache permissions and Discord token in Valkey
     perms = resolve_guild_permissions(guilds)
-    vk.set_permissions(user_id, perms, ttl=300)
+    vk.set_permissions(user_id, perms, ttl=config.jwt_expiry_hours * 3600)
     vk.set_discord_token(user_id, access_token, ttl=expires_in)
 
     jwt = create_access_token(
