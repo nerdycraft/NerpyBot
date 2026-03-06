@@ -38,7 +38,7 @@ test = [
     "pytest-asyncio",
     "pytest-cov",
     "pre-commit",
-    "ruff==0.15.4",
+    "ruff==0.15.5",
 ]
 migrations = [
     "alembic",
