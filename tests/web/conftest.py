@@ -90,7 +90,7 @@ def client(web_db_engine, web_db_session, web_config, fake_valkey):
     from fastapi.testclient import TestClient
 
     from web.app import create_app
-    from web.dependencies import get_config, get_db_session, get_valkey
+    from web.dependencies import get_db_session
 
     app = create_app(web_config, fake_valkey)
 
@@ -98,8 +98,6 @@ def client(web_db_engine, web_db_session, web_config, fake_valkey):
         yield web_db_session
 
     app.dependency_overrides[get_db_session] = override_session
-    app.dependency_overrides[get_config] = lambda: web_config
-    app.dependency_overrides[get_valkey] = lambda: fake_valkey
 
     with TestClient(app) as tc:
         yield tc

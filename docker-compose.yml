@@ -53,16 +53,14 @@ services:
       # NERPYBOT_ERROR_RECIPIENTS: "your_discord_id_here"
       # ── Audio tuning ──
       # NERPYBOT_AUDIO_BUFFER_LIMIT: "5"
-      # ── Web Dashboard (Valkey bridge) ──
-      # NERPYBOT_WEB_VALKEY_URL: "valkey://valkey:6379"
+      # ── Web Dashboard (Valkey bridge — required when nerpybot-web is enabled) ──
+      NERPYBOT_WEB_VALKEY_URL: "valkey://valkey:6379"
     volumes:
       - nerpybot-data:/data
 
   valkey:
     image: docker.io/valkey/valkey:8-alpine
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - valkey-data:/data
     healthcheck:
@@ -88,7 +86,7 @@ services:
       NERPYBOT_WEB_CLIENT_ID: "your_client_id_here"
       NERPYBOT_WEB_CLIENT_SECRET: "your_discord_client_secret_here"
       NERPYBOT_WEB_REDIRECT_URI: "http://localhost:8000/api/auth/callback"
-      NERPYBOT_WEB_JWT_SECRET: "change_me_random_string"
+      NERPYBOT_WEB_JWT_SECRET: "change_me_random_string" # REQUIRED: replace with a long random secret before deploying
       NERPYBOT_WEB_OPS: "your_discord_id_here"
       NERPYBOT_WEB_VALKEY_URL: "valkey://valkey:6379"
       # ── Database (must match bot config) ──

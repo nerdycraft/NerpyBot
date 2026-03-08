@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ── Auth ──
@@ -20,7 +21,7 @@ class GuildSummary(BaseModel):
     id: str
     name: str
     icon: str | None
-    permission_level: str  # "admin", "mod", or "member"
+    permission_level: Literal["admin", "mod", "member"]
 
 
 # ── Guild Language ──
@@ -78,15 +79,15 @@ class AutoDeleteRule(BaseModel):
 
 class AutoDeleteCreate(BaseModel):
     channel_id: str
-    keep_messages: int = 0
-    delete_older_than: int = 0
+    keep_messages: int = Field(0, ge=0)
+    delete_older_than: int = Field(0, ge=0)
     delete_pinned: bool = False
     enabled: bool = True
 
 
 class AutoDeleteUpdate(BaseModel):
-    keep_messages: int | None = None
-    delete_older_than: int | None = None
+    keep_messages: int | None = Field(None, ge=0)
+    delete_older_than: int | None = Field(None, ge=0)
     delete_pinned: bool | None = None
     enabled: bool | None = None
 
@@ -196,8 +197,8 @@ class HealthResponse(BaseModel):
     latency_ms: float | None = None
     guild_count: int | None = None
     voice_connections: int | None = None
-    active_reminders: int | None = None
-    error_count_24h: int | None = None
+    active_reminders: int | None = None  # Phase 3: populated once bot exposes it
+    error_count_24h: int | None = None  # Phase 3: populated once error log is implemented
     python_version: str | None = None
     discord_py_version: str | None = None
     bot_version: str | None = None
@@ -206,6 +207,11 @@ class HealthResponse(BaseModel):
 class ModuleInfo(BaseModel):
     name: str
     loaded: bool
+
+
+class ModuleListResponse(BaseModel):
+    modules: list[dict]
+    status: str = "ok"
 
 
 class ModuleActionResponse(BaseModel):

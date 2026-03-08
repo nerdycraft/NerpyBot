@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import httpx
+from urllib.parse import urlencode
 
 DISCORD_API = "https://discord.com/api/v10"
 DISCORD_OAUTH2_URL = "https://discord.com/oauth2/authorize"
@@ -17,13 +18,12 @@ def build_authorize_url(client_id: str, redirect_uri: str) -> str:
         "response_type": "code",
         "scope": "identify guilds",
     }
-    query = "&".join(f"{k}={v}" for k, v in params.items())
-    return f"{DISCORD_OAUTH2_URL}?{query}"
+    return f"{DISCORD_OAUTH2_URL}?{urlencode(params)}"
 
 
 async def exchange_code(code: str, client_id: str, client_secret: str, redirect_uri: str) -> dict:
     """Exchange an authorization code for an access token."""
-    async with httpx.AsyncClient() as http:
+    async with httpx.AsyncClient(timeout=10.0) as http:
         resp = await http.post(
             DISCORD_TOKEN_URL,
             data={
@@ -41,7 +41,7 @@ async def exchange_code(code: str, client_id: str, client_secret: str, redirect_
 
 async def fetch_discord_user(access_token: str) -> dict:
     """Fetch the authenticated user's profile."""
-    async with httpx.AsyncClient() as http:
+    async with httpx.AsyncClient(timeout=10.0) as http:
         resp = await http.get(
             f"{DISCORD_API}/users/@me",
             headers={"Authorization": f"Bearer {access_token}"},
@@ -52,7 +52,7 @@ async def fetch_discord_user(access_token: str) -> dict:
 
 async def fetch_user_guilds(access_token: str) -> list[dict]:
     """Fetch the guilds the user is a member of."""
-    async with httpx.AsyncClient() as http:
+    async with httpx.AsyncClient(timeout=10.0) as http:
         resp = await http.get(
             f"{DISCORD_API}/users/@me/guilds",
             headers={"Authorization": f"Bearer {access_token}"},

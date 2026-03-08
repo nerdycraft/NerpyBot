@@ -34,9 +34,9 @@ class TestAuthCallback:
         assert "access_token" in data
         assert data["token_type"] == "bearer"
 
-    def test_callback_without_code_returns_400(self, client):
+    def test_callback_without_code_returns_422(self, client):
         response = client.get("/api/auth/callback")
-        assert response.status_code == 400
+        assert response.status_code == 422
 
 
 class TestAuthMe:

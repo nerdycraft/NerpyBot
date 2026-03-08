@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 
@@ -9,8 +10,7 @@ class TestBotCommandHandler:
         mock_bot.guilds = [MagicMock(), MagicMock()]
         mock_bot.latency = 0.045
         mock_bot.voice_clients = [MagicMock()]
-        mock_bot.uptime = MagicMock()
-        mock_bot.uptime.timestamp = MagicMock(return_value=1000)
+        mock_bot.uptime = datetime.now(UTC) - timedelta(hours=1)
         mock_bot.extensions = {"modules.admin": MagicMock(), "modules.music": MagicMock()}
 
         result = handle_valkey_command(mock_bot, "health", {})

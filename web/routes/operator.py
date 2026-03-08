@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from web.dependencies import get_valkey, require_operator
-from web.schemas import HealthResponse, ModuleActionResponse
+from web.schemas import HealthResponse, ModuleActionResponse, ModuleListResponse
 from web.cache import ValkeyClient
 
 router = APIRouter(prefix="/operator", tags=["operator"])
@@ -20,10 +20,19 @@ async def health(
     result = await vk.send_bot_command("health", {})
     if result is None:
         return HealthResponse(status="unreachable")
-    return HealthResponse(status="online", **result)
+    return HealthResponse(
+        status="online",
+        uptime_seconds=result.get("uptime_seconds"),
+        latency_ms=result.get("latency_ms"),
+        guild_count=result.get("guild_count"),
+        voice_connections=result.get("voice_connections"),
+        python_version=result.get("python_version"),
+        discord_py_version=result.get("discord_py_version"),
+        bot_version=result.get("bot_version"),
+    )
 
 
-@router.get("/modules")
+@router.get("/modules", response_model=ModuleListResponse)
 async def list_modules(
     user: dict = Depends(require_operator),
     vk: ValkeyClient = Depends(get_valkey),
@@ -31,8 +40,8 @@ async def list_modules(
     """Request loaded modules from the bot."""
     result = await vk.send_bot_command("list_modules", {})
     if result is None:
-        return {"modules": [], "status": "bot unreachable"}
-    return result
+        return ModuleListResponse(modules=[], status="bot unreachable")
+    return ModuleListResponse(modules=result.get("modules", []))
 
 
 @router.post("/modules/{name}/load", response_model=ModuleActionResponse)

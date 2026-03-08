@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 
@@ -25,20 +26,29 @@ async def login(config: WebConfig = Depends(get_config)):
 
 @router.get("/callback", response_model=TokenResponse)
 async def callback(
-    code: str = Query(None),
+    code: str = Query(...),
     config: WebConfig = Depends(get_config),
     vk: ValkeyClient = Depends(get_valkey),
 ):
     """Handle Discord OAuth2 callback."""
-    if not code:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing authorization code")
-
-    token_data = await exchange_code(code, config.client_id, config.client_secret, config.redirect_uri)
-    access_token = token_data["access_token"]
-    expires_in = token_data.get("expires_in", 604800)
-
-    user_data = await fetch_discord_user(access_token)
-    guilds = await fetch_user_guilds(access_token)
+    try:
+        token_data = await exchange_code(code, config.client_id, config.client_secret, config.redirect_uri)
+        access_token = token_data["access_token"]
+        expires_in = token_data.get("expires_in", 604800)
+        user_data = await fetch_discord_user(access_token)
+        guilds = await fetch_user_guilds(access_token)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 401:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired authorization code"
+            )
+        if exc.response.status_code == 429:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Discord rate limit hit — try again shortly"
+            )
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Discord API error")
+    except httpx.RequestError:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not reach Discord")
 
     user_id = user_data["id"]
     username = user_data.get("username", "Unknown")

@@ -12,7 +12,7 @@ def resolve_permission_level(permissions: int) -> str:
     if permissions & ADMINISTRATOR:
         return "admin"
     if permissions & MANAGE_GUILD:
-        return "admin"
+        return "mod"
     return "member"
 
 

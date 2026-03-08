@@ -1,11 +1,11 @@
 class TestPermissionEnforcement:
     def test_unauthenticated_returns_401(self, client):
-        response = client.get("/api/guilds/")
+        response = client.get("/api/guilds/987654321/language")
         assert response.status_code == 401
 
     def test_invalid_jwt_returns_401(self, client):
         headers = {"Authorization": "Bearer invalid.jwt.token"}
-        response = client.get("/api/guilds/", headers=headers)
+        response = client.get("/api/guilds/987654321/language", headers=headers)
         assert response.status_code == 401
 
     def test_operator_routes_reject_non_operators(self, client, auth_header):

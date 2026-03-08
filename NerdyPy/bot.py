@@ -120,6 +120,8 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
 
 async def _valkey_listener_loop(bot, valkey_url: str) -> None:
     """Background task that subscribes to Valkey pub/sub for web dashboard commands."""
+    client = None
+    pubsub = None
     try:
         import valkey as valkey_lib
 
@@ -148,8 +150,10 @@ async def _valkey_listener_loop(bot, valkey_url: str) -> None:
         bot.log.error(f"Valkey listener error: {e}")
     finally:
         try:
-            pubsub.unsubscribe()
-            client.close()
+            if pubsub is not None:
+                pubsub.unsubscribe()
+            if client is not None:
+                client.close()
         except Exception as e:
             bot.log.debug(f"Valkey cleanup error: {e}")
 

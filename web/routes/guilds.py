@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from web.dependencies import get_current_user, get_db_session, require_guild_access
@@ -32,12 +33,12 @@ from web.schemas import (
 router = APIRouter(prefix="/guilds", tags=["guilds"])
 
 
-# ── Guild list ──
+# ── Guild list (Phase 2: will return guilds from cached permissions) ──
 
 
 @router.get("/")
 async def list_guilds(user: dict = Depends(get_current_user)):
-    """List guilds the current user can manage (from cached permissions)."""
+    """Placeholder — Phase 2 will return manageable guilds from /api/auth/me permissions cache."""
     return {"guilds": [], "message": "Use /api/auth/me for full guild list"}
 
 
@@ -219,7 +220,13 @@ async def create_auto_delete(
         Enabled=body.enabled,
     )
     session.add(rule)
-    session.flush()
+    try:
+        session.flush()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Auto-delete rule already exists for this channel"
+        )
     return AutoDeleteRule(
         id=rule.Id,
         guild_id=str(guild_id),
@@ -389,7 +396,11 @@ async def create_role_mapping(
         TargetRoleId=int(body.target_role_id),
     )
     session.add(mapping)
-    session.flush()
+    try:
+        session.flush()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Role mapping already exists")
     return RoleMappingSchema(
         id=mapping.Id,
         guild_id=str(guild_id),

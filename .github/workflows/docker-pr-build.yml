@@ -177,7 +177,7 @@ jobs:
           echo "Migrations image verified"
 
       - name: Build and push Web Dashboard image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: web

@@ -46,8 +46,8 @@ def get_current_user(
 
     try:
         payload = decode_access_token(credentials.credentials, config.jwt_secret)
-    except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+    except JWTError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token") from exc
 
     return payload
 

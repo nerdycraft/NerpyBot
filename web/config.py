@@ -5,11 +5,15 @@ Follows the same pattern as the bot: config file provides defaults, env vars ove
 
 from __future__ import annotations
 
+import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import quote_plus
 
 import yaml
+
+log = logging.getLogger(__name__)
 
 
 def _get(sources: list[dict], *keys: str, default: str = "") -> str:
@@ -43,6 +47,7 @@ class WebConfig:
     valkey_url: str
     ops: list[int]
     db_connection_string: str
+    cors_origins: list[str] = field(default_factory=lambda: ["*"])
 
     @classmethod
     def load(cls, config_path: Path | str | None = None) -> WebConfig:
@@ -76,6 +81,9 @@ class WebConfig:
         valkey_url = _get(sources, "web", "valkey_url", default="valkey://localhost:6379")
         db_connection_string = _build_db_connection_string(sources)
 
+        cors_origins_raw = _get(sources, "web", "cors_origins")
+        cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()] if cors_origins_raw else ["*"]
+
         return cls(
             client_id=client_id,
             client_secret=client_secret,
@@ -85,6 +93,7 @@ class WebConfig:
             valkey_url=valkey_url,
             ops=ops,
             db_connection_string=db_connection_string,
+            cors_origins=cors_origins,
         )
 
 
@@ -110,6 +119,7 @@ def _load_config_file(config_path: Path | str | None) -> dict:
         try:
             return yaml.safe_load(f) or {}
         except yaml.YAMLError:
+            log.warning("Failed to parse config file %s — using defaults/env vars", path)
             return {}
 
 
@@ -131,6 +141,7 @@ def _env_to_dict() -> dict:
         (("NERPYBOT_WEB_JWT_EXPIRY_HOURS",), ("web", "jwt_expiry_hours")),
         (("NERPYBOT_WEB_VALKEY_URL", "NERPYBOT_VALKEY_URL"), ("web", "valkey_url")),
         (("NERPYBOT_WEB_REDIRECT_URI",), ("web", "redirect_uri")),
+        (("NERPYBOT_WEB_CORS_ORIGINS",), ("web", "cors_origins")),
         (("NERPYBOT_WEB_DB_TYPE", "NERPYBOT_DB_TYPE"), ("database", "db_type")),
         (("NERPYBOT_WEB_DB_NAME", "NERPYBOT_DB_NAME"), ("database", "db_name")),
         (("NERPYBOT_WEB_DB_USERNAME", "NERPYBOT_DB_USERNAME"), ("database", "db_username")),
@@ -157,7 +168,7 @@ def _build_db_connection_string(sources: list[dict]) -> str:
     db_type = _get(sources, "database", "db_type", default="sqlite")
     db_name = _get(sources, "database", "db_name", default="db.db")
 
-    if "postgresql" in db_type:
+    if "postgresql" in db_type and "+psycopg" not in db_type:
         db_type = f"{db_type}+psycopg"
 
     db_username = _get(sources, "database", "db_username")
@@ -170,7 +181,7 @@ def _build_db_connection_string(sources: list[dict]) -> str:
 
     auth = db_username
     if db_password:
-        auth += f":{db_password}"
+        auth += f":{quote_plus(db_password)}"
     if db_host:
         auth += f"@{db_host}"
     if db_port:
