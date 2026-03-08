@@ -166,6 +166,7 @@ class CraftingBoardConfig(db.BASE):
     ChannelId = Column(BigInteger)
     BoardMessageId = Column(BigInteger, nullable=True)
     Description = Column(UnicodeText)
+    ThreadCleanupDelayHours = Column(Integer, default=24, server_default="24")
     CreateDate = Column(DateTime, default=lambda: datetime.now(UTC))
 
     @classmethod
@@ -229,6 +230,7 @@ class CraftingOrder(db.BASE):
     IconUrl = Column(Unicode(500), nullable=True)
     Notes = Column(UnicodeText, nullable=True)
     Status = Column(String(20), default="open")
+    MessageDeleteAt = Column(DateTime, nullable=True)
     CreateDate = Column(DateTime, default=lambda: datetime.now(UTC))
 
     @classmethod
@@ -238,3 +240,10 @@ class CraftingOrder(db.BASE):
     @classmethod
     def get_active_by_guild(cls, guild_id, session):
         return session.query(cls).filter(cls.GuildId == guild_id, cls.Status.notin_(["completed", "cancelled"])).all()
+
+    @classmethod
+    def get_pending_cleanup(cls, session):
+        """Return orders whose message should be deleted (MessageDeleteAt has passed)."""
+        return (
+            session.query(cls).filter(cls.MessageDeleteAt.isnot(None), cls.MessageDeleteAt <= datetime.now(UTC)).all()
+        )

@@ -3,6 +3,7 @@
 
 import logging
 import re
+from datetime import UTC, datetime, timedelta
 
 import discord
 from discord import Interaction, ui
@@ -348,16 +349,28 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
             order.Status = "completed"
             item_name = order.ItemName
             creator_id = order.CreatorId
+            crafter_id = order.CrafterId
 
+        crafter_mention = f"<@{crafter_id}>" if crafter_id else interaction.user.mention
         # DM the creator; fall back to thread if DM fails
         used_thread = False
         try:
             creator = await interaction.client.fetch_user(creator_id)
-            await creator.send(_ls(interaction, "complete.dm_complete", item=item_name))
+            await creator.send(_ls(interaction, "complete.dm_complete", item=item_name, crafter=crafter_mention))
         except (discord.Forbidden, discord.NotFound):
             used_thread = await _thread_fallback(
-                interaction, self.order_id, _ls(interaction, "complete.dm_complete", item=item_name), creator_id
+                interaction,
+                self.order_id,
+                _ls(interaction, "complete.dm_complete", item=item_name, crafter=crafter_mention),
+                creator_id,
             )
+
+        if used_thread:
+            with interaction.client.session_scope() as session:
+                config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+                delay = config.ThreadCleanupDelayHours if config else 24
+                order = CraftingOrder.get_by_id(self.order_id, session)
+                order.MessageDeleteAt = datetime.now(UTC) + timedelta(hours=delay)
 
         await interaction.response.edit_message(content=_ls(interaction, "complete.done"), embed=None, view=None)
         # Only delete the order message if no thread is anchored to it
@@ -413,6 +426,13 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
                 used_thread = await _thread_fallback(
                     interaction, self.order_id, _ls(interaction, "cancel.dm_cancel", item=item_name), creator_id
                 )
+
+        if used_thread:
+            with interaction.client.session_scope() as session:
+                config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+                delay = config.ThreadCleanupDelayHours if config else 24
+                order = CraftingOrder.get_by_id(self.order_id, session)
+                order.MessageDeleteAt = datetime.now(UTC) + timedelta(hours=delay)
 
         await interaction.response.edit_message(content=_ls(interaction, "cancel.done"), embed=None, view=None)
         # Only delete the order message if no thread is anchored to it
