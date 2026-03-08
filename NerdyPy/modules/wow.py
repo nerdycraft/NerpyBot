@@ -13,7 +13,7 @@ from discord import Color, Embed, HTTPException, Interaction, TextChannel, app_c
 from discord.app_commands import checks
 from discord.ext import tasks
 from discord.ext.commands import GroupCog
-from models.wow import CraftingBoardConfig, CraftingRoleMapping, WowCharacterMounts, WowGuildNewsConfig
+from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRoleMapping, WowCharacterMounts, WowGuildNewsConfig
 from utils.blizzard import (
     CRAFTING_PROFESSIONS,
     RateLimited,
@@ -95,8 +95,12 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         self._guild_news_loop.change_interval(minutes=self._poll_interval)
         self._guild_news_loop.start()
 
+        register_before_loop(bot, self._crafting_cleanup_loop, "Crafting Cleanup")
+        self._crafting_cleanup_loop.start()
+
     def cog_unload(self):
         self._guild_news_loop.cancel()
+        self._crafting_cleanup_loop.cancel()
 
     async def _call_api(self, api_method, config_id, label, *args, rate_limited_event=None, stats=None, **kwargs):
         """Call a Blizzard API method with standard rate-limit and error handling.
@@ -569,6 +573,44 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             self.bot.log.error(f"Guild news loop error: {ex}")
             await notify_error(self.bot, "Guild news background loop", ex)
         self.bot.log.debug("Stop Guild News Loop!")
+
+    @tasks.loop(hours=1)
+    async def _crafting_cleanup_loop(self):
+        """Delete anchored order messages whose MessageDeleteAt deadline has passed."""
+        self.bot.log.debug("Start Crafting Cleanup Loop!")
+        try:
+            with self.bot.session_scope() as session:
+                pending = CraftingOrder.get_pending_cleanup(session)
+                # Snapshot the fields we need before closing the session
+                to_process = [(o.Id, o.ChannelId, o.OrderMessageId, o.ThreadId) for o in pending]
+
+            for order_id, channel_id, message_id, thread_id in to_process:
+                channel = self.bot.get_channel(channel_id)
+                if channel is None:
+                    self.bot.log.debug("Crafting cleanup: channel %d not found for order #%d", channel_id, order_id)
+                    continue
+                try:
+                    msg = await channel.fetch_message(message_id)
+                    if msg.thread:
+                        try:
+                            await msg.thread.delete()
+                        except discord.HTTPException as ex:
+                            self.bot.log.debug("Crafting cleanup: thread delete failed for order #%d: %s", order_id, ex)
+                    await msg.delete()
+                except discord.NotFound:
+                    pass  # already gone
+                except discord.HTTPException as ex:
+                    self.bot.log.warning("Crafting cleanup: failed to delete message for order #%d: %s", order_id, ex)
+                    continue
+
+                with self.bot.session_scope() as session:
+                    order = CraftingOrder.get_by_id(order_id, session)
+                    if order:
+                        order.MessageDeleteAt = None
+        except Exception as ex:
+            self.bot.log.error("Crafting cleanup loop error: %s", ex)
+            await notify_error(self.bot, "Crafting cleanup background loop", ex)
+        self.bot.log.debug("Stop Crafting Cleanup Loop!")
 
     async def _poll_single_config(self, config_id: int, *, ignore_baseline: bool = False):
         """Poll a single guild news config for activity and mounts."""
