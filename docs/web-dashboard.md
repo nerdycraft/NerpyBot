@@ -8,7 +8,7 @@ OAuth2, and connected to the bot via Valkey pub/sub.
 The web dashboard is a **standalone FastAPI service** that shares the database with the bot via SQLAlchemy. It does not
 import or run any bot code directly.
 
-```
+```text
 Browser  →  FastAPI (web/)  →  SQLAlchemy (shared DB)
                             →  Valkey pub/sub  →  Bot process
 ```
@@ -47,7 +47,9 @@ The web service reads `NERPYBOT_WEB_*` environment variables:
 | `NERPYBOT_WEB_DB_PORT`          | No       | —                                         | PostgreSQL port                              |
 | `NERPYBOT_WEB_JWT_EXPIRY_HOURS` | No       | `24`                                      | JWT token lifetime in hours                  |
 
-The bot also needs `NERPYBOT_WEB_VALKEY_URL` set to connect to Valkey for pub/sub commands.
+The bot also needs the Valkey URL configured to enable the pub/sub bridge — set `NERPYBOT_WEB_VALKEY_URL` as an
+environment variable, or use `web.valkey_url` in `config.yaml`. All config keys can be set via `NERPYBOT_*` env vars,
+and env vars take priority over `config.yaml`.
 
 ### 3. Config File (alternative)
 
@@ -195,7 +197,7 @@ All operator endpoints require operator status (user ID in ops list).
 
 ### Guild Settings (read/write)
 
-```
+```text
 Client  →  GET /api/guilds/123/language
         →  JWT validated → guild access checked
         →  SQLAlchemy query → GuildLanguageConfig.get(123)
@@ -204,7 +206,7 @@ Client  →  GET /api/guilds/123/language
 
 ### Bot Commands (via Valkey)
 
-```
+```text
 Client  →  POST /api/operator/modules/music/load
         →  JWT validated → operator check
         →  Publish to Valkey channel "nerpybot:web:commands"

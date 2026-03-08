@@ -117,7 +117,7 @@ def _load_config_file(config_path: Path | str | None) -> dict:
     path = Path(config_path) if config_path else Path("./config.yaml")
     if not path.exists():
         return {}
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         try:
             return yaml.safe_load(f) or {}
         except yaml.YAMLError:
@@ -186,7 +186,7 @@ def _build_db_connection_string(sources: list[dict]) -> str:
         auth += f":{quote_plus(db_password)}"
     if db_host:
         auth += f"@{db_host}"
-    if db_port:
-        auth += f":{db_port}"
+        if db_port:
+            auth += f":{db_port}"
 
     return f"{db_type}://{auth}/{db_name}"

@@ -88,7 +88,7 @@ class ValkeyClient:
         # Poll for reply (simple approach — real implementation would use async subscribe)
         try:
             result = await asyncio.wait_for(
-                asyncio.to_thread(self._client.blpop, reply_channel, timeout=int(timeout)),
+                asyncio.to_thread(self._client.blpop, reply_channel, timeout=max(1, int(timeout))),
                 timeout=timeout + 1,
             )
             if result:
