@@ -5,7 +5,7 @@ import itertools
 import json
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Any, cast
+from typing import Any
 
 import discord
 from blizzapi import Language, Region, RetailClient
@@ -1402,8 +1402,8 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         assert interaction.guild is not None
         try:
             channel = interaction.guild.get_channel(channel_id)
-            if channel and message_id:
-                msg = await cast(TextChannel, channel).fetch_message(message_id)
+            if isinstance(channel, TextChannel) and message_id:
+                msg = await channel.fetch_message(message_id)
                 if msg.thread:
                     await msg.thread.delete()
                 await msg.delete()
@@ -1460,8 +1460,8 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         # Edit the board embed in-place
         try:
             channel = interaction.guild.get_channel(channel_id)
-            if channel and message_id:
-                msg = await cast(TextChannel, channel).fetch_message(message_id)
+            if isinstance(channel, TextChannel) and message_id:
+                msg = await channel.fetch_message(message_id)
                 embed = msg.embeds[0] if msg.embeds else discord.Embed(color=discord.Color.gold())
                 embed.description = new_description
                 await msg.edit(embed=embed)
@@ -1529,7 +1529,7 @@ class _BoardDescriptionModal(discord.ui.Modal):
                 interaction, self.channel, self.roles, self.description_input.value.strip(), self.lang
             )
         else:
-            unmapped = getattr(self, "_unmapped", [])
+            unmapped = self._unmapped
             await cog.finish_board_edit(interaction, self.description_input.value.strip(), self.lang, unmapped=unmapped)
 
 

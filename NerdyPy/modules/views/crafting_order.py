@@ -223,7 +223,13 @@ class CraftingOrderModal(ui.Modal):
                 return
 
             lang = get_guild_language(self.guild_id, session)
+            channel = interaction.guild.get_channel(config.ChannelId)
 
+        if not isinstance(channel, discord.TextChannel):
+            await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
+            return
+
+        with self.bot.session_scope() as session:
             order = CraftingOrder(
                 GuildId=self.guild_id,
                 ChannelId=config.ChannelId,
@@ -238,11 +244,6 @@ class CraftingOrderModal(ui.Modal):
 
             embed = build_order_embed(order, interaction.guild, lang)
             view = build_order_view(order.Id, "open", lang)
-
-            channel = interaction.guild.get_channel(config.ChannelId)
-            if channel is None or not isinstance(channel, discord.TextChannel):
-                await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
-                return
             msg = await channel.send(content=self.role.mention, embed=embed, view=view)
             order.OrderMessageId = msg.id
 

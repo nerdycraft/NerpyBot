@@ -254,9 +254,7 @@ class Audio:
     def clear_buffer(self, guild_id):
         """Clears the Audio Buffer"""
         if self._has_buffer(guild_id):
-            buf = self.buffer.get(guild_id)
-            if buf is not None:
-                buf.pop(BufferKey.QUEUE, None)
+            self.buffer[guild_id].pop(BufferKey.QUEUE, None)
             self.lastPlayed.pop(guild_id, None)
 
     def list_queue(self, guild_id):

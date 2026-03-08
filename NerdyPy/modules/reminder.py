@@ -103,7 +103,7 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
             session.delete(msg)
             return
 
-        chan = guild.get_channel(msg.ChannelId)
+        chan = guild.get_channel(msg.ChannelId) or guild.get_thread(msg.ChannelId)
         if chan is None:
             session.delete(msg)
             return
@@ -295,7 +295,9 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
             schedule_day_of_month=dom,
             timezone=tz,
         )
-        assert next_fire is not None
+        if next_fire is None:
+            # unreachable: stype is constrained to daily/weekly/monthly by app_commands.choices
+            return
 
         with self.bot.session_scope() as session:
             reminder = ReminderMessage(
@@ -574,11 +576,11 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
             next_fire_utc = msg.NextFire.replace(tzinfo=UTC)
             edit_tz = ZoneInfo(msg.Timezone) if msg.Timezone else None
             rel = _format_relative(next_fire_utc, edit_tz, lang=lang)
-            await interaction.response.send_message(
-                get_string(lang, "reminder.edit.success", reminder_id=reminder_id, summary=summary, relative_time=rel),
-                ephemeral=True,
+            success_msg = get_string(
+                lang, "reminder.edit.success", reminder_id=reminder_id, summary=summary, relative_time=rel
             )
 
+        await interaction.response.send_message(success_msg, ephemeral=True)
         self._reschedule()
 
     # -- Autocomplete helper -------------------------------------------

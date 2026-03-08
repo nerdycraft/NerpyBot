@@ -70,13 +70,13 @@ class ApplicationGuildRole(db.BASE):
     RoleType = Column(Unicode(10), nullable=False)  # "manager" | "reviewer"
 
     @classmethod
-    def get_role_ids(cls, guild_id: int | None, role_type: str, session) -> list[int]:
+    def get_role_ids(cls, guild_id: int, role_type: str, session) -> list[int]:
         """Return all role IDs of the given type for this guild."""
         rows = session.query(cls).filter(cls.GuildId == guild_id, cls.RoleType == role_type).all()
         return [r.RoleId for r in rows]
 
     @classmethod
-    def add(cls, guild_id: int | None, role_id: int, role_type: str, session) -> None:
+    def add(cls, guild_id: int, role_id: int, role_type: str, session) -> None:
         """Add a role mapping; silently no-ops if the role is already present."""
         existing = (
             session.query(cls).filter(cls.GuildId == guild_id, cls.RoleId == role_id, cls.RoleType == role_type).first()
@@ -85,7 +85,7 @@ class ApplicationGuildRole(db.BASE):
             session.add(cls(GuildId=guild_id, RoleId=role_id, RoleType=role_type))
 
     @classmethod
-    def remove(cls, guild_id: int | None, role_id: int, role_type: str, session) -> bool:
+    def remove(cls, guild_id: int, role_id: int, role_type: str, session) -> bool:
         """Remove a role mapping of the given type; returns True if it existed, False if not found."""
         row = (
             session.query(cls).filter(cls.GuildId == guild_id, cls.RoleId == role_id, cls.RoleType == role_type).first()
@@ -96,7 +96,7 @@ class ApplicationGuildRole(db.BASE):
         return False
 
     @classmethod
-    def clear(cls, guild_id: int | None, role_type: str, session) -> None:
+    def clear(cls, guild_id: int, role_type: str, session) -> None:
         """Remove all role mappings of the given type for this guild."""
         session.query(cls).filter(cls.GuildId == guild_id, cls.RoleType == role_type).delete()
 

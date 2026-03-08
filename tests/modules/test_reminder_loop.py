@@ -113,6 +113,7 @@ class TestReminderLoop:
         mock_guild = MagicMock()
         mock_guild.id = 123
         mock_guild.get_channel = MagicMock(return_value=None)
+        mock_guild.get_thread = MagicMock(return_value=None)
 
         reminder_cog.bot.get_guild = MagicMock(return_value=mock_guild)
 

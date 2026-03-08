@@ -7,7 +7,6 @@ from utils.checks import can_leave_voice, can_stop_playback
 from utils.cog import NerpyBotCog
 
 
-@app_commands.guild_only()
 class VoiceControl(NerpyBotCog, Cog):
     """commands for controlling bot voice playback"""
 

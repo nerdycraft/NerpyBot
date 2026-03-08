@@ -284,7 +284,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     def _add_tag_entries(session, _tag, entry):
         if _tag.Type == TagType.text.value or _tag.Type == TagType.url.value:
             _tag.add_entry(entry, session)
-        elif _tag.Type is TagType.sound.value:
+        elif _tag.Type == TagType.sound.value:
             _tag.add_entry(entry, session, byt=download(entry, tag=True))
 
 

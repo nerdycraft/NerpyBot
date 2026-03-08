@@ -14,14 +14,12 @@ class LessThanFilter(logging.Filter):
         return 1 if record.levelno < self.max_level else 0
 
 
-def create_logger(level: str = "WARNING", name: str | None = None):
+def create_logger(level: str = "WARNING", name: str | None = None) -> None:
     """
     Set logging level at runtime
 
     :param level: str
     :param name: str
-
-    :return: logging.Logger
     """
     fmt = logging.Formatter(
         "%(asctime)s - %(levelname)s - %(module)s %(lineno)d: %(message)s",

@@ -301,6 +301,7 @@ class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
             emojis = [entry.Emoji for entry in rr_msg.entries]
             ReactionRoleMessage.delete(msg_id, session)
 
+        assert interaction.guild is not None
         for emoji in emojis:
             await self._clear_reaction(interaction.guild, channel_id, msg_id, emoji)
 
