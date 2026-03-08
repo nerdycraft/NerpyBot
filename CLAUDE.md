@@ -48,7 +48,7 @@ uv run alembic revision --autogenerate -m "description"  # Create migration
 # When adding columns to existing tables, use server_default (not just ORM default) so existing rows get a value.
 
 # Docker builds (two targets)
-docker buildx build --target bot --build-arg VERSION=0.6.0 -t nerpybot .
+docker buildx build --target bot --build-arg VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//') -t nerpybot .
 docker buildx build --target migrations -t nerpybot-migrations .
 
 # Validate GitHub Actions workflows
@@ -91,6 +91,11 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **tagging** - Audio tag management
 - **voicecontrol** - Voice stop/leave commands (auto-loaded when tagging or music is enabled)
 - **wow** - Blizzard API integration (armory lookup, guild news tracking, crafting order board)
+
+Submodules within `NerdyPy/modules/`:
+
+- `conversations/` — multi-step DM conversation state machines (application create/edit/submit flows)
+- `views/` — persistent `discord.ui` views and modals attached to long-lived embeds (application review, crafting order, now-playing)
 
 ### Database Layer
 
