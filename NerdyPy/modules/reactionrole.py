@@ -18,11 +18,12 @@ from utils.strings import get_guild_language, get_string
 class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
     """cog for managing reaction-based role assignment"""
 
-    def _lang(self, guild_id: int) -> str:
+    def _lang(self, guild_id: int | None) -> str:
         with self.bot.session_scope() as session:
             return get_guild_language(guild_id, session)
 
     async def _message_id_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             messages = ReactionRoleMessage.get_by_guild(interaction.guild.id, session)
             if not messages:
@@ -145,6 +146,7 @@ class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
         if not await is_role_below_bot(interaction, role):
             return
 
+        assert interaction.guild is not None
         validate_channel_permissions(
             channel, interaction.guild, "view_channel", "add_reactions", "manage_messages", "read_message_history"
         )
@@ -236,6 +238,7 @@ class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
             if not remaining:
                 session.delete(rr_msg)
 
+        assert interaction.guild is not None
         await self._clear_reaction(interaction.guild, channel_id, msg_id, emoji)
         await interaction.response.send_message(
             get_string(lang, "reactionrole.remove.success", emoji=emoji), ephemeral=True
@@ -245,6 +248,7 @@ class ReactionRole(NerpyBotCog, GroupCog, group_name="reactionrole"):
     @checks.has_permissions(manage_roles=True)
     async def _list(self, interaction: Interaction):
         """list all reaction role configurations for this server"""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             messages = ReactionRoleMessage.get_by_guild(interaction.guild.id, session)

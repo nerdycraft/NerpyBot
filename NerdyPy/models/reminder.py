@@ -2,10 +2,11 @@
 # -*- coding: utf-8 -*-
 """Timed message database model (rewritten for absolute timestamps + calendar scheduling)."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 
 import humanize
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, Index, Integer, String, Time, Unicode, UnicodeText, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Index, Integer, String, Time, Unicode, UnicodeText, func
+from sqlalchemy.orm import Mapped, mapped_column
 from utils import database as db
 
 
@@ -19,24 +20,24 @@ class ReminderMessage(db.BASE):
         Index("ReminderMessage_NextFire_Enabled", "NextFire", "Enabled"),
     )
 
-    Id = Column(Integer, primary_key=True)
-    GuildId = Column(BigInteger)
-    ChannelId = Column(BigInteger)
-    ChannelName = Column(String(30))
-    CreateDate = Column(DateTime, nullable=False)
-    Author = Column(Unicode(30))
-    Message = Column(UnicodeText)
-    Enabled = Column(Boolean, default=True)
-    Count = Column(Integer, default=0)
+    Id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    GuildId: Mapped[int] = mapped_column(BigInteger)
+    ChannelId: Mapped[int] = mapped_column(BigInteger)
+    ChannelName: Mapped[str] = mapped_column(String(30))
+    CreateDate: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    Author: Mapped[str] = mapped_column(Unicode(30))
+    Message: Mapped[str] = mapped_column(UnicodeText)
+    Enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    Count: Mapped[int] = mapped_column(Integer, default=0)
 
     # Scheduling
-    NextFire = Column(DateTime, nullable=False)
-    ScheduleType = Column(String(10), nullable=False)  # interval, daily, weekly, monthly, once
-    IntervalSeconds = Column(Integer, nullable=True)
-    ScheduleTime = Column(Time, nullable=True)
-    ScheduleDayOfWeek = Column(Integer, nullable=True)  # 0=Monday .. 6=Sunday
-    ScheduleDayOfMonth = Column(Integer, nullable=True)  # 1-28
-    Timezone = Column(String(50), nullable=True)  # IANA timezone string, None = UTC
+    NextFire: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    ScheduleType: Mapped[str] = mapped_column(String(10), nullable=False)  # interval, daily, weekly, monthly, once
+    IntervalSeconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ScheduleTime: Mapped[time | None] = mapped_column(Time, nullable=True)
+    ScheduleDayOfWeek: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0=Monday .. 6=Sunday
+    ScheduleDayOfMonth: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1-28
+    Timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)  # IANA timezone string, None = UTC
 
     @classmethod
     def get_by_id(cls, reminder_id, guild_id, session):

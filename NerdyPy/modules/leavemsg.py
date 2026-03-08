@@ -68,6 +68,7 @@ class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
         channel: TextChannel
             The channel where leave messages will be sent.
         """
+        assert interaction.guild is not None
         validate_channel_permissions(channel, interaction.guild, "view_channel", "send_messages")
 
         with self.bot.session_scope() as session:
@@ -95,6 +96,7 @@ class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
     @checks.has_permissions(administrator=True)
     async def _leavemsg_disable(self, interaction: Interaction) -> None:
         """Disable leave messages for this server. [administrator]"""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             leave_config = LeaveMessage.get(interaction.guild.id, session)
@@ -106,6 +108,7 @@ class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
 
     async def save_leave_message(self, interaction: Interaction, message: str, lang: str) -> None:
         """Validate and persist a leave message, then confirm to the user."""
+        assert interaction.guild is not None
         if "{member}" not in message:
             raise NerpyValidationError(get_string(lang, "leavemsg.message.missing_placeholder"))
         with self.bot.session_scope() as session:
@@ -163,6 +166,7 @@ class LeaveMsg(NerpyBotCog, GroupCog, group_name="leavemsg"):
     @checks.has_permissions(administrator=True)
     async def _leavemsg_status(self, interaction: Interaction) -> None:
         """Show current leave message configuration. [administrator]"""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             leave_config = LeaveMessage.get(interaction.guild.id, session)

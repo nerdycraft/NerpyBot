@@ -3,7 +3,8 @@
 import asyncio
 
 import discord
-from discord import Interaction, app_commands
+from discord import Interaction, Member, VoiceChannel, app_commands
+from typing import Any, cast
 from discord.ext import tasks
 from discord.ext.commands import Cog
 
@@ -38,7 +39,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         self._progress_updater.cancel()
         self.audio._on_song_start_hook = None
 
-    def _lang(self, guild_id: int) -> str:
+    def _lang(self, guild_id: int | None) -> str:
         with self.bot.session_scope() as session:
             return get_guild_language(guild_id, session)
 
@@ -134,7 +135,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         """Background task: fetch info and enqueue each playlist entry without blocking interactions."""
         try:
             for entry in entries:
-                if interaction.user.voice is None:
+                if cast(Member, interaction.user).voice is None:
                     break
                 entry_url = entry.get("webpage_url", entry.get("url", ""))
                 if not entry_url:
@@ -147,9 +148,10 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         except Exception as e:
             self.bot.log.error(f"[{interaction.guild_id}]: playlist load failed mid-stream: {e}")
 
-    async def _enqueue(self, interaction: Interaction, url: str, info: dict) -> bool:
+    async def _enqueue(self, interaction: Interaction, url: str, info: Any) -> bool:
         """Build a QueuedSong from yt-dlp info and add it to the audio queue. Returns True on success."""
-        if interaction.user.voice is None:
+        member = cast(Member, interaction.user)
+        if member.voice is None:
             self.bot.log.warning(f"{error_context(interaction)}: _enqueue skipped — user has no voice state")
             return False
         title = info.get("title", url)
@@ -160,7 +162,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         artist = info.get("uploader") or info.get("channel")
 
         song = QueuedSong(
-            channel=interaction.user.voice.channel,
+            channel=cast(VoiceChannel, member.voice.channel),
             fetcher=self._fetch,
             fetch_data=url,
             title=title,
@@ -171,6 +173,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
             artist=artist,
         )
         self.bot.log.info(f'{error_context(interaction)}: requesting "{title}" to play')
+        assert interaction.guild is not None
         await self.audio.play(interaction.guild.id, song)
         return True
 
@@ -316,7 +319,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         count="Number of recently played songs to save (omit to save current queue)",
     )
     @app_commands.autocomplete(name=_ac_playlist_name)
-    async def _playlist_save(self, interaction: Interaction, name: str, count: int = None):
+    async def _playlist_save(self, interaction: Interaction, name: str, count: int | None = None):
         """Save the current queue (or last N played songs) as a playlist."""
         await interaction.response.defer(ephemeral=True)
         lang = self._lang(interaction.guild_id)
@@ -421,7 +424,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         """Background task: re-fetch yt-dlp info for each saved entry (needed for video_id) and enqueue."""
         try:
             for entry in entries:
-                if interaction.user.voice is None:
+                if cast(Member, interaction.user).voice is None:
                     break
                 try:
                     info = await asyncio.to_thread(fetch_yt_infos, entry.Url)

@@ -7,6 +7,7 @@ import logging
 import tempfile
 from io import BytesIO
 from pathlib import Path
+from typing import Any, cast
 
 import ffmpeg
 import requests
@@ -16,14 +17,14 @@ from utils.errors import NerpyValidationError
 from yt_dlp import YoutubeDL
 
 LOG = logging.getLogger("nerpybot")
-FFMPEG_OPTIONS = {"options": "-vn"}
+FFMPEG_OPTIONS: dict[str, Any] = {"options": "-vn"}
 CACHE = TTLCache(maxsize=100, ttl=600)
 
 DL_DIR = Path(tempfile.gettempdir()) / "nerpybot-dl"
 DL_DIR.mkdir(exist_ok=True)
 
 
-YTDL_ARGS = {
+YTDL_ARGS: dict[str, Any] = {
     "format": "bestaudio/best",
     "outtmpl": str(DL_DIR / "%(id)s"),
     "restrictfilenames": True,
@@ -42,8 +43,7 @@ YTDL_ARGS = {
     },  # android/tv don't require GVS PO Token or JS n-challenge solver
     "logger": LOG,
 }
-# noinspection PyTypeChecker
-YTDL = YoutubeDL(YTDL_ARGS)
+YTDL = YoutubeDL(cast(Any, YTDL_ARGS))
 
 
 def convert(source, tag=False, is_stream=True):
@@ -81,7 +81,7 @@ def fetch_yt_infos(url: str):
     return data
 
 
-def download(url: str, tag: bool = False, video_id: str = None):
+def download(url: str, tag: bool = False, video_id: str | None = None):
     """download audio content (maybe transform?)"""
 
     if video_id is None:

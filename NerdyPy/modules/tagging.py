@@ -2,9 +2,9 @@
 
 from datetime import UTC, datetime
 from io import BytesIO
-from typing import Literal
+from typing import Literal, cast
 
-from discord import Color, Embed, FFmpegOpusAudio, Interaction, app_commands
+from discord import Color, Embed, FFmpegOpusAudio, Interaction, Member, VoiceChannel, app_commands
 from discord.ext.commands import GroupCog
 
 from models.tagging import Tag, TagType
@@ -30,11 +30,12 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
         self.queue = {}
         self.audio = self.bot.audio
 
-    def _lang(self, guild_id: int) -> str:
+    def _lang(self, guild_id: int | None) -> str:
         with self.bot.session_scope() as session:
             return get_guild_language(guild_id, session)
 
     async def _tag_name_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             tags = Tag.get_all_from_guild(interaction.guild.id, session)
             return [app_commands.Choice(name=t.Name, value=t.Name) for t in tags if current.lower() in t.Name.lower()][
@@ -52,6 +53,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     @app_commands.check(can_stop_playback)
     async def _skip_audio(self, interaction: Interaction):
         """skip current track"""
+        assert interaction.guild is not None
         self.audio.stop(interaction.guild.id)
         lang = self._lang(interaction.guild_id)
         await interaction.response.send_message(get_string(lang, "tagging.skip.success"), ephemeral=True)
@@ -65,6 +67,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     @app_commands.checks.has_permissions(mute_members=True)
     async def _drop_queue(self, interaction: Interaction):
         """drop the playlist entirely"""
+        assert interaction.guild is not None
         self._stop_and_clear_queue(interaction.guild.id)
         lang = self._lang(interaction.guild_id)
         await interaction.response.send_message(get_string(lang, "tagging.queue.drop_success"), ephemeral=True)
@@ -75,6 +78,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
         self, interaction: Interaction, name: str, tag_type: Literal["sound", "text", "url"], content: str
     ) -> None:
         """Create Tags."""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             if Tag.exists(name, interaction.guild.id, session):
@@ -110,6 +114,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_add(self, interaction: Interaction, name: str, content: str):
         """add an entry to an existing tag"""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             if not Tag.exists(name, interaction.guild.id, session):
@@ -130,6 +135,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_volume(self, interaction: Interaction, name: str, vol: int):
         """adjust the volume of a sound tag"""
+        assert interaction.guild is not None
         lang = self._lang(interaction.guild_id)
         if not 0 <= vol <= 200:
             await interaction.response.send_message(get_string(lang, "tagging.volume.out_of_range"), ephemeral=True)
@@ -154,6 +160,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     async def _tag_delete(self, interaction: Interaction, name: str):
         """delete a tag?"""
         self.bot.log.info(f'{error_context(interaction)}: deleting tag "{name}"')
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             if not Tag.exists(name, interaction.guild.id, session):
@@ -174,6 +181,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     @app_commands.command(name="list")
     async def _tag_list(self, interaction: Interaction):
         """a list of all available tags"""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             tags = Tag.get_all_from_guild(interaction.guild.id, session)
@@ -202,6 +210,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_info(self, interaction: Interaction, name: str):
         """information about the tag"""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             t = Tag.get(name, interaction.guild.id, session)
@@ -224,6 +233,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_raw(self, interaction: Interaction, name: str):
         """raw tag data"""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             t = Tag.get(name, interaction.guild.id, session)
@@ -240,6 +250,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
 
     async def _send_to_queue(self, interaction: Interaction, tag_name):
         self.bot.log.info(f'{error_context(interaction)}: requesting tag "{tag_name}"')
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             _tag = Tag.get(tag_name, interaction.guild.id, session)
@@ -247,7 +258,9 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
                 raise NerpyNotFoundError(get_string(lang, "tagging.get.not_found", name=tag_name))
 
             if TagType(_tag.Type) is TagType.sound:
-                song = QueuedSong(interaction.user.voice.channel, self._fetch, tag_name, tag_name)
+                member = cast(Member, interaction.user)
+                assert member.voice is not None
+                song = QueuedSong(cast(VoiceChannel, member.voice.channel), self._fetch, tag_name, tag_name)
                 await self.audio.play(interaction.guild.id, song)
                 await interaction.response.send_message(
                     get_string(lang, "tagging.get.playing", name=tag_name), ephemeral=True

@@ -9,6 +9,7 @@ import logging
 import queue
 from collections import defaultdict, deque
 from datetime import UTC, datetime
+from typing import Any, Callable
 
 import discord
 from discord import Interaction, VoiceChannel, VoiceClient
@@ -39,6 +40,7 @@ class QueueMixin:
 
     async def _send_queue_list(self, interaction: Interaction) -> None:
         """Format and send the paginated queue listing."""
+        assert interaction.guild is not None
         audio_queue = self.audio.list_queue(interaction.guild.id)
         if not audio_queue:
             await interaction.response.send_message("Queue is empty.", ephemeral=True)
@@ -64,14 +66,14 @@ class QueuedSong:
         channel: VoiceChannel,
         fetcher,
         fetch_data,
-        title: str = None,
-        idn: str = None,
-        duration: int = None,
+        title: str | None = None,
+        idn: str | None = None,
+        duration: int | None = None,
         requester=None,
-        thumbnail: str = None,
-        artist: str = None,
+        thumbnail: str | None = None,
+        artist: str | None = None,
     ):
-        self.stream = None
+        self.stream: discord.AudioSource | None = None
         self.title = title
         self.idn = idn
         self.channel = channel
@@ -101,7 +103,7 @@ class Audio:
         self.paused_at: dict = {}
         self.now_playing_message: dict = {}
         self.history: dict = defaultdict(lambda: deque(maxlen=50))
-        self._on_song_start_hook = None
+        self._on_song_start_hook: Callable[..., Any] | None = None
 
     @tasks.loop(seconds=10)
     async def _timeout_manager(self):
@@ -252,7 +254,9 @@ class Audio:
     def clear_buffer(self, guild_id):
         """Clears the Audio Buffer"""
         if self._has_buffer(guild_id):
-            self.buffer.get(guild_id).pop(BufferKey.QUEUE, None)
+            buf = self.buffer.get(guild_id)
+            if buf is not None:
+                buf.pop(BufferKey.QUEUE, None)
             self.lastPlayed.pop(guild_id, None)
 
     def list_queue(self, guild_id):

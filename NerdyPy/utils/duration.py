@@ -25,10 +25,12 @@ def parse_duration(value: str) -> timedelta:
     if seconds is None:
         raise ValueError(f"Could not parse duration: '{value}'")
 
-    if seconds < 0:
+    total_secs: float = seconds.total_seconds() if isinstance(seconds, timedelta) else float(seconds)
+
+    if total_secs < 0:
         raise ValueError(f"Duration cannot be negative: '{value}'")
 
-    if seconds < MIN_DURATION_SECONDS:
-        raise ValueError(f"Duration must be at least 60 seconds, got {seconds}s")
+    if total_secs < MIN_DURATION_SECONDS:
+        raise ValueError(f"Duration must be at least 60 seconds, got {total_secs}s")
 
-    return timedelta(seconds=seconds)
+    return timedelta(seconds=total_secs)

@@ -76,7 +76,7 @@ class Tag(db.BASE):
         """add a tag with given name for given guild"""
         session.add(tag)
 
-    def add_entry(self, text: str, session, byt: bytes = None):
+    def add_entry(self, text: str, session, byt: bytes | None = None):
         """add a tag entry with given name for given guild"""
         session.add(TagEntry(TagId=self.Id, TextContent=text, ByteContent=byt))
 

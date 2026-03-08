@@ -17,6 +17,8 @@ from sqlalchemy import (
     UnicodeText,
     asc,
 )
+from sqlalchemy.orm import Mapped, mapped_column
+
 from utils import database as db
 
 
@@ -57,7 +59,7 @@ class WowGuildNewsConfig(db.BASE):
     ActiveDays = Column(Integer, default=7)
     RosterOffset = Column(Integer, default=0)
     LastActivityTimestamp = Column(DateTime, nullable=True)
-    Enabled = Column(Boolean, default=True)
+    Enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     CreateDate = Column(DateTime, default=lambda: datetime.now(UTC))
     AccountGroupData = Column(Text, default="{}")
 
@@ -161,13 +163,13 @@ class CraftingBoardConfig(db.BASE):
     __tablename__ = "CraftingBoardConfig"
     __table_args__ = (Index("CraftingBoardConfig_GuildId", "GuildId", unique=True),)
 
-    Id = Column(Integer, primary_key=True)
-    GuildId = Column(BigInteger)
-    ChannelId = Column(BigInteger)
-    BoardMessageId = Column(BigInteger, nullable=True)
-    Description = Column(UnicodeText)
-    ThreadCleanupDelayHours = Column(Integer, default=24, server_default="24")
-    CreateDate = Column(DateTime, default=lambda: datetime.now(UTC))
+    Id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    GuildId: Mapped[int] = mapped_column(BigInteger)
+    ChannelId: Mapped[int] = mapped_column(BigInteger)
+    BoardMessageId: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    Description: Mapped[str] = mapped_column(UnicodeText)
+    ThreadCleanupDelayHours: Mapped[int] = mapped_column(Integer, default=24, server_default="24")
+    CreateDate: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
     @classmethod
     def get_by_guild(cls, guild_id, session):
@@ -190,10 +192,10 @@ class CraftingRoleMapping(db.BASE):
         Index("CraftingRoleMapping_Guild_Role", "GuildId", "RoleId", unique=True),
     )
 
-    Id = Column(Integer, primary_key=True)
-    GuildId = Column(BigInteger)
-    RoleId = Column(BigInteger)
-    ProfessionId = Column(Integer)
+    Id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    GuildId: Mapped[int] = mapped_column(BigInteger)
+    RoleId: Mapped[int] = mapped_column(BigInteger)
+    ProfessionId: Mapped[int] = mapped_column(Integer)
 
     @classmethod
     def get_by_guild(cls, guild_id, session):
@@ -218,20 +220,20 @@ class CraftingOrder(db.BASE):
         Index("CraftingOrder_Status", "Status"),
     )
 
-    Id = Column(Integer, primary_key=True)
-    GuildId = Column(BigInteger)
-    ChannelId = Column(BigInteger)
-    OrderMessageId = Column(BigInteger, nullable=True)
-    ThreadId = Column(BigInteger, nullable=True)
-    CreatorId = Column(BigInteger)
-    CrafterId = Column(BigInteger, nullable=True)
-    ProfessionRoleId = Column(BigInteger)
-    ItemName = Column(Unicode(200))
-    IconUrl = Column(Unicode(500), nullable=True)
-    Notes = Column(UnicodeText, nullable=True)
-    Status = Column(String(20), default="open")
-    MessageDeleteAt = Column(DateTime, nullable=True)
-    CreateDate = Column(DateTime, default=lambda: datetime.now(UTC))
+    Id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    GuildId: Mapped[int] = mapped_column(BigInteger)
+    ChannelId: Mapped[int] = mapped_column(BigInteger)
+    OrderMessageId: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    ThreadId: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    CreatorId: Mapped[int] = mapped_column(BigInteger)
+    CrafterId: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    ProfessionRoleId: Mapped[int] = mapped_column(BigInteger)
+    ItemName: Mapped[str] = mapped_column(Unicode(200))
+    IconUrl: Mapped[str | None] = mapped_column(Unicode(500), nullable=True)
+    Notes: Mapped[str | None] = mapped_column(UnicodeText, nullable=True)
+    Status: Mapped[str] = mapped_column(String(20), default="open")
+    MessageDeleteAt: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    CreateDate: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
     @classmethod
     def get_by_id(cls, order_id, session):

@@ -4,12 +4,14 @@ Main Class of the NerpyBot
 """
 
 import os
-from asyncio import CancelledError, create_task, run, sleep
+import asyncio
+from asyncio import CancelledError, create_task, run
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from random import choices as random_choices
 from random import uniform as random_uniform
+from time import sleep
 from traceback import format_exc, print_exc, print_tb
 from typing import Annotated, Any, Generator, Optional
 from warnings import filterwarnings
@@ -258,7 +260,7 @@ class NerpyBot(Bot):
             while not self.is_closed():
                 activity = random_choices(ACTIVITIES, weights=ACTIVITY_WEIGHTS)[0]
                 await self.change_presence(activity=Game(name=activity))
-                await sleep(random_uniform(120, 420))
+                await asyncio.sleep(random_uniform(120, 420))
         except CancelledError:
             # Task was cancelled during shutdown; exit silently as this is expected.
             return
@@ -269,6 +271,7 @@ class NerpyBot(Bot):
         """calls when successfully logged in"""
         from models.admin import PermissionSubscriber
 
+        assert self.user is not None
         self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
 
         if not hasattr(self, "_activity_task") or self._activity_task.done():
@@ -387,7 +390,7 @@ class NerpyBot(Bot):
         else:
             await self.process_commands(message)
 
-    async def start(self, token: str = None, reconnect: bool = True) -> None:
+    async def start(self, token: str | None = None, reconnect: bool = True) -> None:
         """
         generator connects the discord bot to the server
 

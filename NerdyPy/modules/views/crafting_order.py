@@ -4,6 +4,7 @@
 import logging
 import re
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Any, cast
 
 import discord
 from discord import Interaction, ui
@@ -12,12 +13,22 @@ from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRoleMapping
 from utils.blizzard import CRAFTING_PROFESSIONS
 from utils.strings import get_guild_language, get_localized_string, get_string
 
+if TYPE_CHECKING:
+    from bot import NerpyBot
+
 log = logging.getLogger(__name__)
+
+
+def _bot(interaction: Interaction) -> "NerpyBot":
+    """Return the bot instance from an interaction, properly typed."""
+
+    return cast("NerpyBot", interaction.client)
 
 
 def _ls(interaction: Interaction, key: str, **kwargs) -> str:
     """Shorthand for localized string lookup."""
-    with interaction.client.session_scope() as session:
+    assert interaction.guild_id is not None
+    with _bot(interaction).session_scope() as session:
         return get_localized_string(interaction.guild_id, f"wow.craftingorder.{key}", session, **kwargs)
 
 
@@ -113,6 +124,8 @@ class CraftingBoardView(ui.View):
         self.add_item(button)
 
     async def _on_create_order(self, interaction: Interaction):
+        assert interaction.guild is not None
+        assert interaction.guild_id is not None
         with self.bot.session_scope() as session:
             config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
             if config is None:
@@ -155,8 +168,12 @@ class ProfessionSelectView(ui.View):
         self.add_item(select)
 
     async def _on_select(self, interaction: Interaction):
-        role_id = int(interaction.data["values"][0])
+        assert interaction.guild is not None
+        role_id = int(interaction.data["values"][0])  # type: ignore[index]
         role = interaction.guild.get_role(role_id)
+        if role is None:
+            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            return
         modal = CraftingOrderModal(self.bot, role_id, role, self.guild_id, self.lang)
         await interaction.response.send_modal(modal)
 
@@ -193,6 +210,7 @@ class CraftingOrderModal(ui.Modal):
         self.add_item(self.notes_input)
 
     async def on_submit(self, interaction: Interaction):
+        assert interaction.guild is not None
         await interaction.response.defer(ephemeral=True)
 
         item_name = self.item_name_input.value.strip()
@@ -222,7 +240,7 @@ class CraftingOrderModal(ui.Modal):
             view = build_order_view(order.Id, "open", lang)
 
             channel = interaction.guild.get_channel(config.ChannelId)
-            if channel is None:
+            if channel is None or not isinstance(channel, discord.TextChannel):
                 await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
                 return
             msg = await channel.send(content=self.role.mention, embed=embed, view=view)
@@ -247,11 +265,12 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
         self.order_id = order_id
 
     @classmethod
-    async def from_custom_id(cls, interaction: Interaction, item: ui.Button, match: re.Match):
+    async def from_custom_id(cls, interaction: Interaction, item: ui.Item[Any], match: re.Match[str]):
         return cls(order_id=int(match["order_id"]))
 
     async def interaction_check(self, interaction: Interaction) -> bool:
-        with interaction.client.session_scope() as session:
+        assert interaction.guild is not None
+        with _bot(interaction).session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
                 await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
@@ -260,7 +279,8 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
                 await interaction.response.send_message(_ls(interaction, "accept.not_open"), ephemeral=True)
                 return False
             role = interaction.guild.get_role(order.ProfessionRoleId)
-            if role and role not in interaction.user.roles:
+            member = cast(discord.Member, interaction.user)
+            if role and role not in member.roles:
                 await interaction.response.send_message(
                     _ls(interaction, "accept.no_role", role=role.name), ephemeral=True
                 )
@@ -268,7 +288,9 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
         return True
 
     async def callback(self, interaction: Interaction):
-        with interaction.client.session_scope() as session:
+        assert interaction.guild is not None
+        assert interaction.guild_id is not None
+        with _bot(interaction).session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             order.Status = "in_progress"
             order.CrafterId = interaction.user.id
@@ -286,11 +308,11 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
         self.order_id = order_id
 
     @classmethod
-    async def from_custom_id(cls, interaction: Interaction, item: ui.Button, match: re.Match):
+    async def from_custom_id(cls, interaction: Interaction, item: ui.Item[Any], match: re.Match[str]):
         return cls(order_id=int(match["order_id"]))
 
     async def interaction_check(self, interaction: Interaction) -> bool:
-        with interaction.client.session_scope() as session:
+        with _bot(interaction).session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
                 await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
@@ -299,14 +321,16 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
                 await interaction.response.send_message(_ls(interaction, "drop.not_in_progress"), ephemeral=True)
                 return False
             is_crafter = order.CrafterId == interaction.user.id
-            is_admin = interaction.user.guild_permissions.administrator
+            is_admin = cast(discord.Member, interaction.user).guild_permissions.administrator
             if not is_crafter and not is_admin:
                 await interaction.response.send_message(_ls(interaction, "drop.not_crafter"), ephemeral=True)
                 return False
         return True
 
     async def callback(self, interaction: Interaction):
-        with interaction.client.session_scope() as session:
+        assert interaction.guild is not None
+        assert interaction.guild_id is not None
+        with _bot(interaction).session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             order.Status = "open"
             order.CrafterId = None
@@ -324,11 +348,11 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         self.order_id = order_id
 
     @classmethod
-    async def from_custom_id(cls, interaction: Interaction, item: ui.Button, match: re.Match):
+    async def from_custom_id(cls, interaction: Interaction, item: ui.Item[Any], match: re.Match[str]):
         return cls(order_id=int(match["order_id"]))
 
     async def interaction_check(self, interaction: Interaction) -> bool:
-        with interaction.client.session_scope() as session:
+        with _bot(interaction).session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
                 await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
@@ -337,14 +361,15 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
                 await interaction.response.send_message(_ls(interaction, "complete.not_in_progress"), ephemeral=True)
                 return False
             is_crafter = order.CrafterId == interaction.user.id
-            is_admin = interaction.user.guild_permissions.administrator
+            is_admin = cast(discord.Member, interaction.user).guild_permissions.administrator
             if not is_crafter and not is_admin:
                 await interaction.response.send_message(_ls(interaction, "complete.not_crafter"), ephemeral=True)
                 return False
         return True
 
     async def callback(self, interaction: Interaction):
-        with interaction.client.session_scope() as session:
+        assert interaction.guild_id is not None
+        with _bot(interaction).session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             order.Status = "completed"
             item_name = order.ItemName
@@ -366,7 +391,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
             )
 
         if used_thread:
-            with interaction.client.session_scope() as session:
+            with _bot(interaction).session_scope() as session:
                 config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
                 delay = config.ThreadCleanupDelayHours if config else 24
                 order = CraftingOrder.get_by_id(self.order_id, session)
@@ -374,7 +399,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
 
         await interaction.response.edit_message(content=_ls(interaction, "complete.done"), embed=None, view=None)
         # Only delete the order message if no thread is anchored to it
-        if not used_thread:
+        if not used_thread and interaction.message is not None:
             try:
                 await interaction.message.delete()
             except discord.HTTPException:
@@ -389,11 +414,11 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
         self.order_id = order_id
 
     @classmethod
-    async def from_custom_id(cls, interaction: Interaction, item: ui.Button, match: re.Match):
+    async def from_custom_id(cls, interaction: Interaction, item: ui.Item[Any], match: re.Match[str]):
         return cls(order_id=int(match["order_id"]))
 
     async def interaction_check(self, interaction: Interaction) -> bool:
-        with interaction.client.session_scope() as session:
+        with _bot(interaction).session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
                 await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
@@ -402,14 +427,15 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
                 await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
                 return False
             is_creator = order.CreatorId == interaction.user.id
-            is_admin = interaction.user.guild_permissions.administrator
+            is_admin = cast(discord.Member, interaction.user).guild_permissions.administrator
             if not is_creator and not is_admin:
                 await interaction.response.send_message(_ls(interaction, "cancel.not_allowed"), ephemeral=True)
                 return False
         return True
 
     async def callback(self, interaction: Interaction):
-        with interaction.client.session_scope() as session:
+        assert interaction.guild_id is not None
+        with _bot(interaction).session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             order.Status = "cancelled"
             item_name = order.ItemName
@@ -428,7 +454,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
                 )
 
         if used_thread:
-            with interaction.client.session_scope() as session:
+            with _bot(interaction).session_scope() as session:
                 config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
                 delay = config.ThreadCleanupDelayHours if config else 24
                 order = CraftingOrder.get_by_id(self.order_id, session)
@@ -436,7 +462,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
 
         await interaction.response.edit_message(content=_ls(interaction, "cancel.done"), embed=None, view=None)
         # Only delete the order message if no thread is anchored to it
-        if not used_thread:
+        if not used_thread and interaction.message is not None:
             try:
                 await interaction.message.delete()
             except discord.HTTPException:
@@ -453,11 +479,12 @@ class AskQuestionButton(ui.DynamicItem[ui.Button], template=r"crafting:ask:(?P<o
         self.order_id = order_id
 
     @classmethod
-    async def from_custom_id(cls, interaction: Interaction, item: ui.Button, match: re.Match):
+    async def from_custom_id(cls, interaction: Interaction, item: ui.Item[Any], match: re.Match[str]):
         return cls(order_id=int(match["order_id"]))
 
     async def callback(self, interaction: Interaction):
-        with interaction.client.session_scope() as session:
+        assert interaction.guild_id is not None
+        with _bot(interaction).session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
         modal = AskQuestionModal(self.order_id, lang)
         await interaction.response.send_modal(modal)
@@ -480,9 +507,10 @@ class AskQuestionModal(ui.Modal):
         self.add_item(self.message_input)
 
     async def on_submit(self, interaction: Interaction):
+        assert interaction.guild is not None
         await interaction.response.defer(ephemeral=True)
 
-        with interaction.client.session_scope() as session:
+        with _bot(interaction).session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
                 await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
@@ -495,7 +523,7 @@ class AskQuestionModal(ui.Modal):
             message_id = order.OrderMessageId
 
         channel = interaction.guild.get_channel(channel_id)
-        if channel is None:
+        if channel is None or not isinstance(channel, discord.TextChannel):
             await interaction.followup.send(_ls(interaction, "ask.thread_failed"), ephemeral=True)
             return
         thread = None
@@ -507,7 +535,7 @@ class AskQuestionModal(ui.Modal):
             try:
                 msg = await channel.fetch_message(message_id)
                 thread = await msg.create_thread(name=_ls(interaction, "ask.thread_name", item=item_name))
-                with interaction.client.session_scope() as session:
+                with _bot(interaction).session_scope() as session:
                     order = CraftingOrder.get_by_id(self.order_id, session)
                     order.ThreadId = thread.id
             except discord.HTTPException:
@@ -528,7 +556,8 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
 
     Returns True if the thread was successfully used (message should be kept as anchor).
     """
-    with interaction.client.session_scope() as session:
+    assert interaction.guild is not None
+    with _bot(interaction).session_scope() as session:
         order = CraftingOrder.get_by_id(order_id, session)
         if order is None:
             return False
@@ -538,7 +567,7 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
         item_name = order.ItemName
 
     channel = interaction.guild.get_channel(channel_id)
-    if channel is None:
+    if channel is None or not isinstance(channel, discord.TextChannel):
         log.warning("Board channel %d not found for order #%d", channel_id, order_id)
         return False
     thread = channel.get_thread(thread_id) if thread_id else None
@@ -547,7 +576,7 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
         try:
             msg = await channel.fetch_message(message_id)
             thread = await msg.create_thread(name=_ls(interaction, "ask.thread_name", item=item_name))
-            with interaction.client.session_scope() as session:
+            with _bot(interaction).session_scope() as session:
                 order = CraftingOrder.get_by_id(order_id, session)
                 order.ThreadId = thread.id
         except discord.HTTPException:
@@ -613,7 +642,7 @@ class ManualProfessionMappingView(ui.View):
 
     def _make_select_callback(self, role_id: int):
         async def _callback(interaction: Interaction):
-            values = interaction.data.get("values", [])
+            values = interaction.data["values"] if interaction.data and "values" in interaction.data else []  # type: ignore[typeddict-item]
             if values:
                 self.selections[role_id] = int(values[0])
             else:

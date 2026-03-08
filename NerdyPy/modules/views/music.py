@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Now-playing embed builder and interactive view for the music module."""
 
+from typing import cast
+
 import discord
 from utils.strings import get_string
 
@@ -93,16 +95,18 @@ class NowPlayingView(discord.ui.View):
         self.lang = lang
 
     def _in_same_channel(self, interaction: discord.Interaction) -> bool:
+        assert interaction.guild is not None
+        member = cast(discord.Member, interaction.user)
         bot_vc = interaction.guild.voice_client
         if bot_vc is None:
             return False
-        if interaction.user.voice is None:
+        if member.voice is None:
             return False
-        return interaction.user.voice.channel == bot_vc.channel
+        return member.voice.channel == bot_vc.channel
 
     def _can_control(self, interaction: discord.Interaction) -> bool:
         """Mods (mute_members) can control from anywhere; other users must be in the same voice channel."""
-        if interaction.user.guild_permissions.mute_members:
+        if cast(discord.Member, interaction.user).guild_permissions.mute_members:
             return True
         return self._in_same_channel(interaction)
 

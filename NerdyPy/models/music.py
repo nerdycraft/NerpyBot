@@ -22,11 +22,11 @@ class Playlist(db.BASE):
     CreatedAt = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 
     @classmethod
-    def get_by_user(cls, guild_id: int, user_id: int, session):
+    def get_by_user(cls, guild_id: int | None, user_id: int, session):
         return session.query(cls).filter(cls.GuildId == guild_id, cls.UserId == user_id).all()
 
     @classmethod
-    def get_by_name(cls, guild_id: int, user_id: int, name: str, session):
+    def get_by_name(cls, guild_id: int | None, user_id: int, name: str, session):
         return session.query(cls).filter(cls.GuildId == guild_id, cls.UserId == user_id, cls.Name == name).first()
 
 

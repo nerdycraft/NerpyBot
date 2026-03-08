@@ -18,6 +18,7 @@ from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from datetime import datetime as dt
 from datetime import timedelta as td
+from typing import Any
 
 import requests
 
@@ -85,7 +86,7 @@ def should_update_mount_set(known_count: int, current_count: int) -> bool:
 FAILURE_THRESHOLD = 3
 
 
-def record_character_failure(failures: dict[str, dict[str, int | str]], char_name: str, char_realm: str) -> None:
+def record_character_failure(failures: dict[str, dict[str, Any]], char_name: str, char_realm: str) -> None:
     """Record a 404/403 failure for a character."""
     key = f"{char_name}:{char_realm}"
     entry = failures.setdefault(key, {"count": 0})
@@ -93,13 +94,13 @@ def record_character_failure(failures: dict[str, dict[str, int | str]], char_nam
     entry["last"] = datetime.now(UTC).isoformat()
 
 
-def should_skip_character(failures: dict[str, dict[str, int | str]], char_name: str, char_realm: str) -> bool:
+def should_skip_character(failures: dict[str, dict[str, Any]], char_name: str, char_realm: str) -> bool:
     """Return True if the character has reached the failure threshold."""
     entry = failures.get(f"{char_name}:{char_realm}")
     return entry is not None and entry.get("count", 0) >= FAILURE_THRESHOLD
 
 
-def clear_character_failure(failures: dict[str, dict[str, int | str]], char_name: str, char_realm: str) -> None:
+def clear_character_failure(failures: dict[str, dict[str, Any]], char_name: str, char_realm: str) -> None:
     """Remove a character's failure record after a successful check."""
     failures.pop(f"{char_name}:{char_realm}", None)
 

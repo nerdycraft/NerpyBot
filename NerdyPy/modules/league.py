@@ -29,7 +29,7 @@ class League(NerpyBotCog, GroupCog):
         self.version = None
         self.config = self.bot.config["league"]
 
-    def _lang(self, guild_id: int) -> str:
+    def _lang(self, guild_id: int | None) -> str:
         with self.bot.session_scope() as session:
             return get_guild_language(guild_id, session)
 

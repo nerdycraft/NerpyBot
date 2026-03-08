@@ -14,7 +14,7 @@ class LessThanFilter(logging.Filter):
         return 1 if record.levelno < self.max_level else 0
 
 
-def create_logger(level: str = "WARNING", name: str = None):
+def create_logger(level: str = "WARNING", name: str | None = None):
     """
     Set logging level at runtime
 
@@ -52,5 +52,5 @@ def create_logger(level: str = "WARNING", name: str = None):
     _logger.log(logging.INFO, f"Setting loglevel to {level} for Logger {name}.")
 
 
-def get_logger(name: str = None) -> logging.Logger:
+def get_logger(name: str | None = None) -> logging.Logger:
     return logging.getLogger(name)

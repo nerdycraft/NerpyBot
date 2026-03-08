@@ -16,6 +16,7 @@ class VoiceControl(NerpyBotCog, Cog):
     @app_commands.check(can_stop_playback)
     async def _bot_stop_playing(self, interaction: Interaction):
         """bot stops playing audio [bot-moderator]"""
+        assert interaction.guild is not None
         self.bot.audio.stop(interaction.guild.id)
         self.bot.audio.clear_buffer(interaction.guild.id)
         await interaction.response.send_message("\U0001f44d", ephemeral=True)
@@ -25,6 +26,7 @@ class VoiceControl(NerpyBotCog, Cog):
     @app_commands.check(can_leave_voice)
     async def _bot_leave_channel(self, interaction: Interaction):
         """bot leaves the voice channel [bot-moderator]"""
+        assert interaction.guild is not None
         await self.bot.audio.leave(interaction.guild.id)
         await interaction.response.send_message("\U0001f44b", ephemeral=True)
 

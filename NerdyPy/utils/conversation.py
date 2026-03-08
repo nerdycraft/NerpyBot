@@ -55,13 +55,13 @@ class Conversation:
         await self.stateHandler[self.currentState]()
 
     def is_conv_message(self, message_id):
-        return message_id == self.currentMessage.id
+        return self.currentMessage is not None and message_id == self.currentMessage.id
 
     def is_answer_type(self, answer_type: AnswerType):
         return answer_type == self.answerType or self.answerType == AnswerType.BOTH
 
     async def on_react(self, reaction):
-        if str(reaction) in self.reactions:
+        if self.reactions is not None and str(reaction) in self.reactions:
             self.currentState = self.reactions[str(reaction)]
             self.currentMessage = None
             self.lastResponse = reaction

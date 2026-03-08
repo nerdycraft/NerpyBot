@@ -5,7 +5,7 @@ import itertools
 import json
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import LiteralString
+from typing import Any, cast
 
 import discord
 from blizzapi import Language, Region, RetailClient
@@ -141,13 +141,14 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             for region in self.regions:
                 try:
                     api = self._get_retailclient(region, "en")
-                    data = await asyncio.to_thread(api.realms_index)
+                    data: Any = await asyncio.to_thread(api.realms_index)
                     check_rate_limit(data)
-                    for realm in data.get("realms", []):
-                        slug = realm.get("slug", "")
-                        name = realm.get("name", slug)
-                        if slug:
-                            cache[f"{slug}-{region}"] = {"name": name, "region": region, "slug": slug}
+                    if isinstance(data, dict):
+                        for realm in data.get("realms", []):
+                            slug = realm.get("slug", "")
+                            name = realm.get("name", slug)
+                            if slug:
+                                cache[f"{slug}-{region}"] = {"name": name, "region": region, "slug": slug}
                 except Exception as ex:
                     self.bot.log.warning(f"Failed to fetch realm index for {region}: {ex}")
 
@@ -218,7 +219,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         except ValueError as ex:
             raise NerpyInfraException("Failed to initialise WoW API client.") from ex
 
-    def _get_character(self, realm: str, region: str, name: str, language: str) -> tuple[dict, LiteralString]:
+    def _get_character(self, realm: str, region: str, name: str, language: str) -> tuple[Any, str]:
         """Get character profile and media from the WoW API."""
         api = self._get_retailclient(region, language)
 
@@ -246,6 +247,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         """
         try:
             await interaction.response.defer()
+            assert interaction.guild is not None
             lang = self._lang(interaction.guild.id)
             realm_slug, region = await self._parse_realm(realm, lang)
             name = name.lower()
@@ -322,6 +324,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         """
         try:
             await interaction.response.defer(ephemeral=True)
+            assert interaction.guild is not None
             lang = self._lang(interaction.guild.id)
             realm_slug, region = await self._parse_realm(realm, lang)
             name_slug = guild_name.lower().replace(" ", "-")
@@ -331,7 +334,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             api = self._get_retailclient(region, lang)
             roster = await asyncio.to_thread(api.guild_roster, realmSlug=realm_slug, nameSlug=name_slug)
 
-            if isinstance(roster, dict) and roster.get("code") in (404, 403):
+            if not isinstance(roster, dict) or roster.get("code") in (404, 403):
                 raise NerpyNotFoundError(
                     get_string(lang, "wow.guildnews.setup.guild_not_found", guild=guild_name, realm_region=realm_region)
                 )
@@ -386,6 +389,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         return await self._realm_autocomplete(interaction, current)
 
     async def _config_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[int]]:
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             configs = WowGuildNewsConfig.get_all_by_guild(interaction.guild.id, session)
             choices = []
@@ -401,6 +405,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     @checks.has_permissions(manage_channels=True)
     async def _guildnews_remove(self, interaction: Interaction, config: int):
         """remove a guild news tracking config [manage_channels]"""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild.id, session)
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
@@ -417,6 +422,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     @guildnews.command(name="list")
     async def _guildnews_list(self, interaction: Interaction):
         """list all tracked WoW guilds for this server"""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild.id, session)
             configs = WowGuildNewsConfig.get_all_by_guild(interaction.guild.id, session)
@@ -449,6 +455,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     @checks.has_permissions(manage_channels=True)
     async def _guildnews_pause(self, interaction: Interaction, config: int):
         """pause guild news tracking [manage_channels]"""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild.id, session)
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
@@ -466,6 +473,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     @checks.has_permissions(manage_channels=True)
     async def _guildnews_resume(self, interaction: Interaction, config: int):
         """resume guild news tracking [manage_channels]"""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild.id, session)
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
@@ -494,6 +502,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         channel: Move notifications to this channel
         active_days: Change activity window (days)
         """
+        assert interaction.guild is not None
         lang = self._lang(interaction.guild.id)
         if channel is None and active_days is None:
             await interaction.response.send_message(
@@ -532,6 +541,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     @guildnews.command(name="check")
     async def _guildnews_check(self, interaction: Interaction, config: int):
         """trigger an immediate poll for testing [operator]"""
+        assert interaction.guild is not None
         if interaction.user.id not in self.bot.ops:
             raise NerpyPermissionError("This command is restricted to bot operators.")
         with self.bot.session_scope() as session:
@@ -1320,6 +1330,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         self, interaction: Interaction, channel: TextChannel, roles: str, description: str, lang: str
     ):
         """Shared board creation logic used by both the command and the description modal."""
+        assert interaction.guild is not None
         role_ids = self._parse_role_ids(roles, interaction.guild)
 
         if not role_ids:
@@ -1388,10 +1399,11 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             message_id = config.BoardMessageId
 
         # Try to delete the board embed
+        assert interaction.guild is not None
         try:
             channel = interaction.guild.get_channel(channel_id)
             if channel and message_id:
-                msg = await channel.fetch_message(message_id)
+                msg = await cast(TextChannel, channel).fetch_message(message_id)
                 if msg.thread:
                     await msg.thread.delete()
                 await msg.delete()
@@ -1405,6 +1417,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     @app_commands.describe(roles="New role mentions (optional — re-runs auto-matching)")
     async def _craftingorder_edit(self, interaction: Interaction, roles: str | None = None):
         """edit the crafting order board [manage_channels]"""
+        assert interaction.guild is not None
         lang = self._lang(interaction.guild_id)
 
         with self.bot.session_scope() as session:
@@ -1434,6 +1447,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         self, interaction: Interaction, new_description: str, lang: str, unmapped: list[int] | None = None
     ):
         """Update the board description and edit the embed in-place."""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
             if config is None:
@@ -1447,7 +1461,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         try:
             channel = interaction.guild.get_channel(channel_id)
             if channel and message_id:
-                msg = await channel.fetch_message(message_id)
+                msg = await cast(TextChannel, channel).fetch_message(message_id)
                 embed = msg.embeds[0] if msg.embeds else discord.Embed(color=discord.Color.gold())
                 embed.description = new_description
                 await msg.edit(embed=embed)
@@ -1461,14 +1475,12 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
     async def _send_manual_mapping_view(self, interaction: Interaction, unmapped: list[int], lang: str):
         """Send an ephemeral followup with Select dropdowns for manual profession mapping."""
+        assert interaction.guild is not None
         from modules.views.crafting_order import ManualProfessionMappingView
 
-        unmapped_roles = [
-            (rid, (interaction.guild.get_role(rid).name if interaction.guild.get_role(rid) else str(rid)))
-            for rid in unmapped
-        ]
+        unmapped_roles = [(rid, (r.name if (r := interaction.guild.get_role(rid)) else str(rid))) for rid in unmapped]
         content = get_string(lang, "wow.craftingorder.manual_map.description")
-        view = ManualProfessionMappingView(self.bot, interaction.guild_id, unmapped_roles, lang)
+        view = ManualProfessionMappingView(self.bot, interaction.guild.id, unmapped_roles, lang)
         await interaction.followup.send(content, view=view, ephemeral=True)
 
 
@@ -1493,9 +1505,9 @@ class _BoardDescriptionModal(discord.ui.Modal):
         lang: str,
         *,
         mode: str = "create",
-        channel: TextChannel = None,
-        roles: str = None,
-        default_text: str = None,
+        channel: TextChannel | None = None,
+        roles: str | None = None,
+        default_text: str | None = None,
     ):
         super().__init__(title=get_string(lang, "wow.craftingorder.create.modal_title"))
         self.bot = bot
@@ -1503,6 +1515,7 @@ class _BoardDescriptionModal(discord.ui.Modal):
         self.mode = mode
         self.channel = channel
         self.roles = roles
+        self._unmapped: list[int] = []
         self.description_input.placeholder = get_string(lang, "wow.craftingorder.create.modal_description")
         if default_text:
             self.description_input.default = default_text

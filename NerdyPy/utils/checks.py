@@ -3,7 +3,7 @@
 from typing import cast
 
 from bot import NerpyBot
-from discord import Interaction, Role, app_commands
+from discord import Interaction, Member, Role, app_commands
 from discord.ext.commands import Context
 from models.admin import BotModeratorRole
 from utils.errors import NerpyPermissionError, SilentCheckFailure
@@ -39,7 +39,7 @@ async def is_admin_or_operator(interaction: Interaction) -> bool:
     bot = cast(NerpyBot, interaction.client)
     if interaction.user.id in bot.ops:
         return True
-    if interaction.guild and interaction.user.guild_permissions.administrator:
+    if interaction.guild and cast(Member, interaction.user).guild_permissions.administrator:
         return True
     return False
 
@@ -56,23 +56,27 @@ async def reject(interaction: Interaction, msg: str):
 async def is_bot_moderator(interaction: Interaction) -> bool:
     """Check if the user has bot-moderator privileges."""
     bot = cast(NerpyBot, interaction.client)
-    perms = interaction.user.guild_permissions
-    if perms.mute_members or perms.manage_channels or perms.administrator or interaction.user.id in bot.ops:
+    member = cast(Member, interaction.user)
+    perms = member.guild_permissions
+    if perms.mute_members or perms.manage_channels or perms.administrator or member.id in bot.ops:
         return True
 
+    assert interaction.guild is not None
     with bot.session_scope() as session:
         entry = BotModeratorRole.get(interaction.guild.id, session)
         if entry is not None:
-            return any(r.id == entry.RoleId for r in interaction.user.roles)
+            return any(r.id == entry.RoleId for r in member.roles)
 
     return False
 
 
 async def is_connected_to_voice(interaction: Interaction):
-    if interaction.user.voice is None or interaction.user.voice.channel is None:
+    member = cast(Member, interaction.user)
+    if member.voice is None or member.voice.channel is None:
         await reject(interaction, _localized(interaction, "checks.voice.not_connected"))
         return False
-    channel = interaction.user.voice.channel
+    channel = member.voice.channel
+    assert interaction.guild is not None
     bot_perms = channel.permissions_for(interaction.guild.me)
     if not bot_perms.connect:
         await reject(interaction, _localized(interaction, "checks.voice.no_connect_permission"))
@@ -85,6 +89,7 @@ async def is_connected_to_voice(interaction: Interaction):
 
 async def can_stop_playback(interaction: Interaction):
     """Any user in the same voice channel as the bot, or a bot-moderator from anywhere."""
+    assert interaction.guild is not None
     bot_voice = interaction.guild.voice_client
     if bot_voice is None:
         await reject(interaction, _localized(interaction, "checks.voice.nothing_playing"))
@@ -93,11 +98,12 @@ async def can_stop_playback(interaction: Interaction):
     if await is_bot_moderator(interaction):
         return True
 
-    if interaction.user.voice is None or interaction.user.voice.channel is None:
+    member = cast(Member, interaction.user)
+    if member.voice is None or member.voice.channel is None:
         await reject(interaction, _localized(interaction, "checks.voice.user_not_in_voice"))
         return False
 
-    if interaction.user.voice.channel != bot_voice.channel:
+    if member.voice.channel != bot_voice.channel:
         await reject(interaction, _localized(interaction, "checks.voice.user_in_different_channel"))
         return False
 
@@ -125,6 +131,7 @@ async def is_role_assignable(interaction: Interaction, role: Role, *, action: st
 
 async def is_role_below_bot(interaction: Interaction, role: Role) -> bool:
     """Return False (with ephemeral message) if the role is at or above the bot's highest role."""
+    assert interaction.guild is not None
     if role >= interaction.guild.me.top_role:
         msg = _localized(interaction, "checks.role.above_bot_role", role=role.name)
         await interaction.response.send_message(msg, ephemeral=True)

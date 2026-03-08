@@ -2,6 +2,7 @@
 """Admin-domain database models: bot-moderator role and permission notification subscribers."""
 
 from sqlalchemy import BigInteger, Column, String
+from sqlalchemy.orm import Mapped, mapped_column
 from utils import database as db
 
 
@@ -11,7 +12,7 @@ class BotModeratorRole(db.BASE):
     __tablename__ = "BotModeratorRole"
 
     GuildId = Column(BigInteger, primary_key=True)
-    RoleId = Column(BigInteger, nullable=False)
+    RoleId: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
     @classmethod
     def get(cls, guild_id, session):
@@ -31,8 +32,8 @@ class PermissionSubscriber(db.BASE):
 
     __tablename__ = "PermissionSubscriber"
 
-    GuildId = Column(BigInteger, primary_key=True)
-    UserId = Column(BigInteger, primary_key=True)
+    GuildId: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    UserId: Mapped[int] = mapped_column(BigInteger, primary_key=True)
 
     @classmethod
     def get_by_guild(cls, guild_id: int, session) -> list["PermissionSubscriber"]:
@@ -58,7 +59,7 @@ class GuildLanguageConfig(db.BASE):
     __tablename__ = "GuildLanguageConfig"
 
     GuildId = Column(BigInteger, primary_key=True)
-    Language = Column(String(5), nullable=False, default="en")
+    Language: Mapped[str] = mapped_column(String(5), nullable=False, default="en")
 
     @classmethod
     def get(cls, guild_id: int, session) -> "GuildLanguageConfig | None":

@@ -21,11 +21,12 @@ def parse_id(value: int | str) -> int:
     return int(value)
 
 
-async def send_hidden_message(interaction: Interaction, msg: str | None = None, **kwargs) -> None:
+async def send_hidden_message(interaction: Interaction, msg: str = "", **kwargs) -> None:
     """Send an ephemeral message via slash command interaction."""
     if not interaction.response.is_done():
-        return await interaction.response.send_message(msg, ephemeral=True, **kwargs)
-    return await interaction.followup.send(msg, ephemeral=True, **kwargs)
+        await interaction.response.send_message(msg, ephemeral=True, **kwargs)
+        return
+    await interaction.followup.send(msg, ephemeral=True, **kwargs)
 
 
 _MESSAGE_LINK_RE = re.compile(r"https?://(?:canary\.|ptb\.)?discord(?:app)?\.com/channels/\d+/(\d+)/(\d+)")
@@ -104,8 +105,8 @@ async def send_paginated(
     interaction: Interaction,
     text: str,
     *,
-    title: str = None,
-    color: Color | int = None,
+    title: str | None = None,
+    color: Color | int | None = None,
     ephemeral: bool = False,
     delims: list[str] | None = None,
     page_length: int | None = None,
@@ -148,13 +149,13 @@ def error_context(source: Context | Interaction) -> str:
 
     Accepts both Interaction (slash) and Context (prefix fallback).
     """
-    if hasattr(source, "interaction"):
-        # Context (prefix commands) — has an .interaction attribute
+    if isinstance(source, Context):
+        # prefix command
         cmd = source.command.qualified_name if source.command else "unknown"
         user = f"{source.author} ({source.author.id})"
         guild = f"{source.guild.name} ({source.guild.id})" if source.guild else "DM"
     else:
-        # Interaction (slash commands)
+        # slash command
         cmd = source.command.qualified_name if source.command else "unknown"
         user = f"{source.user} ({source.user.id})"
         guild = f"{source.guild.name} ({source.guild.id})" if source.guild else "DM"

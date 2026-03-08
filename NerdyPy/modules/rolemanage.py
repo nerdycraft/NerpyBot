@@ -39,6 +39,7 @@ class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
         if not await is_role_below_bot(interaction, target_role):
             return
 
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             existing = RoleMapping.get(interaction.guild.id, source_role.id, target_role.id, session)
@@ -76,6 +77,7 @@ class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
         target_role: discord.Role
             The target role
         """
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             deleted = RoleMapping.delete(interaction.guild.id, source_role.id, target_role.id, session)
@@ -92,6 +94,7 @@ class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
     @checks.has_permissions(manage_roles=True)
     async def _list(self, interaction: Interaction):
         """list all delegated role mappings for this server [manage_roles]"""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             mappings = RoleMapping.get_by_guild(interaction.guild.id, session)
@@ -128,6 +131,7 @@ class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
         if not await is_role_below_bot(interaction, role):
             return
 
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             mappings = RoleMapping.get_by_target(interaction.guild.id, role.id, session)
@@ -179,6 +183,7 @@ class RoleManage(NerpyBotCog, GroupCog, group_name="rolemanage"):
         if not await is_role_below_bot(interaction, role):
             return
 
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             mappings = RoleMapping.get_by_target(interaction.guild.id, role.id, session)

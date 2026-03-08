@@ -10,6 +10,7 @@ Clicking it starts the same DM conversation as ``/apply``.
 """
 
 from datetime import UTC
+from typing import TYPE_CHECKING, cast
 
 import discord
 from sqlalchemy.exc import IntegrityError
@@ -24,6 +25,9 @@ from models.application import (
 )
 from utils.strings import get_guild_language, get_string
 
+if TYPE_CHECKING:
+    from bot import NerpyBot
+
 
 # ---------------------------------------------------------------------------
 # Permission helper
@@ -32,9 +36,11 @@ from utils.strings import get_guild_language, get_string
 
 def check_application_permission(interaction: discord.Interaction, bot) -> bool:
     """Return True if the user is a guild administrator, holds a manager role, or holds a reviewer role."""
-    if interaction.user.guild_permissions.administrator:
+    assert interaction.guild is not None
+    member = cast(discord.Member, interaction.user)
+    if member.guild_permissions.administrator:
         return True
-    user_role_ids = {r.id for r in interaction.user.roles}
+    user_role_ids = {r.id for r in member.roles}
     with bot.session_scope() as session:
         manager_ids = ApplicationGuildRole.get_role_ids(interaction.guild.id, "manager", session)
         if any(rid in user_role_ids for rid in manager_ids):
@@ -48,9 +54,11 @@ def check_override_permission(interaction: discord.Interaction, bot) -> bool:
 
     Reviewer role holders are NOT allowed to override decisions.
     """
-    if interaction.user.guild_permissions.administrator:
+    assert interaction.guild is not None
+    member = cast(discord.Member, interaction.user)
+    if member.guild_permissions.administrator:
         return True
-    user_role_ids = {r.id for r in interaction.user.roles}
+    user_role_ids = {r.id for r in member.roles}
     with bot.session_scope() as session:
         manager_ids = ApplicationGuildRole.get_role_ids(interaction.guild.id, "manager", session)
         return any(rid in user_role_ids for rid in manager_ids)
@@ -144,12 +152,13 @@ async def _update_review_embed(
 
     view = ApplicationReviewView(bot=bot)
     for item in view.children:
-        if item.custom_id == "app_review_override":
-            item.disabled = status == SubmissionStatus.PENDING
-        elif item.custom_id == "app_review_message":
-            item.disabled = applicant_notified
+        button = cast(discord.ui.Button, item)
+        if button.custom_id == "app_review_override":
+            button.disabled = status == SubmissionStatus.PENDING
+        elif button.custom_id == "app_review_message":
+            button.disabled = applicant_notified
         else:
-            item.disabled = status != SubmissionStatus.PENDING
+            button.disabled = status != SubmissionStatus.PENDING
 
     await message.edit(embed=embed, view=view)
 
@@ -870,7 +879,7 @@ class ApplicationReviewView(discord.ui.View):
 
     def __init__(self, bot=None):
         super().__init__(timeout=None)  # persistent — survives bot restarts
-        self.bot = bot
+        self.bot: "NerpyBot" = bot  # type: ignore[assignment]
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
         if self.bot:
@@ -889,6 +898,7 @@ class ApplicationReviewView(discord.ui.View):
 
     @discord.ui.button(label="Vote", style=discord.ButtonStyle.primary, custom_id="app_review_vote")
     async def vote(self, interaction: discord.Interaction, button: discord.ui.Button):
+        assert interaction.message is not None
         with self.bot.session_scope() as session:
             result = await _validate_review_interaction(self.bot, interaction, session)
             if result is None:
@@ -919,6 +929,7 @@ class ApplicationReviewView(discord.ui.View):
 
     @discord.ui.button(label="Edit Vote", style=discord.ButtonStyle.secondary, custom_id="app_review_edit_vote")
     async def edit_vote(self, interaction: discord.Interaction, button: discord.ui.Button):
+        assert interaction.message is not None
         with self.bot.session_scope() as session:
             result = await _validate_review_interaction(self.bot, interaction, session)
             if result is None:
@@ -951,6 +962,7 @@ class ApplicationReviewView(discord.ui.View):
 
     @discord.ui.button(label="Message", style=discord.ButtonStyle.grey, custom_id="app_review_message")
     async def message_applicant(self, interaction: discord.Interaction, button: discord.ui.Button):
+        assert interaction.message is not None
         if not check_application_permission(interaction, self.bot):
             with self.bot.session_scope() as session:
                 lang = get_guild_language(interaction.guild_id, session)
@@ -999,6 +1011,7 @@ class ApplicationReviewView(discord.ui.View):
 
     @discord.ui.button(label="Override", style=discord.ButtonStyle.danger, custom_id="app_review_override")
     async def override(self, interaction: discord.Interaction, button: discord.ui.Button):
+        assert interaction.message is not None
         if not check_override_permission(interaction, self.bot):
             with self.bot.session_scope() as session:
                 lang = get_guild_language(interaction.guild_id, session)
@@ -1147,7 +1160,7 @@ class ApplicationApplyView(discord.ui.View):
 
     def __init__(self, bot=None):
         super().__init__(timeout=None)  # persistent — survives bot restarts
-        self.bot = bot
+        self.bot: "NerpyBot" = bot  # type: ignore[assignment]
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
         if self.bot:
@@ -1164,6 +1177,7 @@ class ApplicationApplyView(discord.ui.View):
 
     @discord.ui.button(label="Apply", style=discord.ButtonStyle.green, custom_id="app_apply_button")
     async def apply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        assert interaction.message is not None
         # 1. Look up form via apply message ID
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)

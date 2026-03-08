@@ -4,9 +4,9 @@ import logging
 import re
 from datetime import UTC, datetime
 from importlib.metadata import version as pkg_version
-from typing import Literal, Optional
+from typing import Literal, Optional, cast
 
-from discord import Embed, Forbidden, HTTPException, Interaction, Object, Role, app_commands
+from discord import Embed, Forbidden, HTTPException, Interaction, Member, Object, Role, app_commands
 from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError
 from discord.ext.commands import Cog, Context, Greedy, command, hybrid_command
 from models.admin import BotModeratorRole, GuildLanguageConfig, PermissionSubscriber
@@ -68,13 +68,14 @@ class Admin(NerpyBotCog, Cog):
             return True
         if ctx.author.id in self.bot.ops:
             return True
-        if ctx.guild and ctx.author.guild_permissions.administrator:
+        if ctx.guild and cast(Member, ctx.author).guild_permissions.administrator:
             return True
         raise NerpyPermissionError("This command requires administrator permissions or bot operator status.")
 
     @modrole.command(name="get")
     async def _modrole_get(self, interaction: Interaction):
         """Show the currently configured bot-moderator role."""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             entry = BotModeratorRole.get(interaction.guild.id, session)
@@ -92,6 +93,7 @@ class Admin(NerpyBotCog, Cog):
     @modrole.command(name="set")
     async def _modrole_set(self, interaction: Interaction, role: Role):
         """Set the bot-moderator role for this server."""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             entry = BotModeratorRole.get(interaction.guild.id, session)
@@ -106,6 +108,7 @@ class Admin(NerpyBotCog, Cog):
     @modrole.command(name="delete")
     async def _modrole_del(self, interaction: Interaction):
         """Remove the bot-moderator role configuration."""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             BotModeratorRole.delete(interaction.guild.id, session)
@@ -114,6 +117,7 @@ class Admin(NerpyBotCog, Cog):
     @botpermissions.command(name="check")
     async def _botpermissions_check(self, interaction: Interaction) -> None:
         """Check if the bot has all required permissions in this server."""
+        assert interaction.guild is not None
         required = required_permissions_for(self.bot.modules)
         missing = check_guild_permissions(interaction.guild, required)
         emb = build_permissions_embed(interaction.guild, missing, self.bot.client_id, required)
@@ -122,6 +126,7 @@ class Admin(NerpyBotCog, Cog):
     @botpermissions.command(name="subscribe")
     async def _botpermissions_subscribe(self, interaction: Interaction) -> None:
         """Get DM notifications about missing permissions on bot restart."""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             existing = PermissionSubscriber.get(interaction.guild.id, interaction.user.id, session)
@@ -136,6 +141,7 @@ class Admin(NerpyBotCog, Cog):
     @botpermissions.command(name="unsubscribe")
     async def _botpermissions_unsubscribe(self, interaction: Interaction) -> None:
         """Stop receiving DM notifications about missing permissions."""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             existing = PermissionSubscriber.get(interaction.guild.id, interaction.user.id, session)
@@ -151,6 +157,7 @@ class Admin(NerpyBotCog, Cog):
     @app_commands.describe(language="Language code to set for this server")
     async def _language_set(self, interaction: Interaction, language: str):
         """Set the server's language preference for bot responses."""
+        assert interaction.guild is not None
         language = language.lower()
         if language not in available_languages():
             with self.bot.session_scope() as session:
@@ -184,6 +191,7 @@ class Admin(NerpyBotCog, Cog):
     @language.command(name="get")
     async def _language_get(self, interaction: Interaction):
         """Show the current language preference for this server."""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             config = GuildLanguageConfig.get(interaction.guild.id, session)
             if config is not None:
@@ -214,7 +222,7 @@ class Admin(NerpyBotCog, Cog):
         await ctx.send(f"\U0001f3d3 Pong! **{latency}ms**")
 
     @command(name="help")
-    async def _help(self, ctx: Context, *, name: str = None) -> None:
+    async def _help(self, ctx: Context, *, name: str | None = None) -> None:
         """Show available operator commands, or details for a specific one. [operator]"""
         require_operator(ctx)
 
@@ -316,7 +324,7 @@ class Admin(NerpyBotCog, Cog):
         self.bot.log.info(f"debug logging toggled to {self.bot.debug} by {ctx.author}")
 
     @command(name="errors")
-    async def _errors(self, ctx: Context, action: str = "status", *, arg: str = None) -> None:
+    async def _errors(self, ctx: Context, action: str = "status", *, arg: str | None = None) -> None:
         """Manage error notifications. [operator]
 
         Subcommands:
@@ -400,7 +408,7 @@ class Admin(NerpyBotCog, Cog):
         )
 
     @command(name="enable")
-    async def _enable(self, ctx: Context, *, module: str = None) -> None:
+    async def _enable(self, ctx: Context, *, module: str | None = None) -> None:
         """Re-enable a disabled module, or all if none specified. [operator]
 
         Usage:

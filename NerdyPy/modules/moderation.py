@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from datetime import UTC, datetime, time, timedelta
-from typing import Optional
+from typing import Optional, cast
 
 from discord import Color, Embed, Interaction, Member, TextChannel, app_commands
 from discord.app_commands import checks
@@ -170,6 +170,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         reminder_message_source: Optional[str] = None,
     ):
         """Activates the AutoKicker. [bot-moderator]"""
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild.id, session)
 
@@ -233,6 +234,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             Messages to keep after deletion. Can be used in combination with "delete_older_than".
         delete_pinned_message: bool
         """
+        assert interaction.guild is not None
         channel_id = channel.id
         channel_name = channel.name
 
@@ -291,6 +293,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         interaction
         channel
         """
+        assert interaction.guild is not None
         channel_id = channel.id
         channel_name = channel.name
 
@@ -318,6 +321,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         interaction
         """
 
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild.id, session)
             configurations = AutoDelete.get_by_guild(interaction.guild.id, session)
@@ -360,6 +364,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel: discord.TextChannel
             The channel to pause auto-deletion for
         """
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild.id, session)
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel.id, session)
@@ -390,6 +395,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel: discord.TextChannel
             The channel to resume auto-deletion for
         """
+        assert interaction.guild is not None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild.id, session)
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel.id, session)
@@ -433,6 +439,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             Messages to keep after deletion. Can be used in combination with "delete_older_than".
         delete_pinned_message: bool
         """
+        assert interaction.guild is not None
         channel_id = channel.id
         channel_name = channel.name
 
@@ -461,21 +468,23 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     @checks.has_permissions(moderate_members=True)
     async def _get_user_info(self, interaction: Interaction, member: Optional[Member] = None):
         """displays information about given user [bot-moderator]"""
+        assert interaction.guild is not None
         lang = self._lang(interaction.guild.id)
-        member = member or interaction.user
-        created = member.created_at.strftime("%d. %B %Y - %H:%M")
-        joined = member.joined_at.strftime("%d. %B %Y - %H:%M")
+        effective_member = cast(Member, member if member is not None else interaction.user)
+        created = effective_member.created_at.strftime("%d. %B %Y - %H:%M")
+        joined = effective_member.joined_at.strftime("%d. %B %Y - %H:%M") if effective_member.joined_at else "Unknown"
 
-        emb = Embed(title=member.display_name, color=Color(0xE74C3C))
-        emb.description = get_string(lang, "moderation.user.info.original_name", name=member.name)
-        emb.set_thumbnail(url=member.avatar.url)
+        emb = Embed(title=effective_member.display_name, color=Color(0xE74C3C))
+        emb.description = get_string(lang, "moderation.user.info.original_name", name=effective_member.name)
+        emb.set_thumbnail(url=effective_member.display_avatar.url)
         emb.add_field(name=get_string(lang, "moderation.user.info.created"), value=created)
         emb.add_field(name=get_string(lang, "moderation.user.info.joined"), value=joined)
         emb.add_field(
-            name=get_string(lang, "moderation.user.info.top_role"), value=member.top_role.name.replace("@", "")
+            name=get_string(lang, "moderation.user.info.top_role"),
+            value=effective_member.top_role.name.replace("@", ""),
         )
         rn = []
-        for r in member.roles:
+        for r in effective_member.roles:
             rn.append(r.name.replace("@", ""))
 
         emb.add_field(name=get_string(lang, "moderation.user.info.roles"), value=", ".join(rn), inline=False)
@@ -495,17 +504,18 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         show_only_users_without_roles: Optional[bool]
             If True shows only Users without a Role. (The role everyone is not considered a given role)
         """
+        assert interaction.guild is not None
         lang = self._lang(interaction.guild.id)
         msg = ""
         if show_only_users_without_roles:
             for member in interaction.guild.members:
                 if len(member.roles) == 1:
-                    joined = member.joined_at.strftime("%d. %b %Y - %H:%M")
+                    joined = member.joined_at.strftime("%d. %b %Y - %H:%M") if member.joined_at else "Unknown"
                     msg += f"> {get_string(lang, 'moderation.user.list.entry_no_roles', name=member.display_name, joined=joined)}\n"
         else:
             for member in interaction.guild.members:
                 created = member.created_at.strftime("%d. %b %Y - %H:%M")
-                joined = member.joined_at.strftime("%d. %b %Y - %H:%M")
+                joined = member.joined_at.strftime("%d. %b %Y - %H:%M") if member.joined_at else "Unknown"
                 msg += f"> {get_string(lang, 'moderation.user.list.entry_full', name=member.display_name, created=created, joined=joined)}\n"
 
         if msg == "":
@@ -518,6 +528,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     @app_commands.command()
     async def membercount(self, interaction: Interaction):
         """displays the current membercount of the server [bot-moderator]"""
+        assert interaction.guild is not None
         lang = self._lang(interaction.guild.id)
         emb = Embed(
             description=get_string(lang, "moderation.membercount", count=interaction.guild.member_count),

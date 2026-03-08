@@ -69,7 +69,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     def __init__(self, bot):
         super().__init__(bot)
 
-    def _lang(self, guild_id: int) -> str:
+    def _lang(self, guild_id: int | None) -> str:
         with self.bot.session_scope() as session:
             return get_guild_language(guild_id, session)
 
@@ -88,12 +88,12 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     async def _form_name_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         with self.bot.session_scope() as session:
-            return _filter_choices(ApplicationForm.get_all_by_guild(interaction.guild.id, session), current)
+            return _filter_choices(ApplicationForm.get_all_by_guild(interaction.guild_id, session), current)
 
     async def _template_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
-            templates = ApplicationTemplate.get_available(interaction.guild.id, session)
+            templates = ApplicationTemplate.get_available(interaction.guild_id, session)
             choices = []
             for tpl in templates:
                 if tpl.IsBuiltIn:
@@ -119,7 +119,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         self, interaction: Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
         with self.bot.session_scope() as session:
-            return _filter_choices(ApplicationTemplate.get_guild_templates(interaction.guild.id, session), current)
+            return _filter_choices(ApplicationTemplate.get_guild_templates(interaction.guild_id, session), current)
 
     # -- Permission helper ---------------------------------------------------
 
@@ -166,7 +166,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     ) -> tuple[str, "ApplicationForm"] | None:
         """Look up a form by name; returns (lang, form) or sends an error and returns None."""
         lang = get_guild_language(interaction.guild_id, session)
-        form = ApplicationForm.get(name, interaction.guild.id, session)
+        form = ApplicationForm.get(name, interaction.guild_id, session)
         if not form:
             await interaction.response.send_message(
                 get_string(lang, "application.form_not_found", name=name), ephemeral=True
@@ -182,6 +182,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         review_channel: TextChannel | None,
     ) -> tuple[str, str] | None:
         """Check manage permission and resolve description_message; returns (lang, prefill) or None on error."""
+        assert interaction.guild is not None
         if not self._has_manage_permission(interaction):
             lang = self._lang(interaction.guild_id)
             await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
@@ -240,7 +241,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         form_id = None
 
         with self.bot.session_scope() as session:
-            form = ApplicationForm.get(name, interaction.guild.id, session)
+            form = ApplicationForm.get(name, interaction.guild_id, session)
             if not form:
                 msg = get_string(lang, "application.form_not_found", name=name)
                 await _send_ephemeral(interaction, msg)
@@ -328,7 +329,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         lang, prefill_description = result
 
         with self.bot.session_scope() as session:
-            existing = ApplicationForm.get(name, interaction.guild.id, session)
+            existing = ApplicationForm.get(name, interaction.guild_id, session)
             if existing:
                 await interaction.response.send_message(
                     get_string(lang, "application.form_already_exists", name=name), ephemeral=True
@@ -411,7 +412,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
-            forms = ApplicationForm.get_all_by_guild(interaction.guild.id, session)
+            forms = ApplicationForm.get_all_by_guild(interaction.guild_id, session)
             if not forms:
                 await interaction.response.send_message(get_string(lang, "application.list.empty"), ephemeral=True)
                 return
@@ -509,7 +510,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         # If edit-description flag is set and no description yet → show modal
         if edit_description and description is None:
             with self.bot.session_scope() as session:
-                form = ApplicationForm.get(name, interaction.guild.id, session)
+                form = ApplicationForm.get(name, interaction.guild_id, session)
                 if not form:
                     await interaction.response.send_message(
                         get_string(lang, "application.form_not_found", name=name), ephemeral=True
@@ -561,7 +562,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
-            templates = ApplicationTemplate.get_available(interaction.guild.id, session)
+            templates = ApplicationTemplate.get_available(interaction.guild_id, session)
             if not templates:
                 await interaction.response.send_message(
                     get_string(lang, "application.template.list.empty"), ephemeral=True
@@ -612,7 +613,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
-            tpl = ApplicationTemplate.get_by_name(name, interaction.guild.id, session)
+            tpl = ApplicationTemplate.get_by_name(name, interaction.guild_id, session)
             if not tpl:
                 await interaction.response.send_message(
                     get_string(lang, "application.template.not_found", name=name), ephemeral=True
@@ -677,7 +678,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
-            existing = ApplicationTemplate.get_by_name(name, interaction.guild.id, session)
+            existing = ApplicationTemplate.get_by_name(name, interaction.guild_id, session)
             if existing and not existing.IsBuiltIn:
                 await interaction.response.send_message(
                     get_string(lang, "application.template.already_exists", name=name), ephemeral=True
@@ -715,14 +716,14 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         lang, prefill_description = result
 
         with self.bot.session_scope() as session:
-            tpl = ApplicationTemplate.get_by_name(template, interaction.guild.id, session)
+            tpl = ApplicationTemplate.get_by_name(template, interaction.guild_id, session)
             if not tpl:
                 await interaction.response.send_message(
                     get_string(lang, "application.template.not_found", name=template), ephemeral=True
                 )
                 return
 
-            existing = ApplicationForm.get(name, interaction.guild.id, session)
+            existing = ApplicationForm.get(name, interaction.guild_id, session)
             if existing:
                 await interaction.response.send_message(
                     get_string(lang, "application.form_already_exists", name=name), ephemeral=True
@@ -735,7 +736,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         # Capture context in a closure so the modal callback can create the form
         bot = self.bot
-        guild_id = interaction.guild.id
+        guild_id = interaction.guild_id
         review_channel_id = review_channel.id
         apply_channel_id = channel.id if channel else None
 
@@ -826,14 +827,14 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
-            src_form = ApplicationForm.get(form, interaction.guild.id, session)
+            src_form = ApplicationForm.get(form, interaction.guild_id, session)
             if not src_form:
                 await interaction.response.send_message(
                     get_string(lang, "application.form_not_found", name=form), ephemeral=True
                 )
                 return
 
-            existing_tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
+            existing_tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild_id, session)
             if existing_tpl:
                 await interaction.response.send_message(
                     get_string(lang, "application.template.already_exists", name=template_name), ephemeral=True
@@ -841,7 +842,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 return
 
             tpl = ApplicationTemplate(
-                GuildId=interaction.guild.id,
+                GuildId=interaction.guild_id,
                 Name=template_name,
                 IsBuiltIn=False,
                 ApprovalMessage=src_form.ApprovalMessage,
@@ -874,7 +875,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
-            tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
+            tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild_id, session)
             if not tpl:
                 await interaction.response.send_message(
                     get_string(lang, "application.template.not_found", name=template_name), ephemeral=True
@@ -903,7 +904,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     ) -> None:
         """Validate and persist template message changes, then confirm."""
         with self.bot.session_scope() as session:
-            tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
+            tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild_id, session)
             if not tpl:
                 msg = get_string(lang, "application.template.not_found", name=template_name)
                 await _send_ephemeral(interaction, msg)
@@ -992,7 +993,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         # When no text provided at all → open modal pre-filled with current values
         if approval_message is None and denial_message is None:
             with self.bot.session_scope() as session:
-                tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
+                tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild_id, session)
                 if not tpl:
                     await interaction.response.send_message(
                         get_string(lang, "application.template.not_found", name=template_name), ephemeral=True
@@ -1026,7 +1027,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
-            form = ApplicationForm.get(name, interaction.guild.id, session)
+            form = ApplicationForm.get(name, interaction.guild_id, session)
             if not form:
                 await interaction.response.send_message(
                     get_string(lang, "application.form_not_found", name=name), ephemeral=True
@@ -1120,13 +1121,13 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         form_name = form_data["name"].strip()
 
         with self.bot.session_scope() as session:
-            existing = ApplicationForm.get(form_name, interaction.guild.id, session)
+            existing = ApplicationForm.get(form_name, interaction.guild_id, session)
             if existing:
                 await interaction.user.send(get_string(lang, "application.import.form_exists", name=form_name))
                 return
 
             form = ApplicationForm(
-                GuildId=interaction.guild.id,
+                GuildId=interaction.guild_id,
                 Name=form_name,
                 RequiredApprovals=approvals,
                 RequiredDenials=denials,
@@ -1197,6 +1198,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     @checks.has_permissions(administrator=True)
     async def _managerole_list(self, interaction: Interaction):
         """List all configured application manager roles."""
+        assert interaction.guild is not None
         lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             role_ids = ApplicationGuildRole.get_role_ids(interaction.guild_id, "manager", session)
@@ -1205,10 +1207,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 get_string(lang, "application.managerole.list_empty"), ephemeral=True
             )
             return
-        lines = [
-            interaction.guild.get_role(rid).mention if interaction.guild.get_role(rid) else f"<@&{rid}>"
-            for rid in role_ids
-        ]
+        lines = [role.mention if (role := interaction.guild.get_role(rid)) else f"<@&{rid}>" for rid in role_ids]
         embed = discord.Embed(
             title=get_string(lang, "application.managerole.list_title"),
             description="\n".join(lines),
@@ -1268,6 +1267,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     @checks.has_permissions(administrator=True)
     async def _reviewerrole_list(self, interaction: Interaction):
         """List all configured application reviewer roles."""
+        assert interaction.guild is not None
         lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             role_ids = ApplicationGuildRole.get_role_ids(interaction.guild_id, "reviewer", session)
@@ -1276,10 +1276,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 get_string(lang, "application.reviewerrole.list_empty"), ephemeral=True
             )
             return
-        lines = [
-            interaction.guild.get_role(rid).mention if interaction.guild.get_role(rid) else f"<@&{rid}>"
-            for rid in role_ids
-        ]
+        lines = [role.mention if (role := interaction.guild.get_role(rid)) else f"<@&{rid}>" for rid in role_ids]
         embed = discord.Embed(
             title=get_string(lang, "application.reviewerrole.list_title"),
             description="\n".join(lines),
