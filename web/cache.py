@@ -17,6 +17,7 @@ class ValkeyClient:
     PREFIX = "nerpybot"
 
     def __init__(self, client: Any):
+        """Initialize with a Valkey (or fake) client instance."""
         self._client = client
 
     @classmethod
@@ -31,15 +32,18 @@ class ValkeyClient:
         return cls(_FakeValkeyClient())
 
     def _key(self, *parts: str) -> str:
+        """Build a namespaced Valkey key from the given parts."""
         return ":".join([self.PREFIX, *parts])
 
     # ── Permission cache ──
 
     def set_permissions(self, user_id: str, perms: dict, ttl: int) -> None:
+        """Cache guild permission dict for a user with a TTL (in seconds)."""
         key = self._key("user", user_id, "perms")
         self._client.set(key, json.dumps(perms), ex=ttl)
 
     def get_permissions(self, user_id: str) -> dict | None:
+        """Return cached guild permissions for a user, or None if expired/absent."""
         key = self._key("user", user_id, "perms")
         raw = self._client.get(key)
         if raw is None:
@@ -49,16 +53,19 @@ class ValkeyClient:
     # ── Discord token cache ──
 
     def set_discord_token(self, user_id: str, token: str, ttl: int) -> None:
+        """Cache the Discord OAuth2 access token for a user with a TTL (in seconds)."""
         key = self._key("user", user_id, "token")
         self._client.set(key, token, ex=ttl)
 
     def get_discord_token(self, user_id: str) -> str | None:
+        """Return the cached Discord OAuth2 access token, or None if absent/expired."""
         key = self._key("user", user_id, "token")
         return self._client.get(key)
 
     # ── Cleanup ──
 
     def delete_user_cache(self, user_id: str) -> None:
+        """Delete all cached data for a user (permissions + token)."""
         self._client.delete(
             self._key("user", user_id, "perms"),
             self._key("user", user_id, "token"),
@@ -100,6 +107,7 @@ class ValkeyClient:
         self._client.expire(key, 10)
 
     def close(self) -> None:
+        """Close the underlying Valkey connection if supported."""
         if hasattr(self._client, "close"):
             self._client.close()
 
@@ -108,29 +116,37 @@ class _FakeValkeyClient:
     """Minimal dict-backed Valkey fake for unit tests."""
 
     def __init__(self):
+        """Initialize the fake client with an empty in-memory store."""
         self._store: dict[str, str] = {}
 
     def set(self, key: str, value: str, ex: int | None = None) -> None:
+        """Store a value (TTL ignored in fake)."""
         self._store[key] = value
 
     def get(self, key: str) -> str | None:
+        """Return a stored value or None if absent."""
         return self._store.get(key)
 
     def delete(self, *keys: str) -> None:
+        """Remove one or more keys from the store."""
         for key in keys:
             self._store.pop(key, None)
 
     def publish(self, channel: str, message: str) -> None:
+        """No-op — pub/sub is not simulated in the fake."""
         pass  # no-op in fake
 
     def lpush(self, key: str, value: str) -> None:
+        """Push a value to a list key (fake stores only the last value)."""
         self._store[key] = value
 
     def blpop(self, key: str, timeout: int = 0) -> tuple[str, str] | None:
+        """Pop and return a list item, or None if the key is absent."""
         val = self._store.pop(key, None)
         if val is not None:
             return (key, val)
         return None
 
     def expire(self, key: str, seconds: int) -> None:
+        """No-op — expiry is not simulated in the fake."""
         pass  # no-op in fake

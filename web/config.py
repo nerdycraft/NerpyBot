@@ -32,6 +32,7 @@ def _get(sources: list[dict], *keys: str, default: str = "") -> str:
 
 
 def _require(value: str, name: str) -> str:
+    """Raise ValueError if value is empty, otherwise return it."""
     if not value:
         raise ValueError(f"Required config value {name!r} is not set (via config file or env var)")
     return value
@@ -62,6 +63,7 @@ class WebConfig:
 
     @classmethod
     def _build(cls, file_cfg: dict) -> WebConfig:
+        """Build a WebConfig by layering env vars over file config over defaults."""
         # Layer: env vars (highest priority) → file config → defaults
         env = _env_to_dict()
         sources = [env, file_cfg]

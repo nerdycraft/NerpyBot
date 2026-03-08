@@ -43,6 +43,7 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        """Initialize app state on startup and clean up on shutdown."""
         app.state.engine = engine
         app.state.session_factory = session_factory
         app.state.config = config
@@ -73,6 +74,7 @@ def create_app(
     app.dependency_overrides[get_valkey] = lambda: valkey_client
 
     def _get_db_session():
+        """Yield a SQLAlchemy session, committing on success and rolling back on error."""
         session = session_factory()
         try:
             yield session

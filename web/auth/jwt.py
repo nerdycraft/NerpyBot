@@ -15,6 +15,17 @@ def create_access_token(
     secret: str,
     expiry_hours: int,
 ) -> str:
+    """Create a signed JWT token for the given user.
+
+    Args:
+        user_id: Discord user snowflake ID (string).
+        username: Discord username for display purposes.
+        secret: HMAC secret used to sign the token.
+        expiry_hours: Lifetime of the token in hours.
+
+    Returns:
+        Encoded JWT string.
+    """
     expire = datetime.now(UTC) + timedelta(hours=expiry_hours)
     payload = {
         "sub": user_id,

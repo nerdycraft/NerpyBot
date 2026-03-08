@@ -51,6 +51,7 @@ async def get_language(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """Return the configured language for a guild (defaults to 'en')."""
     from models.admin import GuildLanguageConfig
 
     cfg = GuildLanguageConfig.get(guild_id, session)
@@ -65,6 +66,7 @@ async def set_language(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """Set or update the bot language for a guild."""
     from models.admin import GuildLanguageConfig
 
     cfg = GuildLanguageConfig.get(guild_id, session)
@@ -85,6 +87,7 @@ async def list_moderator_roles(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """List the configured moderator role(s) for a guild."""
     from models.admin import BotModeratorRole
 
     role = BotModeratorRole.get(guild_id, session)
@@ -100,6 +103,7 @@ async def add_moderator_role(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """Set or replace the moderator role for a guild."""
     from models.admin import BotModeratorRole
 
     existing = BotModeratorRole.get(guild_id, session)
@@ -118,6 +122,7 @@ async def delete_moderator_role(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """Remove the moderator role for a guild. Returns 404 if the role is not configured."""
     from models.admin import BotModeratorRole
 
     existing = BotModeratorRole.get(guild_id, session)
@@ -136,6 +141,7 @@ async def get_leave_message(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """Return the leave message configuration for a guild."""
     from models.leavemsg import LeaveMessage
 
     cfg = LeaveMessage.get(guild_id, session)
@@ -156,6 +162,7 @@ async def set_leave_message(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """Create or update the leave message configuration for a guild."""
     from models.leavemsg import LeaveMessage
 
     cfg = LeaveMessage.get(guild_id, session)
@@ -185,6 +192,7 @@ async def list_auto_delete(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """List all auto-delete channel rules for a guild."""
     from models.moderation import AutoDelete
 
     rules = AutoDelete.get_by_guild(guild_id, session)
@@ -209,6 +217,7 @@ async def create_auto_delete(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """Create a new auto-delete rule for a channel. Returns 409 if a rule already exists for that channel."""
     from models.moderation import AutoDelete
 
     rule = AutoDelete(
@@ -246,6 +255,7 @@ async def update_auto_delete(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """Update an existing auto-delete rule. Returns 404 if the rule does not belong to this guild."""
     from models.moderation import AutoDelete
 
     rule = session.query(AutoDelete).filter(AutoDelete.Id == rule_id, AutoDelete.GuildId == guild_id).first()
@@ -277,6 +287,7 @@ async def delete_auto_delete(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """Delete an auto-delete rule. Returns 404 if not found for this guild."""
     from models.moderation import AutoDelete
 
     rule = session.query(AutoDelete).filter(AutoDelete.Id == rule_id, AutoDelete.GuildId == guild_id).first()
@@ -295,6 +306,7 @@ async def get_auto_kicker(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """Return the auto-kicker configuration for a guild."""
     from models.moderation import AutoKicker
 
     cfg = AutoKicker.get_by_guild(guild_id, session)
@@ -315,6 +327,7 @@ async def set_auto_kicker(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """Create or update the auto-kicker configuration for a guild."""
     from models.moderation import AutoKicker
 
     cfg = AutoKicker.get_by_guild(guild_id, session)
@@ -344,6 +357,7 @@ async def list_reaction_roles(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """List all reaction role messages configured for a guild (read-only)."""
     from models.reactionrole import ReactionRoleMessage
 
     messages = ReactionRoleMessage.get_by_guild(guild_id, session)
@@ -367,6 +381,7 @@ async def list_role_mappings(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """List all delegated role mappings for a guild."""
     from models.rolemanage import RoleMapping
 
     mappings = RoleMapping.get_by_guild(guild_id, session)
@@ -388,6 +403,7 @@ async def create_role_mapping(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """Create a new role mapping. Returns 409 if the mapping already exists."""
     from models.rolemanage import RoleMapping
 
     mapping = RoleMapping(
@@ -416,6 +432,7 @@ async def delete_role_mapping(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """Delete a role mapping. Returns 404 if not found for this guild."""
     from models.rolemanage import RoleMapping
 
     mapping = session.query(RoleMapping).filter(RoleMapping.Id == mapping_id, RoleMapping.GuildId == guild_id).first()
@@ -434,6 +451,7 @@ async def list_reminders(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """List all reminder schedules for a guild (read-only)."""
     from models.reminder import ReminderMessage
 
     reminders = ReminderMessage.get_all_by_guild(guild_id, session)
@@ -462,6 +480,7 @@ async def list_application_forms(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """List all application forms with their questions for a guild (read-only)."""
     from models.application import ApplicationForm
 
     forms = ApplicationForm.get_all_by_guild(guild_id, session)
@@ -493,6 +512,7 @@ async def get_wow_config(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
+    """Return WoW guild news configs and crafting board config for a guild (read-only)."""
     from models.wow import CraftingBoardConfig, WowGuildNewsConfig
 
     news_configs = WowGuildNewsConfig.get_all_by_guild(guild_id, session)
