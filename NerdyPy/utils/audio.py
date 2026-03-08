@@ -142,6 +142,12 @@ class Audio:
                 f"Fetching song buffer for {song.title} in channel {song.channel.name} ({song.channel.id})"
             )
             await song.fetch_buffer()
+        if song.stream is None:
+            self.bot.log.error(
+                f"[{song.channel.guild.name} ({song.channel.guild.id})]: "
+                f"failed to create audio source for {song.title!r}"
+            )
+            return
         await self._join_channel(song.channel)
 
         guild_id = song.channel.guild.id
