@@ -365,7 +365,7 @@ wow:
       not_crafter: "Nur der aktive Handwerker oder ein Admin kann diesen Auftrag abschließen."
       not_in_progress: "Dieser Auftrag ist nicht in Bearbeitung."
       done: "Auftrag abgeschlossen."
-      dm_complete: "Dein Handwerksauftrag für **{item}** wurde abgeschlossen! 🎉"
+      dm_complete: "Dein Handwerksauftrag für **{item}** wurde von {crafter} abgeschlossen! 🎉"
     cancel:
       not_allowed: "Nur der Auftragsersteller oder ein Admin kann diesen Auftrag abbrechen."
       done: "Auftrag abgebrochen."

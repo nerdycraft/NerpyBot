@@ -45,7 +45,7 @@ music:
     progress: "Progress"
     not_in_channel: "You must be in the voice channel to use this."
     queue_empty: "Queue is empty."
-    queue_header: "\U0001f3b5 Queue"
+    queue_header: "🎵 Queue"
     queue_footer: "{count} songs"
   skip:
     success: "Skipped current track."
@@ -181,7 +181,11 @@ leavemsg:
     no_content: "That message has no text content."
   status:
     not_enabled: "Leave messages are not enabled for this server."
-    enabled: "**Leave messages:** Enabled\n**Channel:** {channel}\n**Message:** {message}"
+    enabled: "**Leave messages:** Enabled
+
+      **Channel:** {channel}
+
+      **Message:** {message}"
 
 reminder:
   create:
@@ -366,7 +370,7 @@ wow:
       not_crafter: "Only the active crafter or an admin can complete this order."
       not_in_progress: "This order is not in progress."
       done: "Order completed."
-      dm_complete: "Your crafting order for **{item}** has been completed! 🎉"
+      dm_complete: "Your crafting order for **{item}** has been completed by {crafter}! 🎉"
     cancel:
       not_allowed: "Only the order creator or an admin can cancel this order."
       done: "Order cancelled."
@@ -617,7 +621,10 @@ application:
       edit_q_select_invalid: "Enter a number."
       edit_q_select_out_of_range: "Enter 1–{total}."
       edit_q_title: "Re-enter question {num}"
-      edit_q_description: "Current: _{current}_\n\nType the replacement:"
+      edit_q_description: "Current: _{current}_
+
+
+        Type the replacement:"
       done_title: "Form created: {name}"
       done_description: "Added {count} question(s)."
       cancel_title: "Form creation cancelled"
@@ -633,14 +640,19 @@ application:
       edit_q_select_invalid: "Enter a number."
       edit_q_select_out_of_range: "Enter 1–{total}."
       edit_q_title: "Re-enter question {num}"
-      edit_q_description: "Current: _{current}_\n\nType the replacement:"
+      edit_q_description: "Current: _{current}_
+
+
+        Type the replacement:"
       done_title: "Template created: {name}"
       done_description: "Added {count} question(s)."
       cancel_title: "Template creation cancelled"
       cancel_description: "No template was saved."
     edit:
       title: "Editing form: {name}"
-      init_description: "📝 = add question | 🗑️ = remove question\n🔀 = reorder | ✅ = done"
+      init_description: "📝 = add question | 🗑️ = remove question
+
+        🔀 = reorder | ✅ = done"
       add_title: "Add question"
       add_description: "Type the new question:"
       remove_title: "Remove question"
@@ -677,4 +689,8 @@ application:
       cancelled_title: "Application cancelled"
       cancelled_description: "Your application has been cancelled."
       channel_unreachable_title: "Application review channel unreachable"
-      channel_unreachable_description: "Someone tried to submit an application for form **{form}** in **{guild}**, but the review channel (ID: `{channel_id}`) is not accessible to the bot.\n\nThe submission was not saved. Please check the channel permissions or reconfigure the form."
+      channel_unreachable_description:
+        "Someone tried to submit an application for form **{form}** in **{guild}**, but the review channel (ID: `{channel_id}`) is not accessible to the bot.
+
+
+        The submission was not saved. Please check the channel permissions or reconfigure the form."
