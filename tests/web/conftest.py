@@ -85,7 +85,7 @@ def web_config():
 
 
 @pytest.fixture
-def client(web_db_engine, web_db_session, web_config, fake_valkey):
+def client(web_db_engine, web_config, fake_valkey):
     """FastAPI TestClient with overridden dependencies."""
     from fastapi.testclient import TestClient
 
@@ -93,9 +93,18 @@ def client(web_db_engine, web_db_session, web_config, fake_valkey):
     from web.dependencies import get_db_session
 
     app = create_app(web_config, fake_valkey)
+    test_session_factory = sessionmaker(bind=web_db_engine, expire_on_commit=False)
 
     def override_session():
-        yield web_db_session
+        session = test_session_factory()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
     app.dependency_overrides[get_db_session] = override_session
 

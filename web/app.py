@@ -35,7 +35,10 @@ def create_app(
     if config is None:
         config = WebConfig.load(config_path)
 
-    engine = create_engine(config.db_connection_string)
+    engine_kwargs = {}
+    if config.db_connection_string.startswith("sqlite"):
+        engine_kwargs["connect_args"] = {"check_same_thread": False}
+    engine = create_engine(config.db_connection_string, **engine_kwargs)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
 
     if valkey_client is None:
