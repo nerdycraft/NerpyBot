@@ -3,6 +3,7 @@
 import logging
 import re
 from traceback import format_exception
+from typing import cast
 
 import discord
 from discord import Color, Embed, Interaction, TextChannel
@@ -149,16 +150,18 @@ def error_context(source: Context | Interaction) -> str:
 
     Accepts both Interaction (slash) and Context (prefix fallback).
     """
-    if isinstance(source, Context):
-        # prefix command
-        cmd = source.command.qualified_name if source.command else "unknown"
-        user = f"{source.author} ({source.author.id})"
-        guild = f"{source.guild.name} ({source.guild.id})" if source.guild else "DM"
+    if hasattr(source, "interaction"):
+        # Context (prefix commands) — has an .interaction attribute
+        ctx = cast(Context, source)
+        cmd = ctx.command.qualified_name if ctx.command else "unknown"
+        user = f"{ctx.author} ({ctx.author.id})"
+        guild = f"{ctx.guild.name} ({ctx.guild.id})" if ctx.guild else "DM"
     else:
-        # slash command
-        cmd = source.command.qualified_name if source.command else "unknown"
-        user = f"{source.user} ({source.user.id})"
-        guild = f"{source.guild.name} ({source.guild.id})" if source.guild else "DM"
+        # Interaction (slash commands)
+        itr = cast(Interaction, source)
+        cmd = itr.command.qualified_name if itr.command else "unknown"
+        user = f"{itr.user} ({itr.user.id})"
+        guild = f"{itr.guild.name} ({itr.guild.id})" if itr.guild else "DM"
     return f"[{guild}] {user} -> /{cmd}"
 
 

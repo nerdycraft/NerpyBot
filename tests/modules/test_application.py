@@ -522,6 +522,10 @@ class TestApplicationEdit:
 
 
 class TestApplicationSettings:
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        load_strings()
+
     @pytest.mark.asyncio
     async def test_settings_updates_approvals(self, app_cog, admin_interaction, db_session):
         _make_form(db_session, guild_id=admin_interaction.guild.id, name="SetForm")
@@ -682,6 +686,7 @@ class TestApplicationSettings:
 
         mi = _make_modal_interaction()
         mi.guild = admin_interaction.guild
+        mi.guild_id = admin_interaction.guild.id
 
         # Simulate typing "New description!" in the modal
         modal.description_input = MagicMock()
