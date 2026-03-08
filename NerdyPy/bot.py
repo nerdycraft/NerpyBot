@@ -5,7 +5,6 @@ Main Class of the NerpyBot
 
 import os
 import asyncio
-from asyncio import CancelledError, create_task, run
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -261,7 +260,7 @@ class NerpyBot(Bot):
                 activity = random_choices(ACTIVITIES, weights=ACTIVITY_WEIGHTS)[0]
                 await self.change_presence(activity=Game(name=activity))
                 await asyncio.sleep(random_uniform(120, 420))
-        except CancelledError:
+        except asyncio.CancelledError:
             # Task was cancelled during shutdown; exit silently as this is expected.
             return
         except Exception as e:
@@ -275,7 +274,7 @@ class NerpyBot(Bot):
         self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
 
         if not hasattr(self, "_activity_task") or self._activity_task.done():
-            self._activity_task = create_task(self._activity_loop())
+            self._activity_task = asyncio.create_task(self._activity_loop())
 
         required = required_permissions_for(self.modules)
         for guild in self.guilds:
@@ -531,7 +530,7 @@ def main(
 
         while True:
             try:
-                run(bot.start())
+                asyncio.run(bot.start())
                 break  # clean exit
             except LoginFailure:
                 bot.log.error(format_exc())
