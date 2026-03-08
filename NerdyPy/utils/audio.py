@@ -9,7 +9,7 @@ import logging
 import queue
 from collections import defaultdict, deque
 from datetime import UTC, datetime
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 import discord
 from discord import Interaction, VoiceChannel, VoiceClient
@@ -103,7 +103,7 @@ class Audio:
         self.paused_at: dict = {}
         self.now_playing_message: dict = {}
         self.history: dict = defaultdict(lambda: deque(maxlen=50))
-        self._on_song_start_hook: Callable[..., Any] | None = None
+        self._on_song_start_hook: Callable[[int, QueuedSong], Awaitable[Any]] | None = None
 
     @tasks.loop(seconds=10)
     async def _timeout_manager(self):
