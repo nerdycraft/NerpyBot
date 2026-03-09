@@ -186,7 +186,7 @@ function guildIconUrl(): string | null {
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 p-2 space-y-4">
+      <nav class="flex-1 p-2 space-y-4 overflow-y-auto">
         <div v-for="group in sectionGroups" :key="group.label">
           <p class="px-3 pb-1 text-xs font-semibold text-muted-foreground/50 uppercase tracking-wider">
             {{ group.label }}
@@ -209,6 +209,18 @@ function guildIconUrl(): string | null {
           </div>
         </div>
       </nav>
+
+      <!-- Sidebar footer -->
+      <div class="border-t border-border p-3 flex items-center justify-between">
+        <span class="text-xs text-muted-foreground truncate">{{ auth.user?.username }}</span>
+        <button
+          class="text-muted-foreground hover:text-foreground transition-colors"
+          title="Logout"
+          @click="auth.clear(); router.push('/login')"
+        >
+          🚪
+        </button>
+      </div>
     </aside>
 
     <!-- Content area -->
