@@ -50,6 +50,7 @@ class WowGuildNewsConfig(db.BASE):
     GuildId = Column(BigInteger)
     ChannelId = Column(BigInteger)
     WowGuildName = Column(Unicode(100))
+    WowGuildNameDisplay = Column(Unicode(100), nullable=True)
     WowRealmSlug = Column(String(100))
     Region = Column(String(10))
     Language = Column(String(5), default="en")

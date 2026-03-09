@@ -1031,7 +1031,7 @@ def _wow_news_to_schema(cfg, tracked_characters: int = 0) -> "WowGuildNewsSchema
     return WowGuildNewsSchema(
         id=cfg.Id,
         channel_id=str(cfg.ChannelId),
-        wow_guild_name=cfg.WowGuildName,
+        wow_guild_name=cfg.WowGuildNameDisplay or cfg.WowGuildName,
         wow_realm_slug=cfg.WowRealmSlug,
         region=cfg.Region,
         enabled=cfg.Enabled,
@@ -1098,6 +1098,7 @@ async def create_wow_news_config(
         GuildId=guild_id,
         ChannelId=int(body.channel_id),
         WowGuildName=name_slug,
+        WowGuildNameDisplay=body.wow_guild_name,
         WowRealmSlug=body.wow_realm_slug,
         Region=body.region,
         Language=lang,

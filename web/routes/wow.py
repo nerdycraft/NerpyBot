@@ -28,8 +28,11 @@ async def search_realms(
 ) -> list[dict]:
     """Search WoW realms by name for a given region. Returns empty list if bot offline."""
     result = await send_bot_command_sync(vk, "search_realms", {"region": region, "q": q})
-    if result is None:
-        return []
+    if result is None or result.get("error"):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=result["error"] if result else "Bot offline",
+        )
     return result.get("realms", [])
 
 

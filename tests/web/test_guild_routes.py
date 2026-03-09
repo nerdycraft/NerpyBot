@@ -339,7 +339,7 @@ class TestWowNewsConfigCRUD:
         )
         assert response.status_code == 201
         data = response.json()
-        assert data["wow_guild_name"] == "test-guild"  # slugified
+        assert data["wow_guild_name"] == "Test Guild"  # display name preserved
         assert data["active_days"] == 5
         assert data["min_level"] == 20
 

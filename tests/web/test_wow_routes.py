@@ -17,12 +17,11 @@ class TestWowRealmSearch:
         assert len(data) == 1
         assert data[0]["slug"] == "blackrock"
 
-    def test_returns_empty_when_bot_offline(self, client, auth_header):
+    def test_returns_503_when_bot_offline(self, client, auth_header):
         with patch("web.routes.wow.send_bot_command_sync") as mock_send:
             mock_send.return_value = None
             response = client.get("/api/wow/realms?region=eu&q=black", headers=auth_header)
-        assert response.status_code == 200
-        assert response.json() == []
+        assert response.status_code == 503
 
 
 class TestWowGuildValidate:
