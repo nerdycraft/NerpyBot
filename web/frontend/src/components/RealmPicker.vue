@@ -58,6 +58,10 @@ onUnmounted(() => {
   if (debounceTimer) clearTimeout(debounceTimer);
 });
 
+function closeDropdown() {
+  setTimeout(() => (open.value = false), 150);
+}
+
 function select(realm: RealmResult) {
   query.value = realm.name;
   emit("update:modelValue", realm.slug);
@@ -75,7 +79,7 @@ function select(realm: RealmResult) {
       :disabled="!region"
       class="bg-input border border-border rounded px-3 py-2 text-sm w-full disabled:opacity-50"
       @input="onInput"
-      @blur="setTimeout(() => (open = false), 150)"
+      @blur="closeDropdown"
     />
     <p v-if="offline" class="mt-1 text-xs text-muted-foreground">
       Bot offline — enter realm slug manually (e.g. blackrock)
