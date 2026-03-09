@@ -13,7 +13,8 @@ import AutoKickerTab from "./tabs/AutoKickerTab.vue";
 import RoleMappingsTab from "./tabs/RoleMappingsTab.vue";
 import RemindersTab from "./tabs/RemindersTab.vue";
 import ReactionRolesTab from "./tabs/ReactionRolesTab.vue";
-import WowTab from "./tabs/WowTab.vue";
+import WowGuildNewsTab from "./tabs/WowGuildNewsTab.vue";
+import WowCraftingTab from "./tabs/WowCraftingTab.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -69,7 +70,8 @@ const sectionGroups = [
   {
     label: "WoW",
     items: [
-      { id: "wow", label: "WoW", icon: "mdi:sword-cross", component: WowTab },
+      { id: "wow-guild-news", label: "Guild News", icon: "mdi:newspaper-variant-outline", component: WowGuildNewsTab },
+      { id: "wow-crafting", label: "Crafting Boards", icon: "mdi:hammer-wrench", component: WowCraftingTab },
     ],
   },
 ];
