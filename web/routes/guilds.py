@@ -29,6 +29,8 @@ from web.schemas import (
     AutoKickerUpdate,
     CraftingBoardSchema,
     CraftingOrderSchema,
+    CraftingRoleMappingCreate,
+    CraftingRoleMappingSchema,
     LanguageConfig,
     LanguageUpdate,
     LeaveMessageConfig,
@@ -1047,11 +1049,81 @@ async def list_crafting_orders(
             notes=o.Notes,
             status=o.Status,
             creator_id=str(o.CreatorId),
+            creator_name=o.CreatorName,
             crafter_id=str(o.CrafterId) if o.CrafterId else None,
+            crafter_name=o.CrafterName,
             create_date=str(o.CreateDate),
         )
         for o in orders
     ]
+
+
+# ── Crafting Role Mappings ──
+
+
+@router.get("/{guild_id}/wow/crafting-role-mappings", response_model=list[CraftingRoleMappingSchema])
+async def list_crafting_role_mappings(
+    guild_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """List all crafting role mappings for a guild."""
+    from models.wow import CraftingRoleMapping
+    from utils.blizzard import CRAFTING_PROFESSIONS
+
+    profession_name_by_id = {v: k for k, v in CRAFTING_PROFESSIONS.items()}
+    mappings = CraftingRoleMapping.get_by_guild(guild_id, session)
+    return [
+        CraftingRoleMappingSchema(
+            id=m.Id,
+            role_id=str(m.RoleId),
+            profession_id=m.ProfessionId,
+            profession_name=profession_name_by_id.get(m.ProfessionId, str(m.ProfessionId)),
+        )
+        for m in mappings
+    ]
+
+
+@router.post("/{guild_id}/wow/crafting-role-mappings", response_model=CraftingRoleMappingSchema, status_code=201)
+async def create_crafting_role_mapping(
+    guild_id: int,
+    body: CraftingRoleMappingCreate,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Add a role → profession mapping for a guild."""
+    from models.wow import CraftingRoleMapping
+    from utils.blizzard import CRAFTING_PROFESSIONS
+
+    profession_name_by_id = {v: k for k, v in CRAFTING_PROFESSIONS.items()}
+    mapping = CraftingRoleMapping(GuildId=guild_id, RoleId=int(body.role_id), ProfessionId=body.profession_id)
+    session.add(mapping)
+    session.flush()
+    return CraftingRoleMappingSchema(
+        id=mapping.Id,
+        role_id=str(mapping.RoleId),
+        profession_id=mapping.ProfessionId,
+        profession_name=profession_name_by_id.get(mapping.ProfessionId, str(mapping.ProfessionId)),
+    )
+
+
+@router.delete("/{guild_id}/wow/crafting-role-mappings/{mapping_id}", status_code=204)
+async def delete_crafting_role_mapping(
+    guild_id: int,
+    mapping_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Remove a role → profession mapping."""
+    from models.wow import CraftingRoleMapping
+
+    mapping = session.query(CraftingRoleMapping).filter(
+        CraftingRoleMapping.Id == mapping_id, CraftingRoleMapping.GuildId == guild_id
+    ).first()
+    if mapping is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Mapping not found")
+    session.delete(mapping)
 
 
 # ── Discord entities (via bot bridge) ──

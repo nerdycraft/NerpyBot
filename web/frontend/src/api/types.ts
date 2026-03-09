@@ -233,6 +233,18 @@ export interface CraftingBoardSchema {
   description: string | null;
 }
 
+export interface CraftingRoleMappingSchema {
+  id: number;
+  role_id: string;
+  profession_id: number;
+  profession_name: string;
+}
+
+export interface CraftingRoleMappingCreate {
+  role_id: string;
+  profession_id: number;
+}
+
 export interface CraftingOrderSchema {
   id: number;
   item_name: string;
@@ -240,7 +252,9 @@ export interface CraftingOrderSchema {
   notes: string | null;
   status: string;
   creator_id: string;
+  creator_name: string | null;
   crafter_id: string | null;
+  crafter_name: string | null;
   create_date: string;
 }
 

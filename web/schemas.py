@@ -300,6 +300,18 @@ class CraftingBoardSchema(BaseModel):
     description: str | None
 
 
+class CraftingRoleMappingSchema(BaseModel):
+    id: int
+    role_id: str
+    profession_id: int
+    profession_name: str
+
+
+class CraftingRoleMappingCreate(BaseModel):
+    role_id: str
+    profession_id: int
+
+
 class CraftingOrderSchema(BaseModel):
     id: int
     item_name: str
@@ -307,7 +319,9 @@ class CraftingOrderSchema(BaseModel):
     notes: str | None = None
     status: str
     creator_id: str
+    creator_name: str | None = None
     crafter_id: str | None = None
+    crafter_name: str | None = None
     create_date: str
 
 
