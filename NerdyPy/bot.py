@@ -155,6 +155,56 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
 
         run_coroutine_threadsafe(post_apply_button_message(bot, form_id), bot.loop)
         return {"queued": True}
+    elif command == "search_realms":
+        region = payload.get("region", "eu").lower()
+        q = payload.get("q", "").lower().strip()
+        if not q or len(q) < 2:
+            return {"realms": []}
+        wow_cog = bot.cogs.get("WorldofWarcraft")
+        if wow_cog is None:
+            return {"realms": [], "error": "WoW module not loaded"}
+        try:
+            from asyncio import run_coroutine_threadsafe
+
+            future = run_coroutine_threadsafe(wow_cog._ensure_realm_cache(), bot.loop)
+            future.result(timeout=5)
+        except Exception:
+            return {"realms": [], "error": "Realm cache unavailable"}
+        matches = []
+        for key, info in wow_cog._realm_cache.items():
+            if info["region"] != region:
+                continue
+            if q in info["name"].lower() or q in info["slug"].lower():
+                matches.append({"name": info["name"], "slug": info["slug"]})
+            if len(matches) >= 25:
+                break
+        return {"realms": matches}
+    elif command == "validate_wow_guild":
+        region = payload.get("region", "eu").lower()
+        realm_slug = payload.get("realm_slug", "").lower().strip()
+        guild_name = payload.get("guild_name", "").lower().replace(" ", "-").strip()
+        if not realm_slug or not guild_name:
+            return {"valid": False, "display_name": None}
+        wow_cog = bot.cogs.get("WorldofWarcraft")
+        if wow_cog is None:
+            return {"valid": False, "display_name": None, "error": "WoW module not loaded"}
+        try:
+            import asyncio
+            from asyncio import run_coroutine_threadsafe
+
+            api = wow_cog._get_retailclient(region, "en")
+            future = run_coroutine_threadsafe(
+                asyncio.to_thread(api.guild_roster, realmSlug=realm_slug, nameSlug=guild_name),
+                bot.loop,
+            )
+            roster = future.result(timeout=10)
+            if isinstance(roster, dict) and roster.get("code") in (404, 403):
+                return {"valid": False, "display_name": None}
+            display_name = roster.get("guild", {}).get("name", guild_name) if isinstance(roster, dict) else guild_name
+            return {"valid": True, "display_name": display_name}
+        except Exception as e:
+            bot.log.warning("validate_wow_guild failed: %s", e)
+            return {"valid": False, "display_name": None, "error": str(e)}
     else:
         return {"error": f"Unknown command: {command}"}
 
