@@ -294,3 +294,208 @@ class TestWowEndpoints:
         data = response.json()
         assert data["guild_news"] == []
         assert data["crafting_boards"] == []
+
+    def test_get_includes_stats_fields(self, client, auth_header, web_db_session):
+        from models.wow import WowGuildNewsConfig
+
+        cfg = WowGuildNewsConfig(
+            GuildId=GUILD_ID,
+            ChannelId=111,
+            WowGuildName="test-guild",
+            WowRealmSlug="blackrock",
+            Region="eu",
+            Language="en",
+            ActiveDays=7,
+            MinLevel=10,
+            Enabled=True,
+        )
+        web_db_session.add(cfg)
+        web_db_session.commit()
+
+        response = client.get(f"/api/guilds/{GUILD_ID}/wow", headers=auth_header)
+        data = response.json()
+        assert len(data["guild_news"]) == 1
+        gn = data["guild_news"][0]
+        assert gn["min_level"] == 10
+        assert gn["active_days"] == 7
+        assert gn["tracked_characters"] == 0
+        assert gn["last_activity"] is None
+
+
+class TestWowNewsConfigCRUD:
+    def test_create_news_config(self, client, auth_header, web_db_session):
+        body = {
+            "channel_id": "111",
+            "wow_guild_name": "Test Guild",
+            "wow_realm_slug": "blackrock",
+            "region": "eu",
+            "active_days": 5,
+            "min_level": 20,
+        }
+        response = client.post(
+            f"/api/guilds/{GUILD_ID}/wow/news-configs",
+            json=body,
+            headers=auth_header,
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["wow_guild_name"] == "test-guild"  # slugified
+        assert data["active_days"] == 5
+        assert data["min_level"] == 20
+
+    def test_create_duplicate_returns_409(self, client, auth_header, web_db_session):
+        from models.wow import WowGuildNewsConfig
+
+        cfg = WowGuildNewsConfig(
+            GuildId=GUILD_ID,
+            ChannelId=111,
+            WowGuildName="test-guild",
+            WowRealmSlug="blackrock",
+            Region="eu",
+            Language="en",
+            ActiveDays=7,
+            MinLevel=10,
+            Enabled=True,
+        )
+        web_db_session.add(cfg)
+        web_db_session.commit()
+
+        body = {
+            "channel_id": "111",
+            "wow_guild_name": "test-guild",
+            "wow_realm_slug": "blackrock",
+            "region": "eu",
+        }
+        response = client.post(
+            f"/api/guilds/{GUILD_ID}/wow/news-configs",
+            json=body,
+            headers=auth_header,
+        )
+        assert response.status_code == 409
+
+    def test_patch_news_config(self, client, auth_header, web_db_session):
+        from models.wow import WowGuildNewsConfig
+
+        cfg = WowGuildNewsConfig(
+            GuildId=GUILD_ID,
+            ChannelId=111,
+            WowGuildName="test-guild",
+            WowRealmSlug="blackrock",
+            Region="eu",
+            Language="en",
+            ActiveDays=7,
+            MinLevel=10,
+            Enabled=True,
+        )
+        web_db_session.add(cfg)
+        web_db_session.commit()
+
+        response = client.patch(
+            f"/api/guilds/{GUILD_ID}/wow/news-configs/{cfg.Id}",
+            json={"active_days": 14, "enabled": False},
+            headers=auth_header,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["active_days"] == 14
+        assert data["enabled"] is False
+
+    def test_patch_not_found(self, client, auth_header):
+        response = client.patch(
+            f"/api/guilds/{GUILD_ID}/wow/news-configs/99999",
+            json={"active_days": 14},
+            headers=auth_header,
+        )
+        assert response.status_code == 404
+
+    def test_delete_news_config(self, client, auth_header, web_db_session):
+        from models.wow import WowGuildNewsConfig
+
+        cfg = WowGuildNewsConfig(
+            GuildId=GUILD_ID,
+            ChannelId=111,
+            WowGuildName="test-guild",
+            WowRealmSlug="blackrock",
+            Region="eu",
+            Language="en",
+            ActiveDays=7,
+            MinLevel=10,
+            Enabled=True,
+        )
+        web_db_session.add(cfg)
+        web_db_session.commit()
+        cfg_id = cfg.Id
+
+        response = client.delete(
+            f"/api/guilds/{GUILD_ID}/wow/news-configs/{cfg_id}",
+            headers=auth_header,
+        )
+        assert response.status_code == 204
+
+        from models.wow import WowGuildNewsConfig as WGN
+
+        assert web_db_session.query(WGN).filter(WGN.Id == cfg_id).first() is None
+
+    def test_roster_empty(self, client, auth_header, web_db_session):
+        from models.wow import WowGuildNewsConfig
+
+        cfg = WowGuildNewsConfig(
+            GuildId=GUILD_ID,
+            ChannelId=111,
+            WowGuildName="test-guild",
+            WowRealmSlug="blackrock",
+            Region="eu",
+            Language="en",
+            ActiveDays=7,
+            MinLevel=10,
+            Enabled=True,
+        )
+        web_db_session.add(cfg)
+        web_db_session.commit()
+
+        response = client.get(
+            f"/api/guilds/{GUILD_ID}/wow/news-configs/{cfg.Id}/roster",
+            headers=auth_header,
+        )
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_roster_returns_characters(self, client, auth_header, web_db_session):
+        import json
+        from datetime import UTC, datetime
+
+        from models.wow import WowCharacterMounts, WowGuildNewsConfig
+
+        cfg = WowGuildNewsConfig(
+            GuildId=GUILD_ID,
+            ChannelId=111,
+            WowGuildName="test-guild",
+            WowRealmSlug="blackrock",
+            Region="eu",
+            Language="en",
+            ActiveDays=7,
+            MinLevel=10,
+            Enabled=True,
+        )
+        web_db_session.add(cfg)
+        web_db_session.flush()
+
+        mount = WowCharacterMounts(
+            ConfigId=cfg.Id,
+            CharacterName="Testchar",
+            RealmSlug="blackrock",
+            KnownMountIds=json.dumps([1, 2, 3]),
+            LastChecked=datetime(2026, 3, 9, 12, 0, 0),
+        )
+        web_db_session.add(mount)
+        web_db_session.commit()
+
+        response = client.get(
+            f"/api/guilds/{GUILD_ID}/wow/news-configs/{cfg.Id}/roster",
+            headers=auth_header,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["character_name"] == "Testchar"
+        assert data[0]["mount_count"] == 3

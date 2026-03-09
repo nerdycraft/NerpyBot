@@ -50,7 +50,10 @@ from web.schemas import (
     ReminderUpdate,
     RoleMappingCreate,
     RoleMappingSchema,
+    WowCharacterMountSchema,
+    WowGuildNewsCreate,
     WowGuildNewsSchema,
+    WowGuildNewsUpdate,
 )
 
 router = APIRouter(prefix="/guilds", tags=["guilds"], dependencies=[Depends(require_premium)])
@@ -1021,7 +1024,7 @@ async def delete_template_question(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# ── WoW (read-only) ──
+# ── WoW ──
 
 
 @router.get("/{guild_id}/wow")
@@ -1030,11 +1033,25 @@ async def get_wow_config(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
-    """Return WoW guild news configs and crafting board config for a guild (read-only)."""
-    from models.wow import CraftingBoardConfig, WowGuildNewsConfig
+    """Return WoW guild news configs and crafting board config for a guild."""
+    from sqlalchemy import func
+
+    from models.wow import CraftingBoardConfig, WowCharacterMounts, WowGuildNewsConfig
 
     news_configs = WowGuildNewsConfig.get_all_by_guild(guild_id, session)
     crafting = CraftingBoardConfig.get_by_guild(guild_id, session)
+
+    # Batch-load character counts to avoid N+1
+    config_ids = [n.Id for n in news_configs]
+    counts: dict[int, int] = {}
+    if config_ids:
+        rows = (
+            session.query(WowCharacterMounts.ConfigId, func.count(WowCharacterMounts.Id))
+            .filter(WowCharacterMounts.ConfigId.in_(config_ids))
+            .group_by(WowCharacterMounts.ConfigId)
+            .all()
+        )
+        counts = dict(rows)
 
     crafting_boards = []
     if crafting:
@@ -1049,11 +1066,159 @@ async def get_wow_config(
                 wow_realm_slug=n.WowRealmSlug,
                 region=n.Region,
                 enabled=n.Enabled,
+                min_level=n.MinLevel,
+                active_days=n.ActiveDays,
+                last_activity=str(n.LastActivityTimestamp) if n.LastActivityTimestamp else None,
+                tracked_characters=counts.get(n.Id, 0),
             )
             for n in news_configs
         ],
         "crafting_boards": crafting_boards,
     }
+
+
+@router.post("/{guild_id}/wow/news-configs", status_code=status.HTTP_201_CREATED, response_model=WowGuildNewsSchema)
+async def create_wow_news_config(
+    guild_id: int,
+    body: WowGuildNewsCreate,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Create a WoW guild news tracker for a Discord guild. Returns 409 if already tracked."""
+    from models.wow import WowGuildNewsConfig
+    from utils.strings import get_guild_language
+
+    name_slug = body.wow_guild_name.lower().replace(" ", "-")
+    if WowGuildNewsConfig.get_existing(guild_id, name_slug, body.wow_realm_slug, body.region, session):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already tracking this WoW guild")
+
+    lang = get_guild_language(guild_id, session)
+    cfg = WowGuildNewsConfig(
+        GuildId=guild_id,
+        ChannelId=int(body.channel_id),
+        WowGuildName=name_slug,
+        WowRealmSlug=body.wow_realm_slug,
+        Region=body.region,
+        Language=lang,
+        ActiveDays=body.active_days,
+        MinLevel=body.min_level,
+        Enabled=True,
+    )
+    session.add(cfg)
+    session.flush()
+    return WowGuildNewsSchema(
+        id=cfg.Id,
+        channel_id=str(cfg.ChannelId),
+        wow_guild_name=cfg.WowGuildName,
+        wow_realm_slug=cfg.WowRealmSlug,
+        region=cfg.Region,
+        enabled=cfg.Enabled,
+        min_level=cfg.MinLevel,
+        active_days=cfg.ActiveDays,
+        last_activity=None,
+        tracked_characters=0,
+    )
+
+
+@router.patch("/{guild_id}/wow/news-configs/{config_id}", response_model=WowGuildNewsSchema)
+async def update_wow_news_config(
+    guild_id: int,
+    config_id: int,
+    body: WowGuildNewsUpdate,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Partial update for a WoW guild news tracker (channel, active_days, min_level, enabled)."""
+    from sqlalchemy import func
+
+    from models.wow import WowCharacterMounts, WowGuildNewsConfig
+
+    cfg = WowGuildNewsConfig.get_by_id(config_id, guild_id, session)
+    if cfg is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Config not found")
+
+    if body.channel_id is not None:
+        cfg.ChannelId = int(body.channel_id)
+    if body.active_days is not None:
+        cfg.ActiveDays = body.active_days
+    if body.min_level is not None:
+        cfg.MinLevel = body.min_level
+    if body.enabled is not None:
+        cfg.Enabled = body.enabled
+
+    count = (
+        session.query(func.count(WowCharacterMounts.Id))
+        .filter(WowCharacterMounts.ConfigId == config_id)
+        .scalar()
+    ) or 0
+
+    return WowGuildNewsSchema(
+        id=cfg.Id,
+        channel_id=str(cfg.ChannelId),
+        wow_guild_name=cfg.WowGuildName,
+        wow_realm_slug=cfg.WowRealmSlug,
+        region=cfg.Region,
+        enabled=cfg.Enabled,
+        min_level=cfg.MinLevel,
+        active_days=cfg.ActiveDays,
+        last_activity=str(cfg.LastActivityTimestamp) if cfg.LastActivityTimestamp else None,
+        tracked_characters=count,
+    )
+
+
+@router.delete("/{guild_id}/wow/news-configs/{config_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_wow_news_config(
+    guild_id: int,
+    config_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Delete a WoW guild news tracker and all associated character mount data."""
+    from models.wow import WowGuildNewsConfig
+
+    cfg = WowGuildNewsConfig.get_by_id(config_id, guild_id, session)
+    if cfg is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Config not found")
+    WowGuildNewsConfig.delete(config_id, guild_id, session)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{guild_id}/wow/news-configs/{config_id}/roster", response_model=list[WowCharacterMountSchema])
+async def get_wow_news_roster(
+    guild_id: int,
+    config_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Return the character mount roster for a WoW guild news tracker, sorted by mount count desc."""
+    from models.wow import WowCharacterMounts, WowGuildNewsConfig
+
+    cfg = WowGuildNewsConfig.get_by_id(config_id, guild_id, session)
+    if cfg is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Config not found")
+
+    entries = WowCharacterMounts.get_all_by_config(config_id, session)
+
+    result = []
+    for e in entries:
+        try:
+            from utils.blizzard import parse_known_mounts
+
+            known_ids, _last_count, _ = parse_known_mounts(e.KnownMountIds)
+            mount_count = len(known_ids)
+        except Exception:
+            mount_count = 0
+        result.append(
+            WowCharacterMountSchema(
+                character_name=e.CharacterName,
+                realm_slug=e.RealmSlug,
+                mount_count=mount_count,
+                last_checked=str(e.LastChecked) if e.LastChecked else None,
+            )
+        )
+
+    result.sort(key=lambda x: x.mount_count, reverse=True)
+    return result
 
 
 @router.get("/{guild_id}/wow/crafting-orders", response_model=list[CraftingOrderSchema])
