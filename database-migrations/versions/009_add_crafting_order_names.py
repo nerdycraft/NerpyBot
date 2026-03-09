@@ -47,11 +47,23 @@ def upgrade():
 
 def downgrade():
     conn = op.get_bind()
+    insp = sa.inspect(conn)
+
+    if "CraftingOrder" not in insp.get_table_names():
+        return
+
+    existing = {c["name"] for c in insp.get_columns("CraftingOrder")}
+    if "CreatorName" not in existing and "CrafterName" not in existing:
+        return
 
     if conn.dialect.name == "sqlite":
         with op.batch_alter_table("CraftingOrder") as batch_op:
-            batch_op.drop_column("CrafterName")
-            batch_op.drop_column("CreatorName")
+            if "CrafterName" in existing:
+                batch_op.drop_column("CrafterName")
+            if "CreatorName" in existing:
+                batch_op.drop_column("CreatorName")
     else:
-        op.drop_column("CraftingOrder", "CrafterName")
-        op.drop_column("CraftingOrder", "CreatorName")
+        if "CrafterName" in existing:
+            op.drop_column("CraftingOrder", "CrafterName")
+        if "CreatorName" in existing:
+            op.drop_column("CraftingOrder", "CreatorName")

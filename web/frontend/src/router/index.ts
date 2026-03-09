@@ -70,7 +70,7 @@ router.beforeEach(async (to) => {
 
   // Premium check — clear cached user so the next visit re-checks via /auth/me
   // (allows access once an operator grants premium without requiring re-OAuth)
-  if (!auth.user!.is_premium) {
+  if (!auth.user?.is_premium) {
     auth.clearUser();
     return { path: "/login", query: { error: "premium_required" }, replace: true };
   }

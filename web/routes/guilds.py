@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from web.cache import ValkeyClient
-from web.dependencies import get_current_user, get_db_session, get_valkey, require_guild_access, require_premium
+
+_log = logging.getLogger(__name__)
+from web.dependencies import get_db_session, get_valkey, require_guild_access, require_premium
 from web.schemas import (
     ApplicationAnswerSchema,
     ApplicationFormCreate,
@@ -50,15 +54,6 @@ from web.schemas import (
 )
 
 router = APIRouter(prefix="/guilds", tags=["guilds"], dependencies=[Depends(require_premium)])
-
-
-# ── Guild list (Phase 2: will return guilds from cached permissions) ──
-
-
-@router.get("/")
-async def list_guilds(user: dict = Depends(get_current_user)):
-    """Placeholder — Phase 2 will return manageable guilds from /api/auth/me permissions cache."""
-    return {"guilds": [], "message": "Use /api/auth/me for full guild list"}
 
 
 # ── Language ──
@@ -1116,8 +1111,12 @@ async def list_crafting_orders(
 
 # Inverted CRAFTING_PROFESSIONS: maps profession_id -> name. Computed once at import time.
 def _get_profession_name_by_id() -> dict:
-    from utils.blizzard import CRAFTING_PROFESSIONS
-    return {v: k for k, v in CRAFTING_PROFESSIONS.items()}
+    try:
+        from utils.blizzard import CRAFTING_PROFESSIONS
+        return {v: k for k, v in CRAFTING_PROFESSIONS.items()}
+    except Exception:
+        _log.warning("Could not load CRAFTING_PROFESSIONS — crafting role mapping routes will be non-functional")
+        return {}
 
 
 _PROFESSION_NAME_BY_ID: dict = _get_profession_name_by_id()

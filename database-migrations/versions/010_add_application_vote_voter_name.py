@@ -41,6 +41,14 @@ def upgrade():
 
 def downgrade():
     conn = op.get_bind()
+    insp = sa.inspect(conn)
+
+    if "ApplicationVote" not in insp.get_table_names():
+        return
+
+    existing = {c["name"] for c in insp.get_columns("ApplicationVote")}
+    if "VoterName" not in existing:
+        return
 
     if conn.dialect.name == "sqlite":
         with op.batch_alter_table("ApplicationVote") as batch_op:
