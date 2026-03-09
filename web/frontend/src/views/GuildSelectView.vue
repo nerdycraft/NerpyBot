@@ -1,14 +1,26 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
-import type { GuildSummary } from "@/api/types";
+import { api } from "@/api/client";
+import type { GuildSummary, UserInfo } from "@/api/types";
 
 const auth = useAuthStore();
 const router = useRouter();
 
 const managedGuilds = computed(() => auth.guilds.filter((g) => g.bot_present));
 const invitableGuilds = computed(() => auth.guilds.filter((g) => !g.bot_present));
+
+// Always refresh guild data on mount — ensures bot_present and invite_url are current
+// even when the user object was restored from localStorage with stale field values.
+onMounted(async () => {
+  try {
+    const me = await api.get<UserInfo>("/auth/me");
+    auth.setUser(me);
+  } catch {
+    // silently ignore — stale cached data is better than a broken page
+  }
+});
 
 function select(guildId: string) {
   router.push(`/guilds/${guildId}`);
