@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
 import { useGuildStore } from "@/stores/guild";
+import ServerOverviewTab from "./tabs/ServerOverviewTab.vue";
 import ApplicationFormsTab from "./tabs/ApplicationFormsTab.vue";
 import ApplicationTemplatesTab from "./tabs/ApplicationTemplatesTab.vue";
 import ApplicationSubmissionsTab from "./tabs/ApplicationSubmissionsTab.vue";
@@ -17,6 +18,7 @@ import RemindersTab from "./tabs/RemindersTab.vue";
 import ReactionRolesTab from "./tabs/ReactionRolesTab.vue";
 import WowGuildNewsTab from "./tabs/WowGuildNewsTab.vue";
 import WowCraftingTab from "./tabs/WowCraftingTab.vue";
+import OperatorUserManagementTab from "./tabs/OperatorUserManagementTab.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -24,7 +26,7 @@ const auth = useAuthStore();
 const guild = useGuildStore();
 const guildId = route.params.id as string;
 
-const activeSection = ref("language");
+const activeSection = ref("server-overview");
 const switcherOpen = ref(false);
 
 const otherManagedGuilds = computed(() =>
@@ -39,10 +41,17 @@ function switchGuild(id: string) {
 }
 
 
-const sectionGroups = [
+type SectionGroup = {
+  label: string;
+  operatorOnly?: boolean;
+  items: { id: string; label: string; icon: string; component: unknown }[];
+};
+
+const allSectionGroups: SectionGroup[] = [
   {
     label: "General",
     items: [
+      { id: "server-overview", label: "Server Overview", icon: "mdi:view-grid-outline", component: ServerOverviewTab },
       { id: "language", label: "Language", icon: "mdi:translate", component: LanguageTab },
       { id: "reminders", label: "Reminders", icon: "mdi:bell-outline", component: RemindersTab },
     ],
@@ -78,11 +87,22 @@ const sectionGroups = [
       { id: "wow-crafting", label: "Crafting Boards", icon: "mdi:hammer-wrench", component: WowCraftingTab },
     ],
   },
+  {
+    label: "Operator",
+    operatorOnly: true,
+    items: [
+      { id: "operator-user-management", label: "User Management", icon: "mdi:crown-outline", component: OperatorUserManagementTab },
+    ],
+  },
 ];
 
-const allSections = sectionGroups.flatMap((g) => g.items);
+const sectionGroups = computed(() =>
+  allSectionGroups.filter((g) => !g.operatorOnly || auth.user?.is_operator),
+);
 
-const activeComponent = computed(() => allSections.find((s) => s.id === activeSection.value)?.component);
+const allSections = computed(() => sectionGroups.value.flatMap((g) => g.items));
+
+const activeComponent = computed(() => allSections.value.find((s) => s.id === activeSection.value)?.component);
 
 function guildIconUrl(): string | null {
   const g = guild.current;
