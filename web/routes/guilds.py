@@ -1193,23 +1193,24 @@ async def update_crafting_role_mapping(
     session: Session = Depends(get_db_session),
 ):
     """Update the profession for a role mapping."""
-    from models.wow import CraftingRoleMapping, WowProfession
+    from models.wow import CraftingRoleMapping
+    from utils.blizzard import CRAFTING_PROFESSIONS
 
+    profession_name_by_id = {v: k for k, v in CRAFTING_PROFESSIONS.items()}
+    if body.profession_id not in profession_name_by_id:
+        raise HTTPException(status_code=400, detail="Unknown profession")
     mapping = session.query(CraftingRoleMapping).filter(
         CraftingRoleMapping.Id == mapping_id, CraftingRoleMapping.GuildId == guild_id
     ).first()
     if mapping is None:
         raise HTTPException(status_code=404, detail="Mapping not found")
-    profession = session.query(WowProfession).filter(WowProfession.Id == body.profession_id).first()
-    if profession is None:
-        raise HTTPException(status_code=400, detail="Unknown profession")
     mapping.ProfessionId = body.profession_id
     session.flush()
     return CraftingRoleMappingSchema(
         id=mapping.Id,
         role_id=str(mapping.RoleId),
         profession_id=mapping.ProfessionId,
-        profession_name=profession.Name,
+        profession_name=profession_name_by_id[body.profession_id],
     )
 
 
