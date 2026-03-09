@@ -24,6 +24,7 @@ export interface UserInfo {
   id: string;
   username: string;
   is_operator: boolean;
+  is_premium: boolean;
   guilds: GuildSummary[];
 }
 

@@ -19,6 +19,16 @@ export const useAuthStore = defineStore(
       user.value = u;
     }
 
+    /** Clear only the JWT — keeps user data for display (e.g. "session expired, username"). */
+    function clearJwt() {
+      jwt.value = null;
+    }
+
+    /** Clear only the user object — forces a fresh /auth/me check on next navigation. */
+    function clearUser() {
+      user.value = null;
+    }
+
     function clear() {
       jwt.value = null;
       user.value = null;
@@ -28,7 +38,18 @@ export const useAuthStore = defineStore(
       return guilds.value.find((g) => g.id === id);
     }
 
-    return { jwt, user, isLoggedIn, guilds, setToken, setUser, clear, guildById };
+    /** Returns true if the cached JWT is past its expiry without making any network call. */
+    function isJwtExpired(): boolean {
+      if (!jwt.value) return true;
+      try {
+        const payload = JSON.parse(atob(jwt.value.split(".")[1]));
+        return typeof payload.exp === "number" && payload.exp * 1000 < Date.now();
+      } catch {
+        return true;
+      }
+    }
+
+    return { jwt, user, isLoggedIn, guilds, setToken, setUser, clearJwt, clearUser, clear, guildById, isJwtExpired };
   },
   { persist: true },
 );

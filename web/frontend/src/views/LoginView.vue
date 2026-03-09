@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { ref, computed } from "vue";
 import { useRoute } from "vue-router";
 import { Icon } from "@iconify/vue";
+import { useAuthStore } from "@/stores/auth";
 
 const route = useRoute();
+const auth = useAuthStore();
+
 const isPremiumRequired = computed(() => route.query.error === "premium_required");
+const isSessionExpired = computed(() => route.query.error === "session_expired");
+const showExpiredModal = ref(isSessionExpired.value);
 
 function login() {
   window.location.href = "/api/auth/login";
@@ -12,6 +17,34 @@ function login() {
 </script>
 
 <template>
+  <!-- Session expired modal -->
+  <Transition name="fade">
+    <div
+      v-if="showExpiredModal"
+      class="fixed inset-0 z-50 flex items-start justify-center pt-8 px-4"
+      @click.self="showExpiredModal = false"
+    >
+      <div class="bg-card border border-border rounded-lg shadow-2xl p-5 max-w-sm w-full flex items-start gap-3">
+        <Icon icon="mdi:clock-alert-outline" class="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium">
+            <template v-if="auth.user?.username">Hey {{ auth.user.username }}, your</template>
+            <template v-else>Your</template>
+            session has expired.
+          </p>
+          <p class="text-xs text-muted-foreground mt-0.5">Please log in again to continue.</p>
+        </div>
+        <button
+          class="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+          aria-label="Dismiss"
+          @click="showExpiredModal = false"
+        >
+          <Icon icon="mdi:close" class="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  </Transition>
+
   <div class="min-h-screen flex items-center justify-center">
     <div class="bg-card rounded-lg p-10 flex flex-col items-center gap-6 shadow-xl border border-border max-w-sm w-full mx-4">
       <h1 class="text-3xl font-bold text-foreground">NerpyBot Dashboard</h1>
@@ -52,3 +85,15 @@ function login() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+</style>

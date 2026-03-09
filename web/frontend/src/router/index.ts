@@ -38,16 +38,23 @@ router.beforeEach(async (to) => {
     return { path: to.path, query: {}, replace: true };
   }
 
+  // Public routes — no auth check needed (must come before error check to avoid
+  // redirect loop: backend sends /login?error=... → guard would re-redirect forever)
+  if (to.meta.public) return true;
+
   // Handle error redirects from /api/auth/callback (e.g. ?error=premium_required)
   if (to.query.error) {
     return { path: "/login", query: { error: to.query.error }, replace: true };
   }
 
-  // Public routes — no auth check needed
-  if (to.meta.public) return true;
-
   // No token — redirect to login
   if (!auth.jwt) return "/login";
+
+  // JWT expired client-side — clear it (keep user for "session expired" display) and redirect
+  if (auth.isJwtExpired()) {
+    auth.clearJwt();
+    return { path: "/login", query: { error: "session_expired" }, replace: true };
+  }
 
   // Hydrate user from /api/auth/me if token present but user missing
   if (!auth.user) {
@@ -58,6 +65,24 @@ router.beforeEach(async (to) => {
       auth.clear();
       return "/login";
     }
+  }
+
+  // Premium check — clear cached user so the next visit re-checks via /auth/me
+  // (allows access once an operator grants premium without requiring re-OAuth)
+  if (!auth.user!.is_premium) {
+    auth.clearUser();
+    return { path: "/login", query: { error: "premium_required" }, replace: true };
+  }
+
+  // /guilds (no id) — redirect to first managed guild so the sidebar is always visible.
+  // GuildSelectView is kept as a fallback only for users with zero managed guilds.
+  if (to.path === "/guilds") {
+    const firstManaged = auth.guilds.find((g) => g.bot_present);
+    if (firstManaged) {
+      guild.setCurrent(firstManaged);
+      return { path: `/guilds/${firstManaged.id}`, replace: true };
+    }
+    return true; // no managed guilds — render GuildSelectView fallback
   }
 
   // Guild route — verify access and bot presence

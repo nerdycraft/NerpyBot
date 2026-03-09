@@ -61,16 +61,6 @@ async def callback(
     username = user_data.get("username", "Unknown")
     _log.debug("callback: authenticated user_id=%s username=%s guilds=%d", user_id, username, len(guilds))
 
-    # Gate access: operators always allowed; everyone else needs premium
-    is_operator = int(user_id) in config.ops
-    if not is_operator:
-        from models.admin import PremiumUser
-
-        if not PremiumUser.has(int(user_id), session):
-            base = config.frontend_url.rstrip("/")
-            _log.debug("callback: user_id=%s denied — not premium", user_id)
-            return RedirectResponse(url=f"{base}/login?error=premium_required", status_code=302)
-
     # Cache permissions and Discord token in Valkey
     perms = resolve_guild_permissions(guilds)
     vk.set_permissions(user_id, perms, ttl=config.jwt_expiry_hours * 3600)
@@ -124,9 +114,19 @@ async def me(
                 )
             )
 
+    is_operator = int(user_id) in config.ops
+    is_premium: bool
+    if is_operator:
+        is_premium = True
+    else:
+        from models.admin import PremiumUser
+
+        is_premium = PremiumUser.has(int(user_id), session)
+
     return UserInfo(
         id=user_id,
         username=user["username"],
-        is_operator=int(user_id) in config.ops,
+        is_operator=is_operator,
+        is_premium=is_premium,
         guilds=guilds,
     )

@@ -14,6 +14,7 @@ class UserInfo(BaseModel):
     id: str
     username: str
     is_operator: bool
+    is_premium: bool
     guilds: list[GuildSummary]
 
 
