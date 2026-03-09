@@ -213,6 +213,7 @@ class ApplicationSubmission(db.BASE):
         "ApplicationVote",
         back_populates="submission",
         cascade="all, delete, delete-orphan",
+        lazy="subquery",
     )
 
     @classmethod

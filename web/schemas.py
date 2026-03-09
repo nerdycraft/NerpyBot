@@ -244,7 +244,7 @@ class ApplicationAnswerSchema(BaseModel):
 class ApplicationVoteSchema(BaseModel):
     voter_id: str
     voter_name: str | None
-    vote: str  # "approve" or "deny"
+    vote: str
 
 
 class ApplicationSubmissionSchema(BaseModel):

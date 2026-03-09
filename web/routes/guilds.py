@@ -604,6 +604,34 @@ async def delete_reminder(
 # ── Application Forms ──
 
 
+def _submission_to_schema(s, question_texts: dict | None = None) -> ApplicationSubmissionSchema:
+    return ApplicationSubmissionSchema(
+        id=s.Id,
+        form_name=s.form.Name if s.form else None,
+        user_id=str(s.UserId),
+        user_name=s.UserName,
+        status=s.Status.value,
+        submitted_at=str(s.SubmittedAt),
+        decision_reason=s.DecisionReason,
+        answers=[
+            ApplicationAnswerSchema(
+                question_id=a.QuestionId,
+                question_text=(question_texts.get(a.QuestionId, "") if question_texts is not None else (a.question.QuestionText if a.question else "")),
+                answer_text=a.AnswerText,
+            )
+            for a in s.answers
+        ],
+        votes=[
+            ApplicationVoteSchema(
+                voter_id=str(v.UserId),
+                voter_name=v.VoterName,
+                vote=v.Vote.value,
+            )
+            for v in s.votes
+        ],
+    )
+
+
 def _form_to_schema(f) -> ApplicationFormSchema:
     return ApplicationFormSchema(
         id=f.Id,
@@ -821,33 +849,7 @@ async def list_form_submissions(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
     submissions = session.query(ApplicationSubmission).filter(ApplicationSubmission.FormId == form_id).order_by(ApplicationSubmission.Id.desc()).all()
     question_texts = {q.Id: q.QuestionText for q in form.questions}
-    return [
-        ApplicationSubmissionSchema(
-            id=s.Id,
-            user_id=str(s.UserId),
-            user_name=s.UserName,
-            status=s.Status.value,
-            submitted_at=str(s.SubmittedAt),
-            decision_reason=s.DecisionReason,
-            answers=[
-                ApplicationAnswerSchema(
-                    question_id=a.QuestionId,
-                    question_text=question_texts.get(a.QuestionId, ""),
-                    answer_text=a.AnswerText,
-                )
-                for a in s.answers
-            ],
-            votes=[
-                ApplicationVoteSchema(
-                    voter_id=str(v.UserId),
-                    voter_name=v.VoterName,
-                    vote=v.Vote.value,
-                )
-                for v in s.votes
-            ],
-        )
-        for s in submissions
-    ]
+    return [_submission_to_schema(s, question_texts) for s in submissions]
 
 
 # ── All Submissions (cross-form) ──
@@ -867,34 +869,7 @@ async def list_all_submissions(
     if form_id is not None:
         q = q.filter(ApplicationSubmission.FormId == form_id)
     submissions = q.order_by(ApplicationSubmission.Id.desc()).all()
-    return [
-        ApplicationSubmissionSchema(
-            id=s.Id,
-            form_name=s.form.Name if s.form else None,
-            user_id=str(s.UserId),
-            user_name=s.UserName,
-            status=s.Status.value,
-            submitted_at=str(s.SubmittedAt),
-            decision_reason=s.DecisionReason,
-            answers=[
-                ApplicationAnswerSchema(
-                    question_id=a.QuestionId,
-                    question_text=a.question.QuestionText if a.question else "",
-                    answer_text=a.AnswerText,
-                )
-                for a in s.answers
-            ],
-            votes=[
-                ApplicationVoteSchema(
-                    voter_id=str(v.UserId),
-                    voter_name=v.VoterName,
-                    vote=v.Vote.value,
-                )
-                for v in s.votes
-            ],
-        )
-        for s in submissions
-    ]
+    return [_submission_to_schema(s) for s in submissions]
 
 
 # ── Application Templates ──
@@ -1137,6 +1112,14 @@ async def list_crafting_orders(
 
 # ── Crafting Role Mappings ──
 
+# Inverted CRAFTING_PROFESSIONS: maps profession_id -> name. Computed once at import time.
+def _get_profession_name_by_id() -> dict:
+    from utils.blizzard import CRAFTING_PROFESSIONS
+    return {v: k for k, v in CRAFTING_PROFESSIONS.items()}
+
+
+_PROFESSION_NAME_BY_ID: dict = _get_profession_name_by_id()
+
 
 @router.get("/{guild_id}/wow/crafting-role-mappings", response_model=list[CraftingRoleMappingSchema])
 async def list_crafting_role_mappings(
@@ -1146,9 +1129,8 @@ async def list_crafting_role_mappings(
 ):
     """List all crafting role mappings for a guild."""
     from models.wow import CraftingRoleMapping
-    from utils.blizzard import CRAFTING_PROFESSIONS
 
-    profession_name_by_id = {v: k for k, v in CRAFTING_PROFESSIONS.items()}
+    profession_name_by_id = _PROFESSION_NAME_BY_ID
     mappings = CraftingRoleMapping.get_by_guild(guild_id, session)
     return [
         CraftingRoleMappingSchema(
@@ -1170,9 +1152,8 @@ async def create_crafting_role_mapping(
 ):
     """Add a role → profession mapping for a guild."""
     from models.wow import CraftingRoleMapping
-    from utils.blizzard import CRAFTING_PROFESSIONS
 
-    profession_name_by_id = {v: k for k, v in CRAFTING_PROFESSIONS.items()}
+    profession_name_by_id = _PROFESSION_NAME_BY_ID
     mapping = CraftingRoleMapping(GuildId=guild_id, RoleId=int(body.role_id), ProfessionId=body.profession_id)
     session.add(mapping)
     session.flush()
@@ -1194,10 +1175,8 @@ async def update_crafting_role_mapping(
 ):
     """Update the profession for a role mapping."""
     from models.wow import CraftingRoleMapping
-    from utils.blizzard import CRAFTING_PROFESSIONS
 
-    profession_name_by_id = {v: k for k, v in CRAFTING_PROFESSIONS.items()}
-    if body.profession_id not in profession_name_by_id:
+    if body.profession_id not in _PROFESSION_NAME_BY_ID:
         raise HTTPException(status_code=400, detail="Unknown profession")
     mapping = session.query(CraftingRoleMapping).filter(
         CraftingRoleMapping.Id == mapping_id, CraftingRoleMapping.GuildId == guild_id
@@ -1210,7 +1189,7 @@ async def update_crafting_role_mapping(
         id=mapping.Id,
         role_id=str(mapping.RoleId),
         profession_id=mapping.ProfessionId,
-        profession_name=profession_name_by_id[body.profession_id],
+        profession_name=_PROFESSION_NAME_BY_ID[body.profession_id],
     )
 
 
@@ -1228,8 +1207,7 @@ async def delete_crafting_role_mapping(
         CraftingRoleMapping.Id == mapping_id, CraftingRoleMapping.GuildId == guild_id
     ).first()
     if mapping is None:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Mapping not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mapping not found")
     session.delete(mapping)
 
 

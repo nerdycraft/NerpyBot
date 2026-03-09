@@ -100,5 +100,4 @@ def require_guild_access(
     if level not in ("admin", "mod"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient guild permissions")
 
-    user["guild_permission"] = level
     return user
