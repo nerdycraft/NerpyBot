@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -140,7 +140,7 @@ class RoleMappingCreate(BaseModel):
     target_role_id: str
 
 
-# ── Reminders (read-only) ──
+# ── Reminders ──
 
 
 class ReminderSchema(BaseModel):
@@ -153,6 +153,31 @@ class ReminderSchema(BaseModel):
     schedule_type: str
     next_fire: str
     count: int
+    interval_seconds: int | None = None
+    schedule_time: str | None = None  # "HH:MM"
+    schedule_day_of_week: int | None = None  # 0=Mon … 6=Sun
+    schedule_day_of_month: int | None = None  # 1-28
+    timezone: str | None = None
+
+
+ReminderScheduleType = Literal["interval", "daily", "weekly", "monthly"]
+
+
+class ReminderCreate(BaseModel):
+    channel_id: str
+    message: str
+    schedule_type: ReminderScheduleType
+    interval_seconds: Annotated[int, Field(ge=60)] | None = None
+    schedule_time: str | None = None  # "HH:MM"
+    schedule_day_of_week: Annotated[int, Field(ge=0, le=6)] | None = None
+    schedule_day_of_month: Annotated[int, Field(ge=1, le=28)] | None = None
+    timezone: str = "UTC"
+
+
+class ReminderUpdate(BaseModel):
+    message: str | None = None
+    enabled: bool | None = None
+    channel_id: str | None = None
 
 
 # ── Application Forms ──

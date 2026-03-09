@@ -37,7 +37,9 @@ from web.schemas import (
     ModeratorRoleCreate,
     ReactionRoleEntrySchema,
     ReactionRoleMessageSchema,
+    ReminderCreate,
     ReminderSchema,
+    ReminderUpdate,
     RoleMappingCreate,
     RoleMappingSchema,
     WowGuildNewsSchema,
@@ -455,7 +457,26 @@ async def delete_role_mapping(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# ── Reminders (read-only) ──
+# ── Reminders ──
+
+
+def _reminder_to_schema(r) -> ReminderSchema:
+    return ReminderSchema(
+        id=r.Id,
+        channel_id=str(r.ChannelId),
+        channel_name=r.ChannelName,
+        author=r.Author,
+        message=r.Message,
+        enabled=r.Enabled,
+        schedule_type=r.ScheduleType,
+        next_fire=str(r.NextFire),
+        count=r.Count or 0,
+        interval_seconds=r.IntervalSeconds,
+        schedule_time=r.ScheduleTime.strftime("%H:%M") if r.ScheduleTime else None,
+        schedule_day_of_week=r.ScheduleDayOfWeek,
+        schedule_day_of_month=r.ScheduleDayOfMonth,
+        timezone=r.Timezone,
+    )
 
 
 @router.get("/{guild_id}/reminders", response_model=list[ReminderSchema])
@@ -464,24 +485,116 @@ async def list_reminders(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
-    """List all reminder schedules for a guild (read-only)."""
+    """List all reminder schedules for a guild."""
     from models.reminder import ReminderMessage
 
-    reminders = ReminderMessage.get_all_by_guild(guild_id, session)
-    return [
-        ReminderSchema(
-            id=r.Id,
-            channel_id=str(r.ChannelId),
-            channel_name=r.ChannelName,
-            author=r.Author,
-            message=r.Message,
-            enabled=r.Enabled,
-            schedule_type=r.ScheduleType,
-            next_fire=str(r.NextFire),
-            count=r.Count or 0,
-        )
-        for r in reminders
-    ]
+    return [_reminder_to_schema(r) for r in ReminderMessage.get_all_by_guild(guild_id, session)]
+
+
+@router.post("/{guild_id}/reminders", response_model=ReminderSchema, status_code=status.HTTP_201_CREATED)
+async def create_reminder(
+    guild_id: int,
+    body: ReminderCreate,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Create a new channel reminder schedule."""
+    from datetime import UTC, datetime, time
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    from models.reminder import ReminderMessage
+    from utils.schedule import compute_next_fire
+
+    try:
+        tz = ZoneInfo(body.timezone)
+    except (ZoneInfoNotFoundError, KeyError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown timezone: {body.timezone}")
+
+    schedule_time: time | None = None
+    if body.schedule_time:
+        try:
+            h, m = body.schedule_time.split(":")
+            schedule_time = time(int(h), int(m))
+        except (ValueError, AttributeError):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="schedule_time must be HH:MM")
+
+    if body.schedule_type == "interval" and not body.interval_seconds:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="interval_seconds required for interval type")
+    if body.schedule_type in ("daily", "weekly", "monthly") and schedule_time is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="schedule_time required for daily/weekly/monthly")
+    if body.schedule_type == "weekly" and body.schedule_day_of_week is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="schedule_day_of_week required for weekly type")
+    if body.schedule_type == "monthly" and body.schedule_day_of_month is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="schedule_day_of_month required for monthly type")
+
+    next_fire = compute_next_fire(
+        body.schedule_type,
+        interval_seconds=body.interval_seconds,
+        schedule_time=schedule_time,
+        schedule_day_of_week=body.schedule_day_of_week,
+        schedule_day_of_month=body.schedule_day_of_month,
+        timezone=tz,
+    )
+
+    reminder = ReminderMessage(
+        GuildId=guild_id,
+        ChannelId=int(body.channel_id),
+        Message=body.message,
+        Enabled=True,
+        CreateDate=datetime.now(UTC),
+        ScheduleType=body.schedule_type,
+        IntervalSeconds=body.interval_seconds,
+        ScheduleTime=schedule_time,
+        ScheduleDayOfWeek=body.schedule_day_of_week,
+        ScheduleDayOfMonth=body.schedule_day_of_month,
+        Timezone=body.timezone if body.timezone != "UTC" else None,
+        NextFire=next_fire,
+    )
+    session.add(reminder)
+    session.flush()
+    return _reminder_to_schema(reminder)
+
+
+@router.patch("/{guild_id}/reminders/{reminder_id}", response_model=ReminderSchema)
+async def update_reminder(
+    guild_id: int,
+    reminder_id: int,
+    body: ReminderUpdate,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Update a reminder's message, channel, or enabled state."""
+    from models.reminder import ReminderMessage
+
+    r = ReminderMessage.get_by_id(reminder_id, guild_id, session)
+    if r is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reminder not found")
+
+    if body.message is not None:
+        r.Message = body.message
+    if body.enabled is not None:
+        r.Enabled = body.enabled
+    if body.channel_id is not None:
+        r.ChannelId = int(body.channel_id)
+
+    return _reminder_to_schema(r)
+
+
+@router.delete("/{guild_id}/reminders/{reminder_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_reminder(
+    guild_id: int,
+    reminder_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Delete a reminder schedule."""
+    from models.reminder import ReminderMessage
+
+    r = ReminderMessage.get_by_id(reminder_id, guild_id, session)
+    if r is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reminder not found")
+    session.delete(r)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ── Application Forms ──

@@ -128,6 +128,8 @@ export interface RoleMappingCreate {
 
 // ── Reminders ──
 
+export type ReminderScheduleType = "interval" | "daily" | "weekly" | "monthly";
+
 export interface ReminderSchema {
   id: number;
   channel_id: string;
@@ -138,6 +140,28 @@ export interface ReminderSchema {
   schedule_type: string;
   next_fire: string;
   count: number;
+  interval_seconds: number | null;
+  schedule_time: string | null;
+  schedule_day_of_week: number | null;
+  schedule_day_of_month: number | null;
+  timezone: string | null;
+}
+
+export interface ReminderCreate {
+  channel_id: string;
+  message: string;
+  schedule_type: ReminderScheduleType;
+  interval_seconds?: number | null;
+  schedule_time?: string | null;
+  schedule_day_of_week?: number | null;
+  schedule_day_of_month?: number | null;
+  timezone?: string;
+}
+
+export interface ReminderUpdate {
+  message?: string | null;
+  enabled?: boolean | null;
+  channel_id?: string | null;
 }
 
 // ── Application Forms ──

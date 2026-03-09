@@ -296,7 +296,32 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
     <!-- Create Form Panel -->
     <div v-if="showCreateForm" class="bg-card border border-primary rounded p-4 space-y-3">
       <p class="text-sm font-semibold">New Form</p>
-      <FormFields v-model="formDraft" :guild-id="guildId" />
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-muted-foreground">Name</label>
+          <input v-model="formDraft.name" class="bg-input border border-border rounded px-3 py-2 text-sm" placeholder="e.g. Guild Application" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-muted-foreground">Review Channel</label>
+          <DiscordPicker v-model="formDraft.review_channel_id" :guild-id="guildId" kind="channel" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-muted-foreground">Required Approvals</label>
+          <input v-model.number="formDraft.required_approvals" type="number" min="1" class="bg-input border border-border rounded px-3 py-2 text-sm w-24" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-muted-foreground">Required Denials</label>
+          <input v-model.number="formDraft.required_denials" type="number" min="1" class="bg-input border border-border rounded px-3 py-2 text-sm w-24" />
+        </div>
+        <div class="flex flex-col gap-1 sm:col-span-2">
+          <label class="text-xs text-muted-foreground">Approval message (optional)</label>
+          <textarea v-model="formDraft.approval_message" rows="2" class="bg-input border border-border rounded px-3 py-2 text-sm resize-y" />
+        </div>
+        <div class="flex flex-col gap-1 sm:col-span-2">
+          <label class="text-xs text-muted-foreground">Denial message (optional)</label>
+          <textarea v-model="formDraft.denial_message" rows="2" class="bg-input border border-border rounded px-3 py-2 text-sm resize-y" />
+        </div>
+      </div>
       <div class="flex gap-2">
         <button
           class="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50 transition-colors"
