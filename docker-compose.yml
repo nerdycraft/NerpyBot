@@ -55,6 +55,8 @@ services:
       # NERPYBOT_ERROR_RECIPIENTS: "your_discord_id_here"
       # ── Audio tuning ──
       # NERPYBOT_AUDIO_BUFFER_LIMIT: "5"
+      # ── Logging ──
+      # NERPYBOT_LOG_LEVEL: "debug"
       # ── Web Dashboard (Valkey bridge — required when nerpybot-web is enabled) ──
       NERPYBOT_WEB_VALKEY_URL: "valkey://valkey:6379"
     volumes:

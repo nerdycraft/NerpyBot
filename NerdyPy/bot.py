@@ -593,6 +593,7 @@ def parse_env_config() -> dict:
         ("NERPYBOT_ERROR_RECIPIENTS", ["notifications", "error_recipients"], _csv),
         ("NERPYBOT_VALKEY_URL", ["web", "valkey_url"], str),
         ("NERPYBOT_WEB_VALKEY_URL", ["web", "valkey_url"], str),
+        ("NERPYBOT_LOG_LEVEL", ["bot", "log_level"], str),
     ]
     for var_name, keys, converter in mappings:
         value = os.environ.get(var_name)
@@ -652,7 +653,11 @@ def main(
     resolved_config = parse_config(config)
     intents = get_intents()
 
-    is_debug = debug or str(loglevel).upper() == "DEBUG" or verbosity > 0
+    # NERPYBOT_LOG_LEVEL env var is a fallback when --loglevel is not explicitly passed
+    env_loglevel = resolved_config.get("bot", {}).get("log_level", "").upper()
+    effective_loglevel = (env_loglevel if (env_loglevel and loglevel == "INFO") else loglevel).upper()
+
+    is_debug = debug or effective_loglevel == "DEBUG" or verbosity > 0
     loggers = ["nerpybot"]
     if verbosity >= 2:
         loggers.append("discord")
@@ -660,7 +665,7 @@ def main(
         loggers.append("sqlalchemy.engine")
 
     if "bot" in resolved_config:
-        resolved_loglevel = "DEBUG" if (debug or verbosity > 0) else loglevel
+        resolved_loglevel = "DEBUG" if (debug or verbosity > 0) else effective_loglevel
         for logger_name in loggers:
             logging.create_logger(resolved_loglevel, logger_name)
         bot = NerpyBot(resolved_config, intents, is_debug)
