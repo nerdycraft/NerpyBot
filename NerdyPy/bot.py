@@ -217,7 +217,7 @@ async def _valkey_listener_loop(bot, valkey_url: str) -> None:
                     data = json.loads(msg["data"])
                     request_id = data.pop("request_id", None)
                     command = data.pop("command", "")
-                    result = handle_valkey_command(bot, command, data)
+                    result = await to_thread(handle_valkey_command, bot, command, data)
                     if request_id:
                         reply_key = f"nerpybot:reply:{request_id}"
                         client.lpush(reply_key, json.dumps(result))
