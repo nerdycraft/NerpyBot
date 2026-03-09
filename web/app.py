@@ -119,6 +119,9 @@ def create_app(
 
         @app.get("/{full_path:path}", include_in_schema=False)
         async def spa_fallback(full_path: str):
+            candidate = _dist / full_path
+            if candidate.exists() and candidate.is_file():
+                return FileResponse(str(candidate))
             return FileResponse(str(_dist / "index.html"))
 
     return app

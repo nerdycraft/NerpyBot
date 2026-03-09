@@ -367,7 +367,7 @@ async function deleteQuestion(formId: number, questionId: number) {
           <div class="pt-1">
             <button
               class="text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
-              @click="router.push(`/guilds/${guildId}/forms/${form.id}/submissions`)"
+              @click="router.replace({ query: { tab: 'application-submissions', formId: String(form.id) } })"
             >
               <Icon icon="mdi:file-account-outline" class="w-3.5 h-3.5" />
               View Submissions

@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
+import { useRoute } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { ApplicationFormSchema, ApplicationSubmissionSchema } from "@/api/types";
 
 const props = defineProps<{ guildId: string }>();
+const route = useRoute();
 
 const forms = ref<ApplicationFormSchema[]>([]);
 const submissions = ref<ApplicationSubmissionSchema[]>([]);
@@ -45,19 +47,29 @@ const approvers = computed(() => selected.value?.votes.filter((v) => v.vote === 
 const deniers = computed(() => selected.value?.votes.filter((v) => v.vote === "deny") ?? []);
 
 onMounted(async () => {
+  const preselected = route.query.formId ? Number(route.query.formId) : null;
   try {
+    const subUrl = preselected !== null
+      ? `/guilds/${props.guildId}/application-submissions?form_id=${preselected}`
+      : `/guilds/${props.guildId}/application-submissions`;
     const [formData, subData] = await Promise.all([
       api.get<ApplicationFormSchema[]>(`/guilds/${props.guildId}/application-forms`),
-      api.get<ApplicationSubmissionSchema[]>(`/guilds/${props.guildId}/application-submissions`),
+      api.get<ApplicationSubmissionSchema[]>(subUrl),
     ]);
     forms.value = formData;
     submissions.value = subData;
+    if (preselected !== null) formFilter.value = preselected;
     if (subData.length > 0) selectedId.value = subData[0]!.id;
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : "Failed to load";
   } finally {
     loading.value = false;
   }
+});
+
+// Re-filter when navigating here from "View Submissions" while the tab is already mounted
+watch(() => route.query.formId, (newId) => {
+  if (newId !== undefined) void applyFormFilter(Number(newId));
 });
 
 async function applyFormFilter(id: number | null) {

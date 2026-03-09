@@ -28,12 +28,12 @@ const guild = useGuildStore();
 // Reactive — Vue Router reuses the component instance when navigating between guilds.
 const guildId = computed(() => route.params.id as string | undefined);
 
-const activeSection = ref("server-overview");
+const activeSection = computed(() => (route.query.tab as string) ?? "server-overview");
 const switcherOpen = ref(false);
 
 // Reset to overview when switching guilds
 watch(guildId, () => {
-  activeSection.value = "server-overview";
+  router.replace({ query: {} });
 });
 
 const otherManagedGuilds = computed(() =>
@@ -120,6 +120,15 @@ const sectionGroups = computed(() =>
 const allSections = computed(() => sectionGroups.value.flatMap((g) => g.items));
 const activeComponent = computed(() => allSections.value.find((s) => s.id === activeSection.value)?.component);
 
+const GROUP_ACCENTS: Record<string, string> = {
+  General:      "text-blue-400",
+  Moderation:   "text-amber-400",
+  Roles:        "text-violet-400",
+  Applications: "text-emerald-400",
+  WoW:          "text-yellow-400",
+  Operator:     "text-rose-400",
+};
+
 function guildIconUrl(): string | null {
   const g = guild.current;
   if (!g?.icon) return null;
@@ -133,7 +142,9 @@ function guildIconUrl(): string | null {
 
   <div class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
-    <aside class="w-56 flex-shrink-0 border-r border-border flex flex-col">
+    <aside class="w-56 flex-shrink-0 border-r border-border flex flex-col bg-card">
+      <!-- Rainbow accent bar -->
+      <div class="h-0.5 bg-gradient-to-r from-blue-500 via-violet-500 via-fuchsia-500 to-teal-400 flex-shrink-0" />
       <!-- Guild switcher -->
       <div class="relative border-b border-border flex-shrink-0">
         <button
@@ -196,7 +207,7 @@ function guildIconUrl(): string | null {
           <div v-if="otherManagedGuilds.length > 0" class="border-t border-border" />
           <button
             class="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-left"
-            @click="activeSection = 'server-overview'; switcherOpen = false"
+            @click="router.replace({ query: {} }); switcherOpen = false"
           >
             <Icon icon="mdi:view-grid-outline" class="w-4 h-4 flex-shrink-0" />
             All Servers
@@ -207,7 +218,7 @@ function guildIconUrl(): string | null {
       <!-- Navigation -->
       <nav class="flex-1 p-2 space-y-4 overflow-y-auto">
         <div v-for="group in sectionGroups" :key="group.label">
-          <p class="px-3 pb-1 text-xs font-semibold text-muted-foreground/50 uppercase tracking-wider">
+          <p :class="['px-3 pb-1 text-xs font-semibold uppercase tracking-wider', GROUP_ACCENTS[group.label] ?? 'text-muted-foreground/50']">
             {{ group.label }}
           </p>
           <div class="space-y-0.5">
@@ -217,10 +228,10 @@ function guildIconUrl(): string | null {
               :class="[
                 'w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors text-left',
                 activeSection === section.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+                  ? 'bg-primary/15 text-primary font-medium border-l-2 border-primary pl-[10px]'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted border-l-2 border-transparent pl-[10px]',
               ]"
-              @click="activeSection = section.id"
+              @click="router.replace({ query: { tab: section.id } })"
             >
               <Icon :icon="section.icon" class="w-4 h-4 flex-shrink-0" />
               {{ section.label }}

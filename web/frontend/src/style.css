@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&family=Syne:wght@700;800&display=swap');
 @import "tailwindcss";
 
 @layer base {
@@ -41,5 +42,5 @@
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: Inter, system-ui, sans-serif;
+  font-family: 'Figtree', system-ui, sans-serif;
 }
