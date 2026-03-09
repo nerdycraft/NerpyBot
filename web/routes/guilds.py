@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from web.cache import ValkeyClient
-from web.dependencies import get_current_user, get_db_session, get_valkey, require_guild_access
+from web.dependencies import get_current_user, get_db_session, get_valkey, require_guild_access, require_premium
 from web.schemas import (
     ApplicationAnswerSchema,
     ApplicationFormCreate,
@@ -49,7 +49,7 @@ from web.schemas import (
     WowGuildNewsSchema,
 )
 
-router = APIRouter(prefix="/guilds", tags=["guilds"])
+router = APIRouter(prefix="/guilds", tags=["guilds"], dependencies=[Depends(require_premium)])
 
 
 # ── Guild list (Phase 2: will return guilds from cached permissions) ──

@@ -12,6 +12,15 @@ def seed_permissions(fake_valkey):
     )
 
 
+@pytest.fixture(autouse=True)
+def seed_premium_user(web_db_session):
+    """Grant premium to the default test user so guild endpoints pass require_premium."""
+    from models.admin import PremiumUser
+
+    PremiumUser.grant(123456, 111222333, web_db_session)
+    web_db_session.commit()
+
+
 class TestLanguageEndpoints:
     def test_get_language_default(self, client, auth_header):
         response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=auth_header)
@@ -284,4 +293,4 @@ class TestWowEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["guild_news"] == []
-        assert data["crafting_board"] is None
+        assert data["crafting_boards"] == []

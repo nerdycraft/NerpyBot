@@ -63,6 +63,22 @@ def require_operator(
     return user
 
 
+def require_premium(
+    user: dict = Depends(get_current_user),
+    config: WebConfig = Depends(get_config),
+    session: Session = Depends(get_db_session),
+) -> dict:
+    """Require the current user to have premium access. Operators bypass."""
+    user_id = int(user["sub"])
+    if user_id in config.ops:
+        return user
+    from models.admin import PremiumUser
+
+    if not PremiumUser.has(user_id, session):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Premium access required")
+    return user
+
+
 def require_guild_access(
     guild_id: int,
     user: dict = Depends(get_current_user),
