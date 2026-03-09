@@ -1,0 +1,99 @@
+"""FastAPI application factory."""
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+if TYPE_CHECKING:
+    from web.config import WebConfig
+    from web.cache import ValkeyClient
+
+
+def create_app(
+    config: WebConfig | None = None,
+    valkey_client: ValkeyClient | None = None,
+    config_path: Path | str | None = None,
+) -> FastAPI:
+    """Create and configure the FastAPI application.
+
+    Config resolution order:
+    1. Explicit ``config`` parameter (used by tests)
+    2. Load from ``config_path`` (or ``./config.yaml`` if None) + env var overlay
+    """
+    from web.config import WebConfig
+    from web.dependencies import get_config, get_db_session, get_valkey
+    from web.routes import auth, guilds, health, operator
+    from web.cache import ValkeyClient
+
+    if config is None:
+        config = WebConfig.load(config_path)
+
+    engine_kwargs = {}
+    if config.db_connection_string.startswith("sqlite"):
+        engine_kwargs["connect_args"] = {"check_same_thread": False}
+    engine = create_engine(config.db_connection_string, **engine_kwargs)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+
+    if valkey_client is None:
+        valkey_client = ValkeyClient.create(config.valkey_url)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        """Initialize app state on startup and clean up on shutdown."""
+        app.state.engine = engine
+        app.state.session_factory = session_factory
+        app.state.config = config
+        app.state.valkey = valkey_client
+        yield
+        valkey_client.close()
+        engine.dispose()
+
+    app = FastAPI(
+        title="NerpyBot Dashboard API",
+        description="Management API for NerpyBot Discord bot",
+        version="1.0.0",
+        lifespan=lifespan,
+        docs_url="/api/docs",
+        openapi_url="/api/openapi.json",
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=config.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Wire up dependency defaults
+    app.dependency_overrides[get_config] = lambda: config
+    app.dependency_overrides[get_valkey] = lambda: valkey_client
+
+    def _get_db_session():
+        """Yield a SQLAlchemy session, committing on success and rolling back on error."""
+        session = session_factory()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    app.dependency_overrides[get_db_session] = _get_db_session
+
+    # Register routers
+    app.include_router(auth.router, prefix="/api")
+    app.include_router(guilds.router, prefix="/api")
+    app.include_router(health.router, prefix="/api")
+    app.include_router(operator.router, prefix="/api")
+
+    return app

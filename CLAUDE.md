@@ -171,5 +171,4 @@ Copy `NerdyPy/config.yaml.template` to `NerdyPy/config.yaml` and fill in:
 
 ## Git
 
-- **Co-Authored-By**: `Co-Authored-By: Claude <noreply@anthropic.com>` (this is a GitHub repo)
 - **`docs/plans/`** is gitignored — never stage or commit plan files

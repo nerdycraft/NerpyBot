@@ -176,6 +176,30 @@ jobs:
           docker run --rm "${IMAGE}" alembic heads
           echo "Migrations image verified"
 
+      - name: Build and push Web Dashboard image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: web
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.repo.outputs.image_name }}-web:pr-${{ needs.check-trigger.outputs.pr_number }}
+          labels: |
+            org.opencontainers.image.title=NerpyBot Web Dashboard
+            org.opencontainers.image.description=PR build for testing
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.check-trigger.outputs.pr_head_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify Web Dashboard image
+        run: |
+          IMAGE="${REGISTRY}/${IMAGE_NAME,,}-web:pr-${{ needs.check-trigger.outputs.pr_number }}"
+          docker pull "${IMAGE}"
+          docker run --rm "${IMAGE}" python -c "from web.app import create_app; print('OK')"
+          echo "Web Dashboard image verified"
+
       - name: Comment on PR with image info
         uses: actions/github-script@v8
         with:
@@ -184,6 +208,7 @@ jobs:
             const sha = '${{ needs.check-trigger.outputs.pr_head_sha }}'.substring(0, 7);
             const bot = `${{ env.REGISTRY }}/${{ steps.repo.outputs.image_name }}:pr-${pr}`;
             const migrations = `${{ env.REGISTRY }}/${{ steps.repo.outputs.image_name }}-database-migrations:pr-${pr}`;
+            const web = `${{ env.REGISTRY }}/${{ steps.repo.outputs.image_name }}-web:pr-${pr}`;
             const body = [
               `## PR Docker Images Built`,
               ``,
@@ -191,6 +216,7 @@ jobs:
               `|-------|-----|`,
               `| Bot | \`${bot}\` |`,
               `| Migrations | \`${migrations}\` |`,
+              `| Web Dashboard | \`${web}\` |`,
               ``,
               `**Commit:** \`${sha}\``,
               `**Platforms:** \`linux/amd64\`, \`linux/arm64\``,
@@ -198,6 +224,7 @@ jobs:
               `\`\`\`bash`,
               `docker pull ${bot}`,
               `docker pull ${migrations}`,
+              `docker pull ${web}`,
               `\`\`\``,
               ``,
               `> This is a PR build for testing purposes. Do not use in production.`

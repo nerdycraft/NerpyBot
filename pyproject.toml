@@ -30,6 +30,7 @@ bot = [
     "cachetools",
     "yt-dlp",
     "typer",
+    "valkey",
 ]
 test = [
     "pytest",
@@ -42,6 +43,14 @@ migrations = [
     "alembic",
     "SQLAlchemy",
     "psycopg[binary]",
+    "pyyaml",
+]
+web = [
+    "fastapi",
+    "uvicorn[standard]",
+    "python-jose[cryptography]",
+    "httpx",
+    "valkey",
     "pyyaml",
 ]
 
