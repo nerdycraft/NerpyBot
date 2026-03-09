@@ -42,7 +42,9 @@ export const useAuthStore = defineStore(
     function isJwtExpired(): boolean {
       if (!jwt.value) return true;
       try {
-        const payload = JSON.parse(atob(jwt.value.split(".")[1]));
+        const parts = jwt.value.split(".");
+        if (parts.length < 2) return true;
+        const payload = JSON.parse(atob(parts[1]!));
         return typeof payload.exp === "number" && payload.exp * 1000 < Date.now();
       } catch {
         return true;
