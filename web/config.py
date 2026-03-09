@@ -50,6 +50,7 @@ class WebConfig:
     db_connection_string: str
     cors_origins: list[str] = field(default_factory=lambda: ["*"])
     frontend_url: str = "/"
+    log_level: str = "info"
 
     @classmethod
     def load(cls, config_path: Path | str | None = None) -> WebConfig:
@@ -87,6 +88,7 @@ class WebConfig:
         cors_origins_raw = _get(sources, "web", "cors_origins")
         cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()] if cors_origins_raw else ["*"]
         frontend_url = _get(sources, "web", "frontend_url", default="/")
+        log_level = _get(sources, "web", "log_level", default="info")
 
         return cls(
             client_id=client_id,
@@ -99,6 +101,7 @@ class WebConfig:
             db_connection_string=db_connection_string,
             cors_origins=cors_origins,
             frontend_url=frontend_url,
+            log_level=log_level,
         )
 
 
@@ -148,6 +151,7 @@ def _env_to_dict() -> dict:
         (("NERPYBOT_WEB_REDIRECT_URI",), ("web", "redirect_uri")),
         (("NERPYBOT_WEB_CORS_ORIGINS",), ("web", "cors_origins")),
         (("NERPYBOT_WEB_FRONTEND_URL",), ("web", "frontend_url")),
+        (("NERPYBOT_WEB_LOG_LEVEL",), ("web", "log_level")),
         (("NERPYBOT_WEB_DB_TYPE", "NERPYBOT_DB_TYPE"), ("database", "db_type")),
         (("NERPYBOT_WEB_DB_NAME", "NERPYBOT_DB_NAME"), ("database", "db_name")),
         (("NERPYBOT_WEB_DB_USERNAME", "NERPYBOT_DB_USERNAME"), ("database", "db_username")),

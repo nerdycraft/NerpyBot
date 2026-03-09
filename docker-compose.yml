@@ -103,6 +103,7 @@ services:
       # ── Optional ──
       # NERPYBOT_WEB_JWT_EXPIRY_HOURS: "24"
       # NERPYBOT_WEB_FRONTEND_URL: "http://localhost:5173"  # set only for local dev (Vite on a different port); leave unset in production
+      # NERPYBOT_WEB_LOG_LEVEL: "debug"
     volumes:
       - nerpybot-data:/data
 

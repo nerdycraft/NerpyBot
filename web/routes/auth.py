@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+
 import httpx
+
+_log = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 
@@ -21,6 +25,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def login(config: WebConfig = Depends(get_config)):
     """Redirect to Discord OAuth2 authorization."""
     url = build_authorize_url(config.client_id, config.redirect_uri)
+    _log.debug("login: redirecting to Discord OAuth, redirect_uri=%s", config.redirect_uri)
     return RedirectResponse(url=url, status_code=307)
 
 
@@ -52,11 +57,13 @@ async def callback(
 
     user_id = user_data["id"]
     username = user_data.get("username", "Unknown")
+    _log.debug("callback: authenticated user_id=%s username=%s guilds=%d", user_id, username, len(guilds))
 
     # Cache permissions and Discord token in Valkey
     perms = resolve_guild_permissions(guilds)
     vk.set_permissions(user_id, perms, ttl=config.jwt_expiry_hours * 3600)
     vk.set_discord_token(user_id, access_token, ttl=expires_in)
+    _log.debug("callback: cached permissions for %d guilds", len(perms))
 
     jwt = create_access_token(
         user_id=user_id,
@@ -66,6 +73,8 @@ async def callback(
     )
 
     base = config.frontend_url.rstrip("/")
+    redirect_target = f"{base}/?token=<redacted>"
+    _log.debug("callback: redirecting to %s", redirect_target)
     redirect_target = f"{base}/?token={jwt}"
     return RedirectResponse(url=redirect_target, status_code=302)
 

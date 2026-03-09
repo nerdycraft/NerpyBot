@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -35,6 +36,10 @@ def create_app(
 
     if config is None:
         config = WebConfig.load(config_path)
+
+    # Configure log level for the whole web package
+    level = getattr(logging, config.log_level.upper(), logging.INFO)
+    logging.getLogger("web").setLevel(level)
 
     engine_kwargs = {}
     if config.db_connection_string.startswith("sqlite"):
