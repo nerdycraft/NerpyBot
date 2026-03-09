@@ -31,21 +31,22 @@ In the [Discord Developer Portal](https://discord.com/developers/applications):
 
 The web service reads `NERPYBOT_WEB_*` environment variables:
 
-| Variable                        | Required | Default                                   | Description                                  |
-| ------------------------------- | -------- | ----------------------------------------- | -------------------------------------------- |
-| `NERPYBOT_WEB_CLIENT_ID`        | Yes      | —                                         | Discord application client ID                |
-| `NERPYBOT_WEB_CLIENT_SECRET`    | Yes      | —                                         | Discord application client secret            |
-| `NERPYBOT_WEB_JWT_SECRET`       | Yes      | —                                         | Secret key for signing JWT tokens            |
-| `NERPYBOT_WEB_OPS`              | Yes      | —                                         | Comma-separated Discord user IDs (operators) |
-| `NERPYBOT_WEB_REDIRECT_URI`     | No       | `http://localhost:8000/api/auth/callback` | OAuth2 callback URL                          |
-| `NERPYBOT_WEB_VALKEY_URL`       | No       | `valkey://localhost:6379`                 | Valkey connection URL                        |
-| `NERPYBOT_WEB_DB_TYPE`          | No       | `sqlite`                                  | `sqlite` or `postgresql`                     |
-| `NERPYBOT_WEB_DB_NAME`          | No       | `db.db`                                   | Database name or file path                   |
-| `NERPYBOT_WEB_DB_USERNAME`      | No       | —                                         | PostgreSQL username                          |
-| `NERPYBOT_WEB_DB_PASSWORD`      | No       | —                                         | PostgreSQL password                          |
-| `NERPYBOT_WEB_DB_HOST`          | No       | —                                         | PostgreSQL host                              |
-| `NERPYBOT_WEB_DB_PORT`          | No       | —                                         | PostgreSQL port                              |
-| `NERPYBOT_WEB_JWT_EXPIRY_HOURS` | No       | `24`                                      | JWT token lifetime in hours                  |
+| Variable                        | Required | Default                                   | Description                                                              |
+| ------------------------------- | -------- | ----------------------------------------- | ------------------------------------------------------------------------ |
+| `NERPYBOT_WEB_CLIENT_ID`        | Yes      | —                                         | Discord application client ID                                            |
+| `NERPYBOT_WEB_CLIENT_SECRET`    | Yes      | —                                         | Discord application client secret                                        |
+| `NERPYBOT_WEB_JWT_SECRET`       | Yes      | —                                         | Secret key for signing JWT tokens                                        |
+| `NERPYBOT_WEB_OPS`              | Yes      | —                                         | Comma-separated Discord user IDs (operators)                             |
+| `NERPYBOT_WEB_REDIRECT_URI`     | No       | `http://localhost:8000/api/auth/callback` | OAuth2 callback URL                                                      |
+| `NERPYBOT_WEB_VALKEY_URL`       | No       | `valkey://localhost:6379`                 | Valkey connection URL                                                    |
+| `NERPYBOT_WEB_DB_TYPE`          | No       | `sqlite`                                  | `sqlite` or `postgresql`                                                 |
+| `NERPYBOT_WEB_DB_NAME`          | No       | `db.db`                                   | Database name or file path                                               |
+| `NERPYBOT_WEB_DB_USERNAME`      | No       | —                                         | PostgreSQL username                                                      |
+| `NERPYBOT_WEB_DB_PASSWORD`      | No       | —                                         | PostgreSQL password                                                      |
+| `NERPYBOT_WEB_DB_HOST`          | No       | —                                         | PostgreSQL host                                                          |
+| `NERPYBOT_WEB_DB_PORT`          | No       | —                                         | PostgreSQL port                                                          |
+| `NERPYBOT_WEB_JWT_EXPIRY_HOURS` | No       | `24`                                      | JWT token lifetime in hours                                              |
+| `NERPYBOT_WEB_FRONTEND_URL`     | No       | `/`                                       | Base URL for post-OAuth redirect (`http://localhost:5173` for local dev) |
 
 The bot also needs the Valkey URL configured to enable the pub/sub bridge — set `NERPYBOT_WEB_VALKEY_URL` as an
 environment variable, or use `web.valkey_url` in `config.yaml`. All config keys can be set via `NERPYBOT_*` env vars,
@@ -88,18 +89,20 @@ docker buildx build --target bot -t nerpybot .
 
 ## Local Development
 
-Run the three components separately:
+Run all three components:
 
 ```bash
 # 1. Start Valkey (or Redis)
 docker run -d --name valkey -p 6379:6379 valkey/valkey:8-alpine
 
-# 2. Start the bot with Valkey URL configured
-NERPYBOT_WEB_VALKEY_URL=valkey://localhost:6379 uv run python NerdyPy/bot.py
+# 2. Start the API (with FRONTEND_URL pointed at Vite dev server)
+NERPYBOT_WEB_FRONTEND_URL=http://localhost:5173 uv run python -m uvicorn web.app:create_app --factory --reload
 
-# 3. Start the web service (using config file — easiest for local dev)
-uv run python -m uvicorn web.app:create_app --factory --reload
+# 3. Start the Vue dev server (proxies /api/* → :8000)
+cd web/frontend && npm run dev
 ```
+
+Open `http://localhost:5173`. The Discord OAuth login redirects through `:8000` and back to `:5173` with the JWT token.
 
 ### Config File vs Environment Variables
 
