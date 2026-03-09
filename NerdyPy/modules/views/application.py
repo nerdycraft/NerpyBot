@@ -254,7 +254,7 @@ async def _record_first_vote(session, interaction, submission_id, vote_type, mes
         await interaction.followup.send(get_string(lang, "application.review.no_longer_pending"), ephemeral=True)
         return False
 
-    vote = ApplicationVote(SubmissionId=submission_id, UserId=interaction.user.id, Vote=vote_type)
+    vote = ApplicationVote(SubmissionId=submission_id, UserId=interaction.user.id, VoterName=interaction.user.display_name, Vote=vote_type)
     session.add(vote)
     try:
         session.flush()
@@ -278,7 +278,7 @@ async def _record_edit_vote(session, interaction, submission_id, vote_type, mess
     if old_vote:
         session.delete(old_vote)
         session.flush()
-    session.add(ApplicationVote(SubmissionId=submission_id, UserId=interaction.user.id, Vote=vote_type))
+    session.add(ApplicationVote(SubmissionId=submission_id, UserId=interaction.user.id, VoterName=interaction.user.display_name, Vote=vote_type))
     session.flush()
 
     _check_vote_threshold(session, submission, vote_type, message_text)

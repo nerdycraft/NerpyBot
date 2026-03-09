@@ -240,6 +240,12 @@ class ApplicationAnswerSchema(BaseModel):
     answer_text: str
 
 
+class ApplicationVoteSchema(BaseModel):
+    voter_id: str
+    voter_name: str | None
+    vote: str  # "approve" or "deny"
+
+
 class ApplicationSubmissionSchema(BaseModel):
     id: int
     user_id: str
@@ -248,6 +254,7 @@ class ApplicationSubmissionSchema(BaseModel):
     submitted_at: str
     decision_reason: str | None = None
     answers: list[ApplicationAnswerSchema]
+    votes: list[ApplicationVoteSchema] = []
 
 
 class ApplicationTemplateQuestionSchema(BaseModel):

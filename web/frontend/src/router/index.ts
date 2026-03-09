@@ -21,6 +21,10 @@ const router = createRouter({
       path: "/guilds/:id",
       component: () => import("@/views/guild/GuildDetailView.vue"),
     },
+    {
+      path: "/guilds/:id/forms/:formId/submissions",
+      component: () => import("@/views/guild/FormSubmissionsView.vue"),
+    },
   ],
 });
 

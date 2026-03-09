@@ -191,6 +191,12 @@ export interface ApplicationAnswerSchema {
   answer_text: string;
 }
 
+export interface ApplicationVoteSchema {
+  voter_id: string;
+  voter_name: string | null;
+  vote: "approve" | "deny";
+}
+
 export interface ApplicationSubmissionSchema {
   id: number;
   user_id: string;
@@ -199,6 +205,7 @@ export interface ApplicationSubmissionSchema {
   submitted_at: string;
   decision_reason: string | null;
   answers: ApplicationAnswerSchema[];
+  votes: ApplicationVoteSchema[];
 }
 
 export interface ApplicationTemplateQuestionSchema {

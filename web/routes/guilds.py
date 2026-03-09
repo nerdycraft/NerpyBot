@@ -11,6 +11,7 @@ from web.dependencies import get_current_user, get_db_session, get_valkey, requi
 from web.schemas import (
     ApplicationAnswerSchema,
     ApplicationFormCreate,
+    ApplicationVoteSchema,
     ApplicationFormSchema,
     ApplicationFormUpdate,
     ApplicationQuestionCreate,
@@ -834,6 +835,14 @@ async def list_form_submissions(
                     answer_text=a.AnswerText,
                 )
                 for a in s.answers
+            ],
+            votes=[
+                ApplicationVoteSchema(
+                    voter_id=str(v.UserId),
+                    voter_name=v.VoterName,
+                    vote=v.Vote.value,
+                )
+                for v in s.votes
             ],
         )
         for s in submissions

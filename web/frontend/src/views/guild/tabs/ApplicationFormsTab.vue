@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
-import type { ApplicationFormSchema, ApplicationSubmissionSchema } from "@/api/types";
+import type { ApplicationFormSchema } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
 import { useGuildEntities } from "@/composables/useGuildEntities";
 
 const props = defineProps<{ guildId: string }>();
 
+const router = useRouter();
 const { fetchChannels, channelName } = useGuildEntities(props.guildId);
 
 const forms = ref<ApplicationFormSchema[]>([]);
@@ -17,10 +19,6 @@ const error = ref<string | null>(null);
 const expandedFormId = ref<number | null>(null);
 const editingFormId = ref<number | null>(null);
 const showCreateForm = ref(false);
-
-const submissions = ref<Record<number, ApplicationSubmissionSchema[]>>({});
-const submissionsLoading = ref<Record<number, boolean>>({});
-const expandedSubmissionsFormId = ref<number | null>(null);
 
 const editingQuestionId = ref<number | null>(null);
 const editQuestionText = ref("");
@@ -172,28 +170,6 @@ async function deleteQuestion(formId: number, questionId: number) {
   }
 }
 
-async function loadSubmissions(formId: number) {
-  if (expandedSubmissionsFormId.value === formId) {
-    expandedSubmissionsFormId.value = null;
-    return;
-  }
-  expandedSubmissionsFormId.value = formId;
-  if (submissions.value[formId]) return;
-  submissionsLoading.value[formId] = true;
-  try {
-    submissions.value[formId] = await api.get<ApplicationSubmissionSchema[]>(
-      `/guilds/${props.guildId}/application-forms/${formId}/submissions`,
-    );
-  } finally {
-    submissionsLoading.value[formId] = false;
-  }
-}
-
-const statusColor: Record<string, string> = {
-  pending: "text-yellow-400",
-  approved: "text-green-400",
-  denied: "text-destructive",
-};
 </script>
 
 <template>
@@ -387,38 +363,16 @@ const statusColor: Record<string, string> = {
             </div>
           </div>
 
-          <!-- Submissions -->
-          <div class="space-y-2">
+          <!-- Submissions link -->
+          <div class="pt-1">
             <button
-              class="text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors flex items-center gap-1"
-              @click="loadSubmissions(form.id)"
+              class="text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+              @click="router.push(`/guilds/${guildId}/forms/${form.id}/submissions`)"
             >
-              <Icon :icon="expandedSubmissionsFormId === form.id ? 'mdi:chevron-down' : 'mdi:chevron-right'" class="w-3.5 h-3.5" />
-              Submissions
+              <Icon icon="mdi:file-account-outline" class="w-3.5 h-3.5" />
+              View Submissions
+              <Icon icon="mdi:arrow-right" class="w-3.5 h-3.5" />
             </button>
-            <div v-if="expandedSubmissionsFormId === form.id">
-              <div v-if="submissionsLoading[form.id]" class="text-muted-foreground text-xs">Loading…</div>
-              <p v-else-if="!submissions[form.id]?.length" class="text-muted-foreground text-xs">No submissions.</p>
-              <div v-else class="space-y-2">
-                <div
-                  v-for="sub in submissions[form.id]"
-                  :key="sub.id"
-                  class="bg-background border border-border rounded px-3 py-2 space-y-1"
-                >
-                  <div class="flex items-center justify-between">
-                    <span class="text-sm font-medium">{{ sub.user_name ?? sub.user_id }}</span>
-                    <span :class="['text-xs capitalize', statusColor[sub.status] ?? 'text-muted-foreground']">{{ sub.status }}</span>
-                  </div>
-                  <p class="text-xs text-muted-foreground">{{ sub.submitted_at }}</p>
-                  <div class="space-y-1 pt-1">
-                    <div v-for="a in sub.answers" :key="a.question_id" class="text-xs">
-                      <span class="text-muted-foreground">{{ a.question_text }}</span>
-                      <p class="text-foreground/80 pl-2">{{ a.answer_text }}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
