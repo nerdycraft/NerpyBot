@@ -291,7 +291,7 @@ class ApplicationTemplateQuestionCreate(BaseModel):
     question_text: str
 
 
-# ── WoW (read-only) ──
+# ── WoW ──
 
 
 class WowGuildNewsSchema(BaseModel):
@@ -301,6 +301,33 @@ class WowGuildNewsSchema(BaseModel):
     wow_realm_slug: str
     region: str
     enabled: bool
+    min_level: int
+    active_days: int
+    last_activity: str | None = None
+    tracked_characters: int = 0
+
+
+class WowCharacterMountSchema(BaseModel):
+    character_name: str
+    realm_slug: str
+    mount_count: int
+    last_checked: str | None
+
+
+class WowGuildNewsCreate(BaseModel):
+    channel_id: str
+    wow_guild_name: str
+    wow_realm_slug: str
+    region: str  # "eu" or "us"
+    active_days: int = Field(7, ge=1)
+    min_level: int = Field(10, ge=1)
+
+
+class WowGuildNewsUpdate(BaseModel):
+    channel_id: str | None = None
+    active_days: int | None = Field(None, ge=1)
+    min_level: int | None = Field(None, ge=1)
+    enabled: bool | None = None
 
 
 class CraftingBoardSchema(BaseModel):
