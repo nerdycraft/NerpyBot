@@ -36,6 +36,12 @@ const newTemplateQuestionText = ref<Record<number, string>>({});
 
 const saving = ref(false);
 const opError = ref<string | null>(null);
+const questionSavedFormId = ref<number | null>(null);
+
+function flashQuestionSaved(formId: number) {
+  questionSavedFormId.value = formId;
+  setTimeout(() => { questionSavedFormId.value = null; }, 1800);
+}
 
 // Blank form state
 function blankForm() {
@@ -44,6 +50,7 @@ function blankForm() {
     required_approvals: 1,
     required_denials: 1,
     review_channel_id: "" as string,
+    apply_channel_id: "" as string,
     approval_message: "",
     denial_message: "",
     apply_description: "",
@@ -78,6 +85,7 @@ function startEdit(form: ApplicationFormSchema) {
     required_approvals: form.required_approvals,
     required_denials: form.required_denials,
     review_channel_id: form.review_channel_id ?? "",
+    apply_channel_id: form.apply_channel_id ?? "",
     approval_message: form.approval_message ?? "",
     denial_message: form.denial_message ?? "",
     apply_description: form.apply_description ?? "",
@@ -100,6 +108,7 @@ async function saveForm() {
       required_approvals: formDraft.value.required_approvals,
       required_denials: formDraft.value.required_denials,
       review_channel_id: formDraft.value.review_channel_id || null,
+      apply_channel_id: formDraft.value.apply_channel_id || null,
       approval_message: formDraft.value.approval_message || null,
       denial_message: formDraft.value.denial_message || null,
       apply_description: formDraft.value.apply_description || null,
@@ -144,6 +153,7 @@ async function addQuestion(formId: number) {
     const form = forms.value.find((f) => f.id === formId);
     if (form) form.questions.push(q as never);
     newQuestionText.value[formId] = "";
+    flashQuestionSaved(formId);
   } catch (e: unknown) {
     opError.value = e instanceof Error ? e.message : "Failed to add question";
   }
@@ -161,6 +171,7 @@ async function saveQuestion(formId: number, questionId: number) {
       if (idx !== -1) form.questions[idx] = updated as never;
     }
     editingQuestionId.value = null;
+    flashQuestionSaved(formId);
   } catch (e: unknown) {
     opError.value = e instanceof Error ? e.message : "Failed to update question";
   }
@@ -302,8 +313,16 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
           <input v-model="formDraft.name" class="bg-input border border-border rounded px-3 py-2 text-sm" placeholder="e.g. Guild Application" />
         </div>
         <div class="flex flex-col gap-1">
-          <label class="text-xs text-muted-foreground">Review Channel</label>
+          <label class="text-xs text-muted-foreground">Review Channel <span class="text-muted-foreground/60">(where votes appear)</span></label>
           <DiscordPicker v-model="formDraft.review_channel_id" :guild-id="guildId" kind="channel" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-muted-foreground">Apply Channel <span class="text-muted-foreground/60">(where the Apply button is posted)</span></label>
+          <DiscordPicker v-model="formDraft.apply_channel_id" :guild-id="guildId" kind="channel" />
+        </div>
+        <div class="flex flex-col gap-1 sm:col-span-2">
+          <label class="text-xs text-muted-foreground">Apply description <span class="text-muted-foreground/60">(shown on the Apply button embed, optional)</span></label>
+          <textarea v-model="formDraft.apply_description" rows="2" class="bg-input border border-border rounded px-3 py-2 text-sm resize-y" />
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground">Required Approvals</label>
@@ -363,8 +382,16 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
                 <input v-model="formDraft.name" class="bg-input border border-border rounded px-3 py-2 text-sm" />
               </div>
               <div class="flex flex-col gap-1">
-                <label class="text-xs text-muted-foreground">Review Channel</label>
+                <label class="text-xs text-muted-foreground">Review Channel <span class="text-muted-foreground/60">(where votes appear)</span></label>
                 <DiscordPicker v-model="formDraft.review_channel_id" :guild-id="guildId" kind="channel" />
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-xs text-muted-foreground">Apply Channel <span class="text-muted-foreground/60">(where Apply button is posted)</span></label>
+                <DiscordPicker v-model="formDraft.apply_channel_id" :guild-id="guildId" kind="channel" />
+              </div>
+              <div class="flex flex-col gap-1 sm:col-span-2">
+                <label class="text-xs text-muted-foreground">Apply description <span class="text-muted-foreground/60">(shown on the Apply embed, optional)</span></label>
+                <textarea v-model="formDraft.apply_description" rows="2" class="bg-input border border-border rounded px-3 py-2 text-sm resize-y" />
               </div>
               <div class="flex flex-col gap-1">
                 <label class="text-xs text-muted-foreground">Required Approvals</label>
@@ -396,13 +423,20 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
           <!-- Settings summary (when not editing) -->
           <div v-else class="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
             <span v-if="form.review_channel_id">Review channel: {{ form.review_channel_id }}</span>
+            <span v-if="form.apply_channel_id">Apply channel: {{ form.apply_channel_id }}</span>
             <span v-if="form.approval_message">Approval message set</span>
             <span v-if="form.denial_message">Denial message set</span>
           </div>
 
           <!-- Questions -->
           <div class="space-y-2">
-            <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Questions</p>
+            <div class="flex items-center gap-2">
+              <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Questions</p>
+              <span
+                v-if="questionSavedFormId === form.id"
+                class="text-xs text-green-400 transition-opacity"
+              >✓ Saved</span>
+            </div>
             <p v-if="form.questions.length === 0" class="text-muted-foreground text-xs">No questions yet.</p>
             <div
               v-for="q in [...form.questions].sort((a, b) => a.sort_order - b.sort_order)"

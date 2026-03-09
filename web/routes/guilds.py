@@ -636,6 +636,7 @@ async def create_application_form(
     body: ApplicationFormCreate,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    vk: ValkeyClient = Depends(get_valkey),
 ):
     """Create a new application form for a guild. Returns 409 if a form with that name already exists."""
     from models.application import ApplicationForm
@@ -646,6 +647,7 @@ async def create_application_form(
         GuildId=guild_id,
         Name=body.name,
         ReviewChannelId=int(body.review_channel_id) if body.review_channel_id else None,
+        ApplyChannelId=int(body.apply_channel_id) if body.apply_channel_id else None,
         RequiredApprovals=body.required_approvals,
         RequiredDenials=body.required_denials,
         ApprovalMessage=body.approval_message,
@@ -654,7 +656,11 @@ async def create_application_form(
     )
     session.add(form)
     session.flush()
-    return _form_to_schema(form)
+    schema = _form_to_schema(form)
+    if form.ApplyChannelId:
+        session.commit()
+        await vk.send_bot_command("post_apply_button", {"form_id": form.Id}, timeout=1.0)
+    return schema
 
 
 @router.put("/{guild_id}/application-forms/{form_id}", response_model=ApplicationFormSchema)
@@ -664,6 +670,7 @@ async def update_application_form(
     body: ApplicationFormUpdate,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    vk: ValkeyClient = Depends(get_valkey),
 ):
     """Update an existing application form. Returns 404 if not found for this guild."""
     from models.application import ApplicationForm
@@ -671,6 +678,7 @@ async def update_application_form(
     form = session.query(ApplicationForm).filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id).first()
     if form is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
+    apply_channel_changed = False
     if body.name is not None:
         form.Name = body.name
     if body.required_approvals is not None:
@@ -679,13 +687,22 @@ async def update_application_form(
         form.RequiredDenials = body.required_denials
     if body.review_channel_id is not None:
         form.ReviewChannelId = int(body.review_channel_id) if body.review_channel_id else None
+    if body.apply_channel_id is not None:
+        new_id = int(body.apply_channel_id) if body.apply_channel_id else None
+        if new_id != form.ApplyChannelId:
+            form.ApplyChannelId = new_id
+            apply_channel_changed = True
     if body.approval_message is not None:
         form.ApprovalMessage = body.approval_message
     if body.denial_message is not None:
         form.DenialMessage = body.denial_message
     if body.apply_description is not None:
         form.ApplyDescription = body.apply_description
-    return _form_to_schema(form)
+    schema = _form_to_schema(form)
+    if apply_channel_changed and form.ApplyChannelId:
+        session.commit()
+        await vk.send_bot_command("post_apply_button", {"form_id": form.Id}, timeout=1.0)
+    return schema
 
 
 @router.delete("/{guild_id}/application-forms/{form_id}", status_code=status.HTTP_204_NO_CONTENT)

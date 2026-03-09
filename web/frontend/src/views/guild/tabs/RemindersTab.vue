@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { ReminderSchema, ReminderCreate, ReminderUpdate } from "@/api/types";
@@ -17,20 +17,47 @@ const opError = ref<string | null>(null);
 
 const DOW_LABELS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-function blankDraft(): ReminderCreate {
+// ── Interval picker state (separate from the draft's interval_seconds) ──
+type IntervalUnit = "minutes" | "hours" | "days";
+const intervalAmount = ref(1);
+const intervalUnit = ref<IntervalUnit>("hours");
+
+const UNIT_SECONDS: Record<IntervalUnit, number> = { minutes: 60, hours: 3600, days: 86400 };
+const UNIT_MIN: Record<IntervalUnit, number> = { minutes: 1, hours: 1, days: 1 };
+
+// ── Timezone autocomplete ──
+const ALL_TIMEZONES: string[] = Intl.supportedValuesOf("timeZone");
+const tzQuery = ref("UTC");
+const tzOpen = ref(false);
+const filteredTz = computed(() => {
+  const q = tzQuery.value.toLowerCase();
+  return q
+    ? ALL_TIMEZONES.filter((tz) => tz.toLowerCase().includes(q)).slice(0, 80)
+    : ALL_TIMEZONES.slice(0, 80);
+});
+
+function selectTz(tz: string) {
+  tzQuery.value = tz;
+  tzOpen.value = false;
+}
+
+function closeTzDropdown() {
+  setTimeout(() => { tzOpen.value = false; }, 150);
+}
+
+// ── Draft ──
+function blankDraft() {
   return {
     channel_id: "",
     message: "",
-    schedule_type: "interval",
-    interval_seconds: 3600,
+    schedule_type: "interval" as ReminderCreate["schedule_type"],
     schedule_time: "09:00",
     schedule_day_of_week: 0,
     schedule_day_of_month: 1,
-    timezone: "UTC",
   };
 }
 
-const draft = ref<ReminderCreate>(blankDraft());
+const draft = ref(blankDraft());
 
 onMounted(async () => {
   try {
@@ -44,9 +71,10 @@ onMounted(async () => {
 
 function formatInterval(seconds: number | null): string {
   if (!seconds) return "—";
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
-  if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
-  return `${Math.round(seconds / 86400)}d`;
+  if (seconds % 86400 === 0) return `${seconds / 86400}d`;
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
+  if (seconds % 60 === 0) return `${seconds / 60}m`;
+  return `${seconds}s`;
 }
 
 function scheduleLabel(r: ReminderSchema): string {
@@ -54,9 +82,9 @@ function scheduleLabel(r: ReminderSchema): string {
   if (r.schedule_type === "daily") return `Daily at ${r.schedule_time ?? "?"}`;
   if (r.schedule_type === "weekly") {
     const dow = r.schedule_day_of_week != null ? DOW_LABELS[r.schedule_day_of_week] : "?";
-    return `Weekly on ${dow} at ${r.schedule_time ?? "?"}`;
+    return `Weekly · ${dow} at ${r.schedule_time ?? "?"}`;
   }
-  if (r.schedule_type === "monthly") return `Monthly on day ${r.schedule_day_of_month} at ${r.schedule_time ?? "?"}`;
+  if (r.schedule_type === "monthly") return `Monthly · day ${r.schedule_day_of_month} at ${r.schedule_time ?? "?"}`;
   return r.schedule_type;
 }
 
@@ -90,10 +118,10 @@ async function createReminder() {
       channel_id: draft.value.channel_id,
       message: draft.value.message,
       schedule_type: draft.value.schedule_type,
-      timezone: draft.value.timezone || "UTC",
+      timezone: tzQuery.value || "UTC",
     };
     if (draft.value.schedule_type === "interval") {
-      payload.interval_seconds = draft.value.interval_seconds;
+      payload.interval_seconds = intervalAmount.value * UNIT_SECONDS[intervalUnit.value];
     } else {
       payload.schedule_time = draft.value.schedule_time;
       if (draft.value.schedule_type === "weekly") payload.schedule_day_of_week = draft.value.schedule_day_of_week;
@@ -103,6 +131,9 @@ async function createReminder() {
     reminders.value.unshift(created);
     showCreate.value = false;
     draft.value = blankDraft();
+    intervalAmount.value = 1;
+    intervalUnit.value = "hours";
+    tzQuery.value = "UTC";
   } catch (e: unknown) {
     opError.value = e instanceof Error ? e.message : "Create failed";
   } finally {
@@ -134,40 +165,44 @@ async function createReminder() {
       <p class="text-sm font-semibold">New Reminder</p>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <!-- Channel -->
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground">Channel</label>
           <DiscordPicker v-model="draft.channel_id" :guild-id="guildId" kind="channel" />
         </div>
 
+        <!-- Schedule type -->
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground">Schedule Type</label>
           <select v-model="draft.schedule_type" class="bg-input border border-border rounded px-3 py-2 text-sm">
-            <option value="interval">Interval (repeat every N seconds)</option>
-            <option value="daily">Daily (at a fixed time)</option>
+            <option value="interval">Repeat every…</option>
+            <option value="daily">Daily at a fixed time</option>
             <option value="weekly">Weekly (day + time)</option>
-            <option value="monthly">Monthly (day-of-month + time)</option>
+            <option value="monthly">Monthly (day + time)</option>
           </select>
         </div>
 
-        <!-- Interval: seconds input -->
-        <div v-show="draft.schedule_type === 'interval'" class="flex flex-col gap-1">
-          <label class="text-xs text-muted-foreground">Interval (seconds)</label>
-          <input
-            v-model.number="draft.interval_seconds"
-            type="number"
-            min="60"
-            step="60"
-            placeholder="3600"
-            class="bg-input border border-border rounded px-3 py-2 text-sm"
-          />
-          <span class="text-xs text-muted-foreground">
-            {{ draft.interval_seconds ? formatInterval(draft.interval_seconds) : "" }}
-          </span>
+        <!-- Interval: amount + unit -->
+        <div v-show="draft.schedule_type === 'interval'" class="flex flex-col gap-1 sm:col-span-2">
+          <label class="text-xs text-muted-foreground">Repeat every</label>
+          <div class="flex gap-2">
+            <input
+              v-model.number="intervalAmount"
+              type="number"
+              :min="UNIT_MIN[intervalUnit]"
+              class="bg-input border border-border rounded px-3 py-2 text-sm w-24"
+            />
+            <select v-model="intervalUnit" class="bg-input border border-border rounded px-3 py-2 text-sm flex-1">
+              <option value="minutes">Minutes</option>
+              <option value="hours">Hours</option>
+              <option value="days">Days</option>
+            </select>
+          </div>
         </div>
 
         <!-- Time (daily / weekly / monthly) -->
         <div v-show="draft.schedule_type !== 'interval'" class="flex flex-col gap-1">
-          <label class="text-xs text-muted-foreground">Time (HH:MM)</label>
+          <label class="text-xs text-muted-foreground">Time</label>
           <input
             v-model="draft.schedule_time"
             type="time"
@@ -195,16 +230,34 @@ async function createReminder() {
           />
         </div>
 
-        <div class="flex flex-col gap-1">
+        <!-- Timezone autocomplete -->
+        <div class="flex flex-col gap-1 relative sm:col-span-2">
           <label class="text-xs text-muted-foreground">Timezone</label>
           <input
-            v-model="draft.timezone"
+            v-model="tzQuery"
             type="text"
-            placeholder="UTC"
+            placeholder="Search timezone…"
             class="bg-input border border-border rounded px-3 py-2 text-sm"
+            @focus="tzOpen = true"
+            @blur="closeTzDropdown"
           />
+          <div
+            v-if="tzOpen"
+            class="absolute top-full left-0 right-0 z-20 mt-1 bg-card border border-border rounded shadow-lg max-h-48 overflow-y-auto"
+          >
+            <button
+              v-for="tz in filteredTz"
+              :key="tz"
+              class="w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors"
+              :class="{ 'bg-primary/10 text-primary': tzQuery === tz }"
+              @mousedown.prevent="selectTz(tz)"
+            >
+              {{ tz }}
+            </button>
+          </div>
         </div>
 
+        <!-- Message -->
         <div class="flex flex-col gap-1 sm:col-span-2">
           <label class="text-xs text-muted-foreground">Message</label>
           <textarea
@@ -224,7 +277,7 @@ async function createReminder() {
         >{{ saving ? "Saving…" : "Create" }}</button>
         <button
           class="text-muted-foreground hover:text-foreground text-sm transition-colors"
-          @click="showCreate = false; draft = blankDraft()"
+          @click="showCreate = false; draft = blankDraft(); intervalAmount = 1; intervalUnit = 'hours'; tzQuery = 'UTC'"
         >Cancel</button>
       </div>
     </div>

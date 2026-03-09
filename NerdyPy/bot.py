@@ -138,6 +138,16 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                 if not r.is_default()
             ]
         }
+    elif command == "post_apply_button":
+        form_id = int(payload.get("form_id", 0))
+        if not form_id:
+            return {"error": "form_id required"}
+        from asyncio import run_coroutine_threadsafe
+
+        from modules.views.application import post_apply_button_message
+
+        run_coroutine_threadsafe(post_apply_button_message(bot, form_id), bot.loop)
+        return {"queued": True}
     else:
         return {"error": f"Unknown command: {command}"}
 

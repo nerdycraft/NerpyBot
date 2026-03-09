@@ -207,6 +207,7 @@ class ApplicationFormCreate(BaseModel):
     required_approvals: int = Field(1, ge=1)
     required_denials: int = Field(1, ge=1)
     review_channel_id: str | None = None
+    apply_channel_id: str | None = None
     approval_message: str | None = None
     denial_message: str | None = None
     apply_description: str | None = None
@@ -217,6 +218,7 @@ class ApplicationFormUpdate(BaseModel):
     required_approvals: int | None = Field(None, ge=1)
     required_denials: int | None = Field(None, ge=1)
     review_channel_id: str | None = None
+    apply_channel_id: str | None = None
     approval_message: str | None = None
     denial_message: str | None = None
     apply_description: str | None = None
