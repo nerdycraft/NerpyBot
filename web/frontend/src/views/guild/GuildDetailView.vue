@@ -177,7 +177,7 @@ function guildIconUrl(): string | null {
           <div v-if="otherManagedGuilds.length > 0" class="border-t border-border" />
           <button
             class="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-left"
-            @click="router.push('/guilds'); switcherOpen = false"
+            @click="activeSection = 'server-overview'; switcherOpen = false"
           >
             <Icon icon="mdi:view-grid-outline" class="w-4 h-4 flex-shrink-0" />
             All Servers
