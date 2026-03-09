@@ -2,6 +2,7 @@
 import { ref, onMounted } from "vue";
 import { api } from "@/api/client";
 import type { LeaveMessageConfig } from "@/api/types";
+import DiscordPicker from "@/components/DiscordPicker.vue";
 
 const props = defineProps<{ guildId: string }>();
 
@@ -58,14 +59,15 @@ async function save() {
       </label>
 
       <div class="flex flex-col gap-2">
-        <label class="text-sm font-medium" for="leave-channel">Channel ID</label>
-        <input
-          id="leave-channel"
-          v-model="config.channel_id"
-          type="text"
-          placeholder="Channel ID"
-          class="bg-input border border-border rounded px-3 py-2 text-sm w-64"
-        />
+        <label class="text-sm font-medium">Channel</label>
+        <div class="w-64">
+          <DiscordPicker
+            :model-value="config.channel_id ?? ''"
+            :guild-id="guildId"
+            kind="channel"
+            @update:model-value="config.channel_id = $event || null"
+          />
+        </div>
       </div>
 
       <div class="flex flex-col gap-2">

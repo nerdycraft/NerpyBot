@@ -5,7 +5,8 @@ import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
 import { useGuildStore } from "@/stores/guild";
 import { api } from "@/api/client";
-import type { ReminderSchema, ReactionRoleMessageSchema } from "@/api/types";
+import type { ReminderSchema, ReactionRoleMessageSchema, ApplicationFormSchema } from "@/api/types";
+import ApplicationsTab from "./tabs/ApplicationsTab.vue";
 import LanguageTab from "./tabs/LanguageTab.vue";
 import ModeratorRolesTab from "./tabs/ModeratorRolesTab.vue";
 import LeaveMessagesTab from "./tabs/LeaveMessagesTab.vue";
@@ -40,6 +41,7 @@ function switchGuild(id: string) {
 const remindersCount = ref<number | null>(null);
 const reactionRolesCount = ref<number | null>(null);
 const wowHasData = ref<boolean | null>(null);
+const applicationsCount = ref<number | null>(null);
 
 interface WowConfig {
   guild_news: unknown[];
@@ -47,16 +49,18 @@ interface WowConfig {
 }
 
 onMounted(async () => {
-  const [reminders, reactionRoles, wow] = await Promise.allSettled([
+  const [reminders, reactionRoles, wow, applications] = await Promise.allSettled([
     api.get<ReminderSchema[]>(`/guilds/${guildId}/reminders`),
     api.get<ReactionRoleMessageSchema[]>(`/guilds/${guildId}/reaction-roles`),
     api.get<WowConfig>(`/guilds/${guildId}/wow`),
+    api.get<ApplicationFormSchema[]>(`/guilds/${guildId}/application-forms`),
   ]);
   remindersCount.value = reminders.status === "fulfilled" ? reminders.value.length : 0;
   reactionRolesCount.value = reactionRoles.status === "fulfilled" ? reactionRoles.value.length : 0;
   wowHasData.value =
     wow.status === "fulfilled" &&
     (wow.value.guild_news.length > 0 || wow.value.crafting_boards.length > 0);
+  applicationsCount.value = applications.status === "fulfilled" ? applications.value.length : 0;
 });
 
 const sections = [
@@ -68,6 +72,7 @@ const sections = [
   { id: "role-mappings", label: "Role Mappings", icon: "mdi:account-switch", component: RoleMappingsTab, always: true },
   { id: "reminders", label: "Reminders", icon: "mdi:bell-outline", component: RemindersTab, always: false },
   { id: "reaction-roles", label: "Reaction Roles", icon: "mdi:emoticon-outline", component: ReactionRolesTab, always: false },
+  { id: "applications", label: "Applications", icon: "mdi:file-document-outline", component: ApplicationsTab, always: false },
   { id: "wow", label: "WoW", icon: "mdi:sword-cross", component: WowTab, always: false },
 ];
 
@@ -76,6 +81,7 @@ const visibleSections = computed(() =>
     if (s.always) return true;
     if (s.id === "reminders") return (remindersCount.value ?? 0) > 0;
     if (s.id === "reaction-roles") return (reactionRolesCount.value ?? 0) > 0;
+    if (s.id === "applications") return (applicationsCount.value ?? 0) > 0;
     if (s.id === "wow") return wowHasData.value === true;
     return false;
   }),

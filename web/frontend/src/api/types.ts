@@ -173,6 +173,19 @@ export interface CraftingBoardSchema {
   description: string | null;
 }
 
+// ── Discord entities (for pickers) ──
+
+export interface DiscordChannel {
+  id: string;
+  name: string;
+  type: number;
+}
+
+export interface DiscordRole {
+  id: string;
+  name: string;
+}
+
 // ── Operator ──
 
 export interface HealthResponse {

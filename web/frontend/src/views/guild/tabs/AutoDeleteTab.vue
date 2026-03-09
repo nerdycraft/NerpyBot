@@ -2,6 +2,7 @@
 import { ref, onMounted } from "vue";
 import { api } from "@/api/client";
 import type { AutoDeleteRule } from "@/api/types";
+import DiscordPicker from "@/components/DiscordPicker.vue";
 
 const props = defineProps<{ guildId: string }>();
 
@@ -118,9 +119,10 @@ async function remove(id: number) {
         <p class="text-sm font-medium">Add Rule</p>
         <div class="flex flex-wrap gap-2 items-end">
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-muted-foreground" for="ad-channel">Channel ID</label>
-            <input id="ad-channel" v-model="newRule.channel_id" placeholder="Channel ID"
-              class="bg-input border border-border rounded px-3 py-2 text-sm w-40" />
+            <label class="text-xs text-muted-foreground">Channel</label>
+            <div class="w-48">
+              <DiscordPicker v-model="newRule.channel_id" :guild-id="guildId" kind="channel" />
+            </div>
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-xs text-muted-foreground" for="ad-keep">Keep msgs</label>

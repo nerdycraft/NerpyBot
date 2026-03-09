@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from web.dependencies import get_current_user, get_db_session, require_guild_access
+from web.cache import ValkeyClient
+from web.dependencies import get_current_user, get_db_session, get_valkey, require_guild_access
 from web.schemas import (
     ApplicationFormSchema,
     ApplicationQuestionSchema,
@@ -538,3 +539,28 @@ async def get_wow_config(
         if crafting
         else None,
     }
+
+
+# ── Discord entities (via bot bridge) ──
+
+
+@router.get("/{guild_id}/discord/channels")
+async def list_discord_channels(
+    guild_id: int,
+    user: dict = Depends(require_guild_access),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """Fetch the channel list for a guild from the bot via Valkey bridge."""
+    result = await vk.send_bot_command("get_channels", {"guild_id": guild_id})
+    return result or {"channels": []}
+
+
+@router.get("/{guild_id}/discord/roles")
+async def list_discord_roles(
+    guild_id: int,
+    user: dict = Depends(require_guild_access),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """Fetch the role list for a guild from the bot via Valkey bridge."""
+    result = await vk.send_bot_command("get_roles", {"guild_id": guild_id})
+    return result or {"roles": []}

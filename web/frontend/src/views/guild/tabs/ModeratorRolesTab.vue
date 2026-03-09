@@ -2,6 +2,7 @@
 import { ref, onMounted } from "vue";
 import { api } from "@/api/client";
 import type { ModeratorRole } from "@/api/types";
+import DiscordPicker from "@/components/DiscordPicker.vue";
 
 const props = defineProps<{ guildId: string }>();
 
@@ -81,13 +82,13 @@ async function remove(roleId: string) {
       </div>
 
       <div class="flex gap-2 mt-4">
-        <input
-          v-model="newRoleId"
-          type="text"
-          placeholder="Role ID"
-          class="bg-input border border-border rounded px-3 py-2 text-sm flex-1 min-w-0"
-          @keyup.enter="add"
-        />
+        <div class="flex-1 min-w-0">
+          <DiscordPicker
+            v-model="newRoleId"
+            :guild-id="guildId"
+            kind="role"
+          />
+        </div>
         <button
           class="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors flex-shrink-0"
           :disabled="adding || !newRoleId.trim()"

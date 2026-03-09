@@ -2,6 +2,7 @@
 import { ref, onMounted } from "vue";
 import { api } from "@/api/client";
 import type { RoleMappingSchema } from "@/api/types";
+import DiscordPicker from "@/components/DiscordPicker.vue";
 
 const props = defineProps<{ guildId: string }>();
 
@@ -82,19 +83,13 @@ async function remove(id: number) {
       </div>
 
       <div class="flex flex-wrap gap-2 items-center mt-4">
-        <input
-          v-model="newMapping.source_role_id"
-          type="text"
-          placeholder="Source Role ID"
-          class="bg-input border border-border rounded px-3 py-2 text-sm w-40"
-        />
+        <div class="w-44">
+          <DiscordPicker v-model="newMapping.source_role_id" :guild-id="guildId" kind="role" placeholder="Source role…" />
+        </div>
         <span class="text-muted-foreground">→</span>
-        <input
-          v-model="newMapping.target_role_id"
-          type="text"
-          placeholder="Target Role ID"
-          class="bg-input border border-border rounded px-3 py-2 text-sm w-40"
-        />
+        <div class="w-44">
+          <DiscordPicker v-model="newMapping.target_role_id" :guild-id="guildId" kind="role" placeholder="Target role…" />
+        </div>
         <button
           class="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors"
           :disabled="adding || !newMapping.source_role_id.trim() || !newMapping.target_role_id.trim()"

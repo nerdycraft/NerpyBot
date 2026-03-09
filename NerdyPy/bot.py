@@ -115,6 +115,29 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             return {"success": True}
         except Exception as e:
             return {"success": False, "error": str(e)}
+    elif command == "get_channels":
+        guild_id = int(payload.get("guild_id", 0))
+        guild = bot.get_guild(guild_id)
+        if guild is None:
+            return {"channels": []}
+        return {
+            "channels": [
+                {"id": str(c.id), "name": c.name, "type": c.type.value}
+                for c in sorted(guild.channels, key=lambda c: c.name)
+            ]
+        }
+    elif command == "get_roles":
+        guild_id = int(payload.get("guild_id", 0))
+        guild = bot.get_guild(guild_id)
+        if guild is None:
+            return {"roles": []}
+        return {
+            "roles": [
+                {"id": str(r.id), "name": r.name}
+                for r in sorted(guild.roles, key=lambda r: -r.position)
+                if not r.is_default()
+            ]
+        }
     else:
         return {"error": f"Unknown command: {command}"}
 
