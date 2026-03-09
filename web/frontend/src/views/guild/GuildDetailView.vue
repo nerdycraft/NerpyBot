@@ -255,7 +255,9 @@ function guildIconUrl(): string | null {
 
     <!-- Content area -->
     <main class="flex-1 overflow-y-auto p-8">
-      <component :is="activeComponent" :guild-id="guildId" />
+      <div class="max-w-4xl">
+        <component :is="activeComponent" :guild-id="guildId" />
+      </div>
     </main>
   </div>
 </template>
