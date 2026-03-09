@@ -200,3 +200,27 @@ class TestWebConfigFromFile:
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValueError, match="client_secret"):
                 WebConfig.load(config_file)
+
+
+class TestWebConfigFrontendUrl:
+    _base_env = {
+        "NERPYBOT_WEB_CLIENT_ID": "123",
+        "NERPYBOT_WEB_OPS": "1",
+        "NERPYBOT_WEB_CLIENT_SECRET": "s",
+        "NERPYBOT_WEB_JWT_SECRET": "j",
+    }
+
+    def test_frontend_url_defaults_to_slash(self):
+        from web.config import WebConfig
+
+        with patch.dict(os.environ, self._base_env, clear=True):
+            cfg = WebConfig.from_env()
+        assert cfg.frontend_url == "/"
+
+    def test_frontend_url_from_env(self):
+        from web.config import WebConfig
+
+        env = {**self._base_env, "NERPYBOT_WEB_FRONTEND_URL": "http://localhost:5173"}
+        with patch.dict(os.environ, env, clear=True):
+            cfg = WebConfig.from_env()
+        assert cfg.frontend_url == "http://localhost:5173"
