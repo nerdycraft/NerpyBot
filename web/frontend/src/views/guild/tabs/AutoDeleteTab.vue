@@ -3,8 +3,11 @@ import { ref, onMounted } from "vue";
 import { api } from "@/api/client";
 import type { AutoDeleteRule } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
+import { useGuildEntities } from "@/composables/useGuildEntities";
 
 const props = defineProps<{ guildId: string }>();
+
+const { fetchChannels, channelName } = useGuildEntities(props.guildId);
 
 const rules = ref<AutoDeleteRule[]>([]);
 const loading = ref(true);
@@ -19,7 +22,7 @@ const newRule = ref({
 });
 const adding = ref(false);
 
-onMounted(load);
+onMounted(() => { void load(); void fetchChannels(); });
 
 async function load() {
   loading.value = true;
@@ -93,7 +96,7 @@ async function remove(id: number) {
         class="bg-card border border-border rounded p-4 space-y-2"
       >
         <div class="flex items-center justify-between">
-          <span class="font-mono text-sm">{{ rule.channel_id }}</span>
+          <span class="text-sm">#{{ channelName(rule.channel_id) }}</span>
           <div class="flex gap-3 text-sm">
             <button
               :class="rule.enabled ? 'text-green-400 hover:text-green-300' : 'text-muted-foreground hover:text-foreground'"

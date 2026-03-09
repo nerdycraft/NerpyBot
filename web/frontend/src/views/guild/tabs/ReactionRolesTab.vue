@@ -2,14 +2,19 @@
 import { ref, onMounted } from "vue";
 import { api } from "@/api/client";
 import type { ReactionRoleMessageSchema } from "@/api/types";
+import { useGuildEntities } from "@/composables/useGuildEntities";
 
 const props = defineProps<{ guildId: string }>();
+
+const { fetchChannels, fetchRoles, channelName, roleName } = useGuildEntities(props.guildId);
 
 const messages = ref<ReactionRoleMessageSchema[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 
 onMounted(async () => {
+  void fetchChannels();
+  void fetchRoles();
   try {
     messages.value = await api.get<ReactionRoleMessageSchema[]>(`/guilds/${props.guildId}/reaction-roles`);
   } catch (e: unknown) {
@@ -39,8 +44,8 @@ onMounted(async () => {
         :key="msg.id"
         class="bg-card border border-border rounded px-4 py-3 space-y-2"
       >
-        <div class="text-sm text-muted-foreground font-mono">
-          Channel {{ msg.channel_id }} · Message {{ msg.message_id }}
+        <div class="text-sm text-muted-foreground">
+          #{{ channelName(msg.channel_id) }} · Message {{ msg.message_id }}
         </div>
         <div class="flex flex-wrap gap-2">
           <span
@@ -48,7 +53,7 @@ onMounted(async () => {
             :key="entry.role_id"
             class="bg-muted rounded px-2 py-1 text-xs"
           >
-            {{ entry.emoji }} → {{ entry.role_id }}
+            {{ entry.emoji }} → @{{ roleName(entry.role_id) }}
           </span>
         </div>
       </div>

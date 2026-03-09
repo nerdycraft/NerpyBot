@@ -8,8 +8,11 @@ import type {
   ApplicationTemplateSchema,
 } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
+import { useGuildEntities } from "@/composables/useGuildEntities";
 
 const props = defineProps<{ guildId: string }>();
+
+const { fetchChannels, channelName } = useGuildEntities(props.guildId);
 
 // ── State ──
 const forms = ref<ApplicationFormSchema[]>([]);
@@ -60,7 +63,7 @@ const formDraft = ref(blankForm());
 const templateDraft = ref({ name: "", approval_message: "", denial_message: "", question_texts: [""] });
 
 // ── Load ──
-onMounted(load);
+onMounted(() => { void load(); void fetchChannels(); });
 
 async function load() {
   loading.value = true;
@@ -422,8 +425,8 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
 
           <!-- Settings summary (when not editing) -->
           <div v-else class="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
-            <span v-if="form.review_channel_id">Review channel: {{ form.review_channel_id }}</span>
-            <span v-if="form.apply_channel_id">Apply channel: {{ form.apply_channel_id }}</span>
+            <span v-if="form.review_channel_id">Review channel: #{{ channelName(form.review_channel_id) }}</span>
+            <span v-if="form.apply_channel_id">Apply channel: #{{ channelName(form.apply_channel_id) }}</span>
             <span v-if="form.approval_message">Approval message set</span>
             <span v-if="form.denial_message">Denial message set</span>
           </div>

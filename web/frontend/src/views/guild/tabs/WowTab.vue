@@ -3,6 +3,7 @@ import { ref, onMounted, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { WowGuildNewsSchema, CraftingBoardSchema, CraftingOrderSchema } from "@/api/types";
+import { useGuildEntities } from "@/composables/useGuildEntities";
 
 interface WowConfig {
   guild_news: WowGuildNewsSchema[];
@@ -10,6 +11,8 @@ interface WowConfig {
 }
 
 const props = defineProps<{ guildId: string }>();
+
+const { fetchChannels, channelName } = useGuildEntities(props.guildId);
 
 const config = ref<WowConfig | null>(null);
 const loading = ref(true);
@@ -49,6 +52,7 @@ async function fetchOrders() {
 }
 
 onMounted(async () => {
+  void fetchChannels();
   try {
     config.value = await api.get<WowConfig>(`/guilds/${props.guildId}/wow`);
   } catch (e: unknown) {
@@ -88,7 +92,7 @@ watch(statusFilter, fetchOrders);
               {{ gn.region.toUpperCase() }} · {{ gn.enabled ? "Active" : "Disabled" }}
             </span>
           </div>
-          <div class="text-muted-foreground text-xs">Channel: {{ gn.channel_id }}</div>
+          <div class="text-muted-foreground text-xs">Channel: #{{ channelName(gn.channel_id) }}</div>
         </div>
       </div>
 
@@ -101,7 +105,7 @@ watch(statusFilter, fetchOrders);
           :key="cb.id"
           class="bg-card border border-border rounded px-4 py-3"
         >
-          <div class="font-mono text-sm text-muted-foreground">Channel {{ cb.channel_id }}</div>
+          <div class="text-sm text-muted-foreground">#{{ channelName(cb.channel_id) }}</div>
           <div v-if="cb.description" class="text-xs mt-1">{{ cb.description }}</div>
         </div>
       </div>

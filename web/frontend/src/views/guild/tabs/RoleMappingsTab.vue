@@ -3,8 +3,11 @@ import { ref, onMounted } from "vue";
 import { api } from "@/api/client";
 import type { RoleMappingSchema } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
+import { useGuildEntities } from "@/composables/useGuildEntities";
 
 const props = defineProps<{ guildId: string }>();
+
+const { fetchRoles, roleName } = useGuildEntities(props.guildId);
 
 const mappings = ref<RoleMappingSchema[]>([]);
 const loading = ref(true);
@@ -12,7 +15,7 @@ const error = ref<string | null>(null);
 const newMapping = ref({ source_role_id: "", target_role_id: "" });
 const adding = ref(false);
 
-onMounted(load);
+onMounted(() => { void load(); void fetchRoles(); });
 
 async function load() {
   loading.value = true;
@@ -73,7 +76,7 @@ async function remove(id: number) {
         :key="m.id"
         class="flex items-center justify-between bg-card border border-border rounded px-4 py-3"
       >
-        <span class="font-mono text-sm">{{ m.source_role_id }} → {{ m.target_role_id }}</span>
+        <span class="text-sm">@{{ roleName(m.source_role_id) }} → @{{ roleName(m.target_role_id) }}</span>
         <button
           class="text-destructive hover:text-destructive/80 text-sm transition-colors"
           @click="remove(m.id)"

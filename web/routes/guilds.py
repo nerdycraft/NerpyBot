@@ -678,7 +678,7 @@ async def update_application_form(
     form = session.query(ApplicationForm).filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id).first()
     if form is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
-    apply_channel_changed = False
+    should_repost = False
     if body.name is not None:
         form.Name = body.name
     if body.required_approvals is not None:
@@ -691,15 +691,17 @@ async def update_application_form(
         new_id = int(body.apply_channel_id) if body.apply_channel_id else None
         if new_id != form.ApplyChannelId:
             form.ApplyChannelId = new_id
-            apply_channel_changed = True
+            should_repost = True
     if body.approval_message is not None:
         form.ApprovalMessage = body.approval_message
     if body.denial_message is not None:
         form.DenialMessage = body.denial_message
     if body.apply_description is not None:
+        if body.apply_description != form.ApplyDescription:
+            should_repost = True
         form.ApplyDescription = body.apply_description
     schema = _form_to_schema(form)
-    if apply_channel_changed and form.ApplyChannelId:
+    if should_repost and form.ApplyChannelId:
         session.commit()
         await vk.send_bot_command("post_apply_button", {"form_id": form.Id}, timeout=1.0)
     return schema

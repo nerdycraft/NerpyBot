@@ -164,15 +164,16 @@ async function createReminder() {
     <div v-if="showCreate" class="bg-card border border-primary rounded p-4 space-y-4">
       <p class="text-sm font-semibold">New Reminder</p>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <!-- Inline controls: wrap onto next line on small screens -->
+      <div class="flex flex-wrap gap-3 items-end">
         <!-- Channel -->
-        <div class="flex flex-col gap-1">
+        <div class="flex flex-col gap-1 flex-1 min-w-[160px]">
           <label class="text-xs text-muted-foreground">Channel</label>
           <DiscordPicker v-model="draft.channel_id" :guild-id="guildId" kind="channel" />
         </div>
 
         <!-- Schedule type -->
-        <div class="flex flex-col gap-1">
+        <div class="flex flex-col gap-1 flex-1 min-w-[160px]">
           <label class="text-xs text-muted-foreground">Schedule Type</label>
           <select v-model="draft.schedule_type" class="bg-input border border-border rounded px-3 py-2 text-sm">
             <option value="interval">Repeat every…</option>
@@ -182,15 +183,15 @@ async function createReminder() {
           </select>
         </div>
 
-        <!-- Interval: amount + unit -->
-        <div v-show="draft.schedule_type === 'interval'" class="flex flex-col gap-1 sm:col-span-2">
+        <!-- Interval: amount + unit (grouped as one flex item) -->
+        <div v-show="draft.schedule_type === 'interval'" class="flex flex-col gap-1 flex-1 min-w-[180px]">
           <label class="text-xs text-muted-foreground">Repeat every</label>
           <div class="flex gap-2">
             <input
               v-model.number="intervalAmount"
               type="number"
               :min="UNIT_MIN[intervalUnit]"
-              class="bg-input border border-border rounded px-3 py-2 text-sm w-24"
+              class="bg-input border border-border rounded px-3 py-2 text-sm w-20 shrink-0"
             />
             <select v-model="intervalUnit" class="bg-input border border-border rounded px-3 py-2 text-sm flex-1">
               <option value="minutes">Minutes</option>
@@ -211,7 +212,7 @@ async function createReminder() {
         </div>
 
         <!-- Day of week (weekly) -->
-        <div v-show="draft.schedule_type === 'weekly'" class="flex flex-col gap-1">
+        <div v-show="draft.schedule_type === 'weekly'" class="flex flex-col gap-1 flex-1 min-w-[140px]">
           <label class="text-xs text-muted-foreground">Day of Week</label>
           <select v-model.number="draft.schedule_day_of_week" class="bg-input border border-border rounded px-3 py-2 text-sm">
             <option v-for="(label, i) in DOW_LABELS" :key="i" :value="i">{{ label }}</option>
@@ -231,7 +232,7 @@ async function createReminder() {
         </div>
 
         <!-- Timezone autocomplete -->
-        <div class="flex flex-col gap-1 relative sm:col-span-2">
+        <div class="flex flex-col gap-1 relative flex-1 min-w-[180px]">
           <label class="text-xs text-muted-foreground">Timezone</label>
           <input
             v-model="tzQuery"
@@ -256,17 +257,17 @@ async function createReminder() {
             </button>
           </div>
         </div>
+      </div>
 
-        <!-- Message -->
-        <div class="flex flex-col gap-1 sm:col-span-2">
-          <label class="text-xs text-muted-foreground">Message</label>
-          <textarea
-            v-model="draft.message"
-            rows="3"
-            placeholder="Message to post in the channel…"
-            class="bg-input border border-border rounded px-3 py-2 text-sm resize-y"
-          />
-        </div>
+      <!-- Message: always full width -->
+      <div class="flex flex-col gap-1">
+        <label class="text-xs text-muted-foreground">Message</label>
+        <textarea
+          v-model="draft.message"
+          rows="3"
+          placeholder="Message to post in the channel…"
+          class="bg-input border border-border rounded px-3 py-2 text-sm resize-y"
+        />
       </div>
 
       <div class="flex gap-2">
