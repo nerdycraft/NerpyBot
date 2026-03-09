@@ -130,7 +130,7 @@ function guildIconUrl(): string | null {
         <!-- Dropdown -->
         <div
           v-if="switcherOpen"
-          class="absolute left-0 right-0 top-full z-20 bg-popover border border-border rounded-b-md shadow-lg overflow-hidden"
+          class="absolute left-0 right-0 top-full z-20 bg-card border border-border rounded-b-md shadow-lg overflow-hidden"
         >
           <button
             v-for="g in otherManagedGuilds"
