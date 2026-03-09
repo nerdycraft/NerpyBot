@@ -248,6 +248,7 @@ class ApplicationVoteSchema(BaseModel):
 
 class ApplicationSubmissionSchema(BaseModel):
     id: int
+    form_name: str | None = None
     user_id: str
     user_name: str | None
     status: str
@@ -316,6 +317,10 @@ class CraftingRoleMappingSchema(BaseModel):
 
 class CraftingRoleMappingCreate(BaseModel):
     role_id: str
+    profession_id: int
+
+
+class CraftingRoleMappingUpdate(BaseModel):
     profession_id: int
 
 

@@ -13,6 +13,7 @@ from web.schemas import (
     ApplicationFormCreate,
     ApplicationVoteSchema,
     ApplicationFormSchema,
+    CraftingRoleMappingUpdate,
     ApplicationFormUpdate,
     ApplicationQuestionCreate,
     ApplicationQuestionSchema,
@@ -849,6 +850,53 @@ async def list_form_submissions(
     ]
 
 
+# ── All Submissions (cross-form) ──
+
+
+@router.get("/{guild_id}/application-submissions", response_model=list[ApplicationSubmissionSchema])
+async def list_all_submissions(
+    guild_id: int,
+    form_id: int | None = None,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """List all submissions for a guild, optionally filtered by form."""
+    from models.application import ApplicationSubmission
+
+    q = session.query(ApplicationSubmission).filter(ApplicationSubmission.GuildId == guild_id)
+    if form_id is not None:
+        q = q.filter(ApplicationSubmission.FormId == form_id)
+    submissions = q.order_by(ApplicationSubmission.Id.desc()).all()
+    return [
+        ApplicationSubmissionSchema(
+            id=s.Id,
+            form_name=s.form.Name if s.form else None,
+            user_id=str(s.UserId),
+            user_name=s.UserName,
+            status=s.Status.value,
+            submitted_at=str(s.SubmittedAt),
+            decision_reason=s.DecisionReason,
+            answers=[
+                ApplicationAnswerSchema(
+                    question_id=a.QuestionId,
+                    question_text=a.question.QuestionText if a.question else "",
+                    answer_text=a.AnswerText,
+                )
+                for a in s.answers
+            ],
+            votes=[
+                ApplicationVoteSchema(
+                    voter_id=str(v.UserId),
+                    voter_name=v.VoterName,
+                    vote=v.Vote.value,
+                )
+                for v in s.votes
+            ],
+        )
+        for s in submissions
+    ]
+
+
 # ── Application Templates ──
 
 
@@ -1042,6 +1090,7 @@ async def list_crafting_orders(
     status_filter: str | None = None,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    vk: ValkeyClient = Depends(get_valkey),
 ):
     """List crafting orders for a guild. Optionally filter by status (open/completed/cancelled)."""
     from models.wow import CraftingOrder
@@ -1050,6 +1099,25 @@ async def list_crafting_orders(
     if status_filter:
         query = query.filter(CraftingOrder.Status == status_filter)
     orders = query.order_by(CraftingOrder.Id.desc()).all()
+
+    # Lazy backfill: resolve display names for orders created before name persistence was added.
+    # On the first request that includes unnamed orders, we ask the bot for names and write them
+    # back to the DB so future requests skip the Valkey call entirely.
+    null_ids: set[int] = set()
+    for o in orders:
+        if o.CreatorName is None and o.CreatorId:
+            null_ids.add(o.CreatorId)
+        if o.CrafterName is None and o.CrafterId:
+            null_ids.add(o.CrafterId)
+    if null_ids:
+        resolved = await vk.send_bot_command("get_member_names", {"guild_id": guild_id, "user_ids": list(null_ids)}) or {}
+        if resolved:
+            for o in orders:
+                if o.CreatorName is None and o.CreatorId and str(o.CreatorId) in resolved:
+                    o.CreatorName = resolved[str(o.CreatorId)]
+                if o.CrafterName is None and o.CrafterId and str(o.CrafterId) in resolved:
+                    o.CrafterName = resolved[str(o.CrafterId)]
+
     return [
         CraftingOrderSchema(
             id=o.Id,
@@ -1113,6 +1181,35 @@ async def create_crafting_role_mapping(
         role_id=str(mapping.RoleId),
         profession_id=mapping.ProfessionId,
         profession_name=profession_name_by_id.get(mapping.ProfessionId, str(mapping.ProfessionId)),
+    )
+
+
+@router.put("/{guild_id}/wow/crafting-role-mappings/{mapping_id}", response_model=CraftingRoleMappingSchema)
+async def update_crafting_role_mapping(
+    guild_id: int,
+    mapping_id: int,
+    body: CraftingRoleMappingUpdate,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Update the profession for a role mapping."""
+    from models.wow import CraftingRoleMapping, WowProfession
+
+    mapping = session.query(CraftingRoleMapping).filter(
+        CraftingRoleMapping.Id == mapping_id, CraftingRoleMapping.GuildId == guild_id
+    ).first()
+    if mapping is None:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+    profession = session.query(WowProfession).filter(WowProfession.Id == body.profession_id).first()
+    if profession is None:
+        raise HTTPException(status_code=400, detail="Unknown profession")
+    mapping.ProfessionId = body.profession_id
+    session.flush()
+    return CraftingRoleMappingSchema(
+        id=mapping.Id,
+        role_id=str(mapping.RoleId),
+        profession_id=mapping.ProfessionId,
+        profession_name=profession.Name,
     )
 
 

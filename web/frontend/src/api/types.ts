@@ -199,6 +199,7 @@ export interface ApplicationVoteSchema {
 
 export interface ApplicationSubmissionSchema {
   id: number;
+  form_name: string | null;
   user_id: string;
   user_name: string | null;
   status: string;
@@ -249,6 +250,10 @@ export interface CraftingRoleMappingSchema {
 
 export interface CraftingRoleMappingCreate {
   role_id: string;
+  profession_id: number;
+}
+
+export interface CraftingRoleMappingUpdate {
   profession_id: number;
 }
 

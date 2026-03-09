@@ -2,7 +2,7 @@
 import { ref, onMounted, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
-import type { CraftingBoardSchema, CraftingOrderSchema, CraftingRoleMappingSchema, DiscordRole } from "@/api/types";
+import type { CraftingBoardSchema, CraftingOrderSchema, CraftingRoleMappingSchema, CraftingRoleMappingUpdate, DiscordRole } from "@/api/types";
 import { useGuildEntities } from "@/composables/useGuildEntities";
 
 const props = defineProps<{ guildId: string }>();
@@ -28,6 +28,8 @@ const allRoles = ref<DiscordRole[]>([]);
 const newMappingRoleId = ref("");
 const newMappingProfessionId = ref<number | "">("");
 const addingMapping = ref(false);
+const editingMappingId = ref<number | null>(null);
+const editMappingProfessionId = ref<number | "">("");
 
 const PROFESSIONS: { id: number; name: string }[] = [
   { id: 164, name: "Blacksmithing" },
@@ -104,6 +106,23 @@ async function addMapping() {
   }
 }
 
+async function updateMapping(mappingId: number) {
+  if (editMappingProfessionId.value === "") return;
+  opError.value = null;
+  try {
+    const body: CraftingRoleMappingUpdate = { profession_id: editMappingProfessionId.value as number };
+    const updated = await api.put<CraftingRoleMappingSchema>(
+      `/guilds/${props.guildId}/wow/crafting-role-mappings/${mappingId}`,
+      body,
+    );
+    const idx = mappings.value.findIndex((m) => m.id === mappingId);
+    if (idx !== -1) mappings.value[idx] = updated;
+    editingMappingId.value = null;
+  } catch (e: unknown) {
+    opError.value = e instanceof Error ? e.message : "Failed to update mapping";
+  }
+}
+
 async function deleteMapping(mappingId: number) {
   opError.value = null;
   try {
@@ -176,13 +195,30 @@ watch(statusFilter, fetchOrders);
             :key="m.id"
             class="flex items-center gap-3 bg-card border border-border rounded px-3 py-2 text-sm group"
           >
-            <span class="flex-1">@{{ roleName(m.role_id) }} → {{ m.profession_name }}</span>
-            <button
-              class="text-xs text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity"
-              @click="deleteMapping(m.id)"
-            >
-              <Icon icon="mdi:close" class="w-4 h-4" />
-            </button>
+            <template v-if="editingMappingId === m.id">
+              <span class="text-muted-foreground flex-shrink-0">@{{ roleName(m.role_id) }} →</span>
+              <select
+                v-model="editMappingProfessionId"
+                class="bg-input border border-border rounded px-2 py-1 text-sm flex-1 min-w-[140px]"
+              >
+                <option v-for="p in PROFESSIONS" :key="p.id" :value="p.id">{{ p.name }}</option>
+              </select>
+              <button class="text-xs text-primary hover:text-primary/80 flex-shrink-0" @click="updateMapping(m.id)">Save</button>
+              <button class="text-xs text-muted-foreground hover:text-foreground flex-shrink-0" @click="editingMappingId = null">×</button>
+            </template>
+            <template v-else>
+              <span class="flex-1">@{{ roleName(m.role_id) }} → {{ m.profession_name }}</span>
+              <button
+                class="text-xs text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                @click="editingMappingId = m.id; editMappingProfessionId = m.profession_id"
+              >Edit</button>
+              <button
+                class="text-xs text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                @click="deleteMapping(m.id)"
+              >
+                <Icon icon="mdi:close" class="w-4 h-4" />
+              </button>
+            </template>
           </div>
           <p v-if="mappings.length === 0" class="text-muted-foreground text-sm">No mappings yet.</p>
         </div>

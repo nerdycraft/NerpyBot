@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useGuildStore } from "@/stores/guild";
 import ApplicationFormsTab from "./tabs/ApplicationFormsTab.vue";
 import ApplicationTemplatesTab from "./tabs/ApplicationTemplatesTab.vue";
+import ApplicationSubmissionsTab from "./tabs/ApplicationSubmissionsTab.vue";
 import LanguageTab from "./tabs/LanguageTab.vue";
 import ModeratorRolesTab from "./tabs/ModeratorRolesTab.vue";
 import LeaveMessagesTab from "./tabs/LeaveMessagesTab.vue";
@@ -67,6 +68,7 @@ const sectionGroups = [
     items: [
       { id: "application-forms", label: "Forms", icon: "mdi:file-document-outline", component: ApplicationFormsTab },
       { id: "application-templates", label: "Templates", icon: "mdi:file-document-multiple-outline", component: ApplicationTemplatesTab },
+      { id: "application-submissions", label: "Submissions", icon: "mdi:file-account-outline", component: ApplicationSubmissionsTab },
     ],
   },
   {

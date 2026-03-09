@@ -138,6 +138,13 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                 if not r.is_default()
             ]
         }
+    elif command == "get_member_names":
+        guild_id = int(payload.get("guild_id", 0))
+        user_ids = [int(uid) for uid in payload.get("user_ids", [])]
+        guild = bot.get_guild(guild_id)
+        if guild is None:
+            return {}
+        return {str(uid): m.display_name for uid in user_ids if (m := guild.get_member(uid))}
     elif command == "post_apply_button":
         form_id = int(payload.get("form_id", 0))
         if not form_id:
