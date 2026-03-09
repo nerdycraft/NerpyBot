@@ -28,6 +28,12 @@ router.beforeEach(async (to) => {
   const auth = useAuthStore();
   const guild = useGuildStore();
 
+  // Extract JWT handed off by /api/auth/callback redirect (?token=<jwt>)
+  if (to.query.token) {
+    auth.setToken(to.query.token as string);
+    return { path: to.path, query: {}, replace: true };
+  }
+
   // Public routes — no auth check needed
   if (to.meta.public) return true;
 
