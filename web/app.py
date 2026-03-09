@@ -39,7 +39,12 @@ def create_app(
 
     # Configure log level for the whole web package
     level = getattr(logging, config.log_level.upper(), logging.INFO)
-    logging.getLogger("web").setLevel(level)
+    web_log = logging.getLogger("web")
+    web_log.setLevel(level)
+    if not web_log.handlers:
+        _handler = logging.StreamHandler()
+        _handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+        web_log.addHandler(_handler)
 
     engine_kwargs = {}
     if config.db_connection_string.startswith("sqlite"):
