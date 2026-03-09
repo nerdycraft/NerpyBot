@@ -11,7 +11,7 @@ from web.auth.oauth2 import build_authorize_url, exchange_code, fetch_discord_us
 from web.auth.permissions import resolve_guild_permissions
 from web.config import WebConfig
 from web.dependencies import get_config, get_current_user, get_valkey
-from web.schemas import GuildSummary, TokenResponse, UserInfo
+from web.schemas import GuildSummary, UserInfo
 from web.cache import ValkeyClient
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -24,7 +24,7 @@ async def login(config: WebConfig = Depends(get_config)):
     return RedirectResponse(url=url, status_code=307)
 
 
-@router.get("/callback", response_model=TokenResponse)
+@router.get("/callback")
 async def callback(
     code: str = Query(...),
     config: WebConfig = Depends(get_config),
@@ -65,7 +65,9 @@ async def callback(
         expiry_hours=config.jwt_expiry_hours,
     )
 
-    return TokenResponse(access_token=jwt)
+    base = config.frontend_url.rstrip("/")
+    redirect_target = f"{base}/?token={jwt}"
+    return RedirectResponse(url=redirect_target, status_code=302)
 
 
 @router.get("/me", response_model=UserInfo)

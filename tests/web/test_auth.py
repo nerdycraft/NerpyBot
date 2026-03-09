@@ -21,18 +21,18 @@ class TestAuthCallback:
     @patch("web.routes.auth.exchange_code")
     @patch("web.routes.auth.fetch_discord_user")
     @patch("web.routes.auth.fetch_user_guilds")
-    def test_callback_issues_jwt(self, mock_guilds, mock_user, mock_exchange, client, fake_valkey):
+    def test_callback_redirects_to_frontend_with_token(self, mock_guilds, mock_user, mock_exchange, client, fake_valkey):
+        """Callback should redirect to /?token=<jwt> on success."""
         mock_exchange.return_value = {"access_token": "discord_tok", "expires_in": 604800}
         mock_user.return_value = {"id": "999", "username": "TestUser", "discriminator": "0"}
         mock_guilds.return_value = [
             {"id": "987654321", "name": "Test Guild", "icon": None, "permissions": 0x8}  # ADMINISTRATOR
         ]
 
-        response = client.get("/api/auth/callback?code=test_code")
-        assert response.status_code == 200
-        data = response.json()
-        assert "access_token" in data
-        assert data["token_type"] == "bearer"
+        response = client.get("/api/auth/callback?code=test_code", follow_redirects=False)
+        assert response.status_code == 302
+        location = response.headers["location"]
+        assert location.startswith("/?token=")
 
     def test_callback_without_code_returns_422(self, client):
         response = client.get("/api/auth/callback")
