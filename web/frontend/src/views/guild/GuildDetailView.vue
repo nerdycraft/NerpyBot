@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
+import { useAuthStore } from "@/stores/auth";
 import { useGuildStore } from "@/stores/guild";
 import { api } from "@/api/client";
 import type { ReminderSchema, ReactionRoleMessageSchema } from "@/api/types";
@@ -17,10 +18,23 @@ import WowTab from "./tabs/WowTab.vue";
 
 const route = useRoute();
 const router = useRouter();
+const auth = useAuthStore();
 const guild = useGuildStore();
 const guildId = route.params.id as string;
 
 const activeSection = ref("language");
+const switcherOpen = ref(false);
+
+const otherManagedGuilds = computed(() =>
+  auth.guilds.filter((g) => g.bot_present && g.id !== guildId),
+);
+
+function switchGuild(id: string) {
+  const g = auth.guildById(id);
+  if (g) guild.setCurrent(g);
+  switcherOpen.value = false;
+  router.push(`/guilds/${id}`);
+}
 
 // Counts for conditional read-only sections — null means still loading
 const remindersCount = ref<number | null>(null);
@@ -77,19 +91,22 @@ function guildIconUrl(): string | null {
 </script>
 
 <template>
+  <!-- Click-outside overlay to close guild switcher -->
+  <div
+    v-if="switcherOpen"
+    class="fixed inset-0 z-10"
+    @click="switcherOpen = false"
+  />
+
   <div class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
     <aside class="w-56 flex-shrink-0 border-r border-border flex flex-col overflow-y-auto">
-      <!-- Guild header + back link -->
-      <div class="p-4 border-b border-border space-y-3">
+      <!-- Guild switcher -->
+      <div class="relative border-b border-border">
         <button
-          class="text-muted-foreground hover:text-foreground transition-colors text-sm flex items-center gap-1.5"
-          @click="router.push('/guilds')"
+          class="w-full p-4 flex items-center gap-2.5 hover:bg-muted transition-colors text-left"
+          @click="switcherOpen = !switcherOpen"
         >
-          <Icon icon="mdi:arrow-left" class="w-4 h-4" />
-          All Servers
-        </button>
-        <div class="flex items-center gap-2.5">
           <img
             v-if="guildIconUrl()"
             :src="guildIconUrl()!"
@@ -103,7 +120,47 @@ function guildIconUrl(): string | null {
           >
             {{ guild.current?.name?.charAt(0).toUpperCase() ?? "?" }}
           </div>
-          <span class="font-semibold text-sm truncate">{{ guild.current?.name ?? "Guild" }}</span>
+          <span class="font-semibold text-sm truncate flex-1">{{ guild.current?.name ?? "Guild" }}</span>
+          <Icon
+            :icon="switcherOpen ? 'mdi:chevron-up' : 'mdi:chevron-down'"
+            class="w-4 h-4 text-muted-foreground flex-shrink-0"
+          />
+        </button>
+
+        <!-- Dropdown -->
+        <div
+          v-if="switcherOpen"
+          class="absolute left-0 right-0 top-full z-20 bg-popover border border-border rounded-b-md shadow-lg overflow-hidden"
+        >
+          <button
+            v-for="g in otherManagedGuilds"
+            :key="g.id"
+            class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-muted transition-colors text-left"
+            @click="switchGuild(g.id)"
+          >
+            <img
+              v-if="g.icon"
+              :src="`https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png`"
+              :alt="g.name"
+              class="w-6 h-6 rounded-full object-cover flex-shrink-0"
+            />
+            <div
+              v-else
+              class="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold flex-shrink-0"
+              aria-hidden="true"
+            >
+              {{ g.name.charAt(0).toUpperCase() }}
+            </div>
+            <span class="truncate">{{ g.name }}</span>
+          </button>
+          <div v-if="otherManagedGuilds.length > 0" class="border-t border-border" />
+          <button
+            class="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-left"
+            @click="router.push('/guilds'); switcherOpen = false"
+          >
+            <Icon icon="mdi:view-grid-outline" class="w-4 h-4 flex-shrink-0" />
+            All Servers
+          </button>
         </div>
       </div>
 
