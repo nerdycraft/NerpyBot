@@ -8,6 +8,8 @@ export interface GuildSummary {
   name: string;
   icon: string | null;
   permission_level: "admin" | "mod" | "member";
+  bot_present: boolean;
+  invite_url: string | null;
 }
 
 export interface UserInfo {

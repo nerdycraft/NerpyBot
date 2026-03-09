@@ -372,6 +372,24 @@ class NerpyBot(Bot):
         except Exception as e:
             self.log.error(f"Activity loop crashed: {e}")
 
+    def _valkey_publish_guilds(self) -> None:
+        """Publish the bot's current guild set to Valkey for the web dashboard."""
+        valkey_url = self.config.get("web", {}).get("valkey_url")
+        if not valkey_url:
+            return
+        try:
+            import valkey as valkey_lib
+
+            client = valkey_lib.from_url(valkey_url, decode_responses=True)
+            key = "nerpybot:bot:guilds"
+            guild_ids = [str(g.id) for g in self.guilds]
+            client.delete(key)
+            if guild_ids:
+                client.sadd(key, *guild_ids)
+            client.close()
+        except Exception as e:
+            self.log.warning(f"Failed to publish guild presence to Valkey: {e}")
+
     async def on_ready(self) -> None:
         """calls when successfully logged in"""
         from models.admin import PermissionSubscriber
@@ -385,6 +403,9 @@ class NerpyBot(Bot):
         valkey_url = self.config.get("web", {}).get("valkey_url")
         if valkey_url and (not hasattr(self, "_valkey_task") or self._valkey_task.done()):
             self._valkey_task = create_task(_valkey_listener_loop(self, valkey_url))
+
+        # Publish full guild list for web dashboard presence detection
+        await to_thread(self._valkey_publish_guilds)
 
         required = required_permissions_for(self.modules)
         for guild in self.guilds:
@@ -466,6 +487,34 @@ class NerpyBot(Bot):
         elif isinstance(error, CommandError):
             self.log.error(f"{error_context(ctx)}: {error}")
             await ctx.send("An error occurred.")
+
+    async def on_guild_join(self, guild) -> None:
+        """Update Valkey guild presence when the bot joins a new guild."""
+        valkey_url = self.config.get("web", {}).get("valkey_url")
+        if not valkey_url:
+            return
+        try:
+            import valkey as valkey_lib
+
+            client = valkey_lib.from_url(valkey_url, decode_responses=True)
+            client.sadd("nerpybot:bot:guilds", str(guild.id))
+            client.close()
+        except Exception as e:
+            self.log.warning(f"Failed to add guild {guild.id} to Valkey presence: {e}")
+
+    async def on_guild_remove(self, guild) -> None:
+        """Update Valkey guild presence when the bot is removed from a guild."""
+        valkey_url = self.config.get("web", {}).get("valkey_url")
+        if not valkey_url:
+            return
+        try:
+            import valkey as valkey_lib
+
+            client = valkey_lib.from_url(valkey_url, decode_responses=True)
+            client.srem("nerpybot:bot:guilds", str(guild.id))
+            client.close()
+        except Exception as e:
+            self.log.warning(f"Failed to remove guild {guild.id} from Valkey presence: {e}")
 
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent) -> None:
         """

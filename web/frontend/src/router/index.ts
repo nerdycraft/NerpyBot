@@ -51,11 +51,11 @@ router.beforeEach(async (to) => {
     }
   }
 
-  // Guild route — verify the user has access to this guild
+  // Guild route — verify access and bot presence
   if (to.params.id) {
     const guildId = to.params.id as string;
     const g = auth.guildById(guildId);
-    if (!g) return "/guilds";
+    if (!g || !g.bot_present) return "/guilds";
     guild.setCurrent(g);
   }
 

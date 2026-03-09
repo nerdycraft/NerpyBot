@@ -106,6 +106,29 @@ class ValkeyClient:
         self._client.lpush(key, json.dumps(data))
         self._client.expire(key, 10)
 
+    # ── Bot guild presence ──
+
+    def set_bot_guilds(self, guild_ids: set[str]) -> None:
+        """Replace the full set of guild IDs where the bot is present."""
+        key = self._key("bot", "guilds")
+        self._client.delete(key)
+        if guild_ids:
+            self._client.sadd(key, *guild_ids)
+
+    def get_bot_guilds(self) -> set[str]:
+        """Return the set of guild IDs where the bot is present, or empty set if unknown."""
+        key = self._key("bot", "guilds")
+        result = self._client.smembers(key)
+        return result if result else set()
+
+    def add_bot_guild(self, guild_id: str) -> None:
+        """Add a single guild ID to the bot presence set."""
+        self._client.sadd(self._key("bot", "guilds"), guild_id)
+
+    def remove_bot_guild(self, guild_id: str) -> None:
+        """Remove a single guild ID from the bot presence set."""
+        self._client.srem(self._key("bot", "guilds"), guild_id)
+
     def close(self) -> None:
         """Close the underlying Valkey connection if supported."""
         if hasattr(self._client, "close"):
@@ -118,6 +141,7 @@ class _FakeValkeyClient:
     def __init__(self):
         """Initialize the fake client with an empty in-memory store."""
         self._store: dict[str, str] = {}
+        self._sets: dict[str, set[str]] = {}
 
     def set(self, key: str, value: str, ex: int | None = None) -> None:
         """Store a value (TTL ignored in fake)."""
@@ -131,6 +155,20 @@ class _FakeValkeyClient:
         """Remove one or more keys from the store."""
         for key in keys:
             self._store.pop(key, None)
+            self._sets.pop(key, None)
+
+    def sadd(self, key: str, *members: str) -> None:
+        """Add members to a set."""
+        self._sets.setdefault(key, set()).update(members)
+
+    def srem(self, key: str, *members: str) -> None:
+        """Remove members from a set."""
+        if key in self._sets:
+            self._sets[key].discard(*members)
+
+    def smembers(self, key: str) -> set[str]:
+        """Return all members of a set, or empty set if absent."""
+        return set(self._sets.get(key, set()))
 
     def publish(self, channel: str, message: str) -> None:
         """No-op — pub/sub is not simulated in the fake."""

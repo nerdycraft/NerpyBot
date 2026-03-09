@@ -88,16 +88,26 @@ async def me(
     """Return the current user's profile and accessible guilds."""
     user_id = user["sub"]
     perms = vk.get_permissions(user_id)
+    bot_guilds = vk.get_bot_guilds()
+    _log.debug("/me: bot_guilds set has %d entries", len(bot_guilds))
+
+    invite_base = (
+        f"https://discord.com/oauth2/authorize"
+        f"?client_id={config.client_id}&scope=bot+applications.commands&permissions=0"
+    )
 
     guilds = []
     if perms:
         for guild_id, entry in perms.items():
+            present = guild_id in bot_guilds
             guilds.append(
                 GuildSummary(
                     id=guild_id,
                     name=entry["name"],
                     icon=entry.get("icon"),
                     permission_level=entry["level"],
+                    bot_present=present,
+                    invite_url=None if present else f"{invite_base}&guild_id={guild_id}",
                 )
             )
 

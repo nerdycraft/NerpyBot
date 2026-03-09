@@ -22,6 +22,8 @@ class GuildSummary(BaseModel):
     name: str
     icon: str | None
     permission_level: Literal["admin", "mod", "member"]
+    bot_present: bool = False
+    invite_url: str | None = None
 
 
 # ── Guild Language ──
