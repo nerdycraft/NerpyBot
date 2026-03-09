@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { onUnmounted, ref, watch } from "vue";
 import { api } from "@/api/client";
 import type { RealmResult } from "@/api/types";
 
@@ -53,6 +53,10 @@ async function fetchRealms(q: string) {
     loading.value = false;
   }
 }
+
+onUnmounted(() => {
+  if (debounceTimer) clearTimeout(debounceTimer);
+});
 
 function select(realm: RealmResult) {
   query.value = realm.name;

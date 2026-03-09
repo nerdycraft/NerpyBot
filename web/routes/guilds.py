@@ -861,7 +861,7 @@ async def list_all_submissions(
     session: Session = Depends(get_db_session),
 ):
     """List all submissions for a guild, optionally filtered by form."""
-    from models.application import ApplicationAnswer, ApplicationQuestion, ApplicationSubmission
+    from models.application import ApplicationAnswer, ApplicationSubmission
 
     q = session.query(ApplicationSubmission).filter(ApplicationSubmission.GuildId == guild_id).options(
         joinedload(ApplicationSubmission.answers).joinedload(ApplicationAnswer.question)
@@ -1027,6 +1027,21 @@ async def delete_template_question(
 # ── WoW ──
 
 
+def _wow_news_to_schema(cfg, tracked_characters: int = 0) -> "WowGuildNewsSchema":
+    return WowGuildNewsSchema(
+        id=cfg.Id,
+        channel_id=str(cfg.ChannelId),
+        wow_guild_name=cfg.WowGuildName,
+        wow_realm_slug=cfg.WowRealmSlug,
+        region=cfg.Region,
+        enabled=cfg.Enabled,
+        min_level=cfg.MinLevel,
+        active_days=cfg.ActiveDays,
+        last_activity=str(cfg.LastActivityTimestamp) if cfg.LastActivityTimestamp else None,
+        tracked_characters=tracked_characters,
+    )
+
+
 @router.get("/{guild_id}/wow")
 async def get_wow_config(
     guild_id: int,
@@ -1058,21 +1073,7 @@ async def get_wow_config(
         crafting_boards = [CraftingBoardSchema(id=crafting.Id, channel_id=str(crafting.ChannelId), description=crafting.Description)]
 
     return {
-        "guild_news": [
-            WowGuildNewsSchema(
-                id=n.Id,
-                channel_id=str(n.ChannelId),
-                wow_guild_name=n.WowGuildName,
-                wow_realm_slug=n.WowRealmSlug,
-                region=n.Region,
-                enabled=n.Enabled,
-                min_level=n.MinLevel,
-                active_days=n.ActiveDays,
-                last_activity=str(n.LastActivityTimestamp) if n.LastActivityTimestamp else None,
-                tracked_characters=counts.get(n.Id, 0),
-            )
-            for n in news_configs
-        ],
+        "guild_news": [_wow_news_to_schema(n, counts.get(n.Id, 0)) for n in news_configs],
         "crafting_boards": crafting_boards,
     }
 
@@ -1106,18 +1107,7 @@ async def create_wow_news_config(
     )
     session.add(cfg)
     session.flush()
-    return WowGuildNewsSchema(
-        id=cfg.Id,
-        channel_id=str(cfg.ChannelId),
-        wow_guild_name=cfg.WowGuildName,
-        wow_realm_slug=cfg.WowRealmSlug,
-        region=cfg.Region,
-        enabled=cfg.Enabled,
-        min_level=cfg.MinLevel,
-        active_days=cfg.ActiveDays,
-        last_activity=None,
-        tracked_characters=0,
-    )
+    return _wow_news_to_schema(cfg)
 
 
 @router.patch("/{guild_id}/wow/news-configs/{config_id}", response_model=WowGuildNewsSchema)
@@ -1152,18 +1142,7 @@ async def update_wow_news_config(
         .scalar()
     ) or 0
 
-    return WowGuildNewsSchema(
-        id=cfg.Id,
-        channel_id=str(cfg.ChannelId),
-        wow_guild_name=cfg.WowGuildName,
-        wow_realm_slug=cfg.WowRealmSlug,
-        region=cfg.Region,
-        enabled=cfg.Enabled,
-        min_level=cfg.MinLevel,
-        active_days=cfg.ActiveDays,
-        last_activity=str(cfg.LastActivityTimestamp) if cfg.LastActivityTimestamp else None,
-        tracked_characters=count,
-    )
+    return _wow_news_to_schema(cfg, count)
 
 
 @router.delete("/{guild_id}/wow/news-configs/{config_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1197,13 +1176,13 @@ async def get_wow_news_roster(
     if cfg is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Config not found")
 
+    from utils.blizzard import parse_known_mounts
+
     entries = WowCharacterMounts.get_all_by_config(config_id, session)
 
     result = []
     for e in entries:
         try:
-            from utils.blizzard import parse_known_mounts
-
             known_ids, _last_count, _ = parse_known_mounts(e.KnownMountIds)
             mount_count = len(known_ids)
         except Exception:

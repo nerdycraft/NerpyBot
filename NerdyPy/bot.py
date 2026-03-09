@@ -5,7 +5,7 @@ Main Class of the NerpyBot
 
 import json
 import os
-from asyncio import CancelledError, create_task, run, sleep, to_thread
+from asyncio import CancelledError, create_task, run, run_coroutine_threadsafe, sleep, to_thread
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -98,8 +98,6 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
     elif command == "module_load":
         module = payload.get("module", "")
         try:
-            from asyncio import run_coroutine_threadsafe
-
             future = run_coroutine_threadsafe(bot.load_extension(f"modules.{module}"), bot.loop)
             future.result(timeout=5)
             return {"success": True}
@@ -108,8 +106,6 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
     elif command == "module_unload":
         module = payload.get("module", "")
         try:
-            from asyncio import run_coroutine_threadsafe
-
             future = run_coroutine_threadsafe(bot.unload_extension(f"modules.{module}"), bot.loop)
             future.result(timeout=5)
             return {"success": True}
@@ -149,8 +145,6 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         form_id = int(payload.get("form_id", 0))
         if not form_id:
             return {"error": "form_id required"}
-        from asyncio import run_coroutine_threadsafe
-
         from modules.views.application import post_apply_button_message
 
         run_coroutine_threadsafe(post_apply_button_message(bot, form_id), bot.loop)
@@ -164,14 +158,12 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         if wow_cog is None:
             return {"realms": [], "error": "WoW module not loaded"}
         try:
-            from asyncio import run_coroutine_threadsafe
-
             future = run_coroutine_threadsafe(wow_cog._ensure_realm_cache(), bot.loop)
             future.result(timeout=5)
         except Exception:
             return {"realms": [], "error": "Realm cache unavailable"}
         matches = []
-        for key, info in wow_cog._realm_cache.items():
+        for info in wow_cog._realm_cache.values():
             if info["region"] != region:
                 continue
             if q in info["name"].lower() or q in info["slug"].lower():
@@ -189,15 +181,8 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         if wow_cog is None:
             return {"valid": False, "display_name": None, "error": "WoW module not loaded"}
         try:
-            import asyncio
-            from asyncio import run_coroutine_threadsafe
-
             api = wow_cog._get_retailclient(region, "en")
-            future = run_coroutine_threadsafe(
-                asyncio.to_thread(api.guild_roster, realmSlug=realm_slug, nameSlug=guild_name),
-                bot.loop,
-            )
-            roster = future.result(timeout=10)
+            roster = api.guild_roster(realmSlug=realm_slug, nameSlug=guild_name)
             if isinstance(roster, dict) and roster.get("code") in (404, 403):
                 return {"valid": False, "display_name": None}
             display_name = roster.get("guild", {}).get("name", guild_name) if isinstance(roster, dict) else guild_name

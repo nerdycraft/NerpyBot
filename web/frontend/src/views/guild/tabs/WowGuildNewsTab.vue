@@ -31,9 +31,8 @@ const rosterLoading = ref<Record<number, boolean>>({});
 
 // Add form
 const showAdd = ref(false);
-const newConfig = ref<WowGuildNewsCreate & { wow_guild_name_input: string }>({
+const newConfig = ref<Omit<WowGuildNewsCreate, "wow_guild_name"> & { wow_guild_name_input: string }>({
   channel_id: "",
-  wow_guild_name: "",
   wow_guild_name_input: "",
   wow_realm_slug: "",
   region: "eu",
@@ -43,6 +42,7 @@ const newConfig = ref<WowGuildNewsCreate & { wow_guild_name_input: string }>({
 const addError = ref<string | null>(null);
 const addSaving = ref(false);
 const validateWarning = ref<string | null>(null);
+const opError = ref<string | null>(null);
 
 onMounted(() => {
   void load();
@@ -96,6 +96,7 @@ function cancelEdit() {
 }
 
 async function saveEdit(tracker: WowGuildNewsSchema) {
+  opError.value = null;
   try {
     const updated = await api.patch<WowGuildNewsSchema>(
       `/guilds/${props.guildId}/wow/news-configs/${tracker.id}`,
@@ -105,19 +106,20 @@ async function saveEdit(tracker: WowGuildNewsSchema) {
     if (idx !== -1) trackers.value[idx] = updated;
     editingId.value = null;
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to save";
+    opError.value = e instanceof Error ? e.message : "Failed to save";
   }
 }
 
 // ── Delete ──
 
 async function confirmDelete(id: number) {
+  opError.value = null;
   try {
     await api.delete(`/guilds/${props.guildId}/wow/news-configs/${id}`);
     trackers.value = trackers.value.filter((t) => t.id !== id);
     confirmDeleteId.value = null;
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to delete";
+    opError.value = e instanceof Error ? e.message : "Failed to delete";
   }
 }
 
@@ -147,7 +149,6 @@ async function toggleRoster(id: number) {
 function resetAddForm() {
   newConfig.value = {
     channel_id: "",
-    wow_guild_name: "",
     wow_guild_name_input: "",
     wow_realm_slug: "",
     region: "eu",
@@ -249,6 +250,7 @@ function relativeTime(iso: string | null): string {
     </div>
 
     <p v-if="error" class="text-destructive text-sm">{{ error }}</p>
+    <p v-if="opError" class="text-destructive text-sm">{{ opError }}</p>
     <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
 
     <!-- Add tracker form -->
