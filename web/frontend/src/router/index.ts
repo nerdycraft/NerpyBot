@@ -15,7 +15,7 @@ const router = createRouter({
     },
     {
       path: "/guilds",
-      component: () => import("@/views/GuildSelectView.vue"),
+      component: () => import("@/views/guild/GuildDetailView.vue"),
     },
     {
       path: "/guilds/:id",

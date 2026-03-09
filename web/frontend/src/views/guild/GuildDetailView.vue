@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
@@ -24,13 +24,20 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const guild = useGuildStore();
-const guildId = route.params.id as string;
+
+// Reactive — Vue Router reuses the component instance when navigating between guilds.
+const guildId = computed(() => route.params.id as string | undefined);
 
 const activeSection = ref("server-overview");
 const switcherOpen = ref(false);
 
+// Reset to overview when switching guilds
+watch(guildId, () => {
+  activeSection.value = "server-overview";
+});
+
 const otherManagedGuilds = computed(() =>
-  auth.guilds.filter((g) => g.bot_present && g.id !== guildId),
+  auth.guilds.filter((g) => g.bot_present && g.id !== guildId.value),
 );
 
 function switchGuild(id: string) {
@@ -40,11 +47,18 @@ function switchGuild(id: string) {
   router.push(`/guilds/${id}`);
 }
 
+type SectionItem = {
+  id: string;
+  label: string;
+  icon: string;
+  component: unknown;
+  guildOnly?: boolean;
+};
 
 type SectionGroup = {
   label: string;
   operatorOnly?: boolean;
-  items: { id: string; label: string; icon: string; component: unknown }[];
+  items: SectionItem[];
 };
 
 const allSectionGroups: SectionGroup[] = [
@@ -52,39 +66,39 @@ const allSectionGroups: SectionGroup[] = [
     label: "General",
     items: [
       { id: "server-overview", label: "Server Overview", icon: "mdi:view-grid-outline", component: ServerOverviewTab },
-      { id: "language", label: "Language", icon: "mdi:translate", component: LanguageTab },
-      { id: "reminders", label: "Reminders", icon: "mdi:bell-outline", component: RemindersTab },
+      { id: "language", label: "Language", icon: "mdi:translate", component: LanguageTab, guildOnly: true },
+      { id: "reminders", label: "Reminders", icon: "mdi:bell-outline", component: RemindersTab, guildOnly: true },
     ],
   },
   {
     label: "Moderation",
     items: [
-      { id: "moderator-roles", label: "Moderator Roles", icon: "mdi:shield-account", component: ModeratorRolesTab },
-      { id: "auto-kicker", label: "Auto-Kicker", icon: "mdi:account-remove", component: AutoKickerTab },
-      { id: "auto-delete", label: "Auto-Delete", icon: "mdi:delete-clock", component: AutoDeleteTab },
-      { id: "leave-messages", label: "Leave Messages", icon: "mdi:door-open", component: LeaveMessagesTab },
+      { id: "moderator-roles", label: "Moderator Roles", icon: "mdi:shield-account", component: ModeratorRolesTab, guildOnly: true },
+      { id: "auto-kicker", label: "Auto-Kicker", icon: "mdi:account-remove", component: AutoKickerTab, guildOnly: true },
+      { id: "auto-delete", label: "Auto-Delete", icon: "mdi:delete-clock", component: AutoDeleteTab, guildOnly: true },
+      { id: "leave-messages", label: "Leave Messages", icon: "mdi:door-open", component: LeaveMessagesTab, guildOnly: true },
     ],
   },
   {
     label: "Roles",
     items: [
-      { id: "role-mappings", label: "Role Mappings", icon: "mdi:account-switch", component: RoleMappingsTab },
-      { id: "reaction-roles", label: "Reaction Roles", icon: "mdi:emoticon-outline", component: ReactionRolesTab },
+      { id: "role-mappings", label: "Role Mappings", icon: "mdi:account-switch", component: RoleMappingsTab, guildOnly: true },
+      { id: "reaction-roles", label: "Reaction Roles", icon: "mdi:emoticon-outline", component: ReactionRolesTab, guildOnly: true },
     ],
   },
   {
     label: "Applications",
     items: [
-      { id: "application-forms", label: "Forms", icon: "mdi:file-document-outline", component: ApplicationFormsTab },
-      { id: "application-templates", label: "Templates", icon: "mdi:file-document-multiple-outline", component: ApplicationTemplatesTab },
-      { id: "application-submissions", label: "Submissions", icon: "mdi:file-account-outline", component: ApplicationSubmissionsTab },
+      { id: "application-forms", label: "Forms", icon: "mdi:file-document-outline", component: ApplicationFormsTab, guildOnly: true },
+      { id: "application-templates", label: "Templates", icon: "mdi:file-document-multiple-outline", component: ApplicationTemplatesTab, guildOnly: true },
+      { id: "application-submissions", label: "Submissions", icon: "mdi:file-account-outline", component: ApplicationSubmissionsTab, guildOnly: true },
     ],
   },
   {
     label: "WoW",
     items: [
-      { id: "wow-guild-news", label: "Guild News", icon: "mdi:newspaper-variant-outline", component: WowGuildNewsTab },
-      { id: "wow-crafting", label: "Crafting Boards", icon: "mdi:hammer-wrench", component: WowCraftingTab },
+      { id: "wow-guild-news", label: "Guild News", icon: "mdi:newspaper-variant-outline", component: WowGuildNewsTab, guildOnly: true },
+      { id: "wow-crafting", label: "Crafting Boards", icon: "mdi:hammer-wrench", component: WowCraftingTab, guildOnly: true },
     ],
   },
   {
@@ -97,11 +111,13 @@ const allSectionGroups: SectionGroup[] = [
 ];
 
 const sectionGroups = computed(() =>
-  allSectionGroups.filter((g) => !g.operatorOnly || auth.user?.is_operator),
+  allSectionGroups
+    .map((g) => ({ ...g, items: g.items.filter((item) => !item.guildOnly || !!guildId.value) }))
+    .filter((g) => g.items.length > 0)
+    .filter((g) => !g.operatorOnly || auth.user?.is_operator),
 );
 
 const allSections = computed(() => sectionGroups.value.flatMap((g) => g.items));
-
 const activeComponent = computed(() => allSections.value.find((s) => s.id === activeSection.value)?.component);
 
 function guildIconUrl(): string | null {
@@ -113,44 +129,47 @@ function guildIconUrl(): string | null {
 
 <template>
   <!-- Click-outside overlay to close guild switcher -->
-  <div
-    v-if="switcherOpen"
-    class="fixed inset-0 z-10"
-    @click="switcherOpen = false"
-  />
+  <div v-if="switcherOpen" class="fixed inset-0 z-10" @click="switcherOpen = false" />
 
   <div class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
-    <aside class="w-56 flex-shrink-0 border-r border-border flex flex-col overflow-y-auto">
+    <aside class="w-56 flex-shrink-0 border-r border-border flex flex-col">
       <!-- Guild switcher -->
-      <div class="relative border-b border-border">
+      <div class="relative border-b border-border flex-shrink-0">
         <button
           class="w-full p-4 flex items-center gap-2.5 hover:bg-muted transition-colors text-left"
-          @click="switcherOpen = !switcherOpen"
+          @click="guildId ? (switcherOpen = !switcherOpen) : undefined"
+          :class="{ 'cursor-default': !guildId }"
         >
           <img
-            v-if="guildIconUrl()"
+            v-if="guildId && guildIconUrl()"
             :src="guildIconUrl()!"
             :alt="guild.current?.name"
             class="w-8 h-8 rounded-full object-cover flex-shrink-0"
           />
           <div
             v-else
-            class="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold flex-shrink-0"
+            class="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0"
             aria-hidden="true"
           >
-            {{ guild.current?.name?.charAt(0).toUpperCase() ?? "?" }}
+            <Icon v-if="!guildId" icon="mdi:robot-outline" class="w-4 h-4 text-primary" />
+            <span v-else class="text-xs font-bold text-primary">
+              {{ guild.current?.name?.charAt(0).toUpperCase() ?? "?" }}
+            </span>
           </div>
-          <span class="font-semibold text-sm truncate flex-1">{{ guild.current?.name ?? "Guild" }}</span>
+          <span class="font-semibold text-sm truncate flex-1">
+            {{ guildId ? (guild.current?.name ?? "Guild") : "NerpyBot" }}
+          </span>
           <Icon
+            v-if="guildId"
             :icon="switcherOpen ? 'mdi:chevron-up' : 'mdi:chevron-down'"
             class="w-4 h-4 text-muted-foreground flex-shrink-0"
           />
         </button>
 
-        <!-- Dropdown -->
+        <!-- Dropdown (only when a guild is selected) -->
         <div
-          v-if="switcherOpen"
+          v-if="switcherOpen && guildId"
           class="absolute left-0 right-0 top-full z-20 bg-card border border-border rounded-b-md shadow-lg overflow-hidden"
         >
           <button
@@ -211,7 +230,7 @@ function guildIconUrl(): string | null {
       </nav>
 
       <!-- Sidebar footer -->
-      <div class="border-t border-border p-3 flex items-center justify-between">
+      <div class="border-t border-border p-3 flex items-center justify-between flex-shrink-0">
         <span class="text-xs text-muted-foreground truncate">{{ auth.user?.username }}</span>
         <button
           class="text-muted-foreground hover:text-foreground transition-colors"
