@@ -26,13 +26,12 @@ async def search_realms(
     _user: dict = Depends(get_current_user),
     vk: ValkeyClient = Depends(get_valkey),
 ) -> list[dict]:
-    """Search WoW realms by name for a given region. Returns empty list if bot offline."""
+    """Search WoW realms by name for a given region. Returns 503 if bot is offline."""
     result = await send_bot_command_sync(vk, "search_realms", {"region": region, "q": q})
-    if result is None or result.get("error"):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=result["error"] if result else "Bot offline",
-        )
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Bot offline")
+    if result.get("error"):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=result["error"])
     return result.get("realms", [])
 
 
@@ -49,8 +48,7 @@ async def validate_wow_guild(
         vk, "validate_wow_guild", {"region": region, "realm_slug": realm, "guild_name": name}
     )
     if result is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Bot is offline — cannot validate guild",
-        )
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Bot offline")
+    if result.get("error"):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=result["error"])
     return {"valid": result.get("valid", False), "display_name": result.get("display_name")}

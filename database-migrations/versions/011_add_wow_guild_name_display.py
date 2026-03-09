@@ -24,9 +24,7 @@ def upgrade():
     conn = op.get_bind()
     insp = sa.inspect(conn)
 
-    tables = insp.get_table_names()
-
-    if "WowGuildNewsConfig" not in tables:
+    if not insp.has_table("WowGuildNewsConfig"):
         return
 
     existing = {c["name"] for c in insp.get_columns("WowGuildNewsConfig")}
@@ -44,7 +42,7 @@ def downgrade():
     conn = op.get_bind()
     insp = sa.inspect(conn)
 
-    if "WowGuildNewsConfig" not in insp.get_table_names():
+    if not insp.has_table("WowGuildNewsConfig"):
         return
 
     existing = {c["name"] for c in insp.get_columns("WowGuildNewsConfig")}
