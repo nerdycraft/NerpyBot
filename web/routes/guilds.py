@@ -9,14 +9,26 @@ from sqlalchemy.orm import Session
 from web.cache import ValkeyClient
 from web.dependencies import get_current_user, get_db_session, get_valkey, require_guild_access
 from web.schemas import (
+    ApplicationAnswerSchema,
+    ApplicationFormCreate,
     ApplicationFormSchema,
+    ApplicationFormUpdate,
+    ApplicationQuestionCreate,
     ApplicationQuestionSchema,
+    ApplicationQuestionUpdate,
+    ApplicationSubmissionSchema,
+    ApplicationTemplateCreate,
+    ApplicationTemplateQuestionCreate,
+    ApplicationTemplateQuestionSchema,
+    ApplicationTemplateSchema,
+    ApplicationTemplateUpdate,
     AutoDeleteCreate,
     AutoDeleteRule,
     AutoDeleteUpdate,
     AutoKickerConfig,
     AutoKickerUpdate,
     CraftingBoardSchema,
+    CraftingOrderSchema,
     LanguageConfig,
     LanguageUpdate,
     LeaveMessageConfig,
@@ -472,7 +484,25 @@ async def list_reminders(
     ]
 
 
-# ── Application Forms (read-only) ──
+# ── Application Forms ──
+
+
+def _form_to_schema(f) -> ApplicationFormSchema:
+    return ApplicationFormSchema(
+        id=f.Id,
+        name=f.Name,
+        review_channel_id=str(f.ReviewChannelId) if f.ReviewChannelId else None,
+        required_approvals=f.RequiredApprovals,
+        required_denials=f.RequiredDenials,
+        approval_message=f.ApprovalMessage,
+        denial_message=f.DenialMessage,
+        apply_channel_id=str(f.ApplyChannelId) if f.ApplyChannelId else None,
+        apply_description=f.ApplyDescription,
+        questions=[
+            ApplicationQuestionSchema(id=q.Id, question_text=q.QuestionText, sort_order=q.SortOrder)
+            for q in f.questions
+        ],
+    )
 
 
 @router.get("/{guild_id}/application-forms", response_model=list[ApplicationFormSchema])
@@ -481,27 +511,351 @@ async def list_application_forms(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
-    """List all application forms with their questions for a guild (read-only)."""
+    """List all application forms with their questions for a guild."""
     from models.application import ApplicationForm
 
-    forms = ApplicationForm.get_all_by_guild(guild_id, session)
+    return [_form_to_schema(f) for f in ApplicationForm.get_all_by_guild(guild_id, session)]
+
+
+@router.post("/{guild_id}/application-forms", status_code=status.HTTP_201_CREATED, response_model=ApplicationFormSchema)
+async def create_application_form(
+    guild_id: int,
+    body: ApplicationFormCreate,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Create a new application form for a guild. Returns 409 if a form with that name already exists."""
+    from models.application import ApplicationForm
+
+    if ApplicationForm.get(body.name, guild_id, session):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Form with this name already exists")
+    form = ApplicationForm(
+        GuildId=guild_id,
+        Name=body.name,
+        ReviewChannelId=int(body.review_channel_id) if body.review_channel_id else None,
+        RequiredApprovals=body.required_approvals,
+        RequiredDenials=body.required_denials,
+        ApprovalMessage=body.approval_message,
+        DenialMessage=body.denial_message,
+        ApplyDescription=body.apply_description,
+    )
+    session.add(form)
+    session.flush()
+    return _form_to_schema(form)
+
+
+@router.put("/{guild_id}/application-forms/{form_id}", response_model=ApplicationFormSchema)
+async def update_application_form(
+    guild_id: int,
+    form_id: int,
+    body: ApplicationFormUpdate,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Update an existing application form. Returns 404 if not found for this guild."""
+    from models.application import ApplicationForm
+
+    form = session.query(ApplicationForm).filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id).first()
+    if form is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
+    if body.name is not None:
+        form.Name = body.name
+    if body.required_approvals is not None:
+        form.RequiredApprovals = body.required_approvals
+    if body.required_denials is not None:
+        form.RequiredDenials = body.required_denials
+    if body.review_channel_id is not None:
+        form.ReviewChannelId = int(body.review_channel_id) if body.review_channel_id else None
+    if body.approval_message is not None:
+        form.ApprovalMessage = body.approval_message
+    if body.denial_message is not None:
+        form.DenialMessage = body.denial_message
+    if body.apply_description is not None:
+        form.ApplyDescription = body.apply_description
+    return _form_to_schema(form)
+
+
+@router.delete("/{guild_id}/application-forms/{form_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_application_form(
+    guild_id: int,
+    form_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Delete an application form and all its questions and submissions."""
+    from models.application import ApplicationForm
+
+    form = session.query(ApplicationForm).filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id).first()
+    if form is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
+    session.delete(form)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{guild_id}/application-forms/{form_id}/questions",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ApplicationQuestionSchema,
+)
+async def add_form_question(
+    guild_id: int,
+    form_id: int,
+    body: ApplicationQuestionCreate,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Add a question to a form. Auto-assigns sort_order as max+1 if not provided."""
+    from models.application import ApplicationForm, ApplicationQuestion
+
+    form = session.query(ApplicationForm).filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id).first()
+    if form is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
+    if body.sort_order is None:
+        max_order = max((q.SortOrder for q in form.questions), default=0)
+        sort_order = max_order + 1
+    else:
+        sort_order = body.sort_order
+    question = ApplicationQuestion(FormId=form_id, QuestionText=body.question_text, SortOrder=sort_order)
+    session.add(question)
+    session.flush()
+    return ApplicationQuestionSchema(id=question.Id, question_text=question.QuestionText, sort_order=question.SortOrder)
+
+
+@router.put(
+    "/{guild_id}/application-forms/{form_id}/questions/{question_id}",
+    response_model=ApplicationQuestionSchema,
+)
+async def update_form_question(
+    guild_id: int,
+    form_id: int,
+    question_id: int,
+    body: ApplicationQuestionUpdate,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Update a question's text or sort order."""
+    from models.application import ApplicationForm, ApplicationQuestion
+
+    form = session.query(ApplicationForm).filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id).first()
+    if form is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
+    question = session.query(ApplicationQuestion).filter(ApplicationQuestion.Id == question_id, ApplicationQuestion.FormId == form_id).first()
+    if question is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
+    if body.question_text is not None:
+        question.QuestionText = body.question_text
+    if body.sort_order is not None:
+        question.SortOrder = body.sort_order
+    return ApplicationQuestionSchema(id=question.Id, question_text=question.QuestionText, sort_order=question.SortOrder)
+
+
+@router.delete("/{guild_id}/application-forms/{form_id}/questions/{question_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_form_question(
+    guild_id: int,
+    form_id: int,
+    question_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Delete a question from a form."""
+    from models.application import ApplicationForm, ApplicationQuestion
+
+    form = session.query(ApplicationForm).filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id).first()
+    if form is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
+    question = session.query(ApplicationQuestion).filter(ApplicationQuestion.Id == question_id, ApplicationQuestion.FormId == form_id).first()
+    if question is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
+    session.delete(question)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{guild_id}/application-forms/{form_id}/submissions", response_model=list[ApplicationSubmissionSchema])
+async def list_form_submissions(
+    guild_id: int,
+    form_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """List all submissions for a specific form."""
+    from models.application import ApplicationForm, ApplicationSubmission
+
+    form = session.query(ApplicationForm).filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id).first()
+    if form is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
+    submissions = session.query(ApplicationSubmission).filter(ApplicationSubmission.FormId == form_id).order_by(ApplicationSubmission.Id.desc()).all()
+    question_texts = {q.Id: q.QuestionText for q in form.questions}
     return [
-        ApplicationFormSchema(
-            id=f.Id,
-            name=f.Name,
-            required_approvals=f.RequiredApprovals,
-            required_denials=f.RequiredDenials,
-            questions=[
-                ApplicationQuestionSchema(
-                    id=q.Id,
-                    question_text=q.QuestionText,
-                    sort_order=q.SortOrder,
+        ApplicationSubmissionSchema(
+            id=s.Id,
+            user_id=str(s.UserId),
+            user_name=s.UserName,
+            status=s.Status.value,
+            submitted_at=str(s.SubmittedAt),
+            decision_reason=s.DecisionReason,
+            answers=[
+                ApplicationAnswerSchema(
+                    question_id=a.QuestionId,
+                    question_text=question_texts.get(a.QuestionId, ""),
+                    answer_text=a.AnswerText,
                 )
-                for q in f.questions
+                for a in s.answers
             ],
         )
-        for f in forms
+        for s in submissions
     ]
+
+
+# ── Application Templates ──
+
+
+def _template_to_schema(t) -> ApplicationTemplateSchema:
+    return ApplicationTemplateSchema(
+        id=t.Id,
+        name=t.Name,
+        is_built_in=t.IsBuiltIn,
+        approval_message=t.ApprovalMessage,
+        denial_message=t.DenialMessage,
+        questions=[
+            ApplicationTemplateQuestionSchema(id=q.Id, question_text=q.QuestionText, sort_order=q.SortOrder)
+            for q in t.questions
+        ],
+    )
+
+
+@router.get("/{guild_id}/application-templates", response_model=list[ApplicationTemplateSchema])
+async def list_application_templates(
+    guild_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """List built-in and guild-specific application templates."""
+    from models.application import ApplicationTemplate
+
+    return [_template_to_schema(t) for t in ApplicationTemplate.get_available(guild_id, session)]
+
+
+@router.post("/{guild_id}/application-templates", status_code=status.HTTP_201_CREATED, response_model=ApplicationTemplateSchema)
+async def create_application_template(
+    guild_id: int,
+    body: ApplicationTemplateCreate,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Create a guild-specific application template."""
+    from models.application import ApplicationTemplate, ApplicationTemplateQuestion
+
+    template = ApplicationTemplate(
+        GuildId=guild_id,
+        Name=body.name,
+        IsBuiltIn=False,
+        ApprovalMessage=body.approval_message,
+        DenialMessage=body.denial_message,
+    )
+    session.add(template)
+    session.flush()
+    for i, text in enumerate(body.question_texts, start=1):
+        session.add(ApplicationTemplateQuestion(TemplateId=template.Id, QuestionText=text, SortOrder=i))
+    session.flush()
+    session.refresh(template)
+    return _template_to_schema(template)
+
+
+@router.put("/{guild_id}/application-templates/{template_id}", response_model=ApplicationTemplateSchema)
+async def update_application_template(
+    guild_id: int,
+    template_id: int,
+    body: ApplicationTemplateUpdate,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Update a guild-specific template. Returns 403 for built-in templates."""
+    from models.application import ApplicationTemplate
+
+    template = session.query(ApplicationTemplate).filter(ApplicationTemplate.Id == template_id, ApplicationTemplate.GuildId == guild_id).first()
+    if template is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+    if template.IsBuiltIn:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Built-in templates cannot be modified")
+    if body.name is not None:
+        template.Name = body.name
+    if body.approval_message is not None:
+        template.ApprovalMessage = body.approval_message
+    if body.denial_message is not None:
+        template.DenialMessage = body.denial_message
+    return _template_to_schema(template)
+
+
+@router.delete("/{guild_id}/application-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_application_template(
+    guild_id: int,
+    template_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Delete a guild-specific template. Returns 403 for built-in templates."""
+    from models.application import ApplicationTemplate
+
+    template = session.query(ApplicationTemplate).filter(ApplicationTemplate.Id == template_id, ApplicationTemplate.GuildId == guild_id).first()
+    if template is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+    if template.IsBuiltIn:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Built-in templates cannot be deleted")
+    session.delete(template)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{guild_id}/application-templates/{template_id}/questions",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ApplicationTemplateQuestionSchema,
+)
+async def add_template_question(
+    guild_id: int,
+    template_id: int,
+    body: ApplicationTemplateQuestionCreate,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Add a question to a guild template."""
+    from models.application import ApplicationTemplate, ApplicationTemplateQuestion
+
+    template = session.query(ApplicationTemplate).filter(ApplicationTemplate.Id == template_id, ApplicationTemplate.GuildId == guild_id).first()
+    if template is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+    if template.IsBuiltIn:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Built-in templates cannot be modified")
+    max_order = max((q.SortOrder for q in template.questions), default=0)
+    question = ApplicationTemplateQuestion(TemplateId=template_id, QuestionText=body.question_text, SortOrder=max_order + 1)
+    session.add(question)
+    session.flush()
+    return ApplicationTemplateQuestionSchema(id=question.Id, question_text=question.QuestionText, sort_order=question.SortOrder)
+
+
+@router.delete(
+    "/{guild_id}/application-templates/{template_id}/questions/{question_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_template_question(
+    guild_id: int,
+    template_id: int,
+    question_id: int,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """Delete a question from a guild template."""
+    from models.application import ApplicationTemplate, ApplicationTemplateQuestion
+
+    template = session.query(ApplicationTemplate).filter(ApplicationTemplate.Id == template_id, ApplicationTemplate.GuildId == guild_id).first()
+    if template is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+    if template.IsBuiltIn:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Built-in templates cannot be modified")
+    question = session.query(ApplicationTemplateQuestion).filter(ApplicationTemplateQuestion.Id == question_id, ApplicationTemplateQuestion.TemplateId == template_id).first()
+    if question is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
+    session.delete(question)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ── WoW (read-only) ──
@@ -519,6 +873,10 @@ async def get_wow_config(
     news_configs = WowGuildNewsConfig.get_all_by_guild(guild_id, session)
     crafting = CraftingBoardConfig.get_by_guild(guild_id, session)
 
+    crafting_boards = []
+    if crafting:
+        crafting_boards = [CraftingBoardSchema(id=crafting.Id, channel_id=str(crafting.ChannelId), description=crafting.Description)]
+
     return {
         "guild_news": [
             WowGuildNewsSchema(
@@ -531,14 +889,37 @@ async def get_wow_config(
             )
             for n in news_configs
         ],
-        "crafting_board": CraftingBoardSchema(
-            id=crafting.Id,
-            channel_id=str(crafting.ChannelId),
-            description=crafting.Description,
-        )
-        if crafting
-        else None,
+        "crafting_boards": crafting_boards,
     }
+
+
+@router.get("/{guild_id}/wow/crafting-orders", response_model=list[CraftingOrderSchema])
+async def list_crafting_orders(
+    guild_id: int,
+    status_filter: str | None = None,
+    user: dict = Depends(require_guild_access),
+    session: Session = Depends(get_db_session),
+):
+    """List crafting orders for a guild. Optionally filter by status (open/completed/cancelled)."""
+    from models.wow import CraftingOrder
+
+    query = session.query(CraftingOrder).filter(CraftingOrder.GuildId == guild_id)
+    if status_filter:
+        query = query.filter(CraftingOrder.Status == status_filter)
+    orders = query.order_by(CraftingOrder.Id.desc()).all()
+    return [
+        CraftingOrderSchema(
+            id=o.Id,
+            item_name=o.ItemName,
+            icon_url=o.IconUrl,
+            notes=o.Notes,
+            status=o.Status,
+            creator_id=str(o.CreatorId),
+            crafter_id=str(o.CrafterId) if o.CrafterId else None,
+            create_date=str(o.CreateDate),
+        )
+        for o in orders
+    ]
 
 
 # ── Discord entities (via bot bridge) ──

@@ -155,7 +155,7 @@ class ReminderSchema(BaseModel):
     count: int
 
 
-# ── Application Forms (read-only) ──
+# ── Application Forms ──
 
 
 class ApplicationQuestionSchema(BaseModel):
@@ -167,9 +167,92 @@ class ApplicationQuestionSchema(BaseModel):
 class ApplicationFormSchema(BaseModel):
     id: int
     name: str
+    review_channel_id: str | None = None
     required_approvals: int
     required_denials: int
+    approval_message: str | None = None
+    denial_message: str | None = None
+    apply_channel_id: str | None = None
+    apply_description: str | None = None
     questions: list[ApplicationQuestionSchema]
+
+
+class ApplicationFormCreate(BaseModel):
+    name: str
+    required_approvals: int = Field(1, ge=1)
+    required_denials: int = Field(1, ge=1)
+    review_channel_id: str | None = None
+    approval_message: str | None = None
+    denial_message: str | None = None
+    apply_description: str | None = None
+
+
+class ApplicationFormUpdate(BaseModel):
+    name: str | None = None
+    required_approvals: int | None = Field(None, ge=1)
+    required_denials: int | None = Field(None, ge=1)
+    review_channel_id: str | None = None
+    approval_message: str | None = None
+    denial_message: str | None = None
+    apply_description: str | None = None
+
+
+class ApplicationQuestionCreate(BaseModel):
+    question_text: str
+    sort_order: int | None = None
+
+
+class ApplicationQuestionUpdate(BaseModel):
+    question_text: str | None = None
+    sort_order: int | None = Field(None, ge=1)
+
+
+class ApplicationAnswerSchema(BaseModel):
+    question_id: int
+    question_text: str
+    answer_text: str
+
+
+class ApplicationSubmissionSchema(BaseModel):
+    id: int
+    user_id: str
+    user_name: str | None
+    status: str
+    submitted_at: str
+    decision_reason: str | None = None
+    answers: list[ApplicationAnswerSchema]
+
+
+class ApplicationTemplateQuestionSchema(BaseModel):
+    id: int
+    question_text: str
+    sort_order: int
+
+
+class ApplicationTemplateSchema(BaseModel):
+    id: int
+    name: str
+    is_built_in: bool
+    approval_message: str | None = None
+    denial_message: str | None = None
+    questions: list[ApplicationTemplateQuestionSchema]
+
+
+class ApplicationTemplateCreate(BaseModel):
+    name: str
+    approval_message: str | None = None
+    denial_message: str | None = None
+    question_texts: list[str] = []
+
+
+class ApplicationTemplateUpdate(BaseModel):
+    name: str | None = None
+    approval_message: str | None = None
+    denial_message: str | None = None
+
+
+class ApplicationTemplateQuestionCreate(BaseModel):
+    question_text: str
 
 
 # ── WoW (read-only) ──
@@ -188,6 +271,17 @@ class CraftingBoardSchema(BaseModel):
     id: int
     channel_id: str
     description: str | None
+
+
+class CraftingOrderSchema(BaseModel):
+    id: int
+    item_name: str
+    icon_url: str | None = None
+    notes: str | None = None
+    status: str
+    creator_id: str
+    crafter_id: str | None = None
+    create_date: str
 
 
 # ── Operator ──

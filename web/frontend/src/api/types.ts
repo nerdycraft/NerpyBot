@@ -151,9 +151,45 @@ export interface ApplicationQuestionSchema {
 export interface ApplicationFormSchema {
   id: number;
   name: string;
+  review_channel_id: string | null;
   required_approvals: number;
   required_denials: number;
+  approval_message: string | null;
+  denial_message: string | null;
+  apply_channel_id: string | null;
+  apply_description: string | null;
   questions: ApplicationQuestionSchema[];
+}
+
+export interface ApplicationAnswerSchema {
+  question_id: number;
+  question_text: string;
+  answer_text: string;
+}
+
+export interface ApplicationSubmissionSchema {
+  id: number;
+  user_id: string;
+  user_name: string | null;
+  status: string;
+  submitted_at: string;
+  decision_reason: string | null;
+  answers: ApplicationAnswerSchema[];
+}
+
+export interface ApplicationTemplateQuestionSchema {
+  id: number;
+  question_text: string;
+  sort_order: number;
+}
+
+export interface ApplicationTemplateSchema {
+  id: number;
+  name: string;
+  is_built_in: boolean;
+  approval_message: string | null;
+  denial_message: string | null;
+  questions: ApplicationTemplateQuestionSchema[];
 }
 
 // ── WoW ──
@@ -171,6 +207,17 @@ export interface CraftingBoardSchema {
   id: number;
   channel_id: string;
   description: string | null;
+}
+
+export interface CraftingOrderSchema {
+  id: number;
+  item_name: string;
+  icon_url: string | null;
+  notes: string | null;
+  status: string;
+  creator_id: string;
+  crafter_id: string | null;
+  create_date: string;
 }
 
 // ── Discord entities (for pickers) ──

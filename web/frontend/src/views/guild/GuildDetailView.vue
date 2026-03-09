@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
 import { useGuildStore } from "@/stores/guild";
-import { api } from "@/api/client";
-import type { ReminderSchema, ReactionRoleMessageSchema } from "@/api/types";
 import ApplicationsTab from "./tabs/ApplicationsTab.vue";
 import LanguageTab from "./tabs/LanguageTab.vue";
 import ModeratorRolesTab from "./tabs/ModeratorRolesTab.vue";
@@ -37,28 +35,6 @@ function switchGuild(id: string) {
   router.push(`/guilds/${id}`);
 }
 
-// Counts for conditional read-only sections — null means still loading
-const remindersCount = ref<number | null>(null);
-const reactionRolesCount = ref<number | null>(null);
-const wowHasData = ref<boolean | null>(null);
-
-interface WowConfig {
-  guild_news: unknown[];
-  crafting_boards: unknown[];
-}
-
-onMounted(async () => {
-  const [reminders, reactionRoles, wow] = await Promise.allSettled([
-    api.get<ReminderSchema[]>(`/guilds/${guildId}/reminders`),
-    api.get<ReactionRoleMessageSchema[]>(`/guilds/${guildId}/reaction-roles`),
-    api.get<WowConfig>(`/guilds/${guildId}/wow`),
-  ]);
-  remindersCount.value = reminders.status === "fulfilled" ? reminders.value.length : 0;
-  reactionRolesCount.value = reactionRoles.status === "fulfilled" ? reactionRoles.value.length : 0;
-  wowHasData.value =
-    wow.status === "fulfilled" &&
-    (wow.value.guild_news.length > 0 || wow.value.crafting_boards.length > 0);
-});
 
 const sections = [
   { id: "language", label: "Language", icon: "mdi:translate", component: LanguageTab, always: true },
@@ -67,21 +43,13 @@ const sections = [
   { id: "auto-delete", label: "Auto-Delete", icon: "mdi:delete-clock", component: AutoDeleteTab, always: true },
   { id: "auto-kicker", label: "Auto-Kicker", icon: "mdi:account-remove", component: AutoKickerTab, always: true },
   { id: "role-mappings", label: "Role Mappings", icon: "mdi:account-switch", component: RoleMappingsTab, always: true },
-  { id: "reminders", label: "Reminders", icon: "mdi:bell-outline", component: RemindersTab, always: false },
-  { id: "reaction-roles", label: "Reaction Roles", icon: "mdi:emoticon-outline", component: ReactionRolesTab, always: false },
+  { id: "reminders", label: "Reminders", icon: "mdi:bell-outline", component: RemindersTab, always: true },
+  { id: "reaction-roles", label: "Reaction Roles", icon: "mdi:emoticon-outline", component: ReactionRolesTab, always: true },
   { id: "applications", label: "Applications", icon: "mdi:file-document-outline", component: ApplicationsTab, always: true },
-  { id: "wow", label: "WoW", icon: "mdi:sword-cross", component: WowTab, always: false },
+  { id: "wow", label: "WoW", icon: "mdi:sword-cross", component: WowTab, always: true },
 ];
 
-const visibleSections = computed(() =>
-  sections.filter((s) => {
-    if (s.always) return true;
-    if (s.id === "reminders") return (remindersCount.value ?? 0) > 0;
-    if (s.id === "reaction-roles") return (reactionRolesCount.value ?? 0) > 0;
-    if (s.id === "wow") return wowHasData.value === true;
-    return false;
-  }),
-);
+const visibleSections = computed(() => sections.filter((s) => s.always));
 
 const activeComponent = computed(() => sections.find((s) => s.id === activeSection.value)?.component);
 
