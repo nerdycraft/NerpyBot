@@ -45,6 +45,7 @@ def create_app(
         _handler = logging.StreamHandler()
         _handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
         web_log.addHandler(_handler)
+    web_log.info("log level: %s", config.log_level)
 
     engine_kwargs = {}
     if config.db_connection_string.startswith("sqlite"):

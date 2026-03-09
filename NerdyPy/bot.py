@@ -373,13 +373,6 @@ class NerpyBot(Bot):
         except Exception as e:
             self.log.error(f"Activity loop crashed: {e}")
 
-    def _sync_bot_guilds(self) -> None:
-        """Sync the BotGuild table with the bot's current guild membership."""
-        try:
-            with self.session_scope() as session:
-                BotGuild.sync([g.id for g in self.guilds], session)
-        except Exception as e:
-            self.log.warning(f"Failed to sync BotGuild table: {e}")
 
     async def on_ready(self) -> None:
         """calls when successfully logged in"""
@@ -396,7 +389,11 @@ class NerpyBot(Bot):
             self._valkey_task = create_task(_valkey_listener_loop(self, valkey_url))
 
         # Sync guild membership table for web dashboard presence detection
-        await to_thread(self._sync_bot_guilds)
+        try:
+            with self.session_scope() as session:
+                BotGuild.sync([g.id for g in self.guilds], session)
+        except Exception as e:
+            self.log.warning(f"Failed to sync BotGuild table: {e}")
 
         required = required_permissions_for(self.modules)
         for guild in self.guilds:
