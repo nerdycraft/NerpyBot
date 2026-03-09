@@ -20,6 +20,7 @@ def create_app(
     config: WebConfig | None = None,
     valkey_client: ValkeyClient | None = None,
     config_path: Path | str | None = None,
+    spa_dist: Path | None = None,
 ) -> FastAPI:
     """Create and configure the FastAPI application.
 
@@ -95,5 +96,17 @@ def create_app(
     app.include_router(guilds.router, prefix="/api")
     app.include_router(health.router, prefix="/api")
     app.include_router(operator.router, prefix="/api")
+
+    # Serve Vue SPA — mount assets then catch-all for client-side routing
+    _dist = spa_dist or Path(__file__).parent / "frontend" / "dist"
+    if _dist.exists():
+        from fastapi.responses import FileResponse
+        from fastapi.staticfiles import StaticFiles
+
+        app.mount("/assets", StaticFiles(directory=str(_dist / "assets")), name="spa-assets")
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def spa_fallback(full_path: str):
+            return FileResponse(str(_dist / "index.html"))
 
     return app
