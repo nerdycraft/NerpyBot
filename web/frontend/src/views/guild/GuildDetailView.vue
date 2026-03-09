@@ -218,7 +218,7 @@ function guildIconUrl(): string | null {
           title="Logout"
           @click="auth.clear(); router.push('/login')"
         >
-          🚪
+          <Icon icon="mdi:logout" class="w-4 h-4" />
         </button>
       </div>
     </aside>
