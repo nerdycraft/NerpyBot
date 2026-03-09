@@ -242,6 +242,43 @@ export interface WowGuildNewsSchema {
   wow_realm_slug: string;
   region: string;
   enabled: boolean;
+  min_level: number;
+  active_days: number;
+  last_activity: string | null;
+  tracked_characters: number;
+}
+
+export interface WowCharacterMountSchema {
+  character_name: string;
+  realm_slug: string;
+  mount_count: number;
+  last_checked: string | null;
+}
+
+export interface WowGuildNewsCreate {
+  channel_id: string;
+  wow_guild_name: string;
+  wow_realm_slug: string;
+  region: string;
+  active_days?: number;
+  min_level?: number;
+}
+
+export interface WowGuildNewsUpdate {
+  channel_id?: string;
+  active_days?: number;
+  min_level?: number;
+  enabled?: boolean;
+}
+
+export interface RealmResult {
+  name: string;
+  slug: string;
+}
+
+export interface GuildValidateResult {
+  valid: boolean;
+  display_name: string | null;
 }
 
 export interface CraftingBoardSchema {
