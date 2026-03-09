@@ -62,6 +62,22 @@ class ValkeyClient:
         key = self._key("user", user_id, "token")
         return self._client.get(key)
 
+    # ── OAuth state (CSRF) ──
+
+    def set_oauth_state(self, state: str, ttl: int = 300) -> None:
+        """Store a short-lived OAuth state token for CSRF verification."""
+        key = self._key("oauth", "state", state)
+        self._client.set(key, "1", ex=ttl)
+
+    def pop_oauth_state(self, state: str) -> bool:
+        """Consume an OAuth state token. Returns True if valid, False if absent/expired."""
+        key = self._key("oauth", "state", state)
+        val = self._client.get(key)
+        if val is not None:
+            self._client.delete(key)
+            return True
+        return False
+
     # ── Cleanup ──
 
     def delete_user_cache(self, user_id: str) -> None:

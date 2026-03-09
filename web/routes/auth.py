@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -23,9 +24,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.get("/login")
-async def login(config: WebConfig = Depends(get_config)):
+async def login(
+    config: WebConfig = Depends(get_config),
+    vk: ValkeyClient = Depends(get_valkey),
+):
     """Redirect to Discord OAuth2 authorization."""
-    url = build_authorize_url(config.client_id, config.redirect_uri)
+    state = secrets.token_urlsafe(32)
+    vk.set_oauth_state(state, ttl=300)
+    url = build_authorize_url(config.client_id, config.redirect_uri, state)
     _log.debug("login: redirecting to Discord OAuth, redirect_uri=%s", config.redirect_uri)
     return RedirectResponse(url=url, status_code=307)
 
@@ -33,11 +39,14 @@ async def login(config: WebConfig = Depends(get_config)):
 @router.get("/callback")
 async def callback(
     code: str = Query(...),
+    state: str = Query(...),
     config: WebConfig = Depends(get_config),
     vk: ValkeyClient = Depends(get_valkey),
     session=Depends(get_db_session),
 ):
     """Handle Discord OAuth2 callback."""
+    if not vk.pop_oauth_state(state):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OAuth state")
     try:
         token_data = await exchange_code(code, config.client_id, config.client_secret, config.redirect_uri)
         access_token = token_data["access_token"]

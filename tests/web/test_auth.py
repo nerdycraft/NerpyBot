@@ -5,14 +5,15 @@ from tests.web.conftest import make_auth_header
 
 
 class TestAuthLogin:
-    def test_login_redirects_to_discord(self, client):
+    def test_login_redirects_to_discord(self, client, fake_valkey):
         response = client.get("/api/auth/login", follow_redirects=False)
         assert response.status_code == 307
         assert "discord.com/oauth2/authorize" in response.headers["location"]
         assert "identify" in response.headers["location"]
         assert "guilds" in response.headers["location"]
+        assert "state=" in response.headers["location"]
 
-    def test_login_includes_client_id(self, client):
+    def test_login_includes_client_id(self, client, fake_valkey):
         response = client.get("/api/auth/login", follow_redirects=False)
         assert "test_client_id" in response.headers["location"]
 
@@ -29,10 +30,16 @@ class TestAuthCallback:
             {"id": "987654321", "name": "Test Guild", "icon": None, "permissions": 0x8}  # ADMINISTRATOR
         ]
 
-        response = client.get("/api/auth/callback?code=test_code", follow_redirects=False)
+        fake_valkey.set_oauth_state("test_state")
+        response = client.get("/api/auth/callback?code=test_code&state=test_state", follow_redirects=False)
         assert response.status_code == 302
         location = response.headers["location"]
         assert "/#token=" in location
+
+    def test_callback_with_invalid_state_returns_400(self, client, fake_valkey):
+        """Callback with unknown state should return 400 (CSRF protection)."""
+        response = client.get("/api/auth/callback?code=test_code&state=bad_state", follow_redirects=False)
+        assert response.status_code == 400
 
     def test_callback_without_code_returns_422(self, client):
         response = client.get("/api/auth/callback")

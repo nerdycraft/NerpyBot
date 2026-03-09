@@ -25,6 +25,14 @@ class TestPermissionEnforcement:
         response = client.get("/api/guilds/987654321/language", headers=auth_header)
         assert response.status_code == 403
 
+    def test_guild_route_without_premium_returns_403(self, client, auth_header, fake_valkey, web_db_session):
+        """User with valid JWT and guild perms but no PremiumUser row gets 403."""
+        fake_valkey.set_permissions(
+            "123456", {"987654321": {"level": "admin", "name": "Test Guild", "icon": None}}, ttl=300
+        )
+        response = client.get("/api/guilds/987654321/language", headers=auth_header)
+        assert response.status_code == 403
+
     def test_guild_route_with_admin_returns_200(self, client, auth_header, fake_valkey, web_db_session):
         """User with admin permission and premium access can access guild routes."""
         from models.admin import PremiumUser

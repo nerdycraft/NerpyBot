@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from web.cache import ValkeyClient
 from web.dependencies import get_current_user, get_db_session, get_valkey, require_guild_access, require_premium
@@ -666,6 +666,7 @@ async def list_application_forms(
 async def create_application_form(
     guild_id: int,
     body: ApplicationFormCreate,
+    background_tasks: BackgroundTasks,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
     vk: ValkeyClient = Depends(get_valkey),
@@ -690,8 +691,7 @@ async def create_application_form(
     session.flush()
     schema = _form_to_schema(form)
     if form.ApplyChannelId:
-        session.commit()
-        await vk.send_bot_command("post_apply_button", {"form_id": form.Id}, timeout=1.0)
+        background_tasks.add_task(vk.send_bot_command, "post_apply_button", {"form_id": form.Id}, 1.0)
     return schema
 
 
@@ -700,6 +700,7 @@ async def update_application_form(
     guild_id: int,
     form_id: int,
     body: ApplicationFormUpdate,
+    background_tasks: BackgroundTasks,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
     vk: ValkeyClient = Depends(get_valkey),
@@ -734,8 +735,7 @@ async def update_application_form(
         form.ApplyDescription = body.apply_description
     schema = _form_to_schema(form)
     if should_repost and form.ApplyChannelId:
-        session.commit()
-        await vk.send_bot_command("post_apply_button", {"form_id": form.Id}, timeout=1.0)
+        background_tasks.add_task(vk.send_bot_command, "post_apply_button", {"form_id": form.Id}, 1.0)
     return schema
 
 
@@ -863,9 +863,11 @@ async def list_all_submissions(
     session: Session = Depends(get_db_session),
 ):
     """List all submissions for a guild, optionally filtered by form."""
-    from models.application import ApplicationSubmission
+    from models.application import ApplicationAnswer, ApplicationQuestion, ApplicationSubmission
 
-    q = session.query(ApplicationSubmission).filter(ApplicationSubmission.GuildId == guild_id)
+    q = session.query(ApplicationSubmission).filter(ApplicationSubmission.GuildId == guild_id).options(
+        joinedload(ApplicationSubmission.answers).joinedload(ApplicationAnswer.question)
+    )
     if form_id is not None:
         q = q.filter(ApplicationSubmission.FormId == form_id)
     submissions = q.order_by(ApplicationSubmission.Id.desc()).all()

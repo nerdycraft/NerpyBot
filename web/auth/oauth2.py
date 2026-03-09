@@ -10,13 +10,14 @@ DISCORD_OAUTH2_URL = "https://discord.com/oauth2/authorize"
 DISCORD_TOKEN_URL = f"{DISCORD_API}/oauth2/token"
 
 
-def build_authorize_url(client_id: str, redirect_uri: str) -> str:
-    """Build the Discord OAuth2 authorization URL."""
+def build_authorize_url(client_id: str, redirect_uri: str, state: str) -> str:
+    """Build the Discord OAuth2 authorization URL with a CSRF state token."""
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
         "response_type": "code",
         "scope": "identify guilds",
+        "state": state,
     }
     return f"{DISCORD_OAUTH2_URL}?{urlencode(params)}"
 
