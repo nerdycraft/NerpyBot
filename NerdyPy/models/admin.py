@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """Admin-domain database models: bot-moderator role and permission notification subscribers."""
 
-from sqlalchemy import BigInteger, Column, String
+from datetime import UTC, datetime
+
+from sqlalchemy import BigInteger, Column, DateTime, String
 from utils import database as db
 
 
@@ -95,3 +97,43 @@ class GuildLanguageConfig(db.BASE):
     def get(cls, guild_id: int, session) -> "GuildLanguageConfig | None":
         """Returns the language config for the given guild, or None."""
         return session.query(cls).filter(cls.GuildId == guild_id).first()
+
+
+class PremiumUser(db.BASE):
+    """Dashboard users who have been granted premium access by an operator."""
+
+    __tablename__ = "PremiumUser"
+
+    UserId = Column(BigInteger, primary_key=True)
+    GrantedAt = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    GrantedByUserId = Column(BigInteger, nullable=True)
+
+    @classmethod
+    def has(cls, user_id: int, session) -> bool:
+        """Return True if the user has premium dashboard access."""
+        return session.query(cls).filter(cls.UserId == user_id).first() is not None
+
+    @classmethod
+    def get_all(cls, session) -> list["PremiumUser"]:
+        """Return all premium users ordered by grant date."""
+        return session.query(cls).order_by(cls.GrantedAt).all()
+
+    @classmethod
+    def grant(cls, user_id: int, granted_by: int, session) -> "PremiumUser":
+        """Grant premium to a user. Returns the existing entry if already present."""
+        existing = session.query(cls).filter(cls.UserId == user_id).first()
+        if existing:
+            return existing
+        entry = cls(UserId=user_id, GrantedByUserId=granted_by)
+        session.add(entry)
+        session.flush()
+        return entry
+
+    @classmethod
+    def revoke(cls, user_id: int, session) -> bool:
+        """Revoke premium from a user. Returns True if the entry existed."""
+        entry = session.query(cls).filter(cls.UserId == user_id).first()
+        if entry:
+            session.delete(entry)
+            return True
+        return False

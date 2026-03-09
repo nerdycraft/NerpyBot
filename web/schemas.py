@@ -337,6 +337,19 @@ class CraftingOrderSchema(BaseModel):
     create_date: str
 
 
+# ── Premium ──
+
+
+class PremiumUserSchema(BaseModel):
+    user_id: str
+    granted_at: str
+    granted_by: str | None
+
+
+class PremiumUserGrant(BaseModel):
+    user_id: str
+
+
 # ── Operator ──
 
 

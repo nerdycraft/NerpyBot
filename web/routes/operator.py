@@ -4,11 +4,65 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from web.dependencies import get_valkey, require_operator
-from web.schemas import HealthResponse, ModuleActionResponse, ModuleListResponse
+from fastapi import HTTPException, status as http_status
+from sqlalchemy.orm import Session
+
+from web.dependencies import get_db_session, get_valkey, require_operator
+from web.schemas import HealthResponse, ModuleActionResponse, ModuleListResponse, PremiumUserGrant, PremiumUserSchema
 from web.cache import ValkeyClient
 
 router = APIRouter(prefix="/operator", tags=["operator"])
+
+
+# ── Premium user management ──
+
+
+def _premium_to_schema(p) -> PremiumUserSchema:
+    return PremiumUserSchema(
+        user_id=str(p.UserId),
+        granted_at=str(p.GrantedAt),
+        granted_by=str(p.GrantedByUserId) if p.GrantedByUserId else None,
+    )
+
+
+@router.get("/premium-users", response_model=list[PremiumUserSchema])
+async def list_premium_users(
+    user: dict = Depends(require_operator),
+    session: Session = Depends(get_db_session),
+):
+    """List all users who have been granted premium dashboard access."""
+    from models.admin import PremiumUser
+
+    return [_premium_to_schema(p) for p in PremiumUser.get_all(session)]
+
+
+@router.post("/premium-users", response_model=PremiumUserSchema, status_code=http_status.HTTP_201_CREATED)
+async def grant_premium(
+    body: PremiumUserGrant,
+    user: dict = Depends(require_operator),
+    session: Session = Depends(get_db_session),
+):
+    """Grant premium dashboard access to a user."""
+    from models.admin import PremiumUser
+
+    entry = PremiumUser.grant(int(body.user_id), int(user["sub"]), session)
+    return _premium_to_schema(entry)
+
+
+@router.delete("/premium-users/{user_id}", status_code=http_status.HTTP_204_NO_CONTENT)
+async def revoke_premium(
+    user_id: str,
+    user: dict = Depends(require_operator),
+    session: Session = Depends(get_db_session),
+):
+    """Revoke premium dashboard access from a user."""
+    from models.admin import PremiumUser
+
+    if not PremiumUser.revoke(int(user_id), session):
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="User not found in premium list")
+
+
+# ── Bot health and modules ──
 
 
 @router.get("/health", response_model=HealthResponse)

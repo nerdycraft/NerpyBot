@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 
 import httpx
-
-_log = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 
@@ -14,10 +12,12 @@ from models.admin import BotGuild
 from web.auth.jwt import create_access_token
 from web.auth.oauth2 import build_authorize_url, exchange_code, fetch_discord_user, fetch_user_guilds
 from web.auth.permissions import resolve_guild_permissions
+from web.cache import ValkeyClient
 from web.config import WebConfig
 from web.dependencies import get_config, get_current_user, get_db_session, get_valkey
 from web.schemas import GuildSummary, UserInfo
-from web.cache import ValkeyClient
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -35,6 +35,7 @@ async def callback(
     code: str = Query(...),
     config: WebConfig = Depends(get_config),
     vk: ValkeyClient = Depends(get_valkey),
+    session=Depends(get_db_session),
 ):
     """Handle Discord OAuth2 callback."""
     try:
@@ -59,6 +60,16 @@ async def callback(
     user_id = user_data["id"]
     username = user_data.get("username", "Unknown")
     _log.debug("callback: authenticated user_id=%s username=%s guilds=%d", user_id, username, len(guilds))
+
+    # Gate access: operators always allowed; everyone else needs premium
+    is_operator = int(user_id) in config.ops
+    if not is_operator:
+        from models.admin import PremiumUser
+
+        if not PremiumUser.has(int(user_id), session):
+            base = config.frontend_url.rstrip("/")
+            _log.debug("callback: user_id=%s denied — not premium", user_id)
+            return RedirectResponse(url=f"{base}/login?error=premium_required", status_code=302)
 
     # Cache permissions and Discord token in Valkey
     perms = resolve_guild_permissions(guilds)

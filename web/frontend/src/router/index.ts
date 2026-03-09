@@ -38,6 +38,11 @@ router.beforeEach(async (to) => {
     return { path: to.path, query: {}, replace: true };
   }
 
+  // Handle error redirects from /api/auth/callback (e.g. ?error=premium_required)
+  if (to.query.error) {
+    return { path: "/login", query: { error: to.query.error }, replace: true };
+  }
+
   // Public routes — no auth check needed
   if (to.meta.public) return true;
 

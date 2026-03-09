@@ -1,6 +1,14 @@
 // TypeScript interfaces mirroring web/schemas.py Pydantic models.
 // Field names are snake_case to match FastAPI's default JSON serialization.
 
+// ── Premium ──
+
+export interface PremiumUserSchema {
+  user_id: string;
+  granted_at: string;
+  granted_by: string | null;
+}
+
 // ── Auth ──
 
 export interface GuildSummary {

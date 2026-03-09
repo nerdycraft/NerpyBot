@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import { computed } from "vue";
+import { useRoute } from "vue-router";
+import { Icon } from "@iconify/vue";
+
+const route = useRoute();
+const isPremiumRequired = computed(() => route.query.error === "premium_required");
+
 function login() {
   window.location.href = "/api/auth/login";
 }
@@ -6,13 +13,26 @@ function login() {
 
 <template>
   <div class="min-h-screen flex items-center justify-center">
-    <div class="bg-card rounded-lg p-10 flex flex-col items-center gap-6 shadow-xl border border-border">
+    <div class="bg-card rounded-lg p-10 flex flex-col items-center gap-6 shadow-xl border border-border max-w-sm w-full mx-4">
       <h1 class="text-3xl font-bold text-foreground">NerpyBot Dashboard</h1>
-      <p class="text-muted-foreground text-center max-w-sm">
+
+      <!-- Premium required notice -->
+      <div v-if="isPremiumRequired" class="w-full bg-yellow-400/10 border border-yellow-400/30 rounded-lg px-4 py-3 flex items-start gap-3">
+        <Icon icon="mdi:crown-outline" class="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+        <div>
+          <p class="text-sm font-medium text-yellow-300">Premium required</p>
+          <p class="text-xs text-yellow-400/70 mt-0.5">
+            Dashboard access is a premium feature. Contact a bot operator to request access.
+          </p>
+        </div>
+      </div>
+
+      <p v-else class="text-muted-foreground text-center">
         Sign in with your Discord account to manage your servers.
       </p>
+
       <button
-        class="flex items-center gap-3 bg-[#5865F2] hover:bg-[#4752C4] text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+        class="w-full flex items-center justify-center gap-3 bg-[#5865F2] hover:bg-[#4752C4] text-white font-semibold py-3 px-6 rounded-lg transition-colors"
         @click="login"
       >
         <svg
