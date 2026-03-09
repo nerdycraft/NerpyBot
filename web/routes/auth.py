@@ -10,11 +10,12 @@ _log = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 
+from models.admin import BotGuild
 from web.auth.jwt import create_access_token
 from web.auth.oauth2 import build_authorize_url, exchange_code, fetch_discord_user, fetch_user_guilds
 from web.auth.permissions import resolve_guild_permissions
 from web.config import WebConfig
-from web.dependencies import get_config, get_current_user, get_valkey
+from web.dependencies import get_config, get_current_user, get_db_session, get_valkey
 from web.schemas import GuildSummary, UserInfo
 from web.cache import ValkeyClient
 
@@ -84,12 +85,13 @@ async def me(
     user: dict = Depends(get_current_user),
     config: WebConfig = Depends(get_config),
     vk: ValkeyClient = Depends(get_valkey),
+    session=Depends(get_db_session),
 ):
     """Return the current user's profile and accessible guilds."""
     user_id = user["sub"]
     perms = vk.get_permissions(user_id)
-    bot_guilds = vk.get_bot_guilds()
-    _log.debug("/me: bot_guilds set has %d entries", len(bot_guilds))
+    bot_guilds = BotGuild.get_ids(session)
+    _log.debug("/me: bot_guilds from DB has %d entries", len(bot_guilds))
 
     invite_base = (
         f"https://discord.com/oauth2/authorize"
