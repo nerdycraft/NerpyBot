@@ -58,17 +58,18 @@ services:
       # ── Logging ──
       # NERPYBOT_LOG_LEVEL: "debug"
       # ── Web Dashboard (Valkey bridge — required when nerpybot-web is enabled) ──
-      NERPYBOT_WEB_VALKEY_URL: "valkey://valkey:6379"
+      NERPYBOT_WEB_VALKEY_URL: "valkey://:changeme@valkey:6379"  # ⚠ match the password set on the valkey service above
     volumes:
       - nerpybot-data:/data
 
   valkey:
     image: docker.io/valkey/valkey:8-alpine
     restart: unless-stopped
+    command: ["valkey-server", "--requirepass", "changeme"]  # ⚠ change this and update NERPYBOT_WEB_VALKEY_URL in both services
     volumes:
       - valkey-data:/data
     healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
+      test: ["CMD", "valkey-cli", "-a", "changeme", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -92,7 +93,7 @@ services:
       NERPYBOT_WEB_REDIRECT_URI: "http://localhost:8000/api/auth/callback"
       NERPYBOT_WEB_JWT_SECRET: "CHANGEME__USE_A_LONG_RANDOM_SECRET" # ⚠ REQUIRED: replace with a cryptographically random string (e.g. openssl rand -hex 32) — service will accept tokens signed with any value, including this one
       NERPYBOT_WEB_OPS: "your_discord_id_here"
-      NERPYBOT_WEB_VALKEY_URL: "valkey://valkey:6379"
+      NERPYBOT_WEB_VALKEY_URL: "valkey://:changeme@valkey:6379"  # ⚠ match the password set on the valkey service above
       # ── Database (must match bot config) ──
       NERPYBOT_WEB_DB_TYPE: sqlite
       NERPYBOT_WEB_DB_NAME: /data/db.db

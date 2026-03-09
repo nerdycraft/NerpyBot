@@ -10,6 +10,10 @@ import valkey
 
 _log = logging.getLogger(__name__)
 
+# Permissions cache TTL (independent of JWT expiry) — short enough that guild
+# removals/role changes are reflected within this window without requiring re-login.
+PERM_CACHE_TTL = 15 * 60  # 15 minutes
+
 
 class ValkeyClient:
     """Wrapper around Valkey operations with namespaced keys."""

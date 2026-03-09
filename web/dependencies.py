@@ -79,20 +79,43 @@ def require_premium(
     return user
 
 
-def require_guild_access(
+async def require_guild_access(
     guild_id: int,
     user: dict = Depends(get_current_user),
     config: WebConfig = Depends(get_config),
     vk: ValkeyClient = Depends(get_valkey),
 ) -> dict:
-    """Require the user has admin/mod access to the given guild. Operators bypass."""
+    """Require the user has admin/mod access to the given guild. Operators bypass.
+
+    Guild permissions are cached for PERM_CACHE_TTL (15 min). On cache miss the
+    dependency attempts a silent refresh via the cached Discord OAuth token so that
+    active sessions survive the short TTL without forcing a re-login. If the Discord
+    token is also expired the user must re-authenticate to get fresh permissions.
+    """
     user_id = int(user["sub"])
     if user_id in config.ops:
         return user
 
     perms = vk.get_permissions(user["sub"])
     if perms is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No guild permissions found — re-login")
+        # Try to refresh from Discord using the cached OAuth token
+        discord_token = vk.get_discord_token(user["sub"])
+        if discord_token is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Session expired — please re-login"
+            )
+        try:
+            from web.auth.oauth2 import fetch_user_guilds
+            from web.auth.permissions import resolve_guild_permissions
+            from web.cache import PERM_CACHE_TTL
+
+            guilds = await fetch_user_guilds(discord_token)
+            perms = resolve_guild_permissions(guilds)
+            vk.set_permissions(user["sub"], perms, ttl=PERM_CACHE_TTL)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Could not verify guild permissions — please re-login"
+            )
 
     guild_str = str(guild_id)
     entry = perms.get(guild_str)

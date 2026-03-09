@@ -13,7 +13,7 @@ from models.admin import BotGuild
 from web.auth.jwt import create_access_token
 from web.auth.oauth2 import build_authorize_url, exchange_code, fetch_discord_user, fetch_user_guilds
 from web.auth.permissions import resolve_guild_permissions
-from web.cache import ValkeyClient
+from web.cache import PERM_CACHE_TTL, ValkeyClient
 from web.config import WebConfig
 from web.dependencies import get_config, get_current_user, get_db_session, get_valkey
 from web.schemas import GuildSummary, UserInfo
@@ -72,7 +72,7 @@ async def callback(
 
     # Cache permissions and Discord token in Valkey
     perms = resolve_guild_permissions(guilds)
-    vk.set_permissions(user_id, perms, ttl=config.jwt_expiry_hours * 3600)
+    vk.set_permissions(user_id, perms, ttl=PERM_CACHE_TTL)
     vk.set_discord_token(user_id, access_token, ttl=expires_in)
     _log.debug("callback: cached permissions for %d guilds", len(perms))
 

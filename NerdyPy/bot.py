@@ -97,6 +97,8 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         return {"modules": modules}
     elif command == "module_load":
         module = payload.get("module", "")
+        if not module or not module.replace("_", "").isalpha() or not module.islower():
+            return {"success": False, "error": "Invalid module name"}
         try:
             future = run_coroutine_threadsafe(bot.load_extension(f"modules.{module}"), bot.loop)
             future.result(timeout=5)
@@ -105,6 +107,8 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             return {"success": False, "error": str(e)}
     elif command == "module_unload":
         module = payload.get("module", "")
+        if not module or not module.replace("_", "").isalpha() or not module.islower():
+            return {"success": False, "error": "Invalid module name"}
         try:
             future = run_coroutine_threadsafe(bot.unload_extension(f"modules.{module}"), bot.loop)
             future.result(timeout=5)
