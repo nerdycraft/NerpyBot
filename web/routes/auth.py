@@ -74,11 +74,11 @@ async def callback(
         expiry_hours=config.jwt_expiry_hours,
     )
 
+    # Use fragment (#token=) instead of query param so the token never appears
+    # in server access logs (fragments are not sent in HTTP requests).
     base = config.frontend_url.rstrip("/")
-    redirect_target = f"{base}/?token=<redacted>"
-    _log.debug("callback: redirecting to %s", redirect_target)
-    redirect_target = f"{base}/?token={jwt}"
-    return RedirectResponse(url=redirect_target, status_code=302)
+    _log.debug("callback: redirecting to %s/ with token in fragment", base)
+    return RedirectResponse(url=f"{base}/#token={jwt}", status_code=302)
 
 
 @router.get("/me", response_model=UserInfo)

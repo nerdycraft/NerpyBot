@@ -32,10 +32,11 @@ router.beforeEach(async (to) => {
   const auth = useAuthStore();
   const guild = useGuildStore();
 
-  // Extract JWT handed off by /api/auth/callback redirect (?token=<jwt>)
-  if (to.query.token) {
-    auth.setToken(to.query.token as string);
-    return { path: to.path, query: {}, replace: true };
+  // Extract JWT handed off by /api/auth/callback redirect (#token=<jwt>).
+  // Fragment is used instead of query param so the token never appears in server logs.
+  if (to.hash.startsWith("#token=")) {
+    auth.setToken(to.hash.slice("#token=".length));
+    return { path: to.path, hash: "", replace: true };
   }
 
   // Public routes — no auth check needed (must come before error check to avoid

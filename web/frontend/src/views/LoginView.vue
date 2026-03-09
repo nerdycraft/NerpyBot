@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
 
 const route = useRoute();
+const router = useRouter();
 const auth = useAuthStore();
 
 const isPremiumRequired = computed(() => route.query.error === "premium_required");
@@ -12,7 +13,13 @@ const isSessionExpired = computed(() => route.query.error === "session_expired")
 const showExpiredModal = ref(isSessionExpired.value);
 
 function login() {
-  window.location.href = "/api/auth/login";
+  // If the user already has a valid (non-expired) JWT, skip Discord OAuth and
+  // retry the dashboard — the router guard will re-check /auth/me for premium status.
+  if (auth.jwt && !auth.isJwtExpired()) {
+    router.push("/guilds");
+  } else {
+    window.location.href = "/api/auth/login";
+  }
 }
 </script>
 
