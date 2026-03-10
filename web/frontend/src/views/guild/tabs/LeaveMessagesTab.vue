@@ -18,16 +18,23 @@ const { saving, error, success, dirty, ready, save } = useManualSave(config, (c)
   }),
 );
 
+let _loadSeq = 0;
+
 async function loadConfig() {
+  const seq = ++_loadSeq;
   ready.value = false;
   loading.value = true;
   error.value = null;
   config.value = null;
   try {
-    config.value = await api.get<LeaveMessageConfig>(`/guilds/${props.guildId}/leave-messages`);
+    const next = await api.get<LeaveMessageConfig>(`/guilds/${props.guildId}/leave-messages`);
+    if (seq !== _loadSeq) return;
+    config.value = next;
   } catch (e: unknown) {
+    if (seq !== _loadSeq) return;
     error.value = e instanceof Error ? e.message : "Failed to load";
   } finally {
+    if (seq !== _loadSeq) return;
     loading.value = false;
     await nextTick();
     ready.value = true;

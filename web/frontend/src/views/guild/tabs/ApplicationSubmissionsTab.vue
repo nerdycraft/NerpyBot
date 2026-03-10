@@ -42,14 +42,21 @@ const filtered = computed(() =>
 );
 
 const selected = computed<ApplicationSubmissionSchema | null>(() =>
-  selectedId.value !== null ? (submissions.value.find((s) => s.id === selectedId.value) ?? null) : null,
+  selectedId.value !== null ? (filtered.value.find((s) => s.id === selectedId.value) ?? null) : null,
 );
+
+watch(filtered, (items) => {
+  if (!items.some((s) => s.id === selectedId.value)) {
+    selectedId.value = items[0]?.id ?? null;
+  }
+});
 
 const approvers = computed(() => selected.value?.votes.filter((v) => v.vote === "approve") ?? []);
 const deniers = computed(() => selected.value?.votes.filter((v) => v.vote === "deny") ?? []);
 
 onMounted(async () => {
-  const preselected = route.query.formId ? Number(route.query.formId) : null;
+  const rawFormId = Array.isArray(route.query.formId) ? route.query.formId[0] : route.query.formId;
+  const preselected = rawFormId ? Number(rawFormId) : null;
   try {
     const subUrl = preselected !== null
       ? `/guilds/${props.guildId}/application-submissions?form_id=${preselected}`
@@ -71,7 +78,8 @@ onMounted(async () => {
 
 // Re-filter when navigating here from "View Submissions" while the tab is already mounted
 watch(() => route.query.formId, (newId) => {
-  if (newId !== undefined && newId !== "") void applyFormFilter(Number(newId));
+  const id = Array.isArray(newId) ? newId[0] : newId;
+  if (id) void applyFormFilter(Number(id));
 });
 
 async function applyFormFilter(id: number | null) {

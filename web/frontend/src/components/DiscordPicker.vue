@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { DiscordChannel, DiscordRole } from "@/api/types";
@@ -26,12 +26,18 @@ const inputEl = ref<HTMLInputElement | null>(null);
 // Discord text channel types: 0=text, 5=announcement
 const TEXT_CHANNEL_TYPES = new Set([0, 5]);
 
-onMounted(async () => {
+let _loadSeq = 0;
+
+async function loadItems() {
+  const seq = ++_loadSeq;
+  loading.value = true;
+  items.value = [];
   try {
     if (props.kind === "channel") {
       const data = await api.get<{ channels: DiscordChannel[] }>(
         `/guilds/${props.guildId}/discord/channels`,
       );
+      if (seq !== _loadSeq) return;
       items.value = data.channels
         .filter((c) => TEXT_CHANNEL_TYPES.has(c.type))
         .map((c) => ({ id: c.id, name: c.name }));
@@ -39,14 +45,17 @@ onMounted(async () => {
       const data = await api.get<{ roles: DiscordRole[] }>(
         `/guilds/${props.guildId}/discord/roles`,
       );
+      if (seq !== _loadSeq) return;
       items.value = data.roles.map((r) => ({ id: r.id, name: r.name }));
     }
   } catch {
     // bot offline or error — fall back to plain text input
   } finally {
-    loading.value = false;
+    if (seq === _loadSeq) loading.value = false;
   }
-});
+}
+
+watch(() => [props.guildId, props.kind] as const, loadItems, { immediate: true });
 
 const selectedName = computed(
   () => items.value.find((i) => i.id === props.modelValue)?.name ?? props.modelValue ?? "",
@@ -67,12 +76,12 @@ function onFocus() {
   open.value = true;
 }
 
-function onBlur() {
-  // Delay so mousedown on a dropdown item fires before the dropdown closes
-  setTimeout(() => {
-    open.value = false;
-    query.value = "";
-  }, 150);
+function onContainerFocusOut(e: FocusEvent) {
+  const wrapper = e.currentTarget as Element;
+  const related = e.relatedTarget as Element | null;
+  if (related && wrapper.contains(related)) return;
+  open.value = false;
+  query.value = "";
 }
 
 function select(item: Item) {
@@ -95,7 +104,7 @@ function onInputManual(e: Event) {
 </script>
 
 <template>
-  <div class="relative">
+  <div class="relative" @focusout="onContainerFocusOut">
     <div class="relative">
       <Icon
         :icon="kind === 'channel' ? 'mdi:pound' : 'mdi:at'"
@@ -109,7 +118,6 @@ function onInputManual(e: Event) {
         class="bg-input border border-border rounded pl-7 pr-3 py-2 text-sm w-full disabled:opacity-50"
         @focus="onFocus"
         @input="onInputManual"
-        @blur="onBlur"
         @keydown.escape="open = false"
       />
     </div>
@@ -117,6 +125,7 @@ function onInputManual(e: Event) {
     <!-- Dropdown -->
     <div
       v-if="open && filtered.length > 0"
+      data-dropdown
       class="absolute left-0 right-0 top-full mt-1 z-30 bg-card border border-border rounded-md shadow-lg max-h-48 overflow-y-auto"
     >
       <button

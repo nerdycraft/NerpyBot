@@ -9,24 +9,35 @@ const props = defineProps<{ guildId: string }>();
 
 const config = ref<AutoKickerConfig | null>(null);
 const loading = ref(true);
-const { saving, error, success, dirty, ready, save } = useManualSave(config, (c) =>
-  api.put<AutoKickerConfig>(`/guilds/${props.guildId}/auto-kicker`, {
+const { saving, error, success, dirty, ready, save } = useManualSave(config, async (c) => {
+  if (!Number.isInteger(c.kick_after) || c.kick_after < 1) {
+    throw new Error("Kick-after must be at least 1 day.");
+  }
+  return api.put<AutoKickerConfig>(`/guilds/${props.guildId}/auto-kicker`, {
     kick_after: c.kick_after,
     enabled: c.enabled,
     reminder_message: c.reminder_message,
-  }),
-);
+  });
+});
+
+let _loadSeq = 0;
 
 async function loadConfig() {
+  const seq = ++_loadSeq;
   ready.value = false;
   loading.value = true;
   error.value = null;
   config.value = null;
   try {
-    config.value = await api.get<AutoKickerConfig>(`/guilds/${props.guildId}/auto-kicker`);
+    const next = await api.get<AutoKickerConfig>(`/guilds/${props.guildId}/auto-kicker`);
+    if (seq !== _loadSeq) return;
+    if (next.kick_after < 1) next.kick_after = 1;
+    config.value = next;
   } catch (e: unknown) {
+    if (seq !== _loadSeq) return;
     error.value = e instanceof Error ? e.message : "Failed to load";
   } finally {
+    if (seq !== _loadSeq) return;
     loading.value = false;
     await nextTick();
     ready.value = true;

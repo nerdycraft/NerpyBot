@@ -181,13 +181,13 @@ async function submitAdd() {
         return;
       }
     } catch (e: unknown) {
-      // 503 = bot offline; set warning and bail so user can "Save anyway"
       const status = (e as { status?: number })?.status;
       if (status === 503) {
         validateWarning.value = "Cannot verify guild (bot offline). Save anyway?";
-        return;
+      } else {
+        addError.value = e instanceof Error ? e.message : "Validation failed";
       }
-      // Other errors — still proceed
+      return;
     }
 
     await doCreate();
@@ -374,6 +374,8 @@ function relativeTime(iso: string | null): string {
             <button
               :class="tracker.enabled ? 'text-green-400 hover:text-green-300' : 'text-muted-foreground hover:text-foreground'"
               class="text-xs transition-colors"
+              :aria-label="tracker.enabled ? 'Disable tracker' : 'Enable tracker'"
+              :aria-pressed="tracker.enabled"
               :title="tracker.enabled ? 'Disable' : 'Enable'"
               @click="toggleEnabled(tracker)"
             >
