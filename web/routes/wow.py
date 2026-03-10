@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-import logging
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from web.cache import ValkeyClient
 from web.dependencies import get_current_user, get_valkey
-
-_log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/wow", tags=["wow"])
 

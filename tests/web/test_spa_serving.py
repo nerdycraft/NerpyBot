@@ -1,5 +1,4 @@
 """Tests that FastAPI serves the SPA index.html for non-API routes."""
-from pathlib import Path
 from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient

@@ -100,6 +100,28 @@ async def me(
     """Return the current user's profile and accessible guilds."""
     user_id = user["sub"]
     perms = vk.get_permissions(user_id)
+    if not perms:
+        # Cache miss (TTL expired mid-session) — rehydrate from stored Discord token.
+        discord_token = vk.get_discord_token(user_id)
+        if not discord_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session expired — please log in again",
+            )
+        try:
+            guilds = await fetch_user_guilds(discord_token)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (401, 403):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Session expired — please log in again",
+                )
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Discord API error")
+        except httpx.RequestError:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not reach Discord")
+        perms = resolve_guild_permissions(guilds)
+        vk.set_permissions(user_id, perms, ttl=PERM_CACHE_TTL)
+        _log.debug("/me: rehydrated permissions for %d guilds after cache miss", len(perms))
     bot_guilds = BotGuild.get_ids(session)
     _log.debug("/me: bot_guilds from DB has %d entries", len(bot_guilds))
 
