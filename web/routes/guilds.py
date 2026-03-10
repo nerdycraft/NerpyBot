@@ -727,6 +727,8 @@ async def update_application_form(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
     should_repost = False
     if body.name is not None:
+        if body.name != form.Name:
+            should_repost = True
         form.Name = body.name
     if body.required_approvals is not None:
         form.RequiredApprovals = body.required_approvals
