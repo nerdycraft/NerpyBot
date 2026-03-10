@@ -76,14 +76,15 @@ router.beforeEach(async (to) => {
   }
 
   // /guilds (no id) — redirect to first managed guild so the sidebar is always visible.
-  // GuildSelectView is kept as a fallback only for users with zero managed guilds.
+  // If the user has no managed guilds, fall through to GuildDetailView at /guilds with no
+  // guildId, which hides all guild-specific tabs and shows only the server overview.
   if (to.path === "/guilds") {
     const firstManaged = auth.guilds.find((g) => g.bot_present);
     if (firstManaged) {
       guild.setCurrent(firstManaged);
       return { path: `/guilds/${firstManaged.id}`, replace: true };
     }
-    return true; // no managed guilds — render GuildSelectView fallback
+    return true; // no managed guilds — GuildDetailView renders with empty guild context
   }
 
   // Guild route — verify access and bot presence
