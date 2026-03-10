@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import type { RoleMappingSchema } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
 import { useGuildEntities } from "@/composables/useGuildEntities";
+import InfoTooltip from "@/components/InfoTooltip.vue";
 
 const props = defineProps<{ guildId: string }>();
 
@@ -93,7 +94,7 @@ async function remove(id: number) {
         <div class="w-44 flex flex-col gap-1.5">
           <label class="text-sm font-medium flex items-center gap-1.5">
             Source role
-            <span title="The role whose members are allowed to assign the target role to others using bot commands." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
+            <InfoTooltip text="The role whose members are allowed to assign the target role to others using bot commands." />
           </label>
           <DiscordPicker v-model="newMapping.source_role_id" :guild-id="guildId" kind="role" placeholder="Source role…" />
         </div>
@@ -101,7 +102,7 @@ async function remove(id: number) {
         <div class="w-44 flex flex-col gap-1.5">
           <label class="text-sm font-medium flex items-center gap-1.5">
             Target role
-            <span title="The role that will be assigned to members when a user with the source role runs the assign command." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
+            <InfoTooltip text="The role that will be assigned to members when a user with the source role runs the assign command." />
           </label>
           <DiscordPicker v-model="newMapping.target_role_id" :guild-id="guildId" kind="role" placeholder="Target role…" />
         </div>

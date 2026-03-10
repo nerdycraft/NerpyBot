@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
+import { formatDatetime } from "@/utils/date";
 import type { ApplicationFormSchema, ApplicationSubmissionSchema } from "@/api/types";
 
 const route = useRoute();
@@ -60,9 +61,6 @@ onMounted(async () => {
   }
 });
 
-function formatDate(iso: string) {
-  return iso.slice(0, 16).replace("T", " ");
-}
 </script>
 
 <template>
@@ -129,7 +127,7 @@ function formatDate(iso: string) {
                 :class="['text-xs capitalize border rounded-full px-1.5 py-0.5 flex-shrink-0', STATUS_BADGES[sub.status] ?? 'text-muted-foreground']"
               >{{ sub.status }}</span>
             </div>
-            <div class="text-xs text-muted-foreground mt-0.5">{{ formatDate(sub.submitted_at) }}</div>
+            <div class="text-xs text-muted-foreground mt-0.5">{{ formatDatetime(sub.submitted_at) }}</div>
           </button>
         </div>
       </aside>
@@ -143,7 +141,7 @@ function formatDate(iso: string) {
           <div class="flex items-start justify-between gap-4">
             <div>
               <h2 class="text-lg font-semibold">{{ selected.user_name ?? selected.user_id }}</h2>
-              <p class="text-sm text-muted-foreground">Submitted {{ formatDate(selected.submitted_at) }}</p>
+              <p class="text-sm text-muted-foreground">Submitted {{ formatDatetime(selected.submitted_at) }}</p>
             </div>
             <span
               :class="[

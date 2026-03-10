@@ -4,6 +4,7 @@ import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { ReminderSchema, ReminderCreate, ReminderUpdate } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
+import InfoTooltip from "@/components/InfoTooltip.vue";
 
 const props = defineProps<{ guildId: string }>();
 
@@ -173,7 +174,7 @@ async function createReminder() {
         <div class="flex flex-col gap-1 flex-1 min-w-[160px]">
           <label class="text-sm font-medium flex items-center gap-1.5">
             Channel
-            <span title="The Discord channel where the reminder message will be posted." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
+            <InfoTooltip text="The Discord channel where the reminder message will be posted." />
           </label>
           <DiscordPicker v-model="draft.channel_id" :guild-id="guildId" kind="channel" />
         </div>
@@ -182,7 +183,7 @@ async function createReminder() {
         <div class="flex flex-col gap-1 flex-1 min-w-[160px]">
           <label class="text-sm font-medium flex items-center gap-1.5">
             Schedule Type
-            <span title="How often the reminder fires: a repeating interval, or a fixed time each day, week, or month." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
+            <InfoTooltip text="How often the reminder fires: a repeating interval, or a fixed time each day, week, or month." />
           </label>
           <select v-model="draft.schedule_type" class="bg-input border border-border rounded px-3 py-2 text-sm">
             <option value="interval">Repeat every…</option>
@@ -196,7 +197,7 @@ async function createReminder() {
         <div v-show="draft.schedule_type === 'interval'" class="flex flex-col gap-1 flex-1 min-w-[180px]">
           <label class="text-sm font-medium flex items-center gap-1.5">
             Repeat every
-            <span title="The interval between fires. Enter a number and choose minutes, hours, or days." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
+            <InfoTooltip text="The interval between fires. Enter a number and choose minutes, hours, or days." />
           </label>
           <div class="flex gap-2">
             <input
@@ -217,7 +218,7 @@ async function createReminder() {
         <div v-show="draft.schedule_type !== 'interval'" class="flex flex-col gap-1">
           <label class="text-sm font-medium flex items-center gap-1.5">
             Time
-            <span title="The time of day the reminder fires, interpreted in the selected timezone." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
+            <InfoTooltip text="The time of day the reminder fires, interpreted in the selected timezone." />
           </label>
           <input
             v-model="draft.schedule_time"
@@ -230,7 +231,7 @@ async function createReminder() {
         <div v-show="draft.schedule_type === 'weekly'" class="flex flex-col gap-1 flex-1 min-w-[140px]">
           <label class="text-sm font-medium flex items-center gap-1.5">
             Day of Week
-            <span title="Which day of the week the reminder fires for weekly schedules." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
+            <InfoTooltip text="Which day of the week the reminder fires for weekly schedules." />
           </label>
           <select v-model.number="draft.schedule_day_of_week" class="bg-input border border-border rounded px-3 py-2 text-sm">
             <option v-for="(label, i) in DOW_LABELS" :key="i" :value="i">{{ label }}</option>
@@ -241,7 +242,7 @@ async function createReminder() {
         <div v-show="draft.schedule_type === 'monthly'" class="flex flex-col gap-1">
           <label class="text-sm font-medium flex items-center gap-1.5">
             Day of Month (1–28)
-            <span title="Which day of the month the reminder fires. Capped at 28 to ensure it fires every month." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
+            <InfoTooltip text="Which day of the month the reminder fires. Capped at 28 to ensure it fires every month." />
           </label>
           <input
             v-model.number="draft.schedule_day_of_month"
@@ -256,7 +257,7 @@ async function createReminder() {
         <div class="flex flex-col gap-1 relative flex-1 min-w-[180px]">
           <label class="text-sm font-medium flex items-center gap-1.5">
             Timezone
-            <span title="The timezone used to interpret the schedule time. Defaults to UTC if left blank." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
+            <InfoTooltip text="The timezone used to interpret the schedule time. Defaults to UTC if left blank." />
           </label>
           <input
             v-model="tzQuery"
@@ -287,7 +288,7 @@ async function createReminder() {
       <div class="flex flex-col gap-1">
         <label class="text-sm font-medium flex items-center gap-1.5">
           Message
-          <span title="The text content that will be posted to the channel each time the reminder fires." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
+          <InfoTooltip text="The text content that will be posted to the channel each time the reminder fires." />
         </label>
         <textarea
           v-model="draft.message"

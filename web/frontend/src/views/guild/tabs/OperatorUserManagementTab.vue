@@ -3,6 +3,8 @@ import { ref, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { PremiumUserSchema } from "@/api/types";
+import InfoTooltip from "@/components/InfoTooltip.vue";
+import { formatDate } from "@/utils/date";
 
 const premiumUsers = ref<PremiumUserSchema[]>([]);
 const newUserId = ref("");
@@ -45,9 +47,6 @@ async function revokePremium(userId: string) {
   }
 }
 
-function formatDate(iso: string) {
-  return iso.slice(0, 10);
-}
 </script>
 
 <template>
@@ -90,7 +89,7 @@ function formatDate(iso: string) {
       <div class="flex flex-col gap-1">
         <label class="text-xs text-muted-foreground flex items-center gap-1">
           Discord User ID
-          <span title="The 18-digit Discord snowflake ID of the user to grant access to. You can find this by enabling Developer Mode in Discord and right-clicking the user." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
+          <InfoTooltip text="The 18-digit Discord snowflake ID of the user to grant access to. You can find this by enabling Developer Mode in Discord and right-clicking the user." />
         </label>
         <input
           v-model="newUserId"
