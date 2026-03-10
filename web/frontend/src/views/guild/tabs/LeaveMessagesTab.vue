@@ -92,7 +92,7 @@ watch(() => props.guildId, () => void loadConfig(), { immediate: true });
         <button
           :disabled="!dirty || saving"
           class="px-4 py-1.5 text-sm font-medium rounded bg-primary text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
-          @click="save()"
+          @click="save"
         >
           {{ saving ? "Saving…" : "Save" }}
         </button>
