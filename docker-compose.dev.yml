@@ -1,15 +1,18 @@
 services:
   nerpybot-migrations:
+    image: nerpybot-migrations:dev
     build:
       context: .
       target: migrations
 
   nerpybot:
+    image: nerpybot:dev
     build:
       context: .
       target: bot
 
   nerpybot-web:
+    image: nerpybot-web:dev
     build:
       context: .
       target: web
