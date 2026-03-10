@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from "vue";
+import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { api } from "@/api/client";
 import type { LanguageConfig } from "@/api/types";
 
@@ -20,10 +20,14 @@ const LANGUAGES = [
 ];
 
 watch(config, () => {
-  if (!mounted.value || !config.value) return;
+  if (!mounted.value || !config.value || saving.value) return;
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => void autoSave(), 600);
 }, { deep: true });
+
+onUnmounted(() => {
+  if (_saveTimer) clearTimeout(_saveTimer);
+});
 
 onMounted(async () => {
   try {
