@@ -101,7 +101,7 @@ class NerpyBot(Bot):
         if "database" not in config:
             self.log.warning("No Database specified! Fallback to local SQLite Database!")
 
-        self.ENGINE = create_engine(db_connection_string)
+        self.ENGINE = create_engine(db_connection_string, pool_pre_ping=True)
         self.SESSION = sessionmaker(bind=self.ENGINE, expire_on_commit=False)
 
     @staticmethod

@@ -69,7 +69,6 @@ class TestAutoDeleteLoop:
 
         now = datetime.now(UTC)
 
-        # oldest_first=True means old_msg is first in the list — it gets popped and deleted
         old_msg = MagicMock()
         old_msg.pinned = False
         old_msg.thread = None
@@ -80,7 +79,6 @@ class TestAutoDeleteLoop:
         old_msg.author.id = 999
         old_msg.created_at = now - timedelta(hours=3)
 
-        # newer_msg is second; with KeepMessages=1 it is kept (list shrinks to <= message_limit)
         newer_msg = MagicMock()
         newer_msg.pinned = False
         newer_msg.thread = None
@@ -92,8 +90,9 @@ class TestAutoDeleteLoop:
         newer_msg.created_at = now - timedelta(hours=2)
 
         mock_channel = MagicMock()
-        # channel.history(before=..., oldest_first=True) returns an async iterable
-        mock_channel.history = MagicMock(return_value=_async_iter([old_msg, newer_msg]))
+        # history is fetched newest-first (oldest_first=False); newer_msg leads the list.
+        # candidates[message_limit:] = candidates[1:] = [old_msg] — the one to delete.
+        mock_channel.history = MagicMock(return_value=_async_iter([newer_msg, old_msg]))
 
         mock_guild = MagicMock()
         mock_guild.id = guild_id
