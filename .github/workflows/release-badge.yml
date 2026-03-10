@@ -79,7 +79,7 @@ jobs:
         run: uv python install 3.13
 
       - name: Install dependencies
-        run: uv sync --group test
+        run: uv sync --group test --group web
 
       - name: Run tests
         run: uv run pytest --cov=NerdyPy --cov-report=xml
