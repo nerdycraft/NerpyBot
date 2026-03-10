@@ -124,11 +124,11 @@ class PremiumUser(db.BASE):
         from sqlalchemy.exc import IntegrityError
 
         entry = cls(UserId=user_id, GrantedByUserId=granted_by)
-        session.add(entry)
         try:
-            session.flush()
+            with session.begin_nested():
+                session.add(entry)
+                session.flush()
         except IntegrityError:
-            session.rollback()
             return session.query(cls).filter(cls.UserId == user_id).first()
         return entry
 

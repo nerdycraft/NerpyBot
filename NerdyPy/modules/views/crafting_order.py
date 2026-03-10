@@ -206,7 +206,6 @@ class CraftingOrderModal(ui.Modal):
         channel_id = None
         embed = None
         view = None
-        lang = "en"
         with self.bot.session_scope() as session:
             config = CraftingBoardConfig.get_by_guild(self.guild_id, session)
             if config is None:
@@ -235,9 +234,21 @@ class CraftingOrderModal(ui.Modal):
         # Phase 2: send to Discord outside the session.
         channel = interaction.guild.get_channel(channel_id)
         if channel is None:
+            with self.bot.session_scope() as session:
+                order = CraftingOrder.get_by_id(order_id, session)
+                if order is not None:
+                    session.delete(order)
             await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
             return
-        msg = await channel.send(content=self.role.mention, embed=embed, view=view)
+        try:
+            msg = await channel.send(content=self.role.mention, embed=embed, view=view)
+        except discord.HTTPException:
+            with self.bot.session_scope() as session:
+                order = CraftingOrder.get_by_id(order_id, session)
+                if order is not None:
+                    session.delete(order)
+            await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
+            return
 
         # Phase 3: store the message ID now that Discord has accepted the message.
         with self.bot.session_scope() as session:

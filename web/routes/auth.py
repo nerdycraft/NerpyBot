@@ -100,7 +100,7 @@ async def me(
     """Return the current user's profile and accessible guilds."""
     user_id = user["sub"]
     perms = vk.get_permissions(user_id)
-    if not perms:
+    if perms is None:
         # Cache miss (TTL expired mid-session) — rehydrate from stored Discord token.
         discord_token = vk.get_discord_token(user_id)
         if not discord_token:

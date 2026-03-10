@@ -228,8 +228,8 @@ async def _valkey_listener_loop(bot, valkey_url: str) -> None:
                     result = {"error": str(e)}
                 if request_id:
                     reply_key = f"nerpybot:reply:{request_id}"
-                    client.lpush(reply_key, json.dumps(result))
-                    client.expire(reply_key, 10)
+                    await to_thread(client.lpush, reply_key, json.dumps(result))
+                    await to_thread(client.expire, reply_key, 10)
     except CancelledError:
         return
     except Exception as e:

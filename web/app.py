@@ -120,8 +120,13 @@ def create_app(
 
         @app.get("/{full_path:path}", include_in_schema=False)
         async def spa_fallback(full_path: str):
-            candidate = _dist / full_path
-            if candidate.exists() and candidate.is_file():
+            from fastapi import HTTPException as _HTTPException
+
+            if full_path == "api" or full_path.startswith("api/"):
+                raise _HTTPException(status_code=404, detail="Not Found")
+            dist_root = _dist.resolve()
+            candidate = (dist_root / full_path).resolve()
+            if candidate.is_file() and dist_root in candidate.parents:
                 return FileResponse(str(candidate))
             return FileResponse(str(_dist / "index.html"))
 

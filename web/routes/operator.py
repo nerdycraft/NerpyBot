@@ -45,7 +45,13 @@ async def grant_premium(
     """Grant premium dashboard access to a user."""
     from models.admin import PremiumUser
 
-    entry = PremiumUser.grant(int(body.user_id), int(user["sub"]), session)
+    try:
+        target_user_id = int(body.user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail="user_id must be a valid integer"
+        )
+    entry = PremiumUser.grant(target_user_id, int(user["sub"]), session)
     return _premium_to_schema(entry)
 
 
