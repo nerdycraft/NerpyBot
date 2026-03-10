@@ -52,12 +52,15 @@ export function useAutoSave<T>(
     saving.value = true;
     success.value = false;
     error.value = null;
+    let hadDirtyEdits = false;
     try {
       const result = await saveFn(source.value);
-      // Only apply the server response if no edits arrived during the await.
-      // If the user changed something while we were saving, their version is
-      // newer — applying the stale server result would silently discard it.
-      if (!_dirtyWhileSaving) {
+      // Capture whether the user made edits *during* the await before we apply
+      // the server result. The assignment below will itself trigger the sync
+      // watcher (saving is still true), which would set _dirtyWhileSaving=true
+      // again — so we must capture the real intent here, not after.
+      hadDirtyEdits = _dirtyWhileSaving;
+      if (!hadDirtyEdits) {
         source.value = result;
       }
       success.value = true;
@@ -67,8 +70,11 @@ export function useAutoSave<T>(
       error.value = e instanceof Error ? e.message : "Failed to save";
     } finally {
       saving.value = false;
-      if (_dirtyWhileSaving) {
-        // Re-queue a save for the newer state the user produced during the last save.
+      // Always clear the flag — the spurious set from `source.value = result`
+      // above is not a real user edit and must not trigger a re-save.
+      _dirtyWhileSaving = false;
+      if (hadDirtyEdits) {
+        // User edited while we were saving; their state is newer — re-save it.
         if (_saveTimer) clearTimeout(_saveTimer);
         _saveTimer = setTimeout(() => void doSave(), 600);
       }
