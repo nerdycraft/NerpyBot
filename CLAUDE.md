@@ -151,6 +151,11 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **Adding a new language** — Create `NerdyPy/locales/lang_<code>.yaml`, restart the bot. No code changes needed. English keys are canonical — any missing key in other languages falls back to English automatically.
 - **Guild language is global** — `GuildLanguageConfig` is the single source of truth for a guild's language preference. Modules calling external APIs (Blizzard, Riot) should honor this setting when the API supports it, falling back to English otherwise.
 - **Full env var config** — All config keys can be set via `NERPYBOT_*` environment variables (see `docker-compose.yml` for the full list). Env vars take priority over `config.yaml` when both are present. Lists (`modules`, `ops`, `error_recipients`) use comma-separated values.
+- **`session.commit()` before `background_tasks.add_task()`** — FastAPI background tasks run after the response is sent but before yield-dependency cleanup, so `session.commit()` in `_get_db_session` fires too late. Always call `session.commit()` explicitly before scheduling any background task that re-reads data written by the same request.
+- **`selectinload` for multiple one-to-many collections** — Two `joinedload` on different one-to-many relationships on the same parent produce a Cartesian product (rows × rows). Use `selectinload` for the second (and any further) collection — it fires a separate `IN` query instead.
+- **`Guild.get_channel()` is cache-only** — Returns `None` on cache miss (e.g. after reconnect). Fall back to `await guild.fetch_channel(channel_id)` and catch `(discord.NotFound, discord.Forbidden)` before treating a channel as missing or deleting related DB rows.
+- **No `return` inside `finally`** — Biome flags this as `noUnsafeFinally`; it suppresses any exception that escapes the `catch` block. Move stale-sequence guards and cleanup logic to *after* the `try/catch` block instead.
+- **`route.query` TypeScript types** — Vue Router types query values as `LocationQueryValue | LocationQueryValue[]` where `LocationQueryValue = string | null`. Any helper that normalises a query param must accept `(string | null)[]`, not `string[]`.
 
 ## Configuration
 
