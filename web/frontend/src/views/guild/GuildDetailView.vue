@@ -187,7 +187,7 @@ function guildIconUrl(): string | null {
       <aside
       :class="[
         'flex flex-col border-r border-border bg-card flex-shrink-0',
-        'fixed lg:relative inset-y-0 left-0 z-30 lg:z-auto',
+        'fixed lg:relative inset-y-0 left-0 z-30',
         'overflow-hidden transition-[width,transform] duration-200 ease-in-out',
         sidebarOpen
           ? 'w-56 translate-x-0'
