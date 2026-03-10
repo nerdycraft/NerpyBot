@@ -184,7 +184,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 except HTTPException as ex:
                     if ex.status == 429:
                         raise
-                    pass  # already gone or inaccessible
+                    # already gone or inaccessible; ignore other HTTP errors
 
         # Bulk-delete recent messages in batches of up to 100.
         for i in range(0, len(bulk), _BULK_BATCH_SIZE):
@@ -209,7 +209,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 except HTTPException as ex:
                     if ex.status == 429:
                         raise
-                    pass  # already gone or inaccessible
+                    # already gone or inaccessible; ignore other HTTP errors
             await message.delete()
             await asyncio.sleep(1.0)
 
