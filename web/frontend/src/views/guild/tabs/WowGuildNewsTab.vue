@@ -242,7 +242,7 @@ function relativeTime(iso: string | null): string {
         <p class="text-muted-foreground text-sm">Track a World of Warcraft guild's activity — boss kills, member joins and leaves, and achievements — and automatically post updates to a Discord channel. Each tracker targets one guild on a specific realm and only processes characters who have been active within the configured window.</p>
       </div>
       <button
-        class="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium transition-colors"
+        class="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0"
         @click="showAdd = !showAdd; if (!showAdd) resetAddForm()"
       >
         {{ showAdd ? "Cancel" : "Add tracker" }}

@@ -153,7 +153,7 @@ async function createReminder() {
         </p>
       </div>
       <button
-        class="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium transition-colors"
+        class="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0"
         @click="showCreate = !showCreate"
       >
         <Icon icon="mdi:plus" class="w-4 h-4" />

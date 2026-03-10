@@ -110,7 +110,7 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
         <p class="text-muted-foreground text-sm">Templates are reusable question sets that can be shared across multiple application forms, letting you define common question banks once and apply them wherever needed. Built-in templates are provided by the bot and cannot be modified or deleted.</p>
       </div>
       <button
-        class="bg-muted hover:bg-muted/80 px-3 py-1.5 rounded text-sm transition-colors flex items-center gap-1.5"
+        class="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap flex-shrink-0"
         @click="showCreateTemplate = true; templateDraft = { name: '', approval_message: '', denial_message: '', question_texts: [''] }"
       >
         <Icon icon="mdi:plus" class="w-4 h-4" />

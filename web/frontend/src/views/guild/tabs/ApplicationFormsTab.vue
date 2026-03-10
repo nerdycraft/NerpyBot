@@ -180,7 +180,7 @@ async function deleteQuestion(formId: number, questionId: number) {
         <p class="text-muted-foreground text-sm">Application forms define the questions members answer when applying via the bot in DMs. Each form needs at least one question and a review channel where moderators cast approve/deny votes.</p>
       </div>
       <button
-        class="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1.5"
+        class="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap flex-shrink-0"
         @click="startCreate"
       >
         <Icon icon="mdi:plus" class="w-4 h-4" />
