@@ -162,6 +162,25 @@ class NerpyBot(Bot):
     """Discord Bot"""
 
     def __init__(self, config: dict, intents: Intents, debug: bool):
+        """
+        Initialize the NerpyBot instance, configure subsystems, and prepare database access.
+
+        This sets up bot identity and operator lists from the provided config, initializes audio,
+        conversation and error-throttling subsystems, tracks uptime, prepares module state, and
+        creates a SQLAlchemy engine and session factory (with connection pre-ping enabled). If no
+        "database" section is present in config, a warning is logged and a local SQLite fallback is used.
+
+        Parameters:
+            config (dict): Parsed configuration containing at minimum:
+                - bot.client_id: bot application ID (string or int-like)
+                - bot.token: bot token string
+                - bot.ops: iterable of operator IDs (strings or int-like)
+                - bot.modules: module list/configuration
+                - database (optional): database connection pieces; if absent, sqlite:///db.db is used.
+            intents (Intents): Discord gateway intents for the bot.
+            debug (bool): Debug flag to enable debug behavior in subsystems.
+
+        """
         super().__init__(
             command_prefix="",
             description="NerdyBot - Always one step ahead!",
