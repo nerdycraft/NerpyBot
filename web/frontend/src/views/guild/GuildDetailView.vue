@@ -31,9 +31,10 @@ const guildId = computed(() => route.params.id as string | undefined);
 const activeSection = computed(() => (route.query.tab as string) ?? "server-overview");
 const switcherOpen = ref(false);
 const sidebarOpen = ref(true);
+const LG_BREAKPOINT = 1024;
 
 onMounted(() => {
-  if (window.innerWidth < 1024) sidebarOpen.value = false;
+  if (window.innerWidth < LG_BREAKPOINT) sidebarOpen.value = false;
 });
 
 // Reset to overview when switching guilds
@@ -50,12 +51,12 @@ function switchGuild(id: string) {
   if (g) guild.setCurrent(g);
   switcherOpen.value = false;
   router.push(`/guilds/${id}`);
-  if (window.innerWidth < 1024) sidebarOpen.value = false;
+  if (window.innerWidth < LG_BREAKPOINT) sidebarOpen.value = false;
 }
 
 function navigateTo(tabId: string) {
   router.replace({ query: { tab: tabId } });
-  if (window.innerWidth < 1024) sidebarOpen.value = false;
+  if (window.innerWidth < LG_BREAKPOINT) sidebarOpen.value = false;
 }
 
 type SectionItem = {
@@ -168,22 +169,22 @@ function guildIconUrl(): string | null {
 
     <!-- Row: sidebar + content -->
     <div class="flex flex-1 overflow-hidden">
-    <!-- Mobile backdrop — closes sidebar when tapped -->
-    <Transition
-      enter-active-class="transition-opacity duration-200"
-      leave-active-class="transition-opacity duration-200"
-      enter-from-class="opacity-0"
-      leave-to-class="opacity-0"
-    >
-      <div
-        v-if="sidebarOpen"
-        class="fixed inset-0 bg-black/40 z-20 lg:hidden"
-        aria-hidden="true"
-        @click="sidebarOpen = false"
-      />
-    </Transition>
-    <!-- Sidebar -->
-    <aside
+      <!-- Mobile backdrop — closes sidebar when tapped -->
+      <Transition
+        enter-active-class="transition-opacity duration-200"
+        leave-active-class="transition-opacity duration-200"
+        enter-from-class="opacity-0"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="sidebarOpen"
+          class="fixed inset-0 bg-black/40 z-20 lg:hidden"
+          aria-hidden="true"
+          @click="sidebarOpen = false"
+        />
+      </Transition>
+      <!-- Sidebar -->
+      <aside
       :class="[
         'flex flex-col border-r border-border bg-card flex-shrink-0',
         'fixed lg:relative inset-y-0 left-0 z-30 lg:z-auto',
@@ -320,14 +321,14 @@ function guildIconUrl(): string | null {
           </button>
         </div>
       </div>
-    </aside>
+      </aside>
 
-    <!-- Content area -->
-    <main class="flex-1 overflow-y-auto p-8">
-      <div class="max-w-4xl">
-        <component :is="activeComponent" :guild-id="guildId" />
-      </div>
-    </main>
+      <!-- Content area -->
+      <main class="flex-1 overflow-y-auto p-8">
+        <div class="max-w-4xl">
+          <component :is="activeComponent" :guild-id="guildId" />
+        </div>
+      </main>
     </div>
   </div>
 </template>
