@@ -701,6 +701,7 @@ async def create_application_form(
     session.flush()
     schema = _form_to_schema(form)
     if form.ApplyChannelId:
+        session.commit()
         background_tasks.add_task(vk.send_bot_command, "post_apply_button", {"form_id": form.Id}, 1.0)
     return schema
 
@@ -751,6 +752,10 @@ async def update_application_form(
         form.ApplyDescription = body.apply_description
     schema = _form_to_schema(form)
     if should_repost and form.ApplyChannelId:
+        # Commit before scheduling so the bot reads the updated row, not the pre-commit version.
+        # FastAPI background tasks run after the response is sent but before yield-dependency cleanup,
+        # so without this explicit commit the session.commit() in _get_db_session would fire too late.
+        session.commit()
         background_tasks.add_task(vk.send_bot_command, "post_apply_button", {"form_id": form.Id}, 1.0)
     return schema
 
