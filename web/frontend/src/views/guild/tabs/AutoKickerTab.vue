@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from "vue";
-import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { AutoKickerConfig } from "@/api/types";
 import InfoTooltip from "@/components/InfoTooltip.vue";

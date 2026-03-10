@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { ModeratorRole } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
