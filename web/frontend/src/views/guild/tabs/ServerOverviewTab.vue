@@ -22,7 +22,7 @@ function iconUrl(guild: GuildSummary): string | null {
 <template>
   <div>
     <h2 class="text-xl font-bold mb-1">Your Servers</h2>
-    <p class="text-muted-foreground text-sm mb-6">All servers where NerpyBot is active.</p>
+    <p class="text-muted-foreground text-sm mb-6">All servers where NerpyBot is active and you have access to the dashboard. Click any card to jump to that server's settings — the currently selected server is highlighted with a "Current" badge.</p>
 
     <div v-if="managedGuilds.length === 0" class="text-muted-foreground text-sm mb-8">
       NerpyBot is not in any of your servers yet.

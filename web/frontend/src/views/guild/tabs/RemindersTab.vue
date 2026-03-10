@@ -147,7 +147,10 @@ async function createReminder() {
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-lg font-semibold">Reminders</h2>
-        <p class="text-muted-foreground text-sm">Scheduled channel messages. Per-user reminders are Discord-only.</p>
+        <p class="text-muted-foreground text-sm">
+          Reminders post a message to a Discord channel on a recurring schedule — every N minutes/hours/days, daily, weekly, or monthly.
+          Each reminder can be individually enabled or disabled; the bot tracks how many times each one has fired and when the next fire is due.
+        </p>
       </div>
       <button
         class="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium transition-colors"
@@ -168,13 +171,19 @@ async function createReminder() {
       <div class="flex flex-wrap gap-3 items-end">
         <!-- Channel -->
         <div class="flex flex-col gap-1 flex-1 min-w-[160px]">
-          <label class="text-xs text-muted-foreground">Channel</label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Channel
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The Discord channel where the reminder message will be posted." />
+          </label>
           <DiscordPicker v-model="draft.channel_id" :guild-id="guildId" kind="channel" />
         </div>
 
         <!-- Schedule type -->
         <div class="flex flex-col gap-1 flex-1 min-w-[160px]">
-          <label class="text-xs text-muted-foreground">Schedule Type</label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Schedule Type
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="How often the reminder fires: a repeating interval, or a fixed time each day, week, or month." />
+          </label>
           <select v-model="draft.schedule_type" class="bg-input border border-border rounded px-3 py-2 text-sm">
             <option value="interval">Repeat every…</option>
             <option value="daily">Daily at a fixed time</option>
@@ -185,7 +194,10 @@ async function createReminder() {
 
         <!-- Interval: amount + unit (grouped as one flex item) -->
         <div v-show="draft.schedule_type === 'interval'" class="flex flex-col gap-1 flex-1 min-w-[180px]">
-          <label class="text-xs text-muted-foreground">Repeat every</label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Repeat every
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The interval between fires. Enter a number and choose minutes, hours, or days." />
+          </label>
           <div class="flex gap-2">
             <input
               v-model.number="intervalAmount"
@@ -203,7 +215,10 @@ async function createReminder() {
 
         <!-- Time (daily / weekly / monthly) -->
         <div v-show="draft.schedule_type !== 'interval'" class="flex flex-col gap-1">
-          <label class="text-xs text-muted-foreground">Time</label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Time
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The time of day the reminder fires, interpreted in the selected timezone." />
+          </label>
           <input
             v-model="draft.schedule_time"
             type="time"
@@ -213,7 +228,10 @@ async function createReminder() {
 
         <!-- Day of week (weekly) -->
         <div v-show="draft.schedule_type === 'weekly'" class="flex flex-col gap-1 flex-1 min-w-[140px]">
-          <label class="text-xs text-muted-foreground">Day of Week</label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Day of Week
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Which day of the week the reminder fires for weekly schedules." />
+          </label>
           <select v-model.number="draft.schedule_day_of_week" class="bg-input border border-border rounded px-3 py-2 text-sm">
             <option v-for="(label, i) in DOW_LABELS" :key="i" :value="i">{{ label }}</option>
           </select>
@@ -221,7 +239,10 @@ async function createReminder() {
 
         <!-- Day of month (monthly) -->
         <div v-show="draft.schedule_type === 'monthly'" class="flex flex-col gap-1">
-          <label class="text-xs text-muted-foreground">Day of Month (1–28)</label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Day of Month (1–28)
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Which day of the month the reminder fires. Capped at 28 to ensure it fires every month." />
+          </label>
           <input
             v-model.number="draft.schedule_day_of_month"
             type="number"
@@ -233,7 +254,10 @@ async function createReminder() {
 
         <!-- Timezone autocomplete -->
         <div class="flex flex-col gap-1 relative flex-1 min-w-[180px]">
-          <label class="text-xs text-muted-foreground">Timezone</label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Timezone
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The timezone used to interpret the schedule time. Defaults to UTC if left blank." />
+          </label>
           <input
             v-model="tzQuery"
             type="text"
@@ -261,7 +285,10 @@ async function createReminder() {
 
       <!-- Message: always full width -->
       <div class="flex flex-col gap-1">
-        <label class="text-xs text-muted-foreground">Message</label>
+        <label class="text-sm font-medium flex items-center gap-1.5">
+          Message
+          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The text content that will be posted to the channel each time the reminder fires." />
+        </label>
         <textarea
           v-model="draft.message"
           rows="3"

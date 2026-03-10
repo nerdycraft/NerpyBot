@@ -99,7 +99,7 @@ function formatDate(iso: string) {
   <div class="space-y-4">
     <div>
       <h2 class="text-lg font-semibold">Submissions</h2>
-      <p class="text-muted-foreground text-sm">Read-only view of all application submissions.</p>
+      <p class="text-muted-foreground text-sm">Browse all application submissions from server members, including their answers, current status, and reviewer votes. This view is read-only — approvals and denials are cast by moderators directly in the review channel on Discord.</p>
     </div>
 
     <div v-if="loading && submissions.length === 0" class="text-muted-foreground text-sm">Loading…</div>
@@ -110,6 +110,10 @@ function formatDate(iso: string) {
       <aside class="w-72 flex-shrink-0 border border-border rounded flex flex-col overflow-hidden">
         <!-- Form filter -->
         <div class="flex-shrink-0 p-2 border-b border-border">
+          <label class="text-sm font-medium flex items-center gap-1.5 mb-1">
+            Form
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Filter submissions to show only those belonging to a specific application form." />
+          </label>
           <select
             class="w-full bg-input border border-border rounded px-2 py-1.5 text-sm"
             :value="formFilter ?? ''"
@@ -121,20 +125,26 @@ function formatDate(iso: string) {
         </div>
 
         <!-- Status filter -->
-        <div class="flex-shrink-0 p-2 border-b border-border flex gap-1 flex-wrap">
-          <button
-            v-for="(label, value) in STATUS_LABELS"
-            :key="value"
-            :class="[
-              'px-2.5 py-1 rounded text-xs transition-colors',
-              statusFilter === value
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-            ]"
-            @click="statusFilter = value"
-          >
-            {{ label }}
-          </button>
+        <div class="flex-shrink-0 p-2 border-b border-border">
+          <label class="text-sm font-medium flex items-center gap-1.5 mb-1">
+            Status
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Filter submissions by their current review status: pending awaiting votes, approved by moderators, or denied." />
+          </label>
+          <div class="flex gap-1 flex-wrap">
+            <button
+              v-for="(label, value) in STATUS_LABELS"
+              :key="value"
+              :class="[
+                'px-2.5 py-1 rounded text-xs transition-colors',
+                statusFilter === value
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+              ]"
+              @click="statusFilter = value"
+            >
+              {{ label }}
+            </button>
+          </div>
         </div>
 
         <!-- List -->

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
+import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { AutoDeleteRule } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
@@ -80,7 +81,10 @@ async function remove(id: number) {
   <div class="space-y-6">
     <div>
       <h2 class="text-lg font-semibold">Auto-Delete</h2>
-      <p class="text-muted-foreground text-sm">Automatically delete old messages in configured channels.</p>
+      <p class="text-muted-foreground text-sm">
+        Automatically deletes messages in specific channels once they exceed a configured age or message count.
+        Each rule targets one channel — add as many rules as needed, and toggle them on or off without deleting them.
+      </p>
     </div>
 
     <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
@@ -122,24 +126,36 @@ async function remove(id: number) {
         <p class="text-sm font-medium">Add Rule</p>
         <div class="flex flex-wrap gap-2 items-end">
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-muted-foreground">Channel</label>
+            <label class="text-xs text-muted-foreground flex items-center gap-1">
+              Channel
+              <Icon icon="mdi:information-outline" class="w-3 h-3 cursor-help" title="The channel where auto-deletion will be applied. Each channel can only have one rule." />
+            </label>
             <div class="w-48">
               <DiscordPicker v-model="newRule.channel_id" :guild-id="guildId" kind="channel" />
             </div>
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-muted-foreground" for="ad-keep">Keep msgs</label>
+            <label class="text-xs text-muted-foreground flex items-center gap-1" for="ad-keep">
+              Keep msgs
+              <Icon icon="mdi:information-outline" class="w-3 h-3 cursor-help" title="Always keep at least this many recent messages in the channel, regardless of age. Set to 0 to disable." />
+            </label>
             <input id="ad-keep" v-model.number="newRule.keep_messages" type="number" min="0"
               class="bg-input border border-border rounded px-3 py-2 text-sm w-24" />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-muted-foreground" for="ad-older">Older than (s)</label>
+            <label class="text-xs text-muted-foreground flex items-center gap-1" for="ad-older">
+              Older than (s)
+              <Icon icon="mdi:information-outline" class="w-3 h-3 cursor-help" title="Delete messages older than this many seconds. Set to 0 to only use the keep-count limit." />
+            </label>
             <input id="ad-older" v-model.number="newRule.delete_older_than" type="number" min="0"
               class="bg-input border border-border rounded px-3 py-2 text-sm w-28" />
           </div>
           <label class="flex items-center gap-2 text-sm pb-2">
             <input type="checkbox" v-model="newRule.delete_pinned" />
-            Delete pinned
+            <span class="flex items-center gap-1">
+              Delete pinned
+              <Icon icon="mdi:information-outline" class="w-3 h-3 text-muted-foreground cursor-help" title="When enabled, pinned messages in this channel are also subject to deletion. By default, pinned messages are kept." />
+            </span>
           </label>
           <button
             class="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors pb-2"

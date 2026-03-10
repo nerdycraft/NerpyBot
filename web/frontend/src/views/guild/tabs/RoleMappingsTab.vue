@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
+import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { RoleMappingSchema } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
@@ -61,7 +62,10 @@ async function remove(id: number) {
   <div class="space-y-6">
     <div>
       <h2 class="text-lg font-semibold">Role Mappings</h2>
-      <p class="text-muted-foreground text-sm">Allow a role to assign another role to members.</p>
+      <p class="text-muted-foreground text-sm">
+        Delegate role assignment to specific roles — each mapping grants members of the source role the ability to give
+        the target role to others via bot commands. Multiple mappings can share the same source or target role.
+      </p>
     </div>
 
     <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
@@ -85,12 +89,20 @@ async function remove(id: number) {
         </button>
       </div>
 
-      <div class="flex flex-wrap gap-2 items-center mt-4">
-        <div class="w-44">
+      <div class="flex flex-wrap gap-2 items-end mt-4">
+        <div class="w-44 flex flex-col gap-1.5">
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Source role
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The role whose members are allowed to assign the target role to others using bot commands." />
+          </label>
           <DiscordPicker v-model="newMapping.source_role_id" :guild-id="guildId" kind="role" placeholder="Source role…" />
         </div>
-        <span class="text-muted-foreground">→</span>
-        <div class="w-44">
+        <span class="text-muted-foreground pb-2">→</span>
+        <div class="w-44 flex flex-col gap-1.5">
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Target role
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The role that will be assigned to members when a user with the source role runs the assign command." />
+          </label>
           <DiscordPicker v-model="newMapping.target_role_id" :guild-id="guildId" kind="role" placeholder="Target role…" />
         </div>
         <button

@@ -177,7 +177,7 @@ async function deleteQuestion(formId: number, questionId: number) {
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-lg font-semibold">Forms</h2>
-        <p class="text-muted-foreground text-sm">Manage application forms, questions, and submissions.</p>
+        <p class="text-muted-foreground text-sm">Application forms define the questions members answer when applying via the bot in DMs. Each form needs at least one question and a review channel where moderators cast approve/deny votes.</p>
       </div>
       <button
         class="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1.5"
@@ -197,35 +197,59 @@ async function deleteQuestion(formId: number, questionId: number) {
       <p class="text-sm font-semibold">New Form</p>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div class="flex flex-col gap-1">
-          <label class="text-xs text-muted-foreground">Name</label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Name
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="A unique, human-readable name for this form shown in the dashboard and on the Apply button embed." />
+          </label>
           <input v-model="formDraft.name" class="bg-input border border-border rounded px-3 py-2 text-sm" placeholder="e.g. Guild Application" />
         </div>
         <div class="flex flex-col gap-1">
-          <label class="text-xs text-muted-foreground">Review Channel <span class="text-muted-foreground/60">(where votes appear)</span></label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Review Channel
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The Discord channel where the bot posts submission embeds and where moderators cast approve/deny votes." />
+          </label>
           <DiscordPicker v-model="formDraft.review_channel_id" :guild-id="guildId" kind="channel" />
         </div>
         <div class="flex flex-col gap-1">
-          <label class="text-xs text-muted-foreground">Apply Channel <span class="text-muted-foreground/60">(where the Apply button is posted)</span></label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Apply Channel
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The Discord channel where the bot posts the persistent Apply button that members click to start their application." />
+          </label>
           <DiscordPicker v-model="formDraft.apply_channel_id" :guild-id="guildId" kind="channel" />
         </div>
         <div class="flex flex-col gap-1 sm:col-span-2">
-          <label class="text-xs text-muted-foreground">Apply description <span class="text-muted-foreground/60">(shown on the Apply button embed, optional)</span></label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Apply Description
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Optional text displayed on the Apply button embed to describe the application or set expectations for applicants." />
+          </label>
           <textarea v-model="formDraft.apply_description" rows="2" class="bg-input border border-border rounded px-3 py-2 text-sm resize-y" />
         </div>
         <div class="flex flex-col gap-1">
-          <label class="text-xs text-muted-foreground">Required Approvals</label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Required Approvals
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Number of moderator approve votes needed to automatically accept the application." />
+          </label>
           <input v-model.number="formDraft.required_approvals" type="number" min="1" class="bg-input border border-border rounded px-3 py-2 text-sm w-24" />
         </div>
         <div class="flex flex-col gap-1">
-          <label class="text-xs text-muted-foreground">Required Denials</label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Required Denials
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Number of moderator deny votes needed to automatically reject the application." />
+          </label>
           <input v-model.number="formDraft.required_denials" type="number" min="1" class="bg-input border border-border rounded px-3 py-2 text-sm w-24" />
         </div>
         <div class="flex flex-col gap-1 sm:col-span-2">
-          <label class="text-xs text-muted-foreground">Approval message (optional)</label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Approval Message
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Optional message the bot sends to the applicant via DM when their application is approved." />
+          </label>
           <textarea v-model="formDraft.approval_message" rows="2" class="bg-input border border-border rounded px-3 py-2 text-sm resize-y" />
         </div>
         <div class="flex flex-col gap-1 sm:col-span-2">
-          <label class="text-xs text-muted-foreground">Denial message (optional)</label>
+          <label class="text-sm font-medium flex items-center gap-1.5">
+            Denial Message
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Optional message the bot sends to the applicant via DM when their application is denied." />
+          </label>
           <textarea v-model="formDraft.denial_message" rows="2" class="bg-input border border-border rounded px-3 py-2 text-sm resize-y" />
         </div>
       </div>
@@ -263,35 +287,59 @@ async function deleteQuestion(formId: number, questionId: number) {
             <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Edit Settings</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div class="flex flex-col gap-1">
-                <label class="text-xs text-muted-foreground">Name</label>
+                <label class="text-sm font-medium flex items-center gap-1.5">
+                  Name
+                  <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="A unique, human-readable name for this form shown in the dashboard and on the Apply button embed." />
+                </label>
                 <input v-model="formDraft.name" class="bg-input border border-border rounded px-3 py-2 text-sm" />
               </div>
               <div class="flex flex-col gap-1">
-                <label class="text-xs text-muted-foreground">Review Channel <span class="text-muted-foreground/60">(where votes appear)</span></label>
+                <label class="text-sm font-medium flex items-center gap-1.5">
+                  Review Channel
+                  <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The Discord channel where the bot posts submission embeds and where moderators cast approve/deny votes." />
+                </label>
                 <DiscordPicker v-model="formDraft.review_channel_id" :guild-id="guildId" kind="channel" />
               </div>
               <div class="flex flex-col gap-1">
-                <label class="text-xs text-muted-foreground">Apply Channel <span class="text-muted-foreground/60">(where Apply button is posted)</span></label>
+                <label class="text-sm font-medium flex items-center gap-1.5">
+                  Apply Channel
+                  <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The Discord channel where the bot posts the persistent Apply button that members click to start their application." />
+                </label>
                 <DiscordPicker v-model="formDraft.apply_channel_id" :guild-id="guildId" kind="channel" />
               </div>
               <div class="flex flex-col gap-1 sm:col-span-2">
-                <label class="text-xs text-muted-foreground">Apply description <span class="text-muted-foreground/60">(shown on the Apply embed, optional)</span></label>
+                <label class="text-sm font-medium flex items-center gap-1.5">
+                  Apply Description
+                  <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Optional text displayed on the Apply button embed to describe the application or set expectations for applicants." />
+                </label>
                 <textarea v-model="formDraft.apply_description" rows="2" class="bg-input border border-border rounded px-3 py-2 text-sm resize-y" />
               </div>
               <div class="flex flex-col gap-1">
-                <label class="text-xs text-muted-foreground">Required Approvals</label>
+                <label class="text-sm font-medium flex items-center gap-1.5">
+                  Required Approvals
+                  <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Number of moderator approve votes needed to automatically accept the application." />
+                </label>
                 <input v-model.number="formDraft.required_approvals" type="number" min="1" class="bg-input border border-border rounded px-3 py-2 text-sm w-24" />
               </div>
               <div class="flex flex-col gap-1">
-                <label class="text-xs text-muted-foreground">Required Denials</label>
+                <label class="text-sm font-medium flex items-center gap-1.5">
+                  Required Denials
+                  <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Number of moderator deny votes needed to automatically reject the application." />
+                </label>
                 <input v-model.number="formDraft.required_denials" type="number" min="1" class="bg-input border border-border rounded px-3 py-2 text-sm w-24" />
               </div>
               <div class="flex flex-col gap-1 sm:col-span-2">
-                <label class="text-xs text-muted-foreground">Approval message (optional)</label>
+                <label class="text-sm font-medium flex items-center gap-1.5">
+                  Approval Message
+                  <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Optional message the bot sends to the applicant via DM when their application is approved." />
+                </label>
                 <textarea v-model="formDraft.approval_message" rows="2" class="bg-input border border-border rounded px-3 py-2 text-sm resize-y" />
               </div>
               <div class="flex flex-col gap-1 sm:col-span-2">
-                <label class="text-xs text-muted-foreground">Denial message (optional)</label>
+                <label class="text-sm font-medium flex items-center gap-1.5">
+                  Denial Message
+                  <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Optional message the bot sends to the applicant via DM when their application is denied." />
+                </label>
                 <textarea v-model="formDraft.denial_message" rows="2" class="bg-input border border-border rounded px-3 py-2 text-sm resize-y" />
               </div>
             </div>

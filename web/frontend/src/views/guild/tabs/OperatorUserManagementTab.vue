@@ -57,8 +57,7 @@ function formatDate(iso: string) {
       <h2 class="text-xl font-bold">User Management</h2>
     </div>
     <p class="text-muted-foreground text-sm mb-6">
-      Grant or revoke dashboard access. Users without premium status are redirected to the login
-      page.
+      Grant or revoke dashboard access for Discord users. Users with premium status can log in and manage servers they have permission on; users without it are redirected to the login page. This panel is only visible to bot operators.
     </p>
 
     <p v-if="grantError" class="text-destructive text-sm mb-3">{{ grantError }}</p>
@@ -89,7 +88,10 @@ function formatDate(iso: string) {
     <!-- Grant access form -->
     <div class="flex gap-2 items-end">
       <div class="flex flex-col gap-1">
-        <label class="text-xs text-muted-foreground">Discord User ID</label>
+        <label class="text-xs text-muted-foreground flex items-center gap-1">
+            Discord User ID
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The 18-digit Discord snowflake ID of the user to grant access to. You can find this by enabling Developer Mode in Discord and right-clicking the user." />
+          </label>
         <input
           v-model="newUserId"
           placeholder="e.g. 123456789012345678"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
+import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { ModeratorRole } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
@@ -60,7 +61,10 @@ async function remove(roleId: string) {
   <div class="space-y-6">
     <div>
       <h2 class="text-lg font-semibold">Moderator Roles</h2>
-      <p class="text-muted-foreground text-sm">Discord roles granted bot moderator permissions.</p>
+      <p class="text-muted-foreground text-sm">
+        Assign Discord roles as NerpyBot moderators — members with any listed role can use moderation commands such as
+        kick, ban, and message cleanup. You can add as many roles as needed; changes take effect immediately.
+      </p>
     </div>
 
     <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
@@ -86,6 +90,10 @@ async function remove(roleId: string) {
 
       <div class="flex gap-2 mt-4">
         <div class="flex-1 min-w-0">
+          <label class="text-sm font-medium flex items-center gap-1.5 mb-1.5">
+            Role
+            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The Discord role to grant bot moderator permissions. Members with this role can run moderation commands." />
+          </label>
           <DiscordPicker
             v-model="newRoleId"
             :guild-id="guildId"

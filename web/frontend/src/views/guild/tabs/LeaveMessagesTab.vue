@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
+import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { LeaveMessageConfig } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
@@ -65,7 +66,11 @@ async function autoSave() {
   <div class="space-y-6">
     <div>
       <h2 class="text-lg font-semibold">Leave Messages</h2>
-      <p class="text-muted-foreground text-sm">Post a message when a member leaves the server.</p>
+      <p class="text-muted-foreground text-sm">
+        Post a custom message to a channel whenever a member leaves or is removed from the server. Use
+        <code class="font-mono text-xs">{user}</code> in the message text to mention the departing member by name.
+        Changes auto-save as you type.
+      </p>
     </div>
 
     <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
@@ -73,11 +78,17 @@ async function autoSave() {
     <div v-else-if="config" class="space-y-4">
       <label class="flex items-center gap-3 cursor-pointer">
         <input type="checkbox" v-model="config.enabled" class="w-4 h-4" />
-        <span class="text-sm font-medium">Enabled</span>
+        <span class="text-sm font-medium flex items-center gap-1.5">
+          Enabled
+          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="When enabled, the bot will post a leave message each time a member leaves or is removed from the server." />
+        </span>
       </label>
 
       <div class="flex flex-col gap-2">
-        <label class="text-sm font-medium">Channel</label>
+        <label class="text-sm font-medium flex items-center gap-1.5">
+          Channel
+          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The text channel where leave messages will be posted. The bot must have permission to send messages in this channel." />
+        </label>
         <div class="w-64">
           <DiscordPicker
             :model-value="config.channel_id ?? ''"
@@ -89,7 +100,10 @@ async function autoSave() {
       </div>
 
       <div class="flex flex-col gap-2">
-        <label class="text-sm font-medium" for="leave-message">Message</label>
+        <label class="text-sm font-medium flex items-center gap-1.5" for="leave-message">
+          Message
+          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The message text to post when a member leaves. Use {user} as a placeholder — it will be replaced with the departing member's username." />
+        </label>
         <textarea
           id="leave-message"
           v-model="config.message"

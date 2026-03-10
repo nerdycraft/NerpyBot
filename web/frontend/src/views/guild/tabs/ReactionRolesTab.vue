@@ -29,7 +29,10 @@ onMounted(async () => {
   <div class="space-y-6">
     <div>
       <h2 class="text-lg font-semibold">Reaction Roles</h2>
-      <p class="text-muted-foreground text-sm">Messages with reaction-based role assignments (read-only).</p>
+      <p class="text-muted-foreground text-sm">
+        Reaction roles let members self-assign Discord roles by reacting to a specific message with a designated emoji — each emoji maps to exactly one role.
+        This view is read-only; reaction role entries are managed through bot commands directly in Discord.
+      </p>
     </div>
 
     <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>

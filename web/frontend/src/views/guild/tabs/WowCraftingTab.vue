@@ -159,7 +159,10 @@ watch(statusFilter, fetchOrders);
   <div class="space-y-8">
     <div>
       <h2 class="text-lg font-semibold">Crafting Boards</h2>
-      <p class="text-muted-foreground text-sm">Board configuration, role mappings, and orders.</p>
+      <p class="text-muted-foreground text-sm">
+        The crafting board monitors World of Warcraft crafting order queues and posts new orders to a configured Discord channel.
+        Use role mappings to link Discord roles to WoW professions so the bot can ping the right crafters when matching orders appear.
+      </p>
     </div>
 
     <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
@@ -226,7 +229,10 @@ watch(statusFilter, fetchOrders);
         <!-- Add mapping -->
         <div class="flex flex-wrap gap-2 items-end pt-1">
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-muted-foreground">Role</label>
+            <label class="text-sm font-medium flex items-center gap-1.5">
+              Role
+              <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The Discord role to associate with a WoW profession. Members with this role will be pinged when a matching crafting order appears." />
+            </label>
             <select
               v-model="newMappingRoleId"
               class="bg-input border border-border rounded px-3 py-1.5 text-sm min-w-[160px]"
@@ -236,7 +242,10 @@ watch(statusFilter, fetchOrders);
             </select>
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-xs text-muted-foreground">Profession</label>
+            <label class="text-sm font-medium flex items-center gap-1.5">
+              Profession
+              <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The WoW profession this role covers. The bot will notify the mapped role when a crafting order for this profession is detected." />
+            </label>
             <select
               v-model="newMappingProfessionId"
               class="bg-input border border-border rounded px-3 py-1.5 text-sm min-w-[160px]"

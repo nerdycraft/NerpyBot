@@ -107,7 +107,7 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-lg font-semibold">Templates</h2>
-        <p class="text-muted-foreground text-sm">Reusable question sets. Built-in templates are read-only.</p>
+        <p class="text-muted-foreground text-sm">Templates are reusable question sets that can be shared across multiple application forms, letting you define common question banks once and apply them wherever needed. Built-in templates are provided by the bot and cannot be modified or deleted.</p>
       </div>
       <button
         class="bg-muted hover:bg-muted/80 px-3 py-1.5 rounded text-sm transition-colors flex items-center gap-1.5"
@@ -126,11 +126,17 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
     <div v-if="showCreateTemplate" class="bg-card border border-primary rounded p-4 space-y-3">
       <p class="text-sm font-semibold">New Template</p>
       <div class="flex flex-col gap-1">
-        <label class="text-xs text-muted-foreground">Name</label>
+        <label class="text-sm font-medium flex items-center gap-1.5">
+          Name
+          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="A unique name identifying this template. Used when selecting a template to base a new form on." />
+        </label>
         <input v-model="templateDraft.name" class="bg-input border border-border rounded px-3 py-2 text-sm w-64" />
       </div>
       <div class="space-y-1">
-        <label class="text-xs text-muted-foreground">Questions</label>
+        <label class="text-sm font-medium flex items-center gap-1.5">
+          Questions
+          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The questions members will be asked when filling out a form that uses this template. Questions are presented in order via DM." />
+        </label>
         <div v-for="(_, i) in templateDraft.question_texts" :key="i" class="flex gap-2">
           <input
             v-model="templateDraft.question_texts[i]"
@@ -181,7 +187,10 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
           <!-- Inline edit -->
           <div v-if="editingTemplateId === tpl.id && !tpl.is_built_in" class="space-y-2 pb-3 border-b border-border">
             <div class="flex flex-col gap-1">
-              <label class="text-xs text-muted-foreground">Name</label>
+              <label class="text-sm font-medium flex items-center gap-1.5">
+                Name
+                <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="A unique name identifying this template. Used when selecting a template to base a new form on." />
+              </label>
               <input v-model="templateDraft.name" class="bg-input border border-border rounded px-3 py-2 text-sm w-64" />
             </div>
             <div class="flex gap-2">

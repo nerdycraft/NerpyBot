@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
+import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { AutoKickerConfig } from "@/api/types";
 
@@ -64,7 +65,10 @@ async function autoSave() {
   <div class="space-y-6">
     <div>
       <h2 class="text-lg font-semibold">Auto-Kicker</h2>
-      <p class="text-muted-foreground text-sm">Kick members who have been inactive for too long.</p>
+      <p class="text-muted-foreground text-sm">
+        Automatically kicks members who have not verified or shown activity within a configurable number of days.
+        Changes auto-save as you type; the bot will send an optional reminder message before kicking if one is set.
+      </p>
     </div>
 
     <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
@@ -72,11 +76,17 @@ async function autoSave() {
     <div v-else-if="config" class="space-y-4">
       <label class="flex items-center gap-3 cursor-pointer">
         <input type="checkbox" v-model="config.enabled" class="w-4 h-4" />
-        <span class="text-sm font-medium">Enabled</span>
+        <span class="text-sm font-medium flex items-center gap-1.5">
+          Enabled
+          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="When disabled, no members will be kicked regardless of the other settings." />
+        </span>
       </label>
 
       <div class="flex flex-col gap-2">
-        <label class="text-sm font-medium" for="kick-after">Kick after (days)</label>
+        <label class="text-sm font-medium flex items-center gap-1.5" for="kick-after">
+          Kick after (days)
+          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Number of days of inactivity before a member is kicked. Must be at least 1." />
+        </label>
         <input
           id="kick-after"
           v-model.number="config.kick_after"
@@ -87,7 +97,10 @@ async function autoSave() {
       </div>
 
       <div class="flex flex-col gap-2">
-        <label class="text-sm font-medium" for="kick-reminder">Reminder message (optional)</label>
+        <label class="text-sm font-medium flex items-center gap-1.5" for="kick-reminder">
+          Reminder message (optional)
+          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="If set, NerpyBot will DM this message to the member before kicking them. Leave blank to kick silently." />
+        </label>
         <textarea
           id="kick-reminder"
           v-model="config.reminder_message"

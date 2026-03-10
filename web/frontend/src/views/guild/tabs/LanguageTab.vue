@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
+import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { LanguageConfig } from "@/api/types";
 
@@ -67,14 +68,20 @@ async function autoSave() {
   <div class="space-y-6">
     <div>
       <h2 class="text-lg font-semibold">Language</h2>
-      <p class="text-muted-foreground text-sm">Sets the bot's response language for this server.</p>
+      <p class="text-muted-foreground text-sm">
+        Controls the language NerpyBot uses for all its responses in this server, including command replies, embeds, and
+        automated messages. Changes are applied immediately and auto-save as soon as you make a selection.
+      </p>
     </div>
 
     <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
 
     <div v-else-if="config" class="space-y-4">
       <div class="flex flex-col gap-2">
-        <label class="text-sm font-medium" for="language-select">Language</label>
+        <label class="text-sm font-medium flex items-center gap-1.5" for="language-select">
+          Language
+          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The locale NerpyBot will use when replying in this server (e.g. English, Deutsch)." />
+        </label>
         <div class="flex items-center gap-3">
           <select
             id="language-select"
