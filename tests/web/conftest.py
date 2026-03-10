@@ -31,7 +31,7 @@ def web_db_engine():
         cursor.close()
 
     # Import all models
-    from models.admin import BotModeratorRole, GuildLanguageConfig, PermissionSubscriber  # noqa: F401
+    from models.admin import BotModeratorRole, GuildLanguageConfig, PermissionSubscriber, PremiumUser  # noqa: F401
     from models.application import ApplicationForm, ApplicationQuestion  # noqa: F401
     from models.leavemsg import LeaveMessage  # noqa: F401
     from models.moderation import AutoDelete, AutoKicker  # noqa: F401

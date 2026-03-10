@@ -55,6 +55,8 @@ services:
       # NERPYBOT_ERROR_RECIPIENTS: "your_discord_id_here"
       # ── Audio tuning ──
       # NERPYBOT_AUDIO_BUFFER_LIMIT: "5"
+      # ── Logging ──
+      # NERPYBOT_LOG_LEVEL: "debug"
       # ── Web Dashboard (Valkey bridge — required when nerpybot-web is enabled) ──
       NERPYBOT_WEB_VALKEY_URL: "valkey://valkey:6379"
     volumes:
@@ -77,6 +79,8 @@ services:
     depends_on:
       nerpybot-migrations:
         condition: service_completed_successfully
+      nerpybot:
+        condition: service_started
       valkey:
         condition: service_healthy
       # postgres:
@@ -102,6 +106,8 @@ services:
       # NERPYBOT_WEB_DB_PORT: "5432"
       # ── Optional ──
       # NERPYBOT_WEB_JWT_EXPIRY_HOURS: "24"
+      # NERPYBOT_WEB_FRONTEND_URL: "http://localhost:5173"  # set only for local dev (Vite on a different port); leave unset in production
+      # NERPYBOT_WEB_LOG_LEVEL: "debug"
     volumes:
       - nerpybot-data:/data
 

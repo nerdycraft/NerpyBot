@@ -109,6 +109,7 @@ def _make_reviewer_interaction(mock_bot, *, is_admin=True, manager_role_id=None,
     interaction.client = mock_bot
     interaction.user = MagicMock()
     interaction.user.id = REVIEWER_USER_ID
+    interaction.user.display_name = "Reviewer"
     interaction.user.guild_permissions = MagicMock()
     interaction.user.guild_permissions.administrator = is_admin
     interaction.user.roles = []

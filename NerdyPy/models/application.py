@@ -213,6 +213,7 @@ class ApplicationSubmission(db.BASE):
         "ApplicationVote",
         back_populates="submission",
         cascade="all, delete, delete-orphan",
+        lazy="subquery",
     )
 
     @classmethod
@@ -263,6 +264,7 @@ class ApplicationVote(db.BASE):
     Id = Column(Integer, primary_key=True)
     SubmissionId = Column(Integer, ForeignKey("ApplicationSubmission.Id"), nullable=False)
     UserId = Column(BigInteger, nullable=False)
+    VoterName = Column(Unicode(100), nullable=True)
     Vote = Column(SAEnum(VoteType), nullable=False)
 
     submission = relationship("ApplicationSubmission", back_populates="votes")

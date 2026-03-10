@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -14,6 +14,7 @@ class UserInfo(BaseModel):
     id: str
     username: str
     is_operator: bool
+    is_premium: bool
     guilds: list[GuildSummary]
 
 
@@ -22,6 +23,8 @@ class GuildSummary(BaseModel):
     name: str
     icon: str | None
     permission_level: Literal["admin", "mod", "member"]
+    bot_present: bool = False
+    invite_url: str | None = None
 
 
 # ── Guild Language ──
@@ -138,7 +141,7 @@ class RoleMappingCreate(BaseModel):
     target_role_id: str
 
 
-# ── Reminders (read-only) ──
+# ── Reminders ──
 
 
 class ReminderSchema(BaseModel):
@@ -151,9 +154,34 @@ class ReminderSchema(BaseModel):
     schedule_type: str
     next_fire: str
     count: int
+    interval_seconds: int | None = None
+    schedule_time: str | None = None  # "HH:MM"
+    schedule_day_of_week: int | None = None  # 0=Mon … 6=Sun
+    schedule_day_of_month: int | None = None  # 1-28
+    timezone: str | None = None
 
 
-# ── Application Forms (read-only) ──
+ReminderScheduleType = Literal["interval", "daily", "weekly", "monthly"]
+
+
+class ReminderCreate(BaseModel):
+    channel_id: str
+    message: str
+    schedule_type: ReminderScheduleType
+    interval_seconds: Annotated[int, Field(ge=60)] | None = None
+    schedule_time: str | None = None  # "HH:MM"
+    schedule_day_of_week: Annotated[int, Field(ge=0, le=6)] | None = None
+    schedule_day_of_month: Annotated[int, Field(ge=1, le=28)] | None = None
+    timezone: str = "UTC"
+
+
+class ReminderUpdate(BaseModel):
+    message: str | None = None
+    enabled: bool | None = None
+    channel_id: str | None = None
+
+
+# ── Application Forms ──
 
 
 class ApplicationQuestionSchema(BaseModel):
@@ -165,12 +193,105 @@ class ApplicationQuestionSchema(BaseModel):
 class ApplicationFormSchema(BaseModel):
     id: int
     name: str
+    review_channel_id: str | None = None
     required_approvals: int
     required_denials: int
+    approval_message: str | None = None
+    denial_message: str | None = None
+    apply_channel_id: str | None = None
+    apply_description: str | None = None
     questions: list[ApplicationQuestionSchema]
 
 
-# ── WoW (read-only) ──
+class ApplicationFormCreate(BaseModel):
+    name: str
+    required_approvals: int = Field(1, ge=1)
+    required_denials: int = Field(1, ge=1)
+    review_channel_id: str | None = None
+    apply_channel_id: str | None = None
+    approval_message: str | None = None
+    denial_message: str | None = None
+    apply_description: str | None = None
+
+
+class ApplicationFormUpdate(BaseModel):
+    name: str | None = None
+    required_approvals: int | None = Field(None, ge=1)
+    required_denials: int | None = Field(None, ge=1)
+    review_channel_id: str | None = None
+    apply_channel_id: str | None = None
+    approval_message: str | None = None
+    denial_message: str | None = None
+    apply_description: str | None = None
+
+
+class ApplicationQuestionCreate(BaseModel):
+    question_text: str
+    sort_order: int | None = None
+
+
+class ApplicationQuestionUpdate(BaseModel):
+    question_text: str | None = None
+    sort_order: int | None = Field(None, ge=1)
+
+
+class ApplicationAnswerSchema(BaseModel):
+    question_id: int
+    question_text: str
+    answer_text: str
+
+
+class ApplicationVoteSchema(BaseModel):
+    voter_id: str
+    voter_name: str | None
+    vote: str
+
+
+class ApplicationSubmissionSchema(BaseModel):
+    id: int
+    form_name: str | None = None
+    user_id: str
+    user_name: str | None
+    status: str
+    submitted_at: str
+    decision_reason: str | None = None
+    answers: list[ApplicationAnswerSchema]
+    votes: list[ApplicationVoteSchema] = []
+
+
+class ApplicationTemplateQuestionSchema(BaseModel):
+    id: int
+    question_text: str
+    sort_order: int
+
+
+class ApplicationTemplateSchema(BaseModel):
+    id: int
+    name: str
+    is_built_in: bool
+    approval_message: str | None = None
+    denial_message: str | None = None
+    questions: list[ApplicationTemplateQuestionSchema]
+
+
+class ApplicationTemplateCreate(BaseModel):
+    name: str
+    approval_message: str | None = None
+    denial_message: str | None = None
+    question_texts: list[str] = []
+
+
+class ApplicationTemplateUpdate(BaseModel):
+    name: str | None = None
+    approval_message: str | None = None
+    denial_message: str | None = None
+
+
+class ApplicationTemplateQuestionCreate(BaseModel):
+    question_text: str
+
+
+# ── WoW ──
 
 
 class WowGuildNewsSchema(BaseModel):
@@ -180,12 +301,81 @@ class WowGuildNewsSchema(BaseModel):
     wow_realm_slug: str
     region: str
     enabled: bool
+    min_level: int
+    active_days: int
+    last_activity: str | None = None
+    tracked_characters: int = 0
+
+
+class WowCharacterMountSchema(BaseModel):
+    character_name: str
+    realm_slug: str
+    mount_count: int
+    last_checked: str | None
+
+
+class WowGuildNewsCreate(BaseModel):
+    channel_id: str
+    wow_guild_name: str
+    wow_realm_slug: str
+    region: str  # "eu" or "us"
+    active_days: int = Field(7, ge=1)
+    min_level: int = Field(10, ge=1)
+
+
+class WowGuildNewsUpdate(BaseModel):
+    channel_id: str | None = None
+    active_days: int | None = Field(None, ge=1)
+    min_level: int | None = Field(None, ge=1)
+    enabled: bool | None = None
 
 
 class CraftingBoardSchema(BaseModel):
     id: int
     channel_id: str
     description: str | None
+
+
+class CraftingRoleMappingSchema(BaseModel):
+    id: int
+    role_id: str
+    profession_id: int
+    profession_name: str
+
+
+class CraftingRoleMappingCreate(BaseModel):
+    role_id: str
+    profession_id: int
+
+
+class CraftingRoleMappingUpdate(BaseModel):
+    profession_id: int
+
+
+class CraftingOrderSchema(BaseModel):
+    id: int
+    item_name: str
+    icon_url: str | None = None
+    notes: str | None = None
+    status: str
+    creator_id: str
+    creator_name: str | None = None
+    crafter_id: str | None = None
+    crafter_name: str | None = None
+    create_date: str
+
+
+# ── Premium ──
+
+
+class PremiumUserSchema(BaseModel):
+    user_id: str
+    granted_at: str
+    granted_by: str | None
+
+
+class PremiumUserGrant(BaseModel):
+    user_id: str
 
 
 # ── Operator ──

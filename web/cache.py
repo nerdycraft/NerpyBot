@@ -10,26 +10,41 @@ import valkey
 
 _log = logging.getLogger(__name__)
 
+# Permissions cache TTL (independent of JWT expiry) — short enough that guild
+# removals/role changes are reflected within this window without requiring re-login.
+PERM_CACHE_TTL = 15 * 60  # 15 minutes
+
 
 class ValkeyClient:
     """Wrapper around Valkey operations with namespaced keys."""
 
     PREFIX = "nerpybot"
 
-    def __init__(self, client: Any):
-        """Initialize with a Valkey (or fake) client instance."""
+    def __init__(self, client: Any, blocking_client: Any | None = None):
+        """Initialize with a Valkey (or fake) client instance.
+
+        blocking_client, if provided, is used exclusively for blpop.  It must
+        have socket_timeout=None so the TCP read does not expire before the
+        server-side blpop timeout fires.
+        """
         self._client = client
+        self._blocking_client = blocking_client if blocking_client is not None else client
 
     @classmethod
     def create(cls, url: str) -> ValkeyClient:
         """Connect to a real Valkey instance."""
         client = valkey.from_url(url, decode_responses=True)
-        return cls(client)
+        # Blocking commands (blpop) need socket_timeout=None: the server holds
+        # the connection open for up to `timeout` seconds, and a shorter client-
+        # side socket timeout fires first, raising "Timeout reading from socket".
+        blocking_client = valkey.from_url(url, decode_responses=True, socket_timeout=None)
+        return cls(client, blocking_client)
 
     @classmethod
     def create_fake(cls) -> ValkeyClient:
         """Create a dict-backed fake for testing."""
-        return cls(_FakeValkeyClient())
+        fake = _FakeValkeyClient()
+        return cls(fake, fake)
 
     def _key(self, *parts: str) -> str:
         """Build a namespaced Valkey key from the given parts."""
@@ -62,6 +77,18 @@ class ValkeyClient:
         key = self._key("user", user_id, "token")
         return self._client.get(key)
 
+    # ── OAuth state (CSRF) ──
+
+    def set_oauth_state(self, state: str, ttl: int = 300) -> None:
+        """Store a short-lived OAuth state token for CSRF verification."""
+        key = self._key("oauth", "state", state)
+        self._client.set(key, "1", ex=ttl)
+
+    def pop_oauth_state(self, state: str) -> bool:
+        """Consume an OAuth state token atomically. Returns True if valid, False if absent/expired."""
+        key = self._key("oauth", "state", state)
+        return self._client.getdel(key) is not None
+
     # ── Cleanup ──
 
     def delete_user_cache(self, user_id: str) -> None:
@@ -85,10 +112,11 @@ class ValkeyClient:
         message = json.dumps({"request_id": request_id, "command": command, **payload})
         self._client.publish(cmd_channel, message)
 
-        # Poll for reply (simple approach — real implementation would use async subscribe)
+        # Use the dedicated blocking client so socket_timeout=None does not
+        # interfere with the regular client's fast KV operations.
         try:
             result = await asyncio.wait_for(
-                asyncio.to_thread(self._client.blpop, reply_channel, timeout=max(1, int(timeout))),
+                asyncio.to_thread(self._blocking_client.blpop, reply_channel, timeout=max(1, int(timeout))),
                 timeout=timeout + 1,
             )
             if result:
@@ -107,9 +135,11 @@ class ValkeyClient:
         self._client.expire(key, 10)
 
     def close(self) -> None:
-        """Close the underlying Valkey connection if supported."""
+        """Close the underlying Valkey connections if supported."""
         if hasattr(self._client, "close"):
             self._client.close()
+        if self._blocking_client is not self._client and hasattr(self._blocking_client, "close"):
+            self._blocking_client.close()
 
 
 class _FakeValkeyClient:
@@ -150,3 +180,7 @@ class _FakeValkeyClient:
     def expire(self, key: str, seconds: int) -> None:
         """No-op — expiry is not simulated in the fake."""
         pass  # no-op in fake
+
+    def getdel(self, key: str) -> str | None:
+        """Atomically get and delete a key. Returns the value or None if absent."""
+        return self._store.pop(key, None)

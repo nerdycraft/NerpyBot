@@ -31,6 +31,14 @@ FROM builder-base AS builder-web
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-managed-python --group web
 
+# ── Builder: Vue 3 frontend (SPA) ──
+FROM node:22-alpine AS builder-frontend
+WORKDIR /app/web/frontend
+COPY web/frontend/package*.json ./
+RUN npm ci
+COPY web/frontend .
+RUN npm run build
+
 # ── Builder: migration dependencies only ──
 FROM builder-base AS builder-migrations
 
@@ -87,6 +95,7 @@ FROM runtime AS web
 COPY --chown=${UID} --from=builder-web /app/.venv /app/.venv
 COPY --chown=${UID} NerdyPy /app/NerdyPy/
 COPY --chown=${UID} web /app/web/
+COPY --chown=${UID} --from=builder-frontend /app/web/frontend/dist /app/web/frontend/dist/
 
 ENV PYTHONPATH=/app/NerdyPy
 

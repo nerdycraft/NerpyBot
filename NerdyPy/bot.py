@@ -5,7 +5,7 @@ Main Class of the NerpyBot
 
 import json
 import os
-from asyncio import CancelledError, create_task, run, sleep, to_thread
+from asyncio import CancelledError, create_task, run, run_coroutine_threadsafe, sleep, to_thread
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -40,6 +40,7 @@ from discord.ext.commands import (
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
+from models.admin import BotGuild
 from utils import logging
 from utils.audio import Audio
 from utils.conversation import AnswerType, ConversationManager
@@ -96,9 +97,9 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         return {"modules": modules}
     elif command == "module_load":
         module = payload.get("module", "")
+        if not module or not module.replace("_", "").isalpha() or not module.islower():
+            return {"success": False, "error": "Invalid module name"}
         try:
-            from asyncio import run_coroutine_threadsafe
-
             future = run_coroutine_threadsafe(bot.load_extension(f"modules.{module}"), bot.loop)
             future.result(timeout=5)
             return {"success": True}
@@ -106,14 +107,97 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             return {"success": False, "error": str(e)}
     elif command == "module_unload":
         module = payload.get("module", "")
+        if not module or not module.replace("_", "").isalpha() or not module.islower():
+            return {"success": False, "error": "Invalid module name"}
         try:
-            from asyncio import run_coroutine_threadsafe
-
             future = run_coroutine_threadsafe(bot.unload_extension(f"modules.{module}"), bot.loop)
             future.result(timeout=5)
             return {"success": True}
         except Exception as e:
             return {"success": False, "error": str(e)}
+    elif command == "get_channels":
+        guild_id = int(payload.get("guild_id", 0))
+        guild = bot.get_guild(guild_id)
+        if guild is None:
+            return {"channels": []}
+        return {
+            "channels": [
+                {"id": str(c.id), "name": c.name, "type": c.type.value}
+                for c in sorted(guild.channels, key=lambda c: c.name)
+            ]
+        }
+    elif command == "get_roles":
+        guild_id = int(payload.get("guild_id", 0))
+        guild = bot.get_guild(guild_id)
+        if guild is None:
+            return {"roles": []}
+        return {
+            "roles": [
+                {"id": str(r.id), "name": r.name}
+                for r in sorted(guild.roles, key=lambda r: -r.position)
+                if not r.is_default()
+            ]
+        }
+    elif command == "get_member_names":
+        guild_id = int(payload.get("guild_id", 0))
+        user_ids = [int(uid) for uid in payload.get("user_ids", [])]
+        guild = bot.get_guild(guild_id)
+        if guild is None:
+            return {}
+        return {str(uid): m.display_name for uid in user_ids if (m := guild.get_member(uid))}
+    elif command == "post_apply_button":
+        form_id = int(payload.get("form_id", 0))
+        if not form_id:
+            return {"error": "form_id required"}
+        from modules.views.application import post_apply_button_message
+
+        run_coroutine_threadsafe(post_apply_button_message(bot, form_id), bot.loop)
+        return {"queued": True}
+    elif command == "search_realms":
+        region = payload.get("region", "eu").lower()
+        q = payload.get("q", "").lower().strip()
+        if not q or len(q) < 2:
+            return {"realms": []}
+        wow_cog = bot.cogs.get("WorldofWarcraft")
+        if wow_cog is None:
+            return {"realms": [], "error": "WoW module not loaded"}
+        try:
+            future = run_coroutine_threadsafe(wow_cog._ensure_realm_cache(), bot.loop)
+            future.result(timeout=5)
+        except Exception:
+            return {"realms": [], "error": "Realm cache unavailable"}
+        matches = []
+        for info in wow_cog._realm_cache.values():
+            if info["region"] != region:
+                continue
+            if q in info["name"].lower() or q in info["slug"].lower():
+                matches.append({"name": info["name"], "slug": info["slug"]})
+            if len(matches) >= 25:
+                break
+        return {"realms": matches}
+    elif command == "validate_wow_guild":
+        region = payload.get("region", "eu").lower()
+        realm_slug = payload.get("realm_slug", "").lower().strip()
+        guild_name = payload.get("guild_name", "").lower().replace(" ", "-").strip()
+        if not realm_slug or not guild_name:
+            return {"valid": False, "display_name": None}
+        wow_cog = bot.cogs.get("WorldofWarcraft")
+        if wow_cog is None:
+            return {"valid": False, "display_name": None, "error": "WoW module not loaded"}
+        try:
+            api = wow_cog._get_retailclient(region, "en")
+            roster = api.guild_roster(realmSlug=realm_slug, nameSlug=guild_name)
+            if isinstance(roster, dict) and roster.get("code") == 429:
+                return {"valid": False, "display_name": None, "error": "WoW API rate limited"}
+            if isinstance(roster, dict) and roster.get("code") in (404, 403):
+                return {"valid": False, "display_name": None}
+            if not isinstance(roster, dict) or "guild" not in roster:
+                return {"valid": False, "display_name": None, "error": "Unexpected WoW API response"}
+            display_name = roster["guild"].get("name", guild_name)
+            return {"valid": True, "display_name": display_name}
+        except Exception as e:
+            bot.log.warning("validate_wow_guild failed: %s", e)
+            return {"valid": False, "display_name": None, "error": str(e)}
     else:
         return {"error": f"Unknown command: {command}"}
 
@@ -133,17 +217,19 @@ async def _valkey_listener_loop(bot, valkey_url: str) -> None:
         while not bot.is_closed():
             msg = await to_thread(pubsub.get_message, ignore_subscribe_messages=True, timeout=1.0)
             if msg and msg["type"] == "message":
+                request_id = None
                 try:
                     data = json.loads(msg["data"])
                     request_id = data.pop("request_id", None)
                     command = data.pop("command", "")
-                    result = handle_valkey_command(bot, command, data)
-                    if request_id:
-                        reply_key = f"nerpybot:reply:{request_id}"
-                        client.lpush(reply_key, json.dumps(result))
-                        client.expire(reply_key, 10)
+                    result = await to_thread(handle_valkey_command, bot, command, data)
                 except Exception as e:
                     bot.log.error(f"Valkey command handler error: {e}")
+                    result = {"error": str(e)}
+                if request_id:
+                    reply_key = f"nerpybot:reply:{request_id}"
+                    await to_thread(client.lpush, reply_key, json.dumps(result))
+                    await to_thread(client.expire, reply_key, 10)
     except CancelledError:
         return
     except Exception as e:
@@ -386,6 +472,13 @@ class NerpyBot(Bot):
         if valkey_url and (not hasattr(self, "_valkey_task") or self._valkey_task.done()):
             self._valkey_task = create_task(_valkey_listener_loop(self, valkey_url))
 
+        # Sync guild membership table for web dashboard presence detection
+        try:
+            with self.session_scope() as session:
+                BotGuild.sync([g.id for g in self.guilds], session)
+        except Exception as e:
+            self.log.warning(f"Failed to sync BotGuild table: {e}")
+
         required = required_permissions_for(self.modules)
         for guild in self.guilds:
             missing = check_guild_permissions(guild, required)
@@ -466,6 +559,22 @@ class NerpyBot(Bot):
         elif isinstance(error, CommandError):
             self.log.error(f"{error_context(ctx)}: {error}")
             await ctx.send("An error occurred.")
+
+    async def on_guild_join(self, guild) -> None:
+        """Add the newly joined guild to the BotGuild table."""
+        try:
+            with self.session_scope() as session:
+                BotGuild.add(guild.id, session)
+        except Exception as e:
+            self.log.warning(f"Failed to add guild {guild.id} to BotGuild table: {e}")
+
+    async def on_guild_remove(self, guild) -> None:
+        """Remove the departed guild from the BotGuild table."""
+        try:
+            with self.session_scope() as session:
+                BotGuild.remove(guild.id, session)
+        except Exception as e:
+            self.log.warning(f"Failed to remove guild {guild.id} from BotGuild table: {e}")
 
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent) -> None:
         """
@@ -568,6 +677,7 @@ def parse_env_config() -> dict:
         ("NERPYBOT_ERROR_RECIPIENTS", ["notifications", "error_recipients"], _csv),
         ("NERPYBOT_VALKEY_URL", ["web", "valkey_url"], str),
         ("NERPYBOT_WEB_VALKEY_URL", ["web", "valkey_url"], str),
+        ("NERPYBOT_LOG_LEVEL", ["bot", "log_level"], str),
     ]
     for var_name, keys, converter in mappings:
         value = os.environ.get(var_name)
@@ -627,7 +737,11 @@ def main(
     resolved_config = parse_config(config)
     intents = get_intents()
 
-    is_debug = debug or str(loglevel).upper() == "DEBUG" or verbosity > 0
+    # NERPYBOT_LOG_LEVEL env var is a fallback when --loglevel is not explicitly passed
+    env_loglevel = resolved_config.get("bot", {}).get("log_level", "").upper()
+    effective_loglevel = (env_loglevel if (env_loglevel and loglevel == "INFO") else loglevel).upper()
+
+    is_debug = debug or effective_loglevel == "DEBUG" or verbosity > 0
     loggers = ["nerpybot"]
     if verbosity >= 2:
         loggers.append("discord")
@@ -635,7 +749,7 @@ def main(
         loggers.append("sqlalchemy.engine")
 
     if "bot" in resolved_config:
-        resolved_loglevel = "DEBUG" if (debug or verbosity > 0) else loglevel
+        resolved_loglevel = "DEBUG" if (debug or verbosity > 0) else effective_loglevel
         for logger_name in loggers:
             logging.create_logger(resolved_loglevel, logger_name)
         bot = NerpyBot(resolved_config, intents, is_debug)

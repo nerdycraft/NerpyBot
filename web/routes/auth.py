@@ -2,35 +2,51 @@
 
 from __future__ import annotations
 
+import logging
+import secrets
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 
+from models.admin import BotGuild
 from web.auth.jwt import create_access_token
 from web.auth.oauth2 import build_authorize_url, exchange_code, fetch_discord_user, fetch_user_guilds
 from web.auth.permissions import resolve_guild_permissions
+from web.cache import PERM_CACHE_TTL, ValkeyClient
 from web.config import WebConfig
-from web.dependencies import get_config, get_current_user, get_valkey
-from web.schemas import GuildSummary, TokenResponse, UserInfo
-from web.cache import ValkeyClient
+from web.dependencies import get_config, get_current_user, get_db_session, get_valkey
+from web.schemas import GuildSummary, UserInfo
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.get("/login")
-async def login(config: WebConfig = Depends(get_config)):
-    """Redirect to Discord OAuth2 authorization."""
-    url = build_authorize_url(config.client_id, config.redirect_uri)
-    return RedirectResponse(url=url, status_code=307)
-
-
-@router.get("/callback", response_model=TokenResponse)
-async def callback(
-    code: str = Query(...),
+async def login(
     config: WebConfig = Depends(get_config),
     vk: ValkeyClient = Depends(get_valkey),
 ):
+    """Redirect to Discord OAuth2 authorization."""
+    state = secrets.token_urlsafe(32)
+    vk.set_oauth_state(state, ttl=300)
+    url = build_authorize_url(config.client_id, config.redirect_uri, state)
+    _log.debug("login: redirecting to Discord OAuth, redirect_uri=%s", config.redirect_uri)
+    return RedirectResponse(url=url, status_code=307)
+
+
+@router.get("/callback")
+async def callback(
+    code: str = Query(...),
+    state: str = Query(...),
+    config: WebConfig = Depends(get_config),
+    vk: ValkeyClient = Depends(get_valkey),
+    session=Depends(get_db_session),
+):
     """Handle Discord OAuth2 callback."""
+    if not vk.pop_oauth_state(state):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired OAuth state")
     try:
         token_data = await exchange_code(code, config.client_id, config.client_secret, config.redirect_uri)
         access_token = token_data["access_token"]
@@ -52,11 +68,13 @@ async def callback(
 
     user_id = user_data["id"]
     username = user_data.get("username", "Unknown")
+    _log.debug("callback: authenticated guilds=%d", len(guilds))
 
     # Cache permissions and Discord token in Valkey
     perms = resolve_guild_permissions(guilds)
-    vk.set_permissions(user_id, perms, ttl=config.jwt_expiry_hours * 3600)
+    vk.set_permissions(user_id, perms, ttl=PERM_CACHE_TTL)
     vk.set_discord_token(user_id, access_token, ttl=expires_in)
+    _log.debug("callback: cached permissions for %d guilds", len(perms))
 
     jwt = create_access_token(
         user_id=user_id,
@@ -65,7 +83,11 @@ async def callback(
         expiry_hours=config.jwt_expiry_hours,
     )
 
-    return TokenResponse(access_token=jwt)
+    # Use fragment (#token=) instead of query param so the token never appears
+    # in server access logs (fragments are not sent in HTTP requests).
+    base = config.frontend_url.rstrip("/")
+    _log.debug("callback: redirecting to %s/ with token in fragment", base)
+    return RedirectResponse(url=f"{base}/#token={jwt}", status_code=302)
 
 
 @router.get("/me", response_model=UserInfo)
@@ -73,26 +95,69 @@ async def me(
     user: dict = Depends(get_current_user),
     config: WebConfig = Depends(get_config),
     vk: ValkeyClient = Depends(get_valkey),
+    session=Depends(get_db_session),
 ):
     """Return the current user's profile and accessible guilds."""
     user_id = user["sub"]
     perms = vk.get_permissions(user_id)
+    if perms is None:
+        # Cache miss (TTL expired mid-session) — rehydrate from stored Discord token.
+        discord_token = vk.get_discord_token(user_id)
+        if not discord_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session expired — please log in again",
+            )
+        try:
+            guilds = await fetch_user_guilds(discord_token)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (401, 403):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Session expired — please log in again",
+                )
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Discord API error")
+        except httpx.RequestError:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not reach Discord")
+        perms = resolve_guild_permissions(guilds)
+        vk.set_permissions(user_id, perms, ttl=PERM_CACHE_TTL)
+        _log.debug("/me: rehydrated permissions for %d guilds after cache miss", len(perms))
+    bot_guilds = BotGuild.get_ids(session)
+    _log.debug("/me: bot_guilds from DB has %d entries", len(bot_guilds))
+
+    invite_base = (
+        f"https://discord.com/oauth2/authorize"
+        f"?client_id={config.client_id}&scope=bot+applications.commands&permissions=0"
+    )
 
     guilds = []
     if perms:
         for guild_id, entry in perms.items():
+            present = guild_id in bot_guilds
             guilds.append(
                 GuildSummary(
                     id=guild_id,
                     name=entry["name"],
                     icon=entry.get("icon"),
                     permission_level=entry["level"],
+                    bot_present=present,
+                    invite_url=None if present else f"{invite_base}&guild_id={guild_id}",
                 )
             )
+
+    is_operator = int(user_id) in config.ops
+    is_premium: bool
+    if is_operator:
+        is_premium = True
+    else:
+        from models.admin import PremiumUser
+
+        is_premium = PremiumUser.has(int(user_id), session)
 
     return UserInfo(
         id=user_id,
         username=user["username"],
-        is_operator=int(user_id) in config.ops,
+        is_operator=is_operator,
+        is_premium=is_premium,
         guilds=guilds,
     )
