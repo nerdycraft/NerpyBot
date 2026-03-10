@@ -10,7 +10,7 @@ import type { ApplicationFormSchema, ApplicationSubmissionSchema } from "@/api/t
 const props = defineProps<{ guildId: string }>();
 const route = useRoute();
 
-function toQueryScalar(v: string | string[] | null | undefined): string | null | undefined {
+function toQueryScalar(v: string | null | (string | null)[] | undefined): string | null | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
