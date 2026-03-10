@@ -3,9 +3,11 @@ import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
+import { useGuildStore } from "@/stores/guild";
 import type { GuildSummary } from "@/api/types";
 
 const auth = useAuthStore();
+const guildStore = useGuildStore();
 const router = useRouter();
 
 const managedGuilds = computed(() => auth.guilds.filter((g) => g.bot_present));
@@ -30,8 +32,14 @@ function iconUrl(guild: GuildSummary): string | null {
       <button
         v-for="guild in managedGuilds"
         :key="guild.id"
-        class="bg-card hover:bg-muted rounded-lg p-4 flex items-center gap-3 text-left transition-colors border border-border hover:border-primary"
-        @click="router.push(`/guilds/${guild.id}`)"
+        :disabled="guild.id === guildStore.current?.id"
+        :class="[
+          'rounded-lg p-4 flex items-center gap-3 text-left border transition-colors',
+          guild.id === guildStore.current?.id
+            ? 'bg-primary/5 border-primary cursor-default'
+            : 'bg-card hover:bg-muted border-border hover:border-primary',
+        ]"
+        @click="guild.id !== guildStore.current?.id && router.push(`/guilds/${guild.id}`)"
       >
         <img
           v-if="iconUrl(guild)"
@@ -50,7 +58,13 @@ function iconUrl(guild: GuildSummary): string | null {
           <div class="font-semibold text-sm truncate">{{ guild.name }}</div>
           <div class="text-xs text-muted-foreground capitalize">{{ guild.permission_level }}</div>
         </div>
-        <Icon icon="mdi:arrow-right" class="w-4 h-4 text-muted-foreground flex-shrink-0" />
+        <span
+          v-if="guild.id === guildStore.current?.id"
+          class="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary flex-shrink-0"
+        >
+          Current
+        </span>
+        <Icon v-else icon="mdi:arrow-right" class="w-4 h-4 text-muted-foreground flex-shrink-0" />
       </button>
     </div>
 

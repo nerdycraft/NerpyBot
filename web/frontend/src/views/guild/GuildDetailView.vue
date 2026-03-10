@@ -196,6 +196,19 @@ function guildIconUrl(): string | null {
     >
       <!-- Rainbow accent bar -->
       <div class="h-0.5 bg-gradient-to-r from-blue-500 via-violet-500 via-fuchsia-500 to-teal-400 flex-shrink-0" />
+      <!-- Collapse toggle (desktop only) -->
+      <div class="hidden lg:flex justify-end px-2 py-1 flex-shrink-0">
+        <button
+          class="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          :title="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
+          @click="sidebarOpen = !sidebarOpen"
+        >
+          <Icon
+            :icon="sidebarOpen ? 'mdi:chevron-left' : 'mdi:chevron-right'"
+            class="w-4 h-4"
+          />
+        </button>
+      </div>
       <!-- Guild switcher -->
       <div class="relative border-b border-border flex-shrink-0">
         <button
@@ -296,30 +309,20 @@ function guildIconUrl(): string | null {
       </nav>
 
       <!-- Sidebar footer -->
-      <div class="border-t border-border p-3 flex items-center justify-between flex-shrink-0">
-        <span v-show="sidebarOpen" class="text-xs text-muted-foreground truncate">
+      <div class="border-t border-border p-4 flex items-center gap-3 flex-shrink-0">
+        <span v-show="sidebarOpen" class="text-sm text-muted-foreground truncate flex-1">
           {{ auth.user?.username }}
         </span>
-        <div class="flex items-center gap-1 ml-auto">
-          <button
-            v-show="sidebarOpen"
-            class="text-muted-foreground hover:text-foreground transition-colors"
-            title="Logout"
-            @click="auth.clear(); router.push('/login')"
-          >
-            <Icon icon="mdi:logout" class="w-4 h-4" />
-          </button>
-          <button
-            class="hidden lg:block text-muted-foreground hover:text-foreground transition-colors"
-            :title="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
-            @click="sidebarOpen = !sidebarOpen"
-          >
-            <Icon
-              :icon="sidebarOpen ? 'mdi:chevron-left' : 'mdi:chevron-right'"
-              class="w-4 h-4"
-            />
-          </button>
-        </div>
+        <button
+          :class="[
+            'p-2 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0',
+            !sidebarOpen && 'mx-auto',
+          ]"
+          title="Logout"
+          @click="auth.clear(); router.push('/login')"
+        >
+          <Icon icon="mdi:logout" class="w-5 h-5" />
+        </button>
       </div>
       </aside>
 
