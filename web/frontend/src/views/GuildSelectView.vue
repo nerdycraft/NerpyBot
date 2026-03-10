@@ -2,10 +2,12 @@
 import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
+import { useGuildStore } from "@/stores/guild";
 import { api } from "@/api/client";
 import type { GuildSummary, UserInfo } from "@/api/types";
 
 const auth = useAuthStore();
+const guild = useGuildStore();
 const router = useRouter();
 
 const managedGuilds = computed(() => auth.guilds.filter((g) => g.bot_present));
@@ -44,15 +46,21 @@ function iconUrl(guild: GuildSummary): string | null {
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
         <button
-          v-for="guild in managedGuilds"
-          :key="guild.id"
-          class="bg-card hover:bg-muted rounded-lg p-5 flex items-center gap-4 text-left transition-colors border border-border hover:border-primary"
-          @click="select(guild.id)"
+          v-for="g in managedGuilds"
+          :key="g.id"
+          :disabled="g.id === guild.current?.id"
+          :class="[
+            'rounded-lg p-5 flex items-center gap-4 text-left border transition-colors',
+            g.id === guild.current?.id
+              ? 'bg-primary/5 border-primary cursor-default'
+              : 'bg-card hover:bg-muted border-border hover:border-primary',
+          ]"
+          @click="select(g.id)"
         >
           <img
-            v-if="iconUrl(guild)"
-            :src="iconUrl(guild)!"
-            :alt="guild.name"
+            v-if="iconUrl(g)"
+            :src="iconUrl(g)!"
+            :alt="g.name"
             class="w-12 h-12 rounded-full object-cover flex-shrink-0"
           />
           <div
@@ -60,12 +68,18 @@ function iconUrl(guild: GuildSummary): string | null {
             class="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-lg font-bold flex-shrink-0"
             aria-hidden="true"
           >
-            {{ guild.name.charAt(0).toUpperCase() }}
+            {{ g.name.charAt(0).toUpperCase() }}
           </div>
-          <div class="min-w-0">
-            <div class="font-semibold truncate">{{ guild.name }}</div>
-            <div class="text-xs text-muted-foreground capitalize">{{ guild.permission_level }}</div>
+          <div class="min-w-0 flex-1">
+            <div class="font-semibold truncate">{{ g.name }}</div>
+            <div class="text-xs text-muted-foreground capitalize">{{ g.permission_level }}</div>
           </div>
+          <span
+            v-if="g.id === guild.current?.id"
+            class="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary flex-shrink-0"
+          >
+            Current
+          </span>
         </button>
       </div>
 
