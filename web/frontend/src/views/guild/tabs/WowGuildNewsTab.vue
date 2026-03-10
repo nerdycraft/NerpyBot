@@ -442,23 +442,23 @@ function relativeTime(iso: string | null): string {
             <p v-else-if="!rosterData[tracker.id]?.length" class="text-xs text-muted-foreground">No character data yet.</p>
             <table v-else class="w-full text-xs border-collapse">
               <thead>
-                <tr class="text-muted-foreground">
-                  <th class="text-left py-1 pr-4">Character</th>
-                  <th class="text-left py-1 pr-4">Realm</th>
-                  <th class="text-left py-1 pr-4">Mounts</th>
-                  <th class="text-left py-1">Last checked</th>
+                <tr class="text-muted-foreground border-b border-border">
+                  <th class="text-left py-1.5 pr-4 font-medium">Character</th>
+                  <th class="text-left py-1.5 pr-4 font-medium">Realm</th>
+                  <th class="text-left py-1.5 pr-4 font-medium">Mounts</th>
+                  <th class="text-left py-1.5 font-medium">Last checked</th>
                 </tr>
               </thead>
               <tbody>
                 <tr
                   v-for="char in rosterData[tracker.id]"
                   :key="`${char.character_name}-${char.realm_slug}`"
-                  class="border-t border-border/50"
+                  class="border-t border-border hover:bg-muted/20 transition-colors"
                 >
-                  <td class="py-1 pr-4">{{ char.character_name }}</td>
-                  <td class="py-1 pr-4 text-muted-foreground">{{ char.realm_slug }}</td>
-                  <td class="py-1 pr-4">{{ char.mount_count }}</td>
-                  <td class="py-1 text-muted-foreground">{{ relativeTime(char.last_checked) }}</td>
+                  <td class="py-1.5 pr-4">{{ char.character_name }}</td>
+                  <td class="py-1.5 pr-4 text-muted-foreground">{{ char.realm_slug }}</td>
+                  <td class="py-1.5 pr-4">{{ char.mount_count }}</td>
+                  <td class="py-1.5 text-muted-foreground">{{ relativeTime(char.last_checked) }}</td>
                 </tr>
               </tbody>
             </table>

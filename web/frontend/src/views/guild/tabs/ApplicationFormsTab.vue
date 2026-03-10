@@ -320,33 +320,35 @@ async function deleteQuestion(formId: number, questionId: number) {
               <span v-if="questionSavedFormId === form.id" class="text-xs text-green-400 transition-opacity">✓ Saved</span>
             </div>
             <p v-if="form.questions.length === 0" class="text-muted-foreground text-xs">No questions yet.</p>
-            <div
-              v-for="q in [...form.questions].sort((a, b) => a.sort_order - b.sort_order)"
-              :key="q.id"
-              class="flex items-start gap-2 group"
-            >
-              <span class="text-muted-foreground text-xs w-5 flex-shrink-0 pt-0.5">{{ q.sort_order }}.</span>
-              <template v-if="editingQuestionId === q.id">
-                <input
-                  v-model="editQuestionText"
-                  class="bg-input border border-border rounded px-2 py-1 text-sm flex-1 min-w-0"
-                  @keyup.enter="saveQuestion(form.id, q.id)"
-                  @keyup.escape="editingQuestionId = null"
-                />
-                <button class="text-xs text-primary hover:text-primary/80 flex-shrink-0" @click="saveQuestion(form.id, q.id)">Save</button>
-                <button class="text-xs text-muted-foreground hover:text-foreground flex-shrink-0" @click="editingQuestionId = null">×</button>
-              </template>
-              <template v-else>
-                <span class="text-sm flex-1">{{ q.question_text }}</span>
-                <button
-                  class="text-xs text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                  @click="editingQuestionId = q.id; editQuestionText = q.question_text"
-                >Edit</button>
-                <button
-                  class="text-xs text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                  @click="deleteQuestion(form.id, q.id)"
-                >✕</button>
-              </template>
+            <div v-else class="rounded border border-border/50 divide-y divide-border/50">
+              <div
+                v-for="q in [...form.questions].sort((a, b) => a.sort_order - b.sort_order)"
+                :key="q.id"
+                class="flex items-center gap-2 group px-3 py-2.5 hover:bg-muted/30 transition-colors"
+              >
+                <span class="text-muted-foreground text-xs w-5 flex-shrink-0">{{ q.sort_order }}.</span>
+                <template v-if="editingQuestionId === q.id">
+                  <input
+                    v-model="editQuestionText"
+                    class="bg-input border border-border rounded px-2 py-1 text-sm flex-1 min-w-0"
+                    @keyup.enter="saveQuestion(form.id, q.id)"
+                    @keyup.escape="editingQuestionId = null"
+                  />
+                  <button class="text-xs text-primary hover:text-primary/80 flex-shrink-0" @click="saveQuestion(form.id, q.id)">Save</button>
+                  <button class="text-xs text-muted-foreground hover:text-foreground flex-shrink-0" @click="editingQuestionId = null">×</button>
+                </template>
+                <template v-else>
+                  <span class="text-sm flex-1">{{ q.question_text }}</span>
+                  <button
+                    class="text-xs text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                    @click="editingQuestionId = q.id; editQuestionText = q.question_text"
+                  >Edit</button>
+                  <button
+                    class="text-xs text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                    @click="deleteQuestion(form.id, q.id)"
+                  >✕</button>
+                </template>
+              </div>
             </div>
             <div class="flex gap-2 mt-2">
               <input

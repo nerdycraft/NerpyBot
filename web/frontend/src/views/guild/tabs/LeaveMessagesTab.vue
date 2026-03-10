@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch, nextTick } from "vue";
 import { api } from "@/api/client";
 import type { LeaveMessageConfig } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
@@ -11,6 +11,15 @@ const loading = ref(true);
 const saving = ref(false);
 const error = ref<string | null>(null);
 const success = ref(false);
+const mounted = ref(false);
+
+let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+watch(config, () => {
+  if (!mounted.value || !config.value) return;
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => void autoSave(), 600);
+}, { deep: true });
 
 onMounted(async () => {
   try {
@@ -19,10 +28,12 @@ onMounted(async () => {
     error.value = e instanceof Error ? e.message : "Failed to load";
   } finally {
     loading.value = false;
+    await nextTick();
+    mounted.value = true;
   }
 });
 
-async function save() {
+async function autoSave() {
   if (!config.value) return;
   saving.value = true;
   success.value = false;
@@ -34,7 +45,7 @@ async function save() {
       enabled: config.value.enabled,
     });
     success.value = true;
-    setTimeout(() => (success.value = false), 3000);
+    setTimeout(() => (success.value = false), 2000);
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : "Failed to save";
   } finally {
@@ -82,15 +93,8 @@ async function save() {
       </div>
 
       <p v-if="error" class="text-destructive text-sm">{{ error }}</p>
-      <p v-if="success" class="text-green-400 text-sm">Saved.</p>
-
-      <button
-        class="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors"
-        :disabled="saving"
-        @click="save"
-      >
-        {{ saving ? "Saving…" : "Save" }}
-      </button>
+      <p v-if="saving" class="text-xs text-muted-foreground">Saving…</p>
+      <p v-else-if="success" class="text-xs text-green-400">✓ Saved</p>
     </div>
 
     <p v-else class="text-destructive text-sm">{{ error }}</p>
