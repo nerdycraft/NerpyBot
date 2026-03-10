@@ -71,8 +71,14 @@ class BotGuild(db.BASE):
     @classmethod
     def add(cls, guild_id: int, session) -> None:
         """Insert a guild if not already present."""
-        if not session.query(cls).filter(cls.GuildId == guild_id).first():
-            session.add(cls(GuildId=guild_id))
+        from sqlalchemy.exc import IntegrityError
+
+        try:
+            with session.begin_nested():
+                session.add(cls(GuildId=guild_id))
+                session.flush()
+        except IntegrityError:
+            pass  # Already exists
 
     @classmethod
     def remove(cls, guild_id: int, session) -> None:

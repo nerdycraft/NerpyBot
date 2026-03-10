@@ -36,12 +36,11 @@ async function loadConfig() {
   } catch (e: unknown) {
     if (seq !== _loadSeq) return;
     error.value = e instanceof Error ? e.message : "Failed to load";
-  } finally {
-    if (seq !== _loadSeq) return;
-    loading.value = false;
-    await nextTick();
-    ready.value = true;
   }
+  if (seq !== _loadSeq) return;
+  loading.value = false;
+  await nextTick();
+  ready.value = true;
 }
 
 watch(() => props.guildId, () => void loadConfig(), { immediate: true });

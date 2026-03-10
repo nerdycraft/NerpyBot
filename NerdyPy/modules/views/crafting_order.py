@@ -206,33 +206,38 @@ class CraftingOrderModal(ui.Modal):
         channel_id = None
         embed = None
         view = None
+        config = None
         with self.bot.session_scope() as session:
             config = CraftingBoardConfig.get_by_guild(self.guild_id, session)
-            if config is None:
-                await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
-                return
+            if config is not None:
+                lang = get_guild_language(self.guild_id, session)
+                channel_id = config.ChannelId
 
-            lang = get_guild_language(self.guild_id, session)
-            channel_id = config.ChannelId
+                order = CraftingOrder(
+                    GuildId=self.guild_id,
+                    ChannelId=config.ChannelId,
+                    CreatorId=interaction.user.id,
+                    CreatorName=interaction.user.display_name,
+                    ProfessionRoleId=self.role_id,
+                    ItemName=item_name,
+                    Notes=notes,
+                    Status="open",
+                )
+                session.add(order)
+                session.flush()
+                order_id = order.Id
+                embed = build_order_embed(order, interaction.guild, lang)
+                view = build_order_view(order.Id, "open", lang)
 
-            order = CraftingOrder(
-                GuildId=self.guild_id,
-                ChannelId=config.ChannelId,
-                CreatorId=interaction.user.id,
-                CreatorName=interaction.user.display_name,
-                ProfessionRoleId=self.role_id,
-                ItemName=item_name,
-                Notes=notes,
-                Status="open",
-            )
-            session.add(order)
-            session.flush()
-            order_id = order.Id
-            embed = build_order_embed(order, interaction.guild, lang)
-            view = build_order_view(order.Id, "open", lang)
+        if config is None:
+            await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
+            return
 
         # Phase 2: send to Discord outside the session.
-        channel = interaction.guild.get_channel(channel_id)
+        try:
+            channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
+        except (discord.NotFound, discord.Forbidden):
+            channel = None
         if channel is None:
             with self.bot.session_scope() as session:
                 order = CraftingOrder.get_by_id(order_id, session)

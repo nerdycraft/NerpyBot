@@ -698,7 +698,11 @@ async def create_application_form(
         ApplyDescription=body.apply_description,
     )
     session.add(form)
-    session.flush()
+    try:
+        session.flush()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Form with this name already exists")
     schema = _form_to_schema(form)
     if form.ApplyChannelId:
         session.commit()
@@ -925,6 +929,7 @@ async def list_all_submissions(
         session.query(ApplicationSubmission)
         .filter(ApplicationSubmission.GuildId == guild_id)
         .options(joinedload(ApplicationSubmission.answers).joinedload(ApplicationAnswer.question))
+        .options(joinedload(ApplicationSubmission.votes))
     )
     if form_id is not None:
         q = q.filter(ApplicationSubmission.FormId == form_id)
