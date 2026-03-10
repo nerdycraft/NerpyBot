@@ -105,6 +105,8 @@ async def require_guild_access(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Session expired — please re-login"
             )
         try:
+            import httpx
+
             from web.auth.oauth2 import fetch_user_guilds
             from web.auth.permissions import resolve_guild_permissions
             from web.cache import PERM_CACHE_TTL
@@ -112,10 +114,14 @@ async def require_guild_access(
             guilds = await fetch_user_guilds(discord_token)
             perms = resolve_guild_permissions(guilds)
             vk.set_permissions(user["sub"], perms, ttl=PERM_CACHE_TTL)
-        except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Could not verify guild permissions — please re-login"
-            )
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (401, 403):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail="Could not verify guild permissions — please re-login"
+                )
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Discord API error")
+        except httpx.RequestError:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not reach Discord")
 
     guild_str = str(guild_id)
     entry = perms.get(guild_str)

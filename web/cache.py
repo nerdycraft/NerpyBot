@@ -85,13 +85,9 @@ class ValkeyClient:
         self._client.set(key, "1", ex=ttl)
 
     def pop_oauth_state(self, state: str) -> bool:
-        """Consume an OAuth state token. Returns True if valid, False if absent/expired."""
+        """Consume an OAuth state token atomically. Returns True if valid, False if absent/expired."""
         key = self._key("oauth", "state", state)
-        val = self._client.get(key)
-        if val is not None:
-            self._client.delete(key)
-            return True
-        return False
+        return self._client.getdel(key) is not None
 
     # ── Cleanup ──
 
@@ -184,3 +180,7 @@ class _FakeValkeyClient:
     def expire(self, key: str, seconds: int) -> None:
         """No-op — expiry is not simulated in the fake."""
         pass  # no-op in fake
+
+    def getdel(self, key: str) -> str | None:
+        """Atomically get and delete a key. Returns the value or None if absent."""
+        return self._store.pop(key, None)

@@ -139,7 +139,8 @@ async function toggleRoster(id: number) {
       `/guilds/${props.guildId}/wow/news-configs/${id}/roster`,
     );
   } catch {
-    rosterData.value[id] = [];
+    // Don't cache failure — leave rosterData[id] undefined so user can retry.
+    rosterExpanded.value[id] = false;
   } finally {
     rosterLoading.value[id] = false;
   }
@@ -190,6 +191,8 @@ async function submitAdd() {
     }
 
     await doCreate();
+  } catch (e: unknown) {
+    addError.value = e instanceof Error ? e.message : "Failed to create tracker";
   } finally {
     addSaving.value = false;
   }
@@ -200,6 +203,8 @@ async function saveAnyway() {
   validateWarning.value = null;
   try {
     await doCreate();
+  } catch (e: unknown) {
+    addError.value = e instanceof Error ? e.message : "Failed to create tracker";
   } finally {
     addSaving.value = false;
   }

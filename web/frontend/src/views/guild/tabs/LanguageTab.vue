@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from "vue";
+import { ref, watch, nextTick } from "vue";
 import { api } from "@/api/client";
 import type { LanguageConfig } from "@/api/types";
 import InfoTooltip from "@/components/InfoTooltip.vue";
@@ -18,7 +18,10 @@ const LANGUAGES = [
   { code: "de", label: "Deutsch" },
 ];
 
-onMounted(async () => {
+async function loadConfig() {
+  ready.value = false;
+  loading.value = true;
+  config.value = null;
   try {
     config.value = await api.get<LanguageConfig>(`/guilds/${props.guildId}/language`);
   } catch (e: unknown) {
@@ -28,7 +31,9 @@ onMounted(async () => {
     await nextTick();
     ready.value = true;
   }
-});
+}
+
+watch(() => props.guildId, () => void loadConfig(), { immediate: true });
 </script>
 
 <template>

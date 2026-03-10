@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from "vue";
+import { ref, watch, nextTick } from "vue";
 import { api } from "@/api/client";
 import type { LeaveMessageConfig } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
@@ -18,7 +18,11 @@ const { saving, error, success, ready } = useAutoSave(config, (c) =>
   }),
 );
 
-onMounted(async () => {
+async function loadConfig() {
+  ready.value = false;
+  loading.value = true;
+  error.value = null;
+  config.value = null;
   try {
     config.value = await api.get<LeaveMessageConfig>(`/guilds/${props.guildId}/leave-messages`);
   } catch (e: unknown) {
@@ -28,7 +32,9 @@ onMounted(async () => {
     await nextTick();
     ready.value = true;
   }
-});
+}
+
+watch(() => props.guildId, () => void loadConfig(), { immediate: true });
 </script>
 
 <template>

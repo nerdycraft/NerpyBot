@@ -39,11 +39,20 @@ async function request<T>(
   }
 
   if (!res.ok) {
-    let detail = "";
+    let detail = res.statusText;
     try {
-      detail = await res.text();
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        const body = (await res.json()) as { detail?: unknown };
+        detail =
+          typeof body.detail === "string"
+            ? body.detail
+            : JSON.stringify(body.detail ?? body);
+      } else {
+        detail = await res.text();
+      }
     } catch {
-      detail = res.statusText;
+      // keep statusText fallback
     }
     throw new ApiError(res.status, detail);
   }

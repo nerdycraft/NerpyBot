@@ -85,10 +85,10 @@ function select(item: Item) {
 // Allow manually typing a raw ID when bot is offline
 function onInputManual(e: Event) {
   const val = (e.target as HTMLInputElement).value;
+  query.value = val;
   if (items.value.length === 0) {
     emit("update:modelValue", val);
   } else {
-    query.value = val;
     open.value = true;
   }
 }

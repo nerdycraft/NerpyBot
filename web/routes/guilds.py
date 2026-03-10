@@ -9,8 +9,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from web.cache import ValkeyClient
-
-_log = logging.getLogger(__name__)
 from web.dependencies import get_db_session, get_valkey, require_guild_access, require_premium
 from web.schemas import (
     ApplicationAnswerSchema,
@@ -55,6 +53,8 @@ from web.schemas import (
     WowGuildNewsSchema,
     WowGuildNewsUpdate,
 )
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/guilds", tags=["guilds"], dependencies=[Depends(require_premium)])
 
@@ -1300,6 +1300,8 @@ async def create_crafting_role_mapping(
     from models.wow import CraftingRoleMapping
 
     profession_name_by_id = _PROFESSION_NAME_BY_ID
+    if body.profession_id not in profession_name_by_id:
+        raise HTTPException(status_code=400, detail="Unknown profession")
     mapping = CraftingRoleMapping(GuildId=guild_id, RoleId=int(body.role_id), ProfessionId=body.profession_id)
     session.add(mapping)
     session.flush()
@@ -1355,6 +1357,7 @@ async def delete_crafting_role_mapping(
     if mapping is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mapping not found")
     session.delete(mapping)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ── Discord entities (via bot bridge) ──

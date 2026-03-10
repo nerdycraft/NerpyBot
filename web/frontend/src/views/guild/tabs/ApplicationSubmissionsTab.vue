@@ -71,7 +71,7 @@ onMounted(async () => {
 
 // Re-filter when navigating here from "View Submissions" while the tab is already mounted
 watch(() => route.query.formId, (newId) => {
-  if (newId !== undefined) void applyFormFilter(Number(newId));
+  if (newId !== undefined && newId !== "") void applyFormFilter(Number(newId));
 });
 
 async function applyFormFilter(id: number | null) {

@@ -17,7 +17,7 @@ export function useGuildEntities(guildId: string) {
       const data = await api.get<{ channels: DiscordChannel[] }>(`/guilds/${guildId}/discord/channels`);
       channelCache[guildId] = Object.fromEntries(data.channels.map((c) => [c.id, c.name]));
     } catch {
-      channelCache[guildId] = {};
+      delete channelCache[guildId];
     }
   }
 
@@ -27,7 +27,7 @@ export function useGuildEntities(guildId: string) {
       const data = await api.get<{ roles: DiscordRole[] }>(`/guilds/${guildId}/discord/roles`);
       roleCache[guildId] = Object.fromEntries(data.roles.map((r) => [r.id, r.name]));
     } catch {
-      roleCache[guildId] = {};
+      delete roleCache[guildId];
     }
   }
 
@@ -38,7 +38,7 @@ export function useGuildEntities(guildId: string) {
 
   function roleName(id: string | null | undefined): string {
     if (!id) return "";
-    return roleCache[guildId]?.[id] ?? `@${id}`;
+    return roleCache[guildId]?.[id] ?? id;
   }
 
   return { fetchChannels, fetchRoles, channelName, roleName };

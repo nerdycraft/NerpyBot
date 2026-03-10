@@ -120,13 +120,16 @@ class PremiumUser(db.BASE):
 
     @classmethod
     def grant(cls, user_id: int, granted_by: int, session) -> "PremiumUser":
-        """Grant premium to a user. Returns the existing entry if already present."""
-        existing = session.query(cls).filter(cls.UserId == user_id).first()
-        if existing:
-            return existing
+        """Grant premium to a user idempotently. Returns the existing entry if already present."""
+        from sqlalchemy.exc import IntegrityError
+
         entry = cls(UserId=user_id, GrantedByUserId=granted_by)
         session.add(entry)
-        session.flush()
+        try:
+            session.flush()
+        except IntegrityError:
+            session.rollback()
+            return session.query(cls).filter(cls.UserId == user_id).first()
         return entry
 
     @classmethod

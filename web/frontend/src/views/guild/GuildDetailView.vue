@@ -130,7 +130,15 @@ const sectionGroups = computed(() =>
 );
 
 const allSections = computed(() => sectionGroups.value.flatMap((g) => g.items));
-const activeComponent = computed(() => allSections.value.find((s) => s.id === activeSection.value)?.component);
+const activeComponent = computed(() => {
+  const found = allSections.value.find((s) => s.id === activeSection.value);
+  if (!found && allSections.value.length > 0) {
+    // Requested tab is no longer available (filtered out) — fall back silently.
+    router.replace({ query: { tab: allSections.value[0]!.id } });
+    return allSections.value[0]!.component;
+  }
+  return found?.component;
+});
 
 const GROUP_ACCENTS: Record<string, string> = {
   General:      "text-blue-400",
@@ -201,6 +209,7 @@ function guildIconUrl(): string | null {
         <button
           class="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
           :title="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
+          :aria-label="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
           @click="sidebarOpen = !sidebarOpen"
         >
           <Icon
@@ -299,6 +308,7 @@ function guildIconUrl(): string | null {
                 !sidebarOpen && 'lg:border-l-0 lg:px-0',
               ]"
               :title="!sidebarOpen ? section.label : undefined"
+              :aria-label="section.label"
               @click="navigateTo(section.id)"
             >
               <Icon :icon="section.icon" class="w-4 h-4 flex-shrink-0" />
@@ -319,6 +329,7 @@ function guildIconUrl(): string | null {
             !sidebarOpen && 'mx-auto',
           ]"
           title="Logout"
+          aria-label="Logout"
           @click="auth.clear(); router.push('/login')"
         >
           <Icon icon="mdi:logout" class="w-5 h-5" />

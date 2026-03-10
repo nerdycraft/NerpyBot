@@ -68,7 +68,7 @@ async def callback(
 
     user_id = user_data["id"]
     username = user_data.get("username", "Unknown")
-    _log.debug("callback: authenticated user_id=%s username=%s guilds=%d", user_id, username, len(guilds))
+    _log.debug("callback: authenticated guilds=%d", len(guilds))
 
     # Cache permissions and Discord token in Valkey
     perms = resolve_guild_permissions(guilds)

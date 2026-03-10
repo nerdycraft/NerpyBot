@@ -143,9 +143,10 @@ Interactive Swagger docs are available at `/api/docs` when the service is runnin
 | ------------ | ---------------------------------------------------------------------------- |
 | **Operator** | Full access — health, modules, all guilds                                    |
 | **Admin**    | Guild settings for guilds where user is admin or has Manage Guild permission |
+| **Mod**      | Guild settings for guilds where user has a moderator role                    |
 | **Member**   | No access (403)                                                              |
 
-Guild permissions are resolved from Discord at login and cached in Valkey (5-minute TTL).
+Guild permissions are resolved from Discord at login and cached in Valkey (15-minute TTL). On cache miss, permissions are automatically rehydrated from the stored Discord token — no re-login required unless the token itself has expired.
 
 ### Endpoints
 
@@ -159,7 +160,7 @@ Guild permissions are resolved from Discord at login and cached in Valkey (5-min
 
 #### Guild Settings (`/api/guilds/`)
 
-All guild endpoints require admin access to the specific guild (or operator status).
+All guild endpoints require **premium access** and either admin or mod access to the specific guild (or operator status). A 403 may indicate missing premium access, not just insufficient guild permissions.
 
 | Method | Path                                     | Description                 |
 | ------ | ---------------------------------------- | --------------------------- |

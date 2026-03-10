@@ -187,9 +187,13 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         try:
             api = wow_cog._get_retailclient(region, "en")
             roster = api.guild_roster(realmSlug=realm_slug, nameSlug=guild_name)
+            if isinstance(roster, dict) and roster.get("code") == 429:
+                return {"valid": False, "display_name": None, "error": "WoW API rate limited"}
             if isinstance(roster, dict) and roster.get("code") in (404, 403):
                 return {"valid": False, "display_name": None}
-            display_name = roster.get("guild", {}).get("name", guild_name) if isinstance(roster, dict) else guild_name
+            if not isinstance(roster, dict) or "guild" not in roster:
+                return {"valid": False, "display_name": None, "error": "Unexpected WoW API response"}
+            display_name = roster["guild"].get("name", guild_name)
             return {"valid": True, "display_name": display_name}
         except Exception as e:
             bot.log.warning("validate_wow_guild failed: %s", e)
@@ -213,17 +217,19 @@ async def _valkey_listener_loop(bot, valkey_url: str) -> None:
         while not bot.is_closed():
             msg = await to_thread(pubsub.get_message, ignore_subscribe_messages=True, timeout=1.0)
             if msg and msg["type"] == "message":
+                request_id = None
                 try:
                     data = json.loads(msg["data"])
                     request_id = data.pop("request_id", None)
                     command = data.pop("command", "")
                     result = await to_thread(handle_valkey_command, bot, command, data)
-                    if request_id:
-                        reply_key = f"nerpybot:reply:{request_id}"
-                        client.lpush(reply_key, json.dumps(result))
-                        client.expire(reply_key, 10)
                 except Exception as e:
                     bot.log.error(f"Valkey command handler error: {e}")
+                    result = {"error": str(e)}
+                if request_id:
+                    reply_key = f"nerpybot:reply:{request_id}"
+                    client.lpush(reply_key, json.dumps(result))
+                    client.expire(reply_key, 10)
     except CancelledError:
         return
     except Exception as e:

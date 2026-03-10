@@ -12,13 +12,18 @@ const loading = ref(false);
 const open = ref(false);
 const offline = ref(false);
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let requestSeq = 0;
 
 // Reset when region changes
 watch(
   () => props.region,
   () => {
+    requestSeq += 1;
+    if (debounceTimer) clearTimeout(debounceTimer);
     results.value = [];
     query.value = "";
+    open.value = false;
+    offline.value = false;
     emit("update:modelValue", "");
   },
 );
@@ -37,20 +42,23 @@ function onInput(e: Event) {
 }
 
 async function fetchRealms(q: string) {
+  const seq = ++requestSeq;
   loading.value = true;
   try {
     const data = await api.get<RealmResult[]>(
       `/wow/realms?region=${props.region}&q=${encodeURIComponent(q)}`,
     );
+    if (seq !== requestSeq) return;
     results.value = data;
     offline.value = false;
     open.value = data.length > 0;
   } catch {
+    if (seq !== requestSeq) return;
     offline.value = true;
     results.value = [];
     open.value = false;
   } finally {
-    loading.value = false;
+    if (seq === requestSeq) loading.value = false;
   }
 }
 

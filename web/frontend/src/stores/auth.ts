@@ -12,6 +12,9 @@ export const useAuthStore = defineStore(
     const guilds = computed(() => user.value?.guilds ?? []);
 
     function setToken(token: string) {
+      if (jwt.value !== token) {
+        user.value = null;
+      }
       jwt.value = token;
     }
 
@@ -44,8 +47,11 @@ export const useAuthStore = defineStore(
       try {
         const parts = jwt.value.split(".");
         if (parts.length < 2) return true;
-        const payload = JSON.parse(atob(parts[1]!));
-        return typeof payload.exp === "number" && payload.exp * 1000 < Date.now();
+        const b64 = parts[1]!.replace(/-/g, "+").replace(/_/g, "/");
+        const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+        const payload = JSON.parse(atob(padded));
+        if (typeof payload.exp !== "number") return true;
+        return payload.exp * 1000 <= Date.now();
       } catch {
         return true;
       }

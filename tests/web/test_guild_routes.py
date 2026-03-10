@@ -462,7 +462,7 @@ class TestWowNewsConfigCRUD:
 
     def test_roster_returns_characters(self, client, auth_header, web_db_session):
         import json
-        from datetime import UTC, datetime
+        from datetime import datetime
 
         from models.wow import WowCharacterMounts, WowGuildNewsConfig
 

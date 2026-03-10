@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 import discord
 from discord import Interaction, ui
+from sqlalchemy import update as sa_update
 
 from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRoleMapping
 from utils.blizzard import CRAFTING_PROFESSIONS
@@ -198,6 +199,14 @@ class CraftingOrderModal(ui.Modal):
         item_name = self.item_name_input.value.strip()
         notes = self.notes_input.value.strip() or None
 
+        # Phase 1: persist the order and resolve all data needed for Discord.
+        # Exit the session before any Discord HTTP calls to avoid holding a DB
+        # connection open across network I/O.
+        order_id = None
+        channel_id = None
+        embed = None
+        view = None
+        lang = "en"
         with self.bot.session_scope() as session:
             config = CraftingBoardConfig.get_by_guild(self.guild_id, session)
             if config is None:
@@ -205,6 +214,7 @@ class CraftingOrderModal(ui.Modal):
                 return
 
             lang = get_guild_language(self.guild_id, session)
+            channel_id = config.ChannelId
 
             order = CraftingOrder(
                 GuildId=self.guild_id,
@@ -218,16 +228,22 @@ class CraftingOrderModal(ui.Modal):
             )
             session.add(order)
             session.flush()
-
+            order_id = order.Id
             embed = build_order_embed(order, interaction.guild, lang)
             view = build_order_view(order.Id, "open", lang)
 
-            channel = interaction.guild.get_channel(config.ChannelId)
-            if channel is None:
-                await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
-                return
-            msg = await channel.send(content=self.role.mention, embed=embed, view=view)
-            order.OrderMessageId = msg.id
+        # Phase 2: send to Discord outside the session.
+        channel = interaction.guild.get_channel(channel_id)
+        if channel is None:
+            await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
+            return
+        msg = await channel.send(content=self.role.mention, embed=embed, view=view)
+
+        # Phase 3: store the message ID now that Discord has accepted the message.
+        with self.bot.session_scope() as session:
+            order = CraftingOrder.get_by_id(order_id, session)
+            if order is not None:
+                order.OrderMessageId = msg.id
 
         await interaction.followup.send(
             _ls(interaction, "order_created", item=item_name),
@@ -270,10 +286,21 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
 
     async def callback(self, interaction: Interaction):
         with interaction.client.session_scope() as session:
+            # Atomic update: only proceeds if status is still 'open', preventing
+            # two crafters from both accepting the same order in a race.
+            rowcount = session.execute(
+                sa_update(CraftingOrder)
+                .where(CraftingOrder.Id == self.order_id, CraftingOrder.Status == "open")
+                .values(
+                    Status="in_progress",
+                    CrafterId=interaction.user.id,
+                    CrafterName=interaction.user.display_name,
+                )
+            ).rowcount
+            if rowcount == 0:
+                await interaction.response.send_message(_ls(interaction, "accept.not_open"), ephemeral=True)
+                return
             order = CraftingOrder.get_by_id(self.order_id, session)
-            order.Status = "in_progress"
-            order.CrafterId = interaction.user.id
-            order.CrafterName = interaction.user.display_name
             lang = get_guild_language(interaction.guild_id, session)
             embed = build_order_embed(order, interaction.guild, lang)
             view = build_order_view(order.Id, "in_progress", lang)

@@ -51,14 +51,14 @@ async def grant_premium(
 
 @router.delete("/premium-users/{user_id}", status_code=http_status.HTTP_204_NO_CONTENT)
 async def revoke_premium(
-    user_id: str,
+    user_id: int,
     user: dict = Depends(require_operator),
     session: Session = Depends(get_db_session),
 ):
     """Revoke premium dashboard access from a user."""
     from models.admin import PremiumUser
 
-    if not PremiumUser.revoke(int(user_id), session):
+    if not PremiumUser.revoke(user_id, session):
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="User not found in premium list")
 
 
