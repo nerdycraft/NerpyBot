@@ -106,6 +106,11 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
 
     @tasks.loop(minutes=5)
     async def _autodeleter_loop(self):
+        """
+        Iterate enabled AutoDelete configurations, resolve their guilds and channels, and run per-channel cleanup.
+
+        Fetches all AutoDelete entries from the database, skips configurations that are disabled or whose guild/channel cannot be resolved, and invokes _cleanup_channel for each remaining configuration. If a Discord HTTP 429 (rate limit) is encountered while cleaning a channel, stops processing further channels for the current run. Per-channel exceptions are logged; an unexpected error during the overall loop is logged and reported via notify_error.
+        """
         self.bot.log.debug("Start Autodeleter Loop!")
         try:
             with self.bot.session_scope() as session:
@@ -138,10 +143,10 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         self.bot.log.debug("Finish Autodeleter Loop!")
 
     async def _cleanup_channel(self, configuration, guild, channel):
-        """Delete messages in a channel according to its AutoDelete configuration.
+        """
+        Remove messages from a channel according to an AutoDelete configuration.
 
-        Recent messages (< 14 days) are bulk-deleted in batches of 100 (one API call each).
-        Older messages are deleted individually, capped at _MAX_INDIVIDUAL_PER_RUN per tick.
+        Deletes messages while preserving the newest `KeepMessages` messages and respecting `DeletePinnedMessage` and `DeleteOlderThan` from the configuration. Messages newer than 14 days are deleted in bulk (batched up to 100 per API call); messages 14 days or older are deleted individually, capped at _MAX_INDIVIDUAL_PER_RUN per run. Threads attached to messages are deleted prior to deleting their parent messages. HTTP 429 (rate limit) errors are propagated to allow the caller to handle/back off; other inaccessible-or-already-deleted resources are ignored.
         """
         cutoff = None
         if configuration.DeleteOlderThan is not None:
