@@ -152,10 +152,13 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         # Fetch enough candidates to satisfy keep_messages plus a full work batch.
         # Any excess is left for the next tick, preventing huge history pulls.
         fetch_limit = message_limit + _BULK_BATCH_SIZE + _MAX_INDIVIDUAL_PER_RUN
-        candidates = [m async for m in channel.history(before=cutoff, oldest_first=True, limit=fetch_limit)]
+        # Fetch newest-first so candidates[0] is always the most recent message before cutoff.
+        # This ensures keep_messages correctly preserves the actual newest messages in the channel,
+        # not just the newest within a truncated oldest-first window.
+        candidates = [m async for m in channel.history(before=cutoff, oldest_first=False, limit=fetch_limit)]
 
-        # Respect keep_messages: preserve the newest `message_limit` candidates.
-        to_delete = candidates[: len(candidates) - message_limit] if message_limit > 0 else candidates
+        # Respect keep_messages: skip the first message_limit entries (the newest ones to preserve).
+        to_delete = candidates[message_limit:] if message_limit > 0 else candidates
 
         # Skip pinned messages unless explicitly configured to delete them.
         if not configuration.DeletePinnedMessage:
@@ -178,7 +181,9 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 try:
                     await m.thread.delete()
                     await asyncio.sleep(0.5)
-                except HTTPException:
+                except HTTPException as ex:
+                    if ex.status == 429:
+                        raise
                     pass  # already gone or inaccessible
 
         # Bulk-delete recent messages in batches of up to 100.
@@ -201,7 +206,9 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             if message.thread:
                 try:
                     await message.thread.delete()
-                except HTTPException:
+                except HTTPException as ex:
+                    if ex.status == 429:
+                        raise
                     pass  # already gone or inaccessible
             await message.delete()
             await asyncio.sleep(1.0)
