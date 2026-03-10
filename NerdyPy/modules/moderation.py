@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 
+import asyncio
 from datetime import UTC, datetime, time, timedelta
 from typing import Optional
 
-from discord import Color, Embed, Interaction, Member, TextChannel, app_commands
+from discord import Color, Embed, HTTPException, Interaction, Member, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext import tasks
 from discord.ext.commands import GroupCog
@@ -19,6 +20,14 @@ from utils.strings import get_guild_language, get_string
 
 # If no tzinfo is given then UTC is assumed.
 LOOP_RUN_TIME = time(hour=12, minute=30, tzinfo=UTC)
+
+# Bulk-delete endpoint only accepts messages younger than 14 days.
+_BULK_MAX_AGE = timedelta(days=14)
+# Discord allows 2–100 messages per bulk-delete request.
+_BULK_BATCH_SIZE = 100
+# Per-run cap for individually-deleted messages (> 14 days old).
+# Keeps each loop tick under ~1 minute; any remainder is picked up next tick.
+_MAX_INDIVIDUAL_PER_RUN = 50
 
 
 class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
@@ -98,56 +107,110 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     @tasks.loop(minutes=5)
     async def _autodeleter_loop(self):
         self.bot.log.debug("Start Autodeleter Loop!")
-        message = None
-        channel = None
         try:
             with self.bot.session_scope() as session:
-                self.bot.log.debug("Fetching configurations")
                 configurations = AutoDelete.get_all(session)
-                self.bot.log.debug(f"Fetched {len(configurations)} configurations")
+            self.bot.log.debug(f"Fetched {len(configurations)} configurations")
 
             for configuration in configurations:
                 if not configuration.Enabled:
                     continue
                 guild = self.bot.get_guild(configuration.GuildId)
-                if configuration.DeleteOlderThan is None:
-                    list_before = None
-                else:
-                    list_before = datetime.now(UTC) - timedelta(seconds=configuration.DeleteOlderThan)
-                    list_before = list_before.replace(tzinfo=UTC)
+                if guild is None:
+                    continue
                 channel = guild.get_channel(configuration.ChannelId)
-
-                messages = []
-                if channel is not None:
-                    messages = [message async for message in channel.history(before=list_before, oldest_first=True)]
-
-                message_limit = 0
-                if configuration.KeepMessages is not None:
-                    message_limit = configuration.KeepMessages
-
-                while len(messages) > message_limit:
-                    self.bot.log.debug(f"Messages in List: {len(messages)}")
-                    message = messages.pop(0)
-                    self.bot.log.debug(f"Check message: {message}")
-                    if not configuration.DeletePinnedMessage and message.pinned:
-                        self.bot.log.debug("Skip pinned message")
-                        continue
-                    self.bot.log.info(
-                        f"[{guild.name} ({guild.id})]: deleting message from #{message.channel.name} "
-                        f"by {message.author} ({message.author.id}), created at {message.created_at}"
-                    )
-                    if message.thread:
-                        await message.thread.delete()
-                    await message.delete()
+                if channel is None:
+                    continue
+                try:
+                    await self._cleanup_channel(configuration, guild, channel)
+                except HTTPException as ex:
+                    if ex.status == 429:
+                        self.bot.log.warning(
+                            f"Autodeleter: rate limited on #{channel.name}, skipping remaining channels this run"
+                        )
+                        break
+                    self.bot.log.error(f"Autodeleter: Discord error on #{channel.name}: {ex}")
+                except Exception as ex:
+                    self.bot.log.error(f"Autodeleter: error cleaning #{channel.name}: {ex}")
         except Exception as ex:
             self.bot.log.error(f"Autodeleter: {ex}")
-            if channel is not None:
-                self.bot.log.debug(f"Channel: {channel}")
-            if message is not None:
-                self.bot.log.debug(f"Message: {message}")
-                self.bot.log.debug(f"Channel from Message: {message.channel.name}")
             await notify_error(self.bot, "Autodeleter background loop", ex)
         self.bot.log.debug("Finish Autodeleter Loop!")
+
+    async def _cleanup_channel(self, configuration, guild, channel):
+        """Delete messages in a channel according to its AutoDelete configuration.
+
+        Recent messages (< 14 days) are bulk-deleted in batches of 100 (one API call each).
+        Older messages are deleted individually, capped at _MAX_INDIVIDUAL_PER_RUN per tick.
+        """
+        cutoff = None
+        if configuration.DeleteOlderThan is not None:
+            cutoff = datetime.now(UTC) - timedelta(seconds=configuration.DeleteOlderThan)
+
+        message_limit = configuration.KeepMessages or 0
+
+        # Fetch enough candidates to satisfy keep_messages plus a full work batch.
+        # Any excess is left for the next tick, preventing huge history pulls.
+        fetch_limit = message_limit + _BULK_BATCH_SIZE + _MAX_INDIVIDUAL_PER_RUN
+        candidates = [m async for m in channel.history(before=cutoff, oldest_first=True, limit=fetch_limit)]
+
+        # Respect keep_messages: preserve the newest `message_limit` candidates.
+        to_delete = candidates[: len(candidates) - message_limit] if message_limit > 0 else candidates
+
+        # Skip pinned messages unless explicitly configured to delete them.
+        if not configuration.DeletePinnedMessage:
+            to_delete = [m for m in to_delete if not m.pinned]
+
+        if not to_delete:
+            return
+
+        # Split into bulk-eligible (< 14 days) and individually-deleted (≥ 14 days).
+        age_cutoff = datetime.now(UTC) - _BULK_MAX_AGE
+        bulk = []
+        individual = []
+        for m in to_delete:
+            # Message.created_at is always UTC-aware (snowflake-derived); no normalization needed.
+            (bulk if m.created_at > age_cutoff else individual).append(m)
+
+        # Delete threads attached to bulk messages first (threads need their own API call).
+        for m in bulk:
+            if m.thread:
+                try:
+                    await m.thread.delete()
+                    await asyncio.sleep(0.5)
+                except HTTPException:
+                    pass  # already gone or inaccessible
+
+        # Bulk-delete recent messages in batches of up to 100.
+        for i in range(0, len(bulk), _BULK_BATCH_SIZE):
+            batch = bulk[i : i + _BULK_BATCH_SIZE]
+            self.bot.log.info(f"[{guild.name} ({guild.id})]: bulk deleting {len(batch)} messages from #{channel.name}")
+            if len(batch) == 1:
+                await batch[0].delete()
+            else:
+                await channel.delete_messages(batch)
+            await asyncio.sleep(1.0)
+
+        # Individually delete old messages, capped per run to avoid long-running ticks.
+        capped = individual[:_MAX_INDIVIDUAL_PER_RUN]
+        for message in capped:
+            self.bot.log.info(
+                f"[{guild.name} ({guild.id})]: deleting old message from #{channel.name} "
+                f"by {message.author} ({message.author.id}), created at {message.created_at}"
+            )
+            if message.thread:
+                try:
+                    await message.thread.delete()
+                except HTTPException:
+                    pass  # already gone or inaccessible
+            await message.delete()
+            await asyncio.sleep(1.0)
+
+        if len(individual) > _MAX_INDIVIDUAL_PER_RUN:
+            self.bot.log.debug(
+                f"Autodeleter: #{channel.name} has {len(individual) - _MAX_INDIVIDUAL_PER_RUN} more old messages;"
+                " will continue next run"
+            )
 
     @app_commands.command()
     @app_commands.rename(
