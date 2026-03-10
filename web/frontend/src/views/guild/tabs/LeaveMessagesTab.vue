@@ -4,13 +4,13 @@ import { api } from "@/api/client";
 import type { LeaveMessageConfig } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
 import InfoTooltip from "@/components/InfoTooltip.vue";
-import { useAutoSave } from "@/composables/useAutoSave";
+import { useManualSave } from "@/composables/useManualSave";
 
 const props = defineProps<{ guildId: string }>();
 
 const config = ref<LeaveMessageConfig | null>(null);
 const loading = ref(true);
-const { saving, error, success, ready } = useAutoSave(config, (c) =>
+const { saving, error, success, dirty, ready, save } = useManualSave(config, (c) =>
   api.put<LeaveMessageConfig>(`/guilds/${props.guildId}/leave-messages`, {
     channel_id: c.channel_id,
     message: c.message,
@@ -44,7 +44,6 @@ watch(() => props.guildId, () => void loadConfig(), { immediate: true });
       <p class="text-muted-foreground text-sm">
         Post a custom message to a channel whenever a member leaves or is removed from the server. Use
         <code class="font-mono text-xs">{user}</code> in the message text to mention the departing member by name.
-        Changes auto-save as you type.
       </p>
     </div>
 
@@ -89,8 +88,16 @@ watch(() => props.guildId, () => void loadConfig(), { immediate: true });
       </div>
 
       <p v-if="error" class="text-destructive text-sm">{{ error }}</p>
-      <p v-if="saving" class="text-xs text-muted-foreground">Saving…</p>
-      <p v-else-if="success" class="text-xs text-green-400">✓ Saved</p>
+      <div class="flex items-center gap-3">
+        <button
+          :disabled="!dirty || saving"
+          class="px-4 py-1.5 text-sm font-medium rounded bg-primary text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+          @click="save()"
+        >
+          {{ saving ? "Saving…" : "Save" }}
+        </button>
+        <span v-if="success" class="text-xs text-green-400">✓ Saved</span>
+      </div>
     </div>
 
     <p v-else class="text-destructive text-sm">{{ error }}</p>

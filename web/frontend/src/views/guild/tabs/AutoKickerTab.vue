@@ -3,13 +3,13 @@ import { ref, watch, nextTick } from "vue";
 import { api } from "@/api/client";
 import type { AutoKickerConfig } from "@/api/types";
 import InfoTooltip from "@/components/InfoTooltip.vue";
-import { useAutoSave } from "@/composables/useAutoSave";
+import { useManualSave } from "@/composables/useManualSave";
 
 const props = defineProps<{ guildId: string }>();
 
 const config = ref<AutoKickerConfig | null>(null);
 const loading = ref(true);
-const { saving, error, success, ready } = useAutoSave(config, (c) =>
+const { saving, error, success, dirty, ready, save } = useManualSave(config, (c) =>
   api.put<AutoKickerConfig>(`/guilds/${props.guildId}/auto-kicker`, {
     kick_after: c.kick_after,
     enabled: c.enabled,
@@ -42,7 +42,7 @@ watch(() => props.guildId, () => void loadConfig(), { immediate: true });
       <h2 class="text-lg font-semibold">Auto-Kicker</h2>
       <p class="text-muted-foreground text-sm">
         Automatically kicks members who have not verified or shown activity within a configurable number of days.
-        Changes auto-save as you type; the bot will send an optional reminder message before kicking if one is set.
+        The bot will send an optional reminder message before kicking if one is set.
       </p>
     </div>
 
@@ -86,8 +86,16 @@ watch(() => props.guildId, () => void loadConfig(), { immediate: true });
       </div>
 
       <p v-if="error" class="text-destructive text-sm">{{ error }}</p>
-      <p v-if="saving" class="text-xs text-muted-foreground">Saving…</p>
-      <p v-else-if="success" class="text-xs text-green-400">✓ Saved</p>
+      <div class="flex items-center gap-3">
+        <button
+          :disabled="!dirty || saving"
+          class="px-4 py-1.5 text-sm font-medium rounded bg-primary text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+          @click="save()"
+        >
+          {{ saving ? "Saving…" : "Save" }}
+        </button>
+        <span v-if="success" class="text-xs text-green-400">✓ Saved</span>
+      </div>
     </div>
 
     <p v-else class="text-destructive text-sm">{{ error }}</p>
