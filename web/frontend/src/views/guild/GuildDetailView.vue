@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
@@ -30,6 +30,11 @@ const guildId = computed(() => route.params.id as string | undefined);
 
 const activeSection = computed(() => (route.query.tab as string) ?? "server-overview");
 const switcherOpen = ref(false);
+const sidebarOpen = ref(true);
+
+onMounted(() => {
+  if (window.innerWidth < 1024) sidebarOpen.value = false;
+});
 
 // Reset to overview when switching guilds
 watch(guildId, () => {
@@ -45,6 +50,12 @@ function switchGuild(id: string) {
   if (g) guild.setCurrent(g);
   switcherOpen.value = false;
   router.push(`/guilds/${id}`);
+  if (window.innerWidth < 1024) sidebarOpen.value = false;
+}
+
+function navigateTo(tabId: string) {
+  router.replace({ query: { tab: tabId } });
+  if (window.innerWidth < 1024) sidebarOpen.value = false;
 }
 
 type SectionItem = {
@@ -140,9 +151,48 @@ function guildIconUrl(): string | null {
   <!-- Click-outside overlay to close guild switcher -->
   <div v-if="switcherOpen" class="fixed inset-0 z-10" @click="switcherOpen = false" />
 
-  <div class="flex h-screen overflow-hidden">
+  <div class="flex flex-col h-screen overflow-hidden">
+    <!-- Mobile top bar — only visible below lg breakpoint -->
+    <div class="lg:hidden flex items-center h-12 px-4 border-b border-border flex-shrink-0 bg-card gap-3">
+      <button
+        class="text-muted-foreground hover:text-foreground transition-colors"
+        aria-label="Open navigation"
+        @click="sidebarOpen = true"
+      >
+        <Icon icon="mdi:menu" class="w-5 h-5" />
+      </button>
+      <span class="font-semibold text-sm truncate">
+        {{ guildId ? (guild.current?.name ?? "Guild") : "NerpyBot" }}
+      </span>
+    </div>
+
+    <!-- Row: sidebar + content -->
+    <div class="flex flex-1 overflow-hidden">
+    <!-- Mobile backdrop — closes sidebar when tapped -->
+    <Transition
+      enter-active-class="transition-opacity duration-200"
+      leave-active-class="transition-opacity duration-200"
+      enter-from-class="opacity-0"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="sidebarOpen"
+        class="fixed inset-0 bg-black/40 z-20 lg:hidden"
+        aria-hidden="true"
+        @click="sidebarOpen = false"
+      />
+    </Transition>
     <!-- Sidebar -->
-    <aside class="w-56 flex-shrink-0 border-r border-border flex flex-col bg-card">
+    <aside
+      :class="[
+        'flex flex-col border-r border-border bg-card flex-shrink-0',
+        'fixed lg:relative inset-y-0 left-0 z-30 lg:z-auto',
+        'overflow-hidden transition-[width,transform] duration-200 ease-in-out',
+        sidebarOpen
+          ? 'w-56 translate-x-0'
+          : 'w-0 -translate-x-full lg:w-12 lg:translate-x-0',
+      ]"
+    >
       <!-- Rainbow accent bar -->
       <div class="h-0.5 bg-gradient-to-r from-blue-500 via-violet-500 via-fuchsia-500 to-teal-400 flex-shrink-0" />
       <!-- Guild switcher -->
@@ -168,11 +218,12 @@ function guildIconUrl(): string | null {
               {{ guild.current?.name?.charAt(0).toUpperCase() ?? "?" }}
             </span>
           </div>
-          <span class="font-semibold text-sm truncate flex-1">
+          <span v-show="sidebarOpen" class="font-semibold text-sm truncate flex-1">
             {{ guildId ? (guild.current?.name ?? "Guild") : "NerpyBot" }}
           </span>
           <Icon
             v-if="guildId"
+            v-show="sidebarOpen"
             :icon="switcherOpen ? 'mdi:chevron-up' : 'mdi:chevron-down'"
             class="w-4 h-4 text-muted-foreground flex-shrink-0"
           />
@@ -218,7 +269,7 @@ function guildIconUrl(): string | null {
       <!-- Navigation -->
       <nav class="flex-1 p-2 space-y-4 overflow-y-auto">
         <div v-for="group in sectionGroups" :key="group.label">
-          <p :class="['px-3 pb-1 text-xs font-semibold uppercase tracking-wider', GROUP_ACCENTS[group.label] ?? 'text-muted-foreground/50']">
+          <p v-show="sidebarOpen" :class="['px-3 pb-1 text-xs font-semibold uppercase tracking-wider', GROUP_ACCENTS[group.label] ?? 'text-muted-foreground/50']">
             {{ group.label }}
           </p>
           <div class="space-y-0.5">
@@ -226,15 +277,18 @@ function guildIconUrl(): string | null {
               v-for="section in group.items"
               :key="section.id"
               :class="[
-                'w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors text-left',
+                'w-full flex items-center py-2 rounded-md text-sm transition-colors text-left',
+                sidebarOpen ? 'gap-2.5' : 'justify-center',
                 activeSection === section.id
                   ? 'bg-primary/15 text-primary font-medium border-l-2 border-primary pl-[10px]'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted border-l-2 border-transparent pl-[10px]',
+                !sidebarOpen && 'lg:border-l-0 lg:px-0',
               ]"
-              @click="router.replace({ query: { tab: section.id } })"
+              :title="!sidebarOpen ? section.label : undefined"
+              @click="navigateTo(section.id)"
             >
               <Icon :icon="section.icon" class="w-4 h-4 flex-shrink-0" />
-              {{ section.label }}
+              <span v-show="sidebarOpen">{{ section.label }}</span>
             </button>
           </div>
         </div>
@@ -242,14 +296,29 @@ function guildIconUrl(): string | null {
 
       <!-- Sidebar footer -->
       <div class="border-t border-border p-3 flex items-center justify-between flex-shrink-0">
-        <span class="text-xs text-muted-foreground truncate">{{ auth.user?.username }}</span>
-        <button
-          class="text-muted-foreground hover:text-foreground transition-colors"
-          title="Logout"
-          @click="auth.clear(); router.push('/login')"
-        >
-          <Icon icon="mdi:logout" class="w-4 h-4" />
-        </button>
+        <span v-show="sidebarOpen" class="text-xs text-muted-foreground truncate">
+          {{ auth.user?.username }}
+        </span>
+        <div class="flex items-center gap-1 ml-auto">
+          <button
+            v-show="sidebarOpen"
+            class="text-muted-foreground hover:text-foreground transition-colors"
+            title="Logout"
+            @click="auth.clear(); router.push('/login')"
+          >
+            <Icon icon="mdi:logout" class="w-4 h-4" />
+          </button>
+          <button
+            class="hidden lg:block text-muted-foreground hover:text-foreground transition-colors"
+            :title="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
+            @click="sidebarOpen = !sidebarOpen"
+          >
+            <Icon
+              :icon="sidebarOpen ? 'mdi:chevron-left' : 'mdi:chevron-right'"
+              class="w-4 h-4"
+            />
+          </button>
+        </div>
       </div>
     </aside>
 
@@ -259,5 +328,6 @@ function guildIconUrl(): string | null {
         <component :is="activeComponent" :guild-id="guildId" />
       </div>
     </main>
+    </div>
   </div>
 </template>
