@@ -174,7 +174,7 @@ async function deleteQuestion(formId: number, questionId: number) {
 
 <template>
   <div class="space-y-8">
-    <div class="flex items-center justify-between">
+    <div class="flex items-start justify-between">
       <div>
         <h2 class="text-lg font-semibold">Forms</h2>
         <p class="text-muted-foreground text-sm">Application forms define the questions members answer when applying via the bot in DMs. Each form needs at least one question and a review channel where moderators cast approve/deny votes.</p>

@@ -144,7 +144,7 @@ async function createReminder() {
 
 <template>
   <div class="space-y-6">
-    <div class="flex items-center justify-between">
+    <div class="flex items-start justify-between">
       <div>
         <h2 class="text-lg font-semibold">Reminders</h2>
         <p class="text-muted-foreground text-sm">

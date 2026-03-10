@@ -236,7 +236,7 @@ function relativeTime(iso: string | null): string {
 
 <template>
   <div class="space-y-6">
-    <div class="flex items-center justify-between">
+    <div class="flex items-start justify-between">
       <div>
         <h2 class="text-lg font-semibold">Guild News</h2>
         <p class="text-muted-foreground text-sm">Track a World of Warcraft guild's activity — boss kills, member joins and leaves, and achievements — and automatically post updates to a Discord channel. Each tracker targets one guild on a specific realm and only processes characters who have been active within the configured window.</p>

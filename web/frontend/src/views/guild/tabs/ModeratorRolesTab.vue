@@ -88,7 +88,7 @@ async function remove(roleId: string) {
         </button>
       </div>
 
-      <div class="flex gap-2 mt-4">
+      <div class="flex gap-2 mt-4 items-end">
         <div class="flex-1 min-w-0">
           <label class="text-sm font-medium flex items-center gap-1.5 mb-1.5">
             Role

@@ -104,7 +104,7 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
 
 <template>
   <div class="space-y-6">
-    <div class="flex items-center justify-between">
+    <div class="flex items-start justify-between">
       <div>
         <h2 class="text-lg font-semibold">Templates</h2>
         <p class="text-muted-foreground text-sm">Templates are reusable question sets that can be shared across multiple application forms, letting you define common question banks once and apply them wherever needed. Built-in templates are provided by the bot and cannot be modified or deleted.</p>
