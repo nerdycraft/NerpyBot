@@ -92,7 +92,7 @@ async function remove(roleId: string) {
         <div class="flex-1 min-w-0">
           <label class="text-sm font-medium flex items-center gap-1.5 mb-1.5">
             Role
-            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The Discord role to grant bot moderator permissions. Members with this role can run moderation commands." />
+            <span title="The Discord role to grant bot moderator permissions. Members with this role can run moderation commands." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
           </label>
           <DiscordPicker
             v-model="newRoleId"

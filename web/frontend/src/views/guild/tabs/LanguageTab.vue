@@ -80,7 +80,7 @@ async function autoSave() {
       <div class="flex flex-col gap-2">
         <label class="text-sm font-medium flex items-center gap-1.5" for="language-select">
           Language
-          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The locale NerpyBot will use when replying in this server (e.g. English, Deutsch)." />
+          <span title="The locale NerpyBot will use when replying in this server (e.g. English, Deutsch)." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
         </label>
         <div class="flex items-center gap-3">
           <select

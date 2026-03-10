@@ -93,7 +93,7 @@ async function remove(id: number) {
         <div class="w-44 flex flex-col gap-1.5">
           <label class="text-sm font-medium flex items-center gap-1.5">
             Source role
-            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The role whose members are allowed to assign the target role to others using bot commands." />
+            <span title="The role whose members are allowed to assign the target role to others using bot commands." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
           </label>
           <DiscordPicker v-model="newMapping.source_role_id" :guild-id="guildId" kind="role" placeholder="Source role…" />
         </div>
@@ -101,7 +101,7 @@ async function remove(id: number) {
         <div class="w-44 flex flex-col gap-1.5">
           <label class="text-sm font-medium flex items-center gap-1.5">
             Target role
-            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The role that will be assigned to members when a user with the source role runs the assign command." />
+            <span title="The role that will be assigned to members when a user with the source role runs the assign command." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
           </label>
           <DiscordPicker v-model="newMapping.target_role_id" :guild-id="guildId" kind="role" placeholder="Target role…" />
         </div>

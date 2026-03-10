@@ -112,7 +112,7 @@ function formatDate(iso: string) {
         <div class="flex-shrink-0 p-2 border-b border-border">
           <label class="text-sm font-medium flex items-center gap-1.5 mb-1">
             Form
-            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Filter submissions to show only those belonging to a specific application form." />
+            <span title="Filter submissions to show only those belonging to a specific application form." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
           </label>
           <select
             class="w-full bg-input border border-border rounded px-2 py-1.5 text-sm"
@@ -128,7 +128,7 @@ function formatDate(iso: string) {
         <div class="flex-shrink-0 p-2 border-b border-border">
           <label class="text-sm font-medium flex items-center gap-1.5 mb-1">
             Status
-            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Filter submissions by their current review status: pending awaiting votes, approved by moderators, or denied." />
+            <span title="Filter submissions by their current review status: pending awaiting votes, approved by moderators, or denied." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
           </label>
           <div class="flex gap-1 flex-wrap">
             <button

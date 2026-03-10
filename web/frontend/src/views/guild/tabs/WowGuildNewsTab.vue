@@ -260,7 +260,7 @@ function relativeTime(iso: string | null): string {
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground flex items-center gap-1">
             Region
-            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The WoW region your guild is on (EU or US). This determines which Blizzard API endpoint is queried." />
+            <span title="The WoW region your guild is on (EU or US). This determines which Blizzard API endpoint is queried." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
           </label>
           <select
             v-model="newConfig.region"
@@ -273,7 +273,7 @@ function relativeTime(iso: string | null): string {
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground flex items-center gap-1">
             WoW Guild Name
-            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The exact in-game name of the WoW guild to track. The bot will verify this guild exists on the chosen realm before saving." />
+            <span title="The exact in-game name of the WoW guild to track. The bot will verify this guild exists on the chosen realm before saving." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
           </label>
           <input
             v-model="newConfig.wow_guild_name_input"
@@ -285,21 +285,21 @@ function relativeTime(iso: string | null): string {
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground flex items-center gap-1">
             Realm
-            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The WoW realm (server) the guild is on. Must match the region selected above." />
+            <span title="The WoW realm (server) the guild is on. Must match the region selected above." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
           </label>
           <RealmPicker v-model="newConfig.wow_realm_slug" :region="newConfig.region" />
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground flex items-center gap-1">
             Channel
-            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The Discord channel where guild news updates will be posted. The bot must have permission to send messages there." />
+            <span title="The Discord channel where guild news updates will be posted. The bot must have permission to send messages there." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
           </label>
           <DiscordPicker v-model="newConfig.channel_id" :guild-id="guildId" kind="channel" />
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground flex items-center gap-1">
             Active days
-            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Only characters who have been seen in-game within this many days are considered active and included in news tracking." />
+            <span title="Only characters who have been seen in-game within this many days are considered active and included in news tracking." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
           </label>
           <input
             v-model.number="newConfig.active_days"
@@ -311,7 +311,7 @@ function relativeTime(iso: string | null): string {
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground flex items-center gap-1">
             Min level
-            <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Characters below this level are ignored. Useful for filtering out low-level alts from news posts." />
+            <span title="Characters below this level are ignored. Useful for filtering out low-level alts from news posts." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
           </label>
           <input
             v-model.number="newConfig.min_level"
@@ -404,7 +404,7 @@ function relativeTime(iso: string | null): string {
           <div class="flex flex-col gap-1">
             <label class="text-xs text-muted-foreground flex items-center gap-1">
               Channel
-              <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The Discord channel where guild news updates will be posted." />
+              <span title="The Discord channel where guild news updates will be posted." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
             </label>
             <div class="w-48">
               <DiscordPicker v-model="editDraft.channel_id!" :guild-id="guildId" kind="channel" />
@@ -413,7 +413,7 @@ function relativeTime(iso: string | null): string {
           <div class="flex flex-col gap-1">
             <label class="text-xs text-muted-foreground flex items-center gap-1">
               Active days
-              <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Only characters who have been seen in-game within this many days are considered active and included in news tracking." />
+              <span title="Only characters who have been seen in-game within this many days are considered active and included in news tracking." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
             </label>
             <input
               v-model.number="editDraft.active_days"
@@ -425,7 +425,7 @@ function relativeTime(iso: string | null): string {
           <div class="flex flex-col gap-1">
             <label class="text-xs text-muted-foreground flex items-center gap-1">
               Min level
-              <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Characters below this level are ignored. Useful for filtering out low-level alts from news posts." />
+              <span title="Characters below this level are ignored. Useful for filtering out low-level alts from news posts." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
             </label>
             <input
               v-model.number="editDraft.min_level"

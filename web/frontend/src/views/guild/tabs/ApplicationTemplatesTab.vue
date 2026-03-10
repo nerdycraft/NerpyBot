@@ -128,14 +128,14 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
       <div class="flex flex-col gap-1">
         <label class="text-sm font-medium flex items-center gap-1.5">
           Name
-          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="A unique name identifying this template. Used when selecting a template to base a new form on." />
+          <span title="A unique name identifying this template. Used when selecting a template to base a new form on." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
         </label>
         <input v-model="templateDraft.name" class="bg-input border border-border rounded px-3 py-2 text-sm w-64" />
       </div>
       <div class="space-y-1">
         <label class="text-sm font-medium flex items-center gap-1.5">
           Questions
-          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The questions members will be asked when filling out a form that uses this template. Questions are presented in order via DM." />
+          <span title="The questions members will be asked when filling out a form that uses this template. Questions are presented in order via DM." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
         </label>
         <div v-for="(_, i) in templateDraft.question_texts" :key="i" class="flex gap-2">
           <input
@@ -189,7 +189,7 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
             <div class="flex flex-col gap-1">
               <label class="text-sm font-medium flex items-center gap-1.5">
                 Name
-                <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="A unique name identifying this template. Used when selecting a template to base a new form on." />
+                <span title="A unique name identifying this template. Used when selecting a template to base a new form on." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
               </label>
               <input v-model="templateDraft.name" class="bg-input border border-border rounded px-3 py-2 text-sm w-64" />
             </div>

@@ -80,14 +80,14 @@ async function autoSave() {
         <input type="checkbox" v-model="config.enabled" class="w-4 h-4" />
         <span class="text-sm font-medium flex items-center gap-1.5">
           Enabled
-          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="When enabled, the bot will post a leave message each time a member leaves or is removed from the server." />
+          <span title="When enabled, the bot will post a leave message each time a member leaves or is removed from the server." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
         </span>
       </label>
 
       <div class="flex flex-col gap-2">
         <label class="text-sm font-medium flex items-center gap-1.5">
           Channel
-          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The text channel where leave messages will be posted. The bot must have permission to send messages in this channel." />
+          <span title="The text channel where leave messages will be posted. The bot must have permission to send messages in this channel." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
         </label>
         <div class="w-64">
           <DiscordPicker
@@ -102,7 +102,7 @@ async function autoSave() {
       <div class="flex flex-col gap-2">
         <label class="text-sm font-medium flex items-center gap-1.5" for="leave-message">
           Message
-          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The message text to post when a member leaves. Use {user} as a placeholder — it will be replaced with the departing member's username." />
+          <span title="The message text to post when a member leaves. Use {user} as a placeholder — it will be replaced with the departing member's username." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
         </label>
         <textarea
           id="leave-message"

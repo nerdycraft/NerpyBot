@@ -78,14 +78,14 @@ async function autoSave() {
         <input type="checkbox" v-model="config.enabled" class="w-4 h-4" />
         <span class="text-sm font-medium flex items-center gap-1.5">
           Enabled
-          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="When disabled, no members will be kicked regardless of the other settings." />
+          <span title="When disabled, no members will be kicked regardless of the other settings." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
         </span>
       </label>
 
       <div class="flex flex-col gap-2">
         <label class="text-sm font-medium flex items-center gap-1.5" for="kick-after">
           Kick after (days)
-          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="Number of days of inactivity before a member is kicked. Must be at least 1." />
+          <span title="Number of days of inactivity before a member is kicked. Must be at least 1." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
         </label>
         <input
           id="kick-after"
@@ -99,7 +99,7 @@ async function autoSave() {
       <div class="flex flex-col gap-2">
         <label class="text-sm font-medium flex items-center gap-1.5" for="kick-reminder">
           Reminder message (optional)
-          <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="If set, NerpyBot will DM this message to the member before kicking them. Leave blank to kick silently." />
+          <span title="If set, NerpyBot will DM this message to the member before kicking them. Leave blank to kick silently." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
         </label>
         <textarea
           id="kick-reminder"

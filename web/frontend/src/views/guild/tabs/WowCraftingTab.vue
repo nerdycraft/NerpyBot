@@ -231,7 +231,7 @@ watch(statusFilter, fetchOrders);
           <div class="flex flex-col gap-1">
             <label class="text-sm font-medium flex items-center gap-1.5">
               Role
-              <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The Discord role to associate with a WoW profession. Members with this role will be pinged when a matching crafting order appears." />
+              <span title="The Discord role to associate with a WoW profession. Members with this role will be pinged when a matching crafting order appears." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
             </label>
             <select
               v-model="newMappingRoleId"
@@ -244,7 +244,7 @@ watch(statusFilter, fetchOrders);
           <div class="flex flex-col gap-1">
             <label class="text-sm font-medium flex items-center gap-1.5">
               Profession
-              <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground cursor-help" title="The WoW profession this role covers. The bot will notify the mapped role when a crafting order for this profession is detected." />
+              <span title="The WoW profession this role covers. The bot will notify the mapped role when a crafting order for this profession is detected." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
             </label>
             <select
               v-model="newMappingProfessionId"
