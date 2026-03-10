@@ -108,7 +108,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     async def _autodeleter_loop(self):
         """
         Iterate enabled AutoDelete configurations, resolve their guilds and channels, and run per-channel cleanup.
-        
+
         Fetches all AutoDelete entries from the database, skips configurations that are disabled or whose guild/channel cannot be resolved, and invokes _cleanup_channel for each remaining configuration. If a Discord HTTP 429 (rate limit) is encountered while cleaning a channel, stops processing further channels for the current run. Per-channel exceptions are logged; an unexpected error during the overall loop is logged and reported via notify_error.
         """
         self.bot.log.debug("Start Autodeleter Loop!")
