@@ -63,7 +63,7 @@ async function fetchOrders() {
   ordersLoading.value = true;
   ordersError.value = null;
   try {
-    const params = statusFilter.value ? `?status_filter=${statusFilter.value}` : "";
+    const params = statusFilter.value ? `?order_status=${statusFilter.value}` : "";
     orders.value = await api.get<CraftingOrderSchema[]>(
       `/guilds/${props.guildId}/wow/crafting-orders${params}`,
     );

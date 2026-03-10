@@ -301,6 +301,9 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
         return True
 
     async def callback(self, interaction: Interaction):
+        not_open = False
+        embed = None
+        view = None
         with interaction.client.session_scope() as session:
             # Atomic update: only proceeds if status is still 'open', preventing
             # two crafters from both accepting the same order in a race.
@@ -314,12 +317,15 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
                 )
             ).rowcount
             if rowcount == 0:
-                await interaction.response.send_message(_ls(interaction, "accept.not_open"), ephemeral=True)
-                return
-            order = CraftingOrder.get_by_id(self.order_id, session)
-            lang = get_guild_language(interaction.guild_id, session)
-            embed = build_order_embed(order, interaction.guild, lang)
-            view = build_order_view(order.Id, "in_progress", lang)
+                not_open = True
+            else:
+                order = CraftingOrder.get_by_id(self.order_id, session)
+                lang = get_guild_language(interaction.guild_id, session)
+                embed = build_order_embed(order, interaction.guild, lang)
+                view = build_order_view(order.Id, "in_progress", lang)
+        if not_open:
+            await interaction.response.send_message(_ls(interaction, "accept.not_open"), ephemeral=True)
+            return
         await interaction.response.edit_message(embed=embed, view=view)
 
 

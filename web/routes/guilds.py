@@ -905,6 +905,8 @@ async def list_form_submissions(
     submissions = (
         session.query(ApplicationSubmission)
         .filter(ApplicationSubmission.FormId == form_id)
+        .options(joinedload(ApplicationSubmission.answers))
+        .options(selectinload(ApplicationSubmission.votes))
         .order_by(ApplicationSubmission.Id.desc())
         .all()
     )
@@ -986,7 +988,11 @@ async def create_application_template(
         DenialMessage=body.denial_message,
     )
     session.add(template)
-    session.flush()
+    try:
+        session.flush()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Template with this name already exists")
     for i, text in enumerate(body.question_texts, start=1):
         session.add(ApplicationTemplateQuestion(TemplateId=template.Id, QuestionText=text, SortOrder=i))
     session.flush()
@@ -1278,7 +1284,8 @@ async def get_wow_news_roster(
         try:
             known_ids, _last_count, _ = parse_known_mounts(e.KnownMountIds)
             mount_count = len(known_ids)
-        except Exception:
+        except (ValueError, TypeError) as exc:
+            _log.debug("Failed to parse mounts for %s/%s: %s", e.CharacterName, e.RealmSlug, exc)
             mount_count = 0
         result.append(
             WowCharacterMountSchema(
@@ -1296,7 +1303,7 @@ async def get_wow_news_roster(
 @router.get("/{guild_id}/wow/crafting-orders", response_model=list[CraftingOrderSchema])
 async def list_crafting_orders(
     guild_id: int,
-    status_filter: str | None = None,
+    order_status: str | None = None,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
     vk: ValkeyClient = Depends(get_valkey),
@@ -1305,8 +1312,8 @@ async def list_crafting_orders(
     from models.wow import CraftingOrder
 
     query = session.query(CraftingOrder).filter(CraftingOrder.GuildId == guild_id)
-    if status_filter:
-        query = query.filter(CraftingOrder.Status == status_filter)
+    if order_status:
+        query = query.filter(CraftingOrder.Status == order_status)
     orders = query.order_by(CraftingOrder.Id.desc()).all()
 
     # Lazy backfill: resolve display names for orders created before name persistence was added.
@@ -1400,7 +1407,11 @@ async def create_crafting_role_mapping(
         raise HTTPException(status_code=400, detail="Unknown profession")
     mapping = CraftingRoleMapping(GuildId=guild_id, RoleId=int(body.role_id), ProfessionId=body.profession_id)
     session.add(mapping)
-    session.flush()
+    try:
+        session.flush()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Role mapping already exists")
     return CraftingRoleMappingSchema(
         id=mapping.Id,
         role_id=str(mapping.RoleId),
