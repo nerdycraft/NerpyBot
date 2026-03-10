@@ -458,7 +458,6 @@ class NerpyBot(Bot):
         except Exception as e:
             self.log.error(f"Activity loop crashed: {e}")
 
-
     async def on_ready(self) -> None:
         """calls when successfully logged in"""
         from models.admin import PermissionSubscriber

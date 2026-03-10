@@ -521,13 +521,21 @@ async def create_reminder(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="schedule_time must be HH:MM")
 
     if body.schedule_type == "interval" and not body.interval_seconds:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="interval_seconds required for interval type")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="interval_seconds required for interval type"
+        )
     if body.schedule_type in ("daily", "weekly", "monthly") and schedule_time is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="schedule_time required for daily/weekly/monthly")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="schedule_time required for daily/weekly/monthly"
+        )
     if body.schedule_type == "weekly" and body.schedule_day_of_week is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="schedule_day_of_week required for weekly type")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="schedule_day_of_week required for weekly type"
+        )
     if body.schedule_type == "monthly" and body.schedule_day_of_month is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="schedule_day_of_month required for monthly type")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="schedule_day_of_month required for monthly type"
+        )
 
     next_fire = compute_next_fire(
         body.schedule_type,
@@ -614,7 +622,11 @@ def _submission_to_schema(s, question_texts: dict | None = None) -> ApplicationS
         answers=[
             ApplicationAnswerSchema(
                 question_id=a.QuestionId,
-                question_text=(question_texts.get(a.QuestionId, "") if question_texts is not None else (a.question.QuestionText if a.question else "")),
+                question_text=(
+                    question_texts.get(a.QuestionId, "")
+                    if question_texts is not None
+                    else (a.question.QuestionText if a.question else "")
+                ),
                 answer_text=a.AnswerText,
             )
             for a in s.answers
@@ -706,7 +718,11 @@ async def update_application_form(
     """Update an existing application form. Returns 404 if not found for this guild."""
     from models.application import ApplicationForm
 
-    form = session.query(ApplicationForm).filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id).first()
+    form = (
+        session.query(ApplicationForm)
+        .filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id)
+        .first()
+    )
     if form is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
     should_repost = False
@@ -747,7 +763,11 @@ async def delete_application_form(
     """Delete an application form and all its questions and submissions."""
     from models.application import ApplicationForm
 
-    form = session.query(ApplicationForm).filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id).first()
+    form = (
+        session.query(ApplicationForm)
+        .filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id)
+        .first()
+    )
     if form is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
     session.delete(form)
@@ -769,7 +789,11 @@ async def add_form_question(
     """Add a question to a form. Auto-assigns sort_order as max+1 if not provided."""
     from models.application import ApplicationForm, ApplicationQuestion
 
-    form = session.query(ApplicationForm).filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id).first()
+    form = (
+        session.query(ApplicationForm)
+        .filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id)
+        .first()
+    )
     if form is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
     if body.sort_order is None:
@@ -798,10 +822,18 @@ async def update_form_question(
     """Update a question's text or sort order."""
     from models.application import ApplicationForm, ApplicationQuestion
 
-    form = session.query(ApplicationForm).filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id).first()
+    form = (
+        session.query(ApplicationForm)
+        .filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id)
+        .first()
+    )
     if form is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
-    question = session.query(ApplicationQuestion).filter(ApplicationQuestion.Id == question_id, ApplicationQuestion.FormId == form_id).first()
+    question = (
+        session.query(ApplicationQuestion)
+        .filter(ApplicationQuestion.Id == question_id, ApplicationQuestion.FormId == form_id)
+        .first()
+    )
     if question is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
     if body.question_text is not None:
@@ -811,7 +843,9 @@ async def update_form_question(
     return ApplicationQuestionSchema(id=question.Id, question_text=question.QuestionText, sort_order=question.SortOrder)
 
 
-@router.delete("/{guild_id}/application-forms/{form_id}/questions/{question_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{guild_id}/application-forms/{form_id}/questions/{question_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def delete_form_question(
     guild_id: int,
     form_id: int,
@@ -822,10 +856,18 @@ async def delete_form_question(
     """Delete a question from a form."""
     from models.application import ApplicationForm, ApplicationQuestion
 
-    form = session.query(ApplicationForm).filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id).first()
+    form = (
+        session.query(ApplicationForm)
+        .filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id)
+        .first()
+    )
     if form is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
-    question = session.query(ApplicationQuestion).filter(ApplicationQuestion.Id == question_id, ApplicationQuestion.FormId == form_id).first()
+    question = (
+        session.query(ApplicationQuestion)
+        .filter(ApplicationQuestion.Id == question_id, ApplicationQuestion.FormId == form_id)
+        .first()
+    )
     if question is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
     session.delete(question)
@@ -842,10 +884,19 @@ async def list_form_submissions(
     """List all submissions for a specific form."""
     from models.application import ApplicationForm, ApplicationSubmission
 
-    form = session.query(ApplicationForm).filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id).first()
+    form = (
+        session.query(ApplicationForm)
+        .filter(ApplicationForm.Id == form_id, ApplicationForm.GuildId == guild_id)
+        .first()
+    )
     if form is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Form not found")
-    submissions = session.query(ApplicationSubmission).filter(ApplicationSubmission.FormId == form_id).order_by(ApplicationSubmission.Id.desc()).all()
+    submissions = (
+        session.query(ApplicationSubmission)
+        .filter(ApplicationSubmission.FormId == form_id)
+        .order_by(ApplicationSubmission.Id.desc())
+        .all()
+    )
     question_texts = {q.Id: q.QuestionText for q in form.questions}
     return [_submission_to_schema(s, question_texts) for s in submissions]
 
@@ -863,8 +914,10 @@ async def list_all_submissions(
     """List all submissions for a guild, optionally filtered by form."""
     from models.application import ApplicationAnswer, ApplicationSubmission
 
-    q = session.query(ApplicationSubmission).filter(ApplicationSubmission.GuildId == guild_id).options(
-        joinedload(ApplicationSubmission.answers).joinedload(ApplicationAnswer.question)
+    q = (
+        session.query(ApplicationSubmission)
+        .filter(ApplicationSubmission.GuildId == guild_id)
+        .options(joinedload(ApplicationSubmission.answers).joinedload(ApplicationAnswer.question))
     )
     if form_id is not None:
         q = q.filter(ApplicationSubmission.FormId == form_id)
@@ -901,7 +954,9 @@ async def list_application_templates(
     return [_template_to_schema(t) for t in ApplicationTemplate.get_available(guild_id, session)]
 
 
-@router.post("/{guild_id}/application-templates", status_code=status.HTTP_201_CREATED, response_model=ApplicationTemplateSchema)
+@router.post(
+    "/{guild_id}/application-templates", status_code=status.HTTP_201_CREATED, response_model=ApplicationTemplateSchema
+)
 async def create_application_template(
     guild_id: int,
     body: ApplicationTemplateCreate,
@@ -938,7 +993,11 @@ async def update_application_template(
     """Update a guild-specific template. Returns 403 for built-in templates."""
     from models.application import ApplicationTemplate
 
-    template = session.query(ApplicationTemplate).filter(ApplicationTemplate.Id == template_id, ApplicationTemplate.GuildId == guild_id).first()
+    template = (
+        session.query(ApplicationTemplate)
+        .filter(ApplicationTemplate.Id == template_id, ApplicationTemplate.GuildId == guild_id)
+        .first()
+    )
     if template is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
     if template.IsBuiltIn:
@@ -962,7 +1021,11 @@ async def delete_application_template(
     """Delete a guild-specific template. Returns 403 for built-in templates."""
     from models.application import ApplicationTemplate
 
-    template = session.query(ApplicationTemplate).filter(ApplicationTemplate.Id == template_id, ApplicationTemplate.GuildId == guild_id).first()
+    template = (
+        session.query(ApplicationTemplate)
+        .filter(ApplicationTemplate.Id == template_id, ApplicationTemplate.GuildId == guild_id)
+        .first()
+    )
     if template is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
     if template.IsBuiltIn:
@@ -986,16 +1049,24 @@ async def add_template_question(
     """Add a question to a guild template."""
     from models.application import ApplicationTemplate, ApplicationTemplateQuestion
 
-    template = session.query(ApplicationTemplate).filter(ApplicationTemplate.Id == template_id, ApplicationTemplate.GuildId == guild_id).first()
+    template = (
+        session.query(ApplicationTemplate)
+        .filter(ApplicationTemplate.Id == template_id, ApplicationTemplate.GuildId == guild_id)
+        .first()
+    )
     if template is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
     if template.IsBuiltIn:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Built-in templates cannot be modified")
     max_order = max((q.SortOrder for q in template.questions), default=0)
-    question = ApplicationTemplateQuestion(TemplateId=template_id, QuestionText=body.question_text, SortOrder=max_order + 1)
+    question = ApplicationTemplateQuestion(
+        TemplateId=template_id, QuestionText=body.question_text, SortOrder=max_order + 1
+    )
     session.add(question)
     session.flush()
-    return ApplicationTemplateQuestionSchema(id=question.Id, question_text=question.QuestionText, sort_order=question.SortOrder)
+    return ApplicationTemplateQuestionSchema(
+        id=question.Id, question_text=question.QuestionText, sort_order=question.SortOrder
+    )
 
 
 @router.delete(
@@ -1012,12 +1083,20 @@ async def delete_template_question(
     """Delete a question from a guild template."""
     from models.application import ApplicationTemplate, ApplicationTemplateQuestion
 
-    template = session.query(ApplicationTemplate).filter(ApplicationTemplate.Id == template_id, ApplicationTemplate.GuildId == guild_id).first()
+    template = (
+        session.query(ApplicationTemplate)
+        .filter(ApplicationTemplate.Id == template_id, ApplicationTemplate.GuildId == guild_id)
+        .first()
+    )
     if template is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
     if template.IsBuiltIn:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Built-in templates cannot be modified")
-    question = session.query(ApplicationTemplateQuestion).filter(ApplicationTemplateQuestion.Id == question_id, ApplicationTemplateQuestion.TemplateId == template_id).first()
+    question = (
+        session.query(ApplicationTemplateQuestion)
+        .filter(ApplicationTemplateQuestion.Id == question_id, ApplicationTemplateQuestion.TemplateId == template_id)
+        .first()
+    )
     if question is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
     session.delete(question)
@@ -1070,7 +1149,9 @@ async def get_wow_config(
 
     crafting_boards = []
     if crafting:
-        crafting_boards = [CraftingBoardSchema(id=crafting.Id, channel_id=str(crafting.ChannelId), description=crafting.Description)]
+        crafting_boards = [
+            CraftingBoardSchema(id=crafting.Id, channel_id=str(crafting.ChannelId), description=crafting.Description)
+        ]
 
     return {
         "guild_news": [_wow_news_to_schema(n, counts.get(n.Id, 0)) for n in news_configs],
@@ -1138,9 +1219,7 @@ async def update_wow_news_config(
         cfg.Enabled = body.enabled
 
     count = (
-        session.query(func.count(WowCharacterMounts.Id))
-        .filter(WowCharacterMounts.ConfigId == config_id)
-        .scalar()
+        session.query(func.count(WowCharacterMounts.Id)).filter(WowCharacterMounts.ConfigId == config_id).scalar()
     ) or 0
 
     return _wow_news_to_schema(cfg, count)
@@ -1227,7 +1306,9 @@ async def list_crafting_orders(
         if o.CrafterName is None and o.CrafterId:
             null_ids.add(o.CrafterId)
     if null_ids:
-        resolved = await vk.send_bot_command("get_member_names", {"guild_id": guild_id, "user_ids": list(null_ids)}) or {}
+        resolved = (
+            await vk.send_bot_command("get_member_names", {"guild_id": guild_id, "user_ids": list(null_ids)}) or {}
+        )
         if resolved:
             for o in orders:
                 if o.CreatorName is None and o.CreatorId and str(o.CreatorId) in resolved:
@@ -1254,10 +1335,12 @@ async def list_crafting_orders(
 
 # ── Crafting Role Mappings ──
 
+
 # Inverted CRAFTING_PROFESSIONS: maps profession_id -> name. Computed once at import time.
 def _get_profession_name_by_id() -> dict:
     try:
         from utils.blizzard import CRAFTING_PROFESSIONS
+
         return {v: k for k, v in CRAFTING_PROFESSIONS.items()}
     except Exception:
         _log.warning("Could not load CRAFTING_PROFESSIONS — crafting role mapping routes will be non-functional")
@@ -1326,9 +1409,11 @@ async def update_crafting_role_mapping(
 
     if body.profession_id not in _PROFESSION_NAME_BY_ID:
         raise HTTPException(status_code=400, detail="Unknown profession")
-    mapping = session.query(CraftingRoleMapping).filter(
-        CraftingRoleMapping.Id == mapping_id, CraftingRoleMapping.GuildId == guild_id
-    ).first()
+    mapping = (
+        session.query(CraftingRoleMapping)
+        .filter(CraftingRoleMapping.Id == mapping_id, CraftingRoleMapping.GuildId == guild_id)
+        .first()
+    )
     if mapping is None:
         raise HTTPException(status_code=404, detail="Mapping not found")
     mapping.ProfessionId = body.profession_id
@@ -1351,9 +1436,11 @@ async def delete_crafting_role_mapping(
     """Remove a role → profession mapping."""
     from models.wow import CraftingRoleMapping
 
-    mapping = session.query(CraftingRoleMapping).filter(
-        CraftingRoleMapping.Id == mapping_id, CraftingRoleMapping.GuildId == guild_id
-    ).first()
+    mapping = (
+        session.query(CraftingRoleMapping)
+        .filter(CraftingRoleMapping.Id == mapping_id, CraftingRoleMapping.GuildId == guild_id)
+        .first()
+    )
     if mapping is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mapping not found")
     session.delete(mapping)

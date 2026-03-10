@@ -1,4 +1,5 @@
 """Tests that FastAPI serves the SPA index.html for non-API routes."""
+
 from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
@@ -18,10 +19,12 @@ def spa_client(tmp_path):
     from web.app import create_app
     from web.cache import ValkeyClient
 
-    cfg = WebConfig._build({
-        "bot": {"client_id": "123", "ops": "456"},
-        "web": {"client_secret": "s", "jwt_secret": "j"},
-    })
+    cfg = WebConfig._build(
+        {
+            "bot": {"client_id": "123", "ops": "456"},
+            "web": {"client_secret": "s", "jwt_secret": "j"},
+        }
+    )
     vk = MagicMock(spec=ValkeyClient)
     app = create_app(config=cfg, valkey_client=vk, spa_dist=dist)
     return TestClient(app, raise_server_exceptions=True)
@@ -64,10 +67,12 @@ def test_root_static_file_served(tmp_path):
     from web.app import create_app
     from web.cache import ValkeyClient
 
-    cfg = WebConfig._build({
-        "bot": {"client_id": "123", "ops": "456"},
-        "web": {"client_secret": "s", "jwt_secret": "j"},
-    })
+    cfg = WebConfig._build(
+        {
+            "bot": {"client_id": "123", "ops": "456"},
+            "web": {"client_secret": "s", "jwt_secret": "j"},
+        }
+    )
     vk = MagicMock(spec=ValkeyClient)
     app = create_app(config=cfg, valkey_client=vk, spa_dist=dist)
     client = TestClient(app, raise_server_exceptions=True)

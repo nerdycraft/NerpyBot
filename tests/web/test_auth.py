@@ -22,7 +22,9 @@ class TestAuthCallback:
     @patch("web.routes.auth.exchange_code")
     @patch("web.routes.auth.fetch_discord_user")
     @patch("web.routes.auth.fetch_user_guilds")
-    def test_callback_redirects_to_frontend_with_token(self, mock_guilds, mock_user, mock_exchange, client, fake_valkey):
+    def test_callback_redirects_to_frontend_with_token(
+        self, mock_guilds, mock_user, mock_exchange, client, fake_valkey
+    ):
         """Callback should redirect with JWT in URL fragment (#token=<jwt>) on success."""
         mock_exchange.return_value = {"access_token": "discord_tok", "expires_in": 604800}
         mock_user.return_value = {"id": "999", "username": "TestUser", "discriminator": "0"}

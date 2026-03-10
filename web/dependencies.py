@@ -101,9 +101,7 @@ async def require_guild_access(
         # Try to refresh from Discord using the cached OAuth token
         discord_token = vk.get_discord_token(user["sub"])
         if discord_token is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Session expired — please re-login"
-            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Session expired — please re-login")
         try:
             import httpx
 
