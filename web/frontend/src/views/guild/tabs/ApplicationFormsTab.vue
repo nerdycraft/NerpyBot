@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
@@ -27,11 +27,16 @@ const newQuestionText = ref<Record<number, string>>({});
 const saving = ref(false);
 const opError = ref<string | null>(null);
 const questionSavedFormId = ref<number | null>(null);
+let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
 function flashQuestionSaved(formId: number) {
   questionSavedFormId.value = formId;
-  setTimeout(() => { questionSavedFormId.value = null; }, 1800);
+  flashTimer = setTimeout(() => { questionSavedFormId.value = null; }, 1800);
 }
+
+onUnmounted(() => {
+  if (flashTimer !== null) clearTimeout(flashTimer);
+});
 
 function blankForm() {
   return {

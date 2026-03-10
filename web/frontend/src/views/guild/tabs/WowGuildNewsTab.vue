@@ -170,7 +170,6 @@ async function submitAdd() {
   addSaving.value = true;
   try {
     // Validate guild existence first
-    let validationOk = true;
     try {
       const validation = await api.get<GuildValidateResult>(
         `/wow/guilds/validate?region=${newConfig.value.region}&realm=${newConfig.value.wow_realm_slug}&name=${encodeURIComponent(newConfig.value.wow_guild_name_input)}`,
@@ -180,17 +179,14 @@ async function submitAdd() {
         return;
       }
     } catch (e: unknown) {
-      // 503 = bot offline
+      // 503 = bot offline; set warning and bail so user can "Save anyway"
       const status = (e as { status?: number })?.status;
       if (status === 503) {
         validateWarning.value = "Cannot verify guild (bot offline). Save anyway?";
-        validationOk = false;
-      } else {
-        // Other errors — still proceed
+        return;
       }
+      // Other errors — still proceed
     }
-
-    if (!validationOk) return;
 
     await doCreate();
   } finally {

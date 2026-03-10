@@ -39,7 +39,7 @@ function iconUrl(guild: GuildSummary): string | null {
             ? 'bg-primary/5 border-primary cursor-default'
             : 'bg-card hover:bg-muted border-border hover:border-primary',
         ]"
-        @click="guild.id !== guildStore.current?.id && router.push(`/guilds/${guild.id}`)"
+        @click="router.push(`/guilds/${guild.id}`)"
       >
         <img
           v-if="iconUrl(guild)"

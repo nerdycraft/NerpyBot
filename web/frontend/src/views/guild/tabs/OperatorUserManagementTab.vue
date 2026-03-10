@@ -89,9 +89,9 @@ function formatDate(iso: string) {
     <div class="flex gap-2 items-end">
       <div class="flex flex-col gap-1">
         <label class="text-xs text-muted-foreground flex items-center gap-1">
-            Discord User ID
-            <span title="The 18-digit Discord snowflake ID of the user to grant access to. You can find this by enabling Developer Mode in Discord and right-clicking the user." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
-          </label>
+          Discord User ID
+          <span title="The 18-digit Discord snowflake ID of the user to grant access to. You can find this by enabling Developer Mode in Discord and right-clicking the user." class="cursor-help inline-flex"><Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-muted-foreground" /></span>
+        </label>
         <input
           v-model="newUserId"
           placeholder="e.g. 123456789012345678"
