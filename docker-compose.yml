@@ -79,6 +79,8 @@ services:
     depends_on:
       nerpybot-migrations:
         condition: service_completed_successfully
+      nerpybot:
+        condition: service_started
       valkey:
         condition: service_healthy
       # postgres:
