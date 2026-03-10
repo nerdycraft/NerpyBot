@@ -14,6 +14,7 @@ const success = ref(false);
 const mounted = ref(false);
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+let _clearSuccessTimer: ReturnType<typeof setTimeout> | null = null;
 
 watch(config, () => {
   if (!mounted.value || !config.value || saving.value) return;
@@ -23,6 +24,7 @@ watch(config, () => {
 
 onUnmounted(() => {
   if (_saveTimer) clearTimeout(_saveTimer);
+  if (_clearSuccessTimer) clearTimeout(_clearSuccessTimer);
 });
 
 onMounted(async () => {
@@ -49,7 +51,8 @@ async function autoSave() {
       enabled: config.value.enabled,
     });
     success.value = true;
-    setTimeout(() => (success.value = false), 2000);
+    if (_clearSuccessTimer) clearTimeout(_clearSuccessTimer);
+    _clearSuccessTimer = setTimeout(() => (success.value = false), 2000);
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : "Failed to save";
   } finally {
