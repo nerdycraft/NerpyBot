@@ -10,6 +10,10 @@ import type { ApplicationFormSchema, ApplicationSubmissionSchema } from "@/api/t
 const props = defineProps<{ guildId: string }>();
 const route = useRoute();
 
+function toQueryScalar(v: string | string[] | null | undefined): string | null | undefined {
+  return Array.isArray(v) ? v[0] : v;
+}
+
 const forms = ref<ApplicationFormSchema[]>([]);
 const submissions = ref<ApplicationSubmissionSchema[]>([]);
 const loading = ref(true);
@@ -55,7 +59,7 @@ const approvers = computed(() => selected.value?.votes.filter((v) => v.vote === 
 const deniers = computed(() => selected.value?.votes.filter((v) => v.vote === "deny") ?? []);
 
 onMounted(async () => {
-  const rawFormId = Array.isArray(route.query.formId) ? route.query.formId[0] : route.query.formId;
+  const rawFormId = toQueryScalar(route.query.formId);
   const preselected = rawFormId ? Number(rawFormId) : null;
   try {
     const subUrl = preselected !== null
@@ -78,7 +82,7 @@ onMounted(async () => {
 
 // Re-filter when navigating here from "View Submissions" while the tab is already mounted
 watch(() => route.query.formId, (newId) => {
-  const id = Array.isArray(newId) ? newId[0] : newId;
+  const id = toQueryScalar(newId);
   if (id) void applyFormFilter(Number(id));
 });
 

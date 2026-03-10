@@ -6,7 +6,7 @@ import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from web.cache import ValkeyClient
 from web.dependencies import get_db_session, get_valkey, require_guild_access, require_premium
@@ -929,7 +929,7 @@ async def list_all_submissions(
         session.query(ApplicationSubmission)
         .filter(ApplicationSubmission.GuildId == guild_id)
         .options(joinedload(ApplicationSubmission.answers).joinedload(ApplicationAnswer.question))
-        .options(joinedload(ApplicationSubmission.votes))
+        .options(selectinload(ApplicationSubmission.votes))
     )
     if form_id is not None:
         q = q.filter(ApplicationSubmission.FormId == form_id)
