@@ -40,12 +40,6 @@ test = [
     "pre-commit",
     "ruff==0.15.5",
 ]
-migrations = [
-    "alembic",
-    "SQLAlchemy",
-    "psycopg[binary]",
-    "pyyaml",
-]
 web = [
     "fastapi",
     "uvicorn[standard]",

@@ -1060,6 +1060,7 @@ source = { editable = "." }
 [package.dev-dependencies]
 bot = [
     { name = "aiohttp" },
+    { name = "alembic" },
     { name = "blizzapi" },
     { name = "cachetools" },
     { name = "discord-py", extra = ["voice"] },
@@ -1074,12 +1075,6 @@ bot = [
     { name = "typer" },
     { name = "valkey" },
     { name = "yt-dlp" },
-]
-migrations = [
-    { name = "alembic" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "pyyaml" },
-    { name = "sqlalchemy" },
 ]
 test = [
     { name = "pre-commit" },
@@ -1102,6 +1097,7 @@ web = [
 [package.metadata.requires-dev]
 bot = [
     { name = "aiohttp" },
+    { name = "alembic" },
     { name = "blizzapi" },
     { name = "cachetools" },
     { name = "discord-py", extras = ["voice"], specifier = "==2.7.1" },
@@ -1116,12 +1112,6 @@ bot = [
     { name = "typer" },
     { name = "valkey" },
     { name = "yt-dlp" },
-]
-migrations = [
-    { name = "alembic" },
-    { name = "psycopg", extras = ["binary"] },
-    { name = "pyyaml" },
-    { name = "sqlalchemy" },
 ]
 test = [
     { name = "pre-commit" },
