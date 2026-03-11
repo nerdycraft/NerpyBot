@@ -34,3 +34,31 @@ def test_run_migrations_propagates_exceptions():
 
         with pytest.raises(RuntimeError, match="DB unreachable"):
             run_migrations()
+
+
+@pytest.mark.asyncio
+async def test_on_ready_writes_sentinel(tmp_path):
+    """on_ready() must write the readiness sentinel file."""
+    sentinel = tmp_path / "nerpybot_ready"
+
+    # Call on_ready as an unbound method, passing a heavily mocked 'self'.
+    # MagicMock handles all attribute access (session_scope, guilds, config, etc.)
+    # transparently. We only need to assert the sentinel was written.
+    mock_self = MagicMock()
+    mock_self.guilds = []
+    mock_self.modules = []
+    mock_self.config = {}
+    mock_self.log = MagicMock()
+    # Prevent on_ready from trying to create asyncio tasks (needs a running loop)
+    mock_self._activity_task.done.return_value = False
+    mock_self._valkey_task.done.return_value = False
+    # session_scope must be a context manager
+    mock_self.session_scope.return_value.__enter__ = MagicMock(return_value=MagicMock())
+    mock_self.session_scope.return_value.__exit__ = MagicMock(return_value=False)
+
+    with patch("NerdyPy.bot.SENTINEL_PATH", sentinel):
+        from NerdyPy.bot import NerpyBot
+
+        await NerpyBot.on_ready(mock_self)
+
+    assert sentinel.exists(), "on_ready must write /tmp/nerpybot_ready"

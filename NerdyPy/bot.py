@@ -53,6 +53,8 @@ from utils.helpers import error_context, notify_error, parse_id
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 from utils.strings import get_localized_string, get_string, load_strings
 
+SENTINEL_PATH = Path("/tmp/nerpybot_ready")
+
 ACTIVITIES = [
     "💡 Use / for commands",
     "🤓 Now even more Nerdy!",
@@ -507,6 +509,9 @@ class NerpyBot(Bot):
                         await user.send(embed=emb)
                     except Exception as ex:
                         self.log.debug(f"Could not DM permission alert to {sub.UserId}: {ex}")
+
+        SENTINEL_PATH.touch()
+        self.log.info("Readiness sentinel written — healthcheck will pass.")
 
     # noinspection PyUnusedLocal
     async def on_app_command_completion(self, interaction: Interaction, command: app_commands.Command) -> None:
