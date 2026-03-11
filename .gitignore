@@ -16,6 +16,7 @@ NerpyBot.code-workspace
 config/*.yaml
 !config/*.yaml.example
 docs/plans/
+docs/superpowers/
 
 ### macOS template
 # General
