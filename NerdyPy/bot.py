@@ -16,8 +16,8 @@ from typing import Annotated, Any, Generator, Optional
 from warnings import filterwarnings
 
 import typer
-from importlib.metadata import version as pkg_version
 import yaml
+from importlib.metadata import version as pkg_version
 from discord import (
     ClientException,
     DMChannel,
@@ -37,6 +37,8 @@ from discord.ext.commands import (
     Context,
     ExtensionFailed,
 )
+from alembic.config import Config
+import alembic.command as alembic_command
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
@@ -70,6 +72,17 @@ ACTIVITIES = [
 
 # "Use / for commands" entries get 3× higher chance than flavor entries
 ACTIVITY_WEIGHTS = [3 if "/" in a else 1 for a in ACTIVITIES]
+
+
+def run_migrations() -> None:
+    """Apply all pending Alembic migrations before the bot connects.
+
+    Locates alembic.ini relative to this file, so it works both in the
+    repo and in Docker. Raises on failure — callers must not catch it.
+    """
+    alembic_ini = Path(__file__).resolve().parent / "alembic.ini"
+    alembic_cfg = Config(str(alembic_ini))
+    alembic_command.upgrade(alembic_cfg, "head")
 
 
 def handle_valkey_command(bot, command: str, payload: dict) -> dict:
@@ -752,6 +765,7 @@ def main(
         resolved_loglevel = "DEBUG" if (debug or verbosity > 0) else effective_loglevel
         for logger_name in loggers:
             logging.create_logger(resolved_loglevel, logger_name)
+        run_migrations()
         bot = NerpyBot(resolved_config, intents, is_debug)
 
         while True:
