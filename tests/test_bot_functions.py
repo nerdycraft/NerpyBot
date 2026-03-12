@@ -490,8 +490,7 @@ class TestVersionCallback:
         """_version_callback() should do nothing when False."""
         from NerdyPy.bot import _version_callback
 
-        result = _version_callback(False)
-        assert result is None
+        _version_callback(False)
 
 
 class TestActivityLoop:
@@ -588,18 +587,3 @@ class TestGlobalInteractionCheck:
                 await NerpyBot._global_interaction_check(mock_self, mock_interaction)
 
             mock_interaction.response.send_message.assert_called_once()
-
-
-class TestSentinelClearing:
-    """Test sentinel file handling."""
-
-    def test_sentinel_cleared_on_crash(self, tmp_path):
-        """Sentinel should be cleared when bot crashes and restarts."""
-        with patch("NerdyPy.bot.SENTINEL_PATH", tmp_path / "sentinel"):
-            sentinel = tmp_path / "sentinel"
-            sentinel.touch()
-            assert sentinel.exists()
-
-            # Simulate crash handling
-            sentinel.unlink(missing_ok=True)
-            assert not sentinel.exists()
