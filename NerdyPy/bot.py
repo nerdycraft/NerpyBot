@@ -5,6 +5,8 @@ Main Class of the NerpyBot
 
 import json
 import os
+import tempfile
+import time
 from asyncio import CancelledError, create_task, run, run_coroutine_threadsafe, sleep, to_thread
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -53,7 +55,7 @@ from utils.helpers import error_context, notify_error, parse_id
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 from utils.strings import get_localized_string, get_string, load_strings
 
-SENTINEL_PATH = Path("/tmp/nerpybot_ready")
+SENTINEL_PATH = Path(tempfile.gettempdir()) / "nerpybot_ready"
 
 ACTIVITIES = [
     "💡 Use / for commands",
@@ -77,13 +79,20 @@ ACTIVITY_WEIGHTS = [3 if "/" in a else 1 for a in ACTIVITIES]
 
 
 def run_migrations() -> None:
+    """Apply all pending Alembic migrations before the bot connects.
+
+    Searches upward from this file's directory for alembic.ini, so it works
+    both in the repo (alembic.ini at root) and in Docker. Raises on failure —
+    callers must not catch it.
     """
-    Apply all pending Alembic migrations.
-    
-    Locates `alembic.ini` adjacent to this module and upgrades the database to the latest revision (`head`). Raises an exception if migration fails.
-    """
-    alembic_ini = Path(__file__).resolve().parent / "alembic.ini"
-    alembic_cfg = Config(alembic_ini)
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "alembic.ini"
+        if candidate.exists():
+            alembic_ini = candidate
+            break
+    else:
+        raise FileNotFoundError("alembic.ini not found in any parent directory of bot.py")
+    alembic_cfg = Config(str(alembic_ini))
     alembic_command.upgrade(alembic_cfg, "head")
 
 
@@ -831,7 +840,7 @@ def main(
                 bot.log.error(f"Crashed: {e}")
                 bot.log.warning("Restarting in 5s...")
                 SENTINEL_PATH.unlink(missing_ok=True)
-                sleep(5)
+                time.sleep(5)
     else:
         raise NerpyInfraException("Bot config not found.")
 
