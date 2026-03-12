@@ -178,3 +178,36 @@ class TestParseConfig:
         monkeypatch.delenv("NERPYBOT_TOKEN", raising=False)
         result = parse_config(tmp_path / "nonexistent.yaml")
         assert result == {}
+
+    def test_deep_nested_env_override(self, tmp_path, monkeypatch):
+        """Env vars should override deeply nested YAML values."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            "wow:\n"
+            "  wow_id: yaml_id\n"
+            "  guild_news:\n"
+            "    track_mounts: true\n"
+            "    poll_interval_minutes: 60\n"
+        )
+        monkeypatch.setenv("NERPYBOT_WOW_CLIENT_ID", "env_id")
+        monkeypatch.setenv("NERPYBOT_WOW_TRACK_MOUNTS", "false")
+        result = parse_config(config_file)
+        assert result["wow"]["wow_id"] == "env_id"
+        assert result["wow"]["guild_news"]["track_mounts"] is False
+        assert result["wow"]["guild_news"]["poll_interval_minutes"] == 60  # preserved from YAML
+
+    def test_malformed_yaml_returns_env_only(self, tmp_path, monkeypatch):
+        """Malformed YAML should be handled gracefully."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("bot:\n  token: 'unclosed string\n")
+        monkeypatch.setenv("NERPYBOT_TOKEN", "env_token")
+        result = parse_config(config_file)
+        # Should fall back to env config only
+        assert result["bot"]["token"] == "env_token"
+
+    def test_default_path_when_none_provided(self, tmp_path, monkeypatch):
+        """parse_config should use ./config.yaml when no path provided."""
+        monkeypatch.setenv("NERPYBOT_TOKEN", "env_token")
+        # Can't easily test the actual file path logic, but verify it doesn't crash
+        result = parse_config()
+        assert result["bot"]["token"] == "env_token"

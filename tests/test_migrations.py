@@ -62,3 +62,45 @@ async def test_on_ready_writes_sentinel(tmp_path):
         await NerpyBot.on_ready(mock_self)
 
     assert sentinel.exists(), "on_ready must write /tmp/nerpybot_ready"
+
+
+def test_run_migrations_locates_alembic_ini():
+    """run_migrations() should locate alembic.ini relative to bot.py."""
+    with (
+        patch("NerdyPy.bot.Config") as mock_cfg_cls,
+        patch("NerdyPy.bot.alembic_command") as mock_cmd,
+    ):
+        run_migrations()
+
+        # Verify the alembic.ini path is constructed correctly
+        called_path = mock_cfg_cls.call_args[0][0]
+        assert called_path.name == "alembic.ini"
+        assert called_path.is_absolute()
+
+
+def test_run_migrations_upgrades_to_head():
+    """run_migrations() should always upgrade to 'head' revision."""
+    mock_config = MagicMock()
+
+    with (
+        patch("NerdyPy.bot.Config", return_value=mock_config),
+        patch("NerdyPy.bot.alembic_command") as mock_cmd,
+    ):
+        run_migrations()
+
+        # Second argument should be "head"
+        assert mock_cmd.upgrade.call_args[0][1] == "head"
+
+
+def test_run_migrations_with_different_db_errors():
+    """run_migrations() should propagate various database errors."""
+    from sqlalchemy.exc import OperationalError
+
+    with (
+        patch("NerdyPy.bot.Config"),
+        patch("NerdyPy.bot.alembic_command") as mock_cmd,
+    ):
+        mock_cmd.upgrade.side_effect = OperationalError("Connection failed", None, None)
+
+        with pytest.raises(OperationalError, match="Connection failed"):
+            run_migrations()
