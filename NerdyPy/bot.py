@@ -83,7 +83,7 @@ def run_migrations() -> None:
     repo and in Docker. Raises on failure — callers must not catch it.
     """
     alembic_ini = Path(__file__).resolve().parent / "alembic.ini"
-    alembic_cfg = Config(str(alembic_ini))
+    alembic_cfg = Config(alembic_ini)
     alembic_command.upgrade(alembic_cfg, "head")
 
 
@@ -787,6 +787,7 @@ def main(
             except Exception as e:
                 bot.log.error(f"Crashed: {e}")
                 bot.log.warning("Restarting in 5s...")
+                SENTINEL_PATH.unlink(missing_ok=True)
                 sleep(5)
     else:
         raise NerpyInfraException("Bot config not found.")

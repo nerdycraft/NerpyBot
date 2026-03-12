@@ -17,9 +17,9 @@ def test_run_migrations_calls_alembic_upgrade():
     ):
         run_migrations()
 
-        # Config constructed with a path ending in alembic.ini
+        # Config constructed with a Path pointing to alembic.ini
         called_path = mock_cfg_cls.call_args[0][0]
-        assert called_path.endswith("alembic.ini")
+        assert called_path.name == "alembic.ini"
         # upgrade("head") was called with the config object
         mock_cmd.upgrade.assert_called_once_with(mock_config, "head")
 
