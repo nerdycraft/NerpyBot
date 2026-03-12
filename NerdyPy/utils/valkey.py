@@ -157,7 +157,7 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
     elif command == "validate_wow_guild":
         region = payload.get("region", "eu").lower()
         realm_slug = payload.get("realm_slug", "").lower().strip()
-        guild_name = payload.get("guild_name", "").lower().replace(" ", "-").strip()
+        guild_name = payload.get("guild_name", "").strip().lower().replace(" ", "-")
         if not realm_slug or not guild_name:
             return {"valid": False, "display_name": None}
         wow_cog = bot.cogs.get("WorldofWarcraft")
