@@ -124,7 +124,14 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             return {"error": "form_id required"}
         from modules.views.application import post_apply_button_message
 
-        run_coroutine_threadsafe(post_apply_button_message(bot, form_id), bot.loop)
+        future = run_coroutine_threadsafe(post_apply_button_message(bot, form_id), bot.loop)
+
+        def _log_exc(f):
+            exc = f.exception()
+            if exc:
+                bot.log.error("post_apply_button_message failed for form_id=%s: %s", form_id, exc)
+
+        future.add_done_callback(_log_exc)
         return {"queued": True}
     elif command == "search_realms":
         region = payload.get("region", "eu").lower()

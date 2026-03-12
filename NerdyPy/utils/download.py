@@ -67,10 +67,21 @@ def convert(source, tag=False, is_stream=True):
             "48000",
             "pipe:",
         ]
-        with subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as process:
-            stream, _ = process.communicate(input=source.read())
+        try:
+            with subprocess.Popen(
+                cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            ) as process:
+                try:
+                    stream, stderr_out = process.communicate(input=source.read(), timeout=30)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+                    raise NerpyValidationError("ffmpeg conversion timed out")
+        except FileNotFoundError:
+            raise NerpyValidationError("ffmpeg is not installed or not found in PATH")
         if process.returncode != 0:
-            raise NerpyValidationError(f"ffmpeg conversion failed (exit {process.returncode})")
+            detail = stderr_out.decode(errors="replace").strip()
+            raise NerpyValidationError(f"ffmpeg conversion failed (exit {process.returncode}): {detail}")
         return stream
     else:
         return FFmpegOpusAudio(source, **FFMPEG_OPTIONS, pipe=is_stream)

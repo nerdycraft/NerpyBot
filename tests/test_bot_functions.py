@@ -27,7 +27,7 @@ def _mock_session_scope(mock_self) -> None:
 
 
 class TestHelperFunctions:
-    """Test helper functions in bot.py."""
+    """Test helper functions in utils/config.py."""
 
     def test_csv_splits_comma_separated_values(self):
         """_csv() should split comma-separated string into list."""

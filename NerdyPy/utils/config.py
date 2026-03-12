@@ -5,11 +5,14 @@ Merges a YAML config file with ``NERPYBOT_*`` environment variables.
 Environment variables take priority over the file when both are present.
 """
 
+import logging
 import os
 from pathlib import Path
 from typing import Optional
 
 import yaml
+
+_LOG = logging.getLogger(__name__)
 
 
 def _csv(value: str) -> list[str]:
@@ -80,5 +83,5 @@ def parse_config(config_path: Optional[Path] = None) -> dict:
             try:
                 config = yaml.safe_load(stream) or {}
             except yaml.YAMLError as exc:
-                print(f"Error in configuration file: {exc}")
+                _LOG.error("Error in configuration file: %s", exc)
     return deep_merge(config, parse_env_config())
