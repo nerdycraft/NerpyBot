@@ -4,11 +4,11 @@ download and conversion method for Audio Content
 """
 
 import logging
+import subprocess
 import tempfile
 from io import BytesIO
 from pathlib import Path
 
-import ffmpeg
 import requests
 from cachetools import TTLCache
 from discord import FFmpegOpusAudio
@@ -50,13 +50,27 @@ def convert(source, tag=False, is_stream=True):
     """Convert downloaded file to playable ByteStream"""
     LOG.info("Converting File...")
     if tag:
-        process = (
-            ffmpeg.input("pipe:")
-            .filter("loudnorm")
-            .output(filename="pipe:", format="mp3", ac=2, ar="48000")
-            .run_async(pipe_stdin=True, pipe_stdout=True, quiet=True, overwrite_output=True)
-        )
-        stream, _ = process.communicate(input=source.read())
+        cmd = [
+            "ffmpeg",
+            "-loglevel",
+            "quiet",
+            "-y",
+            "-i",
+            "pipe:",
+            "-af",
+            "loudnorm",
+            "-f",
+            "mp3",
+            "-ac",
+            "2",
+            "-ar",
+            "48000",
+            "pipe:",
+        ]
+        with subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as process:
+            stream, _ = process.communicate(input=source.read())
+        if process.returncode != 0:
+            raise NerpyValidationError(f"ffmpeg conversion failed (exit {process.returncode})")
         return stream
     else:
         return FFmpegOpusAudio(source, **FFMPEG_OPTIONS, pipe=is_stream)

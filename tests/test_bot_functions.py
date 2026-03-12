@@ -4,7 +4,9 @@ from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytest
 
-from NerdyPy.bot import get_intents, _csv, _to_bool, _set_nested, _valkey_listener_loop
+from NerdyPy.bot import get_intents
+from NerdyPy.utils.config import _csv, _to_bool, _set_nested
+from NerdyPy.utils.valkey import valkey_listener_loop as _valkey_listener_loop
 
 
 @pytest.fixture(autouse=True)
@@ -419,7 +421,7 @@ class TestValkeyListenerLoop:
         mock_client.close = MagicMock()
 
         with (
-            patch("NerdyPy.bot.to_thread", new_callable=AsyncMock),
+            patch("NerdyPy.utils.valkey.to_thread", new_callable=AsyncMock),
         ):
             import valkey as valkey_lib
 
@@ -443,7 +445,7 @@ class TestValkeyListenerLoop:
         mock_client.pubsub = MagicMock(return_value=mock_pubsub)
         mock_client.close = MagicMock()
 
-        with patch("NerdyPy.bot.to_thread", new_callable=AsyncMock):
+        with patch("NerdyPy.utils.valkey.to_thread", new_callable=AsyncMock):
             import valkey as valkey_lib
 
             with patch.object(valkey_lib, "from_url", return_value=mock_client):
@@ -457,7 +459,7 @@ class TestValkeyListenerLoop:
         mock_bot.log = MagicMock()
 
         with (
-            patch("NerdyPy.bot.to_thread", new_callable=AsyncMock, side_effect=Exception("Connection failed")),
+            patch("NerdyPy.utils.valkey.to_thread", new_callable=AsyncMock, side_effect=Exception("Connection failed")),
         ):
             import valkey as valkey_lib
 

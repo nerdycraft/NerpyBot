@@ -3,10 +3,8 @@
 Main Class of the NerpyBot
 """
 
-import json
-import os
 import time
-from asyncio import CancelledError, create_task, run, run_coroutine_threadsafe, sleep, to_thread
+from asyncio import CancelledError, create_task, run, sleep
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -17,7 +15,6 @@ from typing import Annotated, Any, Generator, Optional
 from warnings import filterwarnings
 
 import typer
-import yaml
 from importlib.metadata import version as pkg_version
 from discord import (
     ClientException,
@@ -47,6 +44,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from models.admin import BotGuild
 from utils import logging
 from utils.audio import Audio
+from utils.config import parse_config
 from utils.conversation import AnswerType, ConversationManager
 from utils.database import BASE
 from utils.error_throttle import ErrorThrottle
@@ -54,6 +52,7 @@ from utils.errors import NerpyException, NerpyInfraException, SilentCheckFailure
 from utils.helpers import error_context, notify_error, parse_id
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 from utils.strings import get_localized_string, get_string, load_strings
+from utils.valkey import valkey_listener_loop
 
 SENTINEL_PATH = Path("/tmp/nerpybot_ready")
 
@@ -94,198 +93,6 @@ def run_migrations() -> None:
         raise FileNotFoundError("alembic.ini not found in any parent directory of bot.py")
     alembic_cfg = Config(str(alembic_ini))
     alembic_command.upgrade(alembic_cfg, "head")
-
-
-def handle_valkey_command(bot, command: str, payload: dict) -> dict:
-    """
-    Dispatches Valkey pub/sub commands from the web dashboard and returns a command-specific response dictionary.
-
-    Parameters:
-        bot: The running NerpyBot instance handling commands.
-        command (str): The Valkey command name to execute (e.g., "health", "list_modules", "module_load").
-        payload (dict): Command parameters; contents vary by command.
-
-    Returns:
-        dict: A command-specific response. Examples include:
-            - health: {"guild_count", "voice_connections", "latency_ms", "uptime_seconds", "python_version", "discord_py_version", "bot_version"}
-            - list_modules: {"modules": [{"name", "loaded"}, ...]}
-            - module_load/module_unload: {"success": True} or {"success": False, "error": "..."}
-            - get_channels: {"channels": [{"id", "name", "type"}, ...]}
-            - get_roles: {"roles": [{"id", "name"}, ...]}
-            - get_member_names: mapping of user ID strings to display names
-            - post_apply_button: {"queued": True} or {"error": "..."}
-            - search_realms: {"realms": [{"name", "slug"}, ...]} or {"error": "..."}
-            - validate_wow_guild: {"valid": bool, "display_name": str or None} and optionally {"error": "..."}
-            - unknown commands: {"error": "Unknown command: ..."}
-    """
-    if command == "health":
-        import sys
-
-        import discord
-
-        uptime_seconds = (datetime.now(UTC) - bot.uptime).total_seconds()
-        return {
-            "guild_count": len(bot.guilds),
-            "voice_connections": len(bot.voice_clients),
-            "latency_ms": round(bot.latency * 1000, 2),
-            "uptime_seconds": round(uptime_seconds, 2),
-            "python_version": sys.version.split()[0],
-            "discord_py_version": discord.__version__,
-            "bot_version": pkg_version("NerpyBot"),
-        }
-    elif command == "list_modules":
-        modules = []
-        for ext_name in bot.extensions:
-            name = ext_name.replace("modules.", "")
-            modules.append({"name": name, "loaded": True})
-        return {"modules": modules}
-    elif command == "module_load":
-        module = payload.get("module", "")
-        if not module or not module.replace("_", "").isalpha() or not module.islower():
-            return {"success": False, "error": "Invalid module name"}
-        try:
-            future = run_coroutine_threadsafe(bot.load_extension(f"modules.{module}"), bot.loop)
-            future.result(timeout=5)
-            return {"success": True}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-    elif command == "module_unload":
-        module = payload.get("module", "")
-        if not module or not module.replace("_", "").isalpha() or not module.islower():
-            return {"success": False, "error": "Invalid module name"}
-        try:
-            future = run_coroutine_threadsafe(bot.unload_extension(f"modules.{module}"), bot.loop)
-            future.result(timeout=5)
-            return {"success": True}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-    elif command == "get_channels":
-        guild_id = int(payload.get("guild_id", 0))
-        guild = bot.get_guild(guild_id)
-        if guild is None:
-            return {"channels": []}
-        return {
-            "channels": [
-                {"id": str(c.id), "name": c.name, "type": c.type.value}
-                for c in sorted(guild.channels, key=lambda c: c.name)
-            ]
-        }
-    elif command == "get_roles":
-        guild_id = int(payload.get("guild_id", 0))
-        guild = bot.get_guild(guild_id)
-        if guild is None:
-            return {"roles": []}
-        return {
-            "roles": [
-                {"id": str(r.id), "name": r.name}
-                for r in sorted(guild.roles, key=lambda r: -r.position)
-                if not r.is_default()
-            ]
-        }
-    elif command == "get_member_names":
-        guild_id = int(payload.get("guild_id", 0))
-        user_ids = [int(uid) for uid in payload.get("user_ids", [])]
-        guild = bot.get_guild(guild_id)
-        if guild is None:
-            return {}
-        return {str(uid): m.display_name for uid in user_ids if (m := guild.get_member(uid))}
-    elif command == "post_apply_button":
-        form_id = int(payload.get("form_id", 0))
-        if not form_id:
-            return {"error": "form_id required"}
-        from modules.views.application import post_apply_button_message
-
-        run_coroutine_threadsafe(post_apply_button_message(bot, form_id), bot.loop)
-        return {"queued": True}
-    elif command == "search_realms":
-        region = payload.get("region", "eu").lower()
-        q = payload.get("q", "").lower().strip()
-        if not q or len(q) < 2:
-            return {"realms": []}
-        wow_cog = bot.cogs.get("WorldofWarcraft")
-        if wow_cog is None:
-            return {"realms": [], "error": "WoW module not loaded"}
-        try:
-            future = run_coroutine_threadsafe(wow_cog._ensure_realm_cache(), bot.loop)
-            future.result(timeout=5)
-        except Exception:
-            return {"realms": [], "error": "Realm cache unavailable"}
-        matches = []
-        for info in wow_cog._realm_cache.values():
-            if info["region"] != region:
-                continue
-            if q in info["name"].lower() or q in info["slug"].lower():
-                matches.append({"name": info["name"], "slug": info["slug"]})
-            if len(matches) >= 25:
-                break
-        return {"realms": matches}
-    elif command == "validate_wow_guild":
-        region = payload.get("region", "eu").lower()
-        realm_slug = payload.get("realm_slug", "").lower().strip()
-        guild_name = payload.get("guild_name", "").lower().replace(" ", "-").strip()
-        if not realm_slug or not guild_name:
-            return {"valid": False, "display_name": None}
-        wow_cog = bot.cogs.get("WorldofWarcraft")
-        if wow_cog is None:
-            return {"valid": False, "display_name": None, "error": "WoW module not loaded"}
-        try:
-            api = wow_cog._get_retailclient(region, "en")
-            roster = api.guild_roster(realmSlug=realm_slug, nameSlug=guild_name)
-            if isinstance(roster, dict) and roster.get("code") == 429:
-                return {"valid": False, "display_name": None, "error": "WoW API rate limited"}
-            if isinstance(roster, dict) and roster.get("code") in (404, 403):
-                return {"valid": False, "display_name": None}
-            if not isinstance(roster, dict) or "guild" not in roster:
-                return {"valid": False, "display_name": None, "error": "Unexpected WoW API response"}
-            display_name = roster["guild"].get("name", guild_name)
-            return {"valid": True, "display_name": display_name}
-        except Exception as e:
-            bot.log.warning("validate_wow_guild failed: %s", e)
-            return {"valid": False, "display_name": None, "error": str(e)}
-    else:
-        return {"error": f"Unknown command: {command}"}
-
-
-async def _valkey_listener_loop(bot, valkey_url: str) -> None:
-    """Background task that subscribes to Valkey pub/sub for web dashboard commands."""
-    client = None
-    pubsub = None
-    try:
-        import valkey as valkey_lib
-
-        client = valkey_lib.from_url(valkey_url, decode_responses=True)
-        pubsub = client.pubsub()
-        pubsub.subscribe("nerpybot:cmd")
-        bot.log.info("Valkey pub/sub listener started")
-
-        while not bot.is_closed():
-            msg = await to_thread(pubsub.get_message, ignore_subscribe_messages=True, timeout=1.0)
-            if msg and msg["type"] == "message":
-                request_id = None
-                try:
-                    data = json.loads(msg["data"])
-                    request_id = data.pop("request_id", None)
-                    command = data.pop("command", "")
-                    result = await to_thread(handle_valkey_command, bot, command, data)
-                except Exception as e:
-                    bot.log.error(f"Valkey command handler error: {e}")
-                    result = {"error": str(e)}
-                if request_id:
-                    reply_key = f"nerpybot:reply:{request_id}"
-                    await to_thread(client.lpush, reply_key, json.dumps(result))
-                    await to_thread(client.expire, reply_key, 10)
-    except CancelledError:
-        return
-    except Exception as e:
-        bot.log.error(f"Valkey listener error: {e}")
-    finally:
-        try:
-            if pubsub is not None:
-                pubsub.unsubscribe()
-            if client is not None:
-                client.close()
-        except Exception as e:
-            bot.log.debug(f"Valkey cleanup error: {e}")
 
 
 class NerpyBot(Bot):
@@ -511,7 +318,7 @@ class NerpyBot(Bot):
         # Start Valkey listener for web dashboard commands (if configured)
         valkey_url = self.config.get("web", {}).get("valkey_url")
         if valkey_url and (not hasattr(self, "_valkey_task") or self._valkey_task.done()):
-            self._valkey_task = create_task(_valkey_listener_loop(self, valkey_url))
+            self._valkey_task = create_task(valkey_listener_loop(self, valkey_url))
 
         # Sync guild membership table for web dashboard presence detection
         try:
@@ -679,78 +486,6 @@ class NerpyBot(Bot):
 
 def get_intents() -> Intents:
     return Intents.all()
-
-
-def _csv(value: str) -> list[str]:
-    return [x.strip() for x in value.split(",") if x.strip()]
-
-
-def _to_bool(value: str) -> bool:
-    return value.lower() in ("1", "true", "yes")
-
-
-def _set_nested(d: dict, keys: list[str], value) -> None:
-    for key in keys[:-1]:
-        d = d.setdefault(key, {})
-    d[keys[-1]] = value
-
-
-def parse_env_config() -> dict:
-    """Read NERPYBOT_* environment variables and return a config dict."""
-    env: dict = {}
-    mappings = [
-        ("NERPYBOT_TOKEN", ["bot", "token"], str),
-        ("NERPYBOT_CLIENT_ID", ["bot", "client_id"], str),
-        ("NERPYBOT_OPS", ["bot", "ops"], _csv),
-        ("NERPYBOT_MODULES", ["bot", "modules"], _csv),
-        ("NERPYBOT_DB_TYPE", ["database", "db_type"], str),
-        ("NERPYBOT_DB_NAME", ["database", "db_name"], str),
-        ("NERPYBOT_DB_USERNAME", ["database", "db_username"], str),
-        ("NERPYBOT_DB_PASSWORD", ["database", "db_password"], str),
-        ("NERPYBOT_DB_HOST", ["database", "db_host"], str),
-        ("NERPYBOT_DB_PORT", ["database", "db_port"], str),
-        ("NERPYBOT_AUDIO_BUFFER_LIMIT", ["audio", "buffer_limit"], int),
-        ("NERPYBOT_YOUTUBE_KEY", ["music", "ytkey"], str),
-        ("NERPYBOT_RIOT_KEY", ["league", "riot"], str),
-        ("NERPYBOT_WOW_CLIENT_ID", ["wow", "wow_id"], str),
-        ("NERPYBOT_WOW_CLIENT_SECRET", ["wow", "wow_secret"], str),
-        ("NERPYBOT_WOW_POLL_INTERVAL_MINUTES", ["wow", "guild_news", "poll_interval_minutes"], int),
-        ("NERPYBOT_WOW_MOUNT_BATCH_SIZE", ["wow", "guild_news", "mount_batch_size"], int),
-        ("NERPYBOT_WOW_TRACK_MOUNTS", ["wow", "guild_news", "track_mounts"], _to_bool),
-        ("NERPYBOT_WOW_ACTIVE_DAYS", ["wow", "guild_news", "active_days"], int),
-        ("NERPYBOT_ERROR_RECIPIENTS", ["notifications", "error_recipients"], _csv),
-        ("NERPYBOT_VALKEY_URL", ["web", "valkey_url"], str),
-        ("NERPYBOT_WEB_VALKEY_URL", ["web", "valkey_url"], str),
-        ("NERPYBOT_LOG_LEVEL", ["bot", "log_level"], str),
-    ]
-    for var_name, keys, converter in mappings:
-        value = os.environ.get(var_name)
-        if value:
-            _set_nested(env, keys, converter(value))
-    return env
-
-
-def deep_merge(base: dict, override: dict) -> dict:
-    """Recursively merge override into base; override wins on conflicts."""
-    result = dict(base)
-    for key, value in override.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = deep_merge(result[key], value)
-        else:
-            result[key] = value
-    return result
-
-
-def parse_config(config_path: Optional[Path] = None) -> dict:
-    config = {}
-    path = config_path or Path("./config.yaml")
-    if path.exists():
-        with open(path) as stream:
-            try:
-                config = yaml.safe_load(stream) or {}
-            except yaml.YAMLError as exc:
-                print(f"Error in configuration file: {exc}")
-    return deep_merge(config, parse_env_config())
 
 
 def _version_callback(value: bool) -> None:

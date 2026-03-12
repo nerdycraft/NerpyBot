@@ -1,11 +1,12 @@
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
+from utils.valkey import handle_valkey_command
+
 
 class TestBotCommandHandler:
     def test_health_command_returns_stats(self, mock_bot):
         """The health command handler returns bot metrics."""
-        from bot import handle_valkey_command
 
         mock_bot.guilds = [MagicMock(), MagicMock()]
         mock_bot.latency = 0.045
@@ -24,7 +25,6 @@ class TestBotCommandHandler:
 
     def test_health_command_with_zero_guilds(self, mock_bot):
         """Health command should handle bot in no guilds."""
-        from bot import handle_valkey_command
 
         mock_bot.guilds = []
         mock_bot.latency = 0.02
@@ -37,7 +37,6 @@ class TestBotCommandHandler:
         assert result["voice_connections"] == 0
 
     def test_list_modules_command(self, mock_bot):
-        from bot import handle_valkey_command
 
         mock_bot.extensions = {"modules.admin": MagicMock(), "modules.music": MagicMock()}
 
@@ -49,7 +48,6 @@ class TestBotCommandHandler:
 
     def test_list_modules_empty(self, mock_bot):
         """List modules should handle no loaded modules."""
-        from bot import handle_valkey_command
 
         mock_bot.extensions = {}
 
@@ -58,18 +56,16 @@ class TestBotCommandHandler:
 
     def test_module_load_success(self, mock_bot):
         """Module load should succeed for valid module."""
-        from bot import handle_valkey_command
 
         future_mock = MagicMock()
         future_mock.result = MagicMock(return_value=None)
 
-        with patch("bot.run_coroutine_threadsafe", return_value=future_mock):
+        with patch("utils.valkey.run_coroutine_threadsafe", return_value=future_mock):
             result = handle_valkey_command(mock_bot, "module_load", {"module": "tagging"})
             assert result["success"] is True
 
     def test_module_load_invalid_name(self, mock_bot):
         """Module load should reject invalid module names."""
-        from bot import handle_valkey_command
 
         result = handle_valkey_command(mock_bot, "module_load", {"module": ""})
         assert result["success"] is False
@@ -83,30 +79,27 @@ class TestBotCommandHandler:
 
     def test_module_load_exception(self, mock_bot):
         """Module load should handle load exceptions."""
-        from bot import handle_valkey_command
 
         future_mock = MagicMock()
         future_mock.result = MagicMock(side_effect=Exception("Module not found"))
 
-        with patch("bot.run_coroutine_threadsafe", return_value=future_mock):
+        with patch("utils.valkey.run_coroutine_threadsafe", return_value=future_mock):
             result = handle_valkey_command(mock_bot, "module_load", {"module": "invalid"})
             assert result["success"] is False
             assert "Module not found" in result["error"]
 
     def test_module_unload_success(self, mock_bot):
         """Module unload should succeed for valid module."""
-        from bot import handle_valkey_command
 
         future_mock = MagicMock()
         future_mock.result = MagicMock(return_value=None)
 
-        with patch("bot.run_coroutine_threadsafe", return_value=future_mock):
+        with patch("utils.valkey.run_coroutine_threadsafe", return_value=future_mock):
             result = handle_valkey_command(mock_bot, "module_unload", {"module": "music"})
             assert result["success"] is True
 
     def test_module_unload_invalid_name(self, mock_bot):
         """Module unload should reject invalid module names."""
-        from bot import handle_valkey_command
 
         result = handle_valkey_command(mock_bot, "module_unload", {"module": "invalid-module"})
         assert result["success"] is False
@@ -114,7 +107,6 @@ class TestBotCommandHandler:
 
     def test_get_channels_success(self, mock_bot):
         """Get channels should return sorted channel list."""
-        from bot import handle_valkey_command
 
         mock_channel1 = MagicMock()
         mock_channel1.id = 111
@@ -137,7 +129,6 @@ class TestBotCommandHandler:
 
     def test_get_channels_guild_not_found(self, mock_bot):
         """Get channels should handle missing guild."""
-        from bot import handle_valkey_command
 
         mock_bot.get_guild = MagicMock(return_value=None)
 
@@ -146,7 +137,6 @@ class TestBotCommandHandler:
 
     def test_get_roles_success(self, mock_bot):
         """Get roles should return sorted role list excluding @everyone."""
-        from bot import handle_valkey_command
 
         mock_role1 = MagicMock()
         mock_role1.id = 111
@@ -177,7 +167,6 @@ class TestBotCommandHandler:
 
     def test_get_roles_guild_not_found(self, mock_bot):
         """Get roles should handle missing guild."""
-        from bot import handle_valkey_command
 
         mock_bot.get_guild = MagicMock(return_value=None)
 
@@ -186,7 +175,6 @@ class TestBotCommandHandler:
 
     def test_get_member_names_success(self, mock_bot):
         """Get member names should return mapping of IDs to display names."""
-        from bot import handle_valkey_command
 
         mock_member1 = MagicMock()
         mock_member1.display_name = "Alice"
@@ -207,7 +195,6 @@ class TestBotCommandHandler:
 
     def test_get_member_names_guild_not_found(self, mock_bot):
         """Get member names should handle missing guild."""
-        from bot import handle_valkey_command
 
         mock_bot.get_guild = MagicMock(return_value=None)
 
@@ -216,15 +203,13 @@ class TestBotCommandHandler:
 
     def test_post_apply_button_success(self, mock_bot):
         """Post apply button should queue task."""
-        from bot import handle_valkey_command
 
-        with patch("bot.run_coroutine_threadsafe"):
+        with patch("utils.valkey.run_coroutine_threadsafe"):
             result = handle_valkey_command(mock_bot, "post_apply_button", {"form_id": "42"})
             assert result["queued"] is True
 
     def test_post_apply_button_no_form_id(self, mock_bot):
         """Post apply button should require form_id."""
-        from bot import handle_valkey_command
 
         result = handle_valkey_command(mock_bot, "post_apply_button", {})
         assert "error" in result
@@ -232,7 +217,6 @@ class TestBotCommandHandler:
 
     def test_search_realms_success(self, mock_bot):
         """Search realms should return matching realms."""
-        from bot import handle_valkey_command
 
         mock_wow_cog = MagicMock()
         mock_wow_cog._realm_cache = {
@@ -246,14 +230,13 @@ class TestBotCommandHandler:
 
         mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
 
-        with patch("bot.run_coroutine_threadsafe", return_value=future_mock):
+        with patch("utils.valkey.run_coroutine_threadsafe", return_value=future_mock):
             result = handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": "silver"})
             assert len(result["realms"]) == 1
             assert result["realms"][0]["name"] == "Silvermoon"
 
     def test_search_realms_no_query(self, mock_bot):
         """Search realms should handle empty query."""
-        from bot import handle_valkey_command
 
         result = handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": ""})
         assert result["realms"] == []
@@ -263,7 +246,6 @@ class TestBotCommandHandler:
 
     def test_search_realms_module_not_loaded(self, mock_bot):
         """Search realms should handle missing WoW module."""
-        from bot import handle_valkey_command
 
         mock_bot.cogs = {}
 
@@ -273,7 +255,6 @@ class TestBotCommandHandler:
 
     def test_search_realms_cache_unavailable(self, mock_bot):
         """Search realms should handle cache unavailability."""
-        from bot import handle_valkey_command
 
         mock_wow_cog = MagicMock()
         future_mock = MagicMock()
@@ -281,14 +262,13 @@ class TestBotCommandHandler:
 
         mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
 
-        with patch("bot.run_coroutine_threadsafe", return_value=future_mock):
+        with patch("utils.valkey.run_coroutine_threadsafe", return_value=future_mock):
             result = handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": "test"})
             assert result["realms"] == []
             assert "Realm cache unavailable" in result["error"]
 
     def test_validate_wow_guild_success(self, mock_bot):
         """Validate WoW guild should return valid guild info."""
-        from bot import handle_valkey_command
 
         mock_wow_cog = MagicMock()
         mock_api = MagicMock()
@@ -305,7 +285,6 @@ class TestBotCommandHandler:
 
     def test_validate_wow_guild_not_found(self, mock_bot):
         """Validate WoW guild should handle 404."""
-        from bot import handle_valkey_command
 
         mock_wow_cog = MagicMock()
         mock_api = MagicMock()
@@ -322,7 +301,6 @@ class TestBotCommandHandler:
 
     def test_validate_wow_guild_rate_limited(self, mock_bot):
         """Validate WoW guild should handle 429 rate limit."""
-        from bot import handle_valkey_command
 
         mock_wow_cog = MagicMock()
         mock_api = MagicMock()
@@ -340,7 +318,6 @@ class TestBotCommandHandler:
 
     def test_validate_wow_guild_empty_params(self, mock_bot):
         """Validate WoW guild should handle missing params."""
-        from bot import handle_valkey_command
 
         result = handle_valkey_command(
             mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "", "guild_name": "test"}
@@ -350,7 +327,6 @@ class TestBotCommandHandler:
 
     def test_validate_wow_guild_module_not_loaded(self, mock_bot):
         """Validate WoW guild should handle missing module."""
-        from bot import handle_valkey_command
 
         mock_bot.cogs = {}
 
@@ -362,7 +338,6 @@ class TestBotCommandHandler:
 
     def test_validate_wow_guild_exception(self, mock_bot):
         """Validate WoW guild should handle exceptions."""
-        from bot import handle_valkey_command
 
         mock_wow_cog = MagicMock()
         mock_api = MagicMock()
@@ -379,7 +354,6 @@ class TestBotCommandHandler:
         assert "Network error" in result["error"]
 
     def test_unknown_command_returns_error(self, mock_bot):
-        from bot import handle_valkey_command
 
         result = handle_valkey_command(mock_bot, "unknown_cmd", {})
         assert "error" in result

@@ -1,10 +1,10 @@
 import pytest
+from jwt import PyJWTError as JWTError
+from web.auth.jwt import create_access_token, decode_access_token
 
 
 class TestJWT:
     def test_create_and_decode_token(self):
-        from web.auth.jwt import create_access_token, decode_access_token
-
         token = create_access_token(
             user_id="123456",
             username="TestUser",
@@ -17,10 +17,6 @@ class TestJWT:
         assert "exp" in payload
 
     def test_expired_token_raises(self):
-        from jose import JWTError
-
-        from web.auth.jwt import create_access_token, decode_access_token
-
         token = create_access_token(
             user_id="123",
             username="User",
@@ -31,19 +27,11 @@ class TestJWT:
             decode_access_token(token, secret="s")
 
     def test_invalid_secret_raises(self):
-        from jose import JWTError
-
-        from web.auth.jwt import create_access_token, decode_access_token
-
         token = create_access_token(user_id="123", username="User", secret="correct", expiry_hours=1)
         with pytest.raises(JWTError):
             decode_access_token(token, secret="wrong")
 
     def test_tampered_token_raises(self):
-        from jose import JWTError
-
-        from web.auth.jwt import create_access_token, decode_access_token
-
         token = create_access_token(user_id="123", username="User", secret="s", expiry_hours=1)
         # Flip a character in the payload section
         parts = token.split(".")

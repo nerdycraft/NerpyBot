@@ -20,7 +20,6 @@ bot = [
     "google-api-python-client",
     "SQLAlchemy",
     "psycopg[binary]",
-    "ffmpeg-python",
     "pytimeparse2",
     "humanize",
     "aiohttp",
@@ -43,7 +42,7 @@ test = [
 web = [
     "fastapi",
     "uvicorn[standard]",
-    "python-jose[cryptography]",
+    "PyJWT",
     "httpx",
     "valkey",
     "pyyaml",
@@ -67,6 +66,8 @@ addopts = "-v --tb=short"
 filterwarnings = [
     # discord.py uses deprecated asyncio.iscoroutinefunction (will be fixed when discord.py updates)
     "ignore::DeprecationWarning:discord.ext.commands.core",
+    # PyJWT warns about short HMAC keys; test secrets are intentionally short
+    "ignore::jwt.warnings.InsecureKeyLengthWarning",
 ]
 
 [tool.ruff]

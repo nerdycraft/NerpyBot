@@ -1,0 +1,99 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+tone_instructions: >
+  Be direct and concise. Focus on bugs, correctness, and architectural issues.
+  Skip style comments — Ruff enforces formatting and linting automatically.
+
+reviews:
+  profile: "assertive"
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+
+  path_filters:
+    - "!uv.lock"
+    - "!coverage.xml"
+    - "!**/__pycache__/**"
+    - "!docs/plans/**"
+    - "!docs/superpowers/**"
+
+  path_instructions:
+    - path: "NerdyPy/modules/**/*.py"
+      instructions: |
+        - Regular `Cog` classes (not `GroupCog`) do NOT propagate `guild_only` to commands automatically.
+          Each `@app_commands.command()` and each `Group()` definition needs `@app_commands.guild_only()` / `guild_only=True` explicitly.
+          Never pass `guild_only=True` to `app_commands.Command(name=..., callback=...)` — that raises TypeError.
+        - `await` calls (e.g. `interaction.followup.send(...)`) must be placed OUTSIDE `with self.bot.session_scope()` blocks
+          to avoid holding the DB connection open during HTTP calls.
+        - Persistent UI elements (buttons, views that outlast an interaction) must use `discord.ui.View(timeout=None)`.
+          Default timeout is ~3 minutes and silently stops buttons from working.
+        - Use `asyncio.to_thread(fn, *args)` for blocking calls (yt-dlp, file I/O).
+          Do NOT use `get_event_loop().run_in_executor()` — deprecated on Python 3.13.
+        - User-facing errors should raise `NerpyUserException` (or its subtypes: `NerpyNotFoundError`,
+          `NerpyValidationError`, `NerpyPermissionError`). Infrastructure failures should raise `NerpyInfraException`,
+          which triggers an operator DM notification.
+        - `send_hidden_message()` only accepts `discord.Interaction`. Prefix commands use `ctx.send()` directly.
+        - `interaction.response.is_done()` returns False even after a failed `send_message()`.
+          In error handlers, wrap the user-facing response in try/except before calling `notify_error`.
+        - `Guild.get_channel()` is cache-only and returns None on cache miss after reconnect.
+          Fall back to `await guild.fetch_channel(id)` and catch `(discord.NotFound, discord.Forbidden)`.
+        - Module-specific permission checks (e.g. querying a module config table) must stay in the module,
+          not in `utils/checks.py`. Only move checks there if they are purely Discord role/permission based.
+        - Cannot call `send_modal()` after `interaction.response.defer()` has been called.
+        - `cog_load` runs before `create_all()`. If the cog accesses new tables in `cog_load`,
+          call `self.bot.create_all()` at the top of `cog_load` to ensure tables exist.
+
+    - path: "NerdyPy/models/**/*.py"
+      instructions: |
+        - SQLite strips timezone info from DateTime columns. Values read back are naive.
+          Always normalize with `.replace(tzinfo=UTC)` before comparing against timezone-aware datetimes.
+        - SQLite enforces unique constraints row-by-row. Swapping two values under a unique column in a single
+          flush raises IntegrityError. Use a two-phase update: write temporary values and flush, then final values.
+        - Use `selectinload` for multiple one-to-many collections on the same parent.
+          Two `joinedload` on different one-to-many relationships produce a Cartesian product.
+
+    - path: "database-migrations/versions/**/*.py"
+      instructions: |
+        - Every migration must guard against both "table absent" and "schema already current" cases,
+          because `create_all()` on a fresh install already builds the latest schema.
+          Before `add_column`, check `{c["name"] for c in inspect(conn).get_columns(table)}`.
+          Before `create_index`, check `{i["name"] for i in inspect(conn).get_indexes(table)}`.
+        - Migrations must be dialect-aware. SQLite uses `datetime()`, PostgreSQL uses `make_interval()`.
+          Use `op.get_bind().dialect.name` to branch.
+        - Always use `batch_alter_table` for column operations on SQLite.
+          `op.alter_column()` without a `batch_alter_table` context crashes on SQLite.
+        - When adding columns to existing tables, use `server_default` (not just ORM `default`)
+          so existing rows get a value.
+
+    - path: "NerdyPy/**/*.py"
+      instructions: |
+        - No `return` inside `finally` blocks — it suppresses exceptions from the `catch` block.
+          Move cleanup logic to after the `try/except` instead.
+        - Catch `(discord.NotFound, discord.Forbidden)` together for missing/inaccessible resources
+          (messages, channels). Both mean the reference is stale and need the same recovery path.
+        - Catch `SQLAlchemyError` (from `sqlalchemy.exc`) for ops inside `session_scope()`,
+          `discord.HTTPException` for Discord API calls.
+
+    - path: "web/**/*.py"
+      instructions: |
+        - `session.commit()` must be called explicitly before `background_tasks.add_task()`.
+          FastAPI background tasks run after the response is sent, so the yield-dependency cleanup
+          commits too late for tasks that re-read data written by the same request.
+        - `selectinload` for multiple one-to-many collections — same rule as the bot models.
+
+    - path: "web/**/*.ts"
+      instructions: |
+        - Vue Router types query values as `LocationQueryValue | LocationQueryValue[]`
+          where `LocationQueryValue = string | null`. Helpers normalising query params
+          must accept `(string | null)[]`, not `string[]`.
+
+    - path: ".github/workflows/**/*.yml"
+      instructions: |
+        - Never interpolate untrusted GitHub event inputs (issue titles, PR body, commit messages,
+          head ref) directly into `run:` commands. Use `env:` variables instead.
+
+chat:
+  auto_reply: true

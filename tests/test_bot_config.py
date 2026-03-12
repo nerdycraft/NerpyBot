@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for parse_env_config(), deep_merge(), and parse_config() in bot.py."""
 
-from NerdyPy.bot import parse_env_config, deep_merge, parse_config
+from NerdyPy.utils.config import parse_env_config, deep_merge, parse_config
 
 
 class TestDeepMerge:
