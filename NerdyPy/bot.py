@@ -99,12 +99,12 @@ def run_migrations() -> None:
 def handle_valkey_command(bot, command: str, payload: dict) -> dict:
     """
     Dispatches Valkey pub/sub commands from the web dashboard and returns a command-specific response dictionary.
-    
+
     Parameters:
         bot: The running NerpyBot instance handling commands.
         command (str): The Valkey command name to execute (e.g., "health", "list_modules", "module_load").
         payload (dict): Command parameters; contents vary by command.
-    
+
     Returns:
         dict: A command-specific response. Examples include:
             - health: {"guild_count", "voice_connections", "latency_ms", "uptime_seconds", "python_version", "discord_py_version", "bot_version"}
@@ -505,7 +505,7 @@ class NerpyBot(Bot):
     async def on_ready(self) -> None:
         """
         Handle post-login initialization and readiness tasks.
-        
+
         Starts the activity status loop and the Valkey listener (if configured), synchronizes guild membership state to the database, checks each guild for required permissions and notifies subscribed guild admins of any missing permissions, and writes the readiness sentinel file to signal that the bot is healthy and ready.
         """
         from models.admin import PermissionSubscriber
@@ -783,21 +783,21 @@ def main(
 ) -> None:
     """
     Start the NerpyBot CLI: load configuration, configure logging, run database migrations, instantiate the bot, and run its main lifecycle loop with automatic restart on unexpected crashes.
-    
+
     Parameters:
         config (Path | None): Path to a YAML config file; if omitted, default config paths and environment variables are used.
         debug (bool): Enable verbose debug logging and developer-focused behavior.
         loglevel (str): Base log level (e.g., "DEBUG", "INFO", "WARNING", "ERROR"); environment config may override this when not explicitly provided.
         verbosity (int): Extra verbosity flags: 1 enables debug-style logging, 2 also enables Discord library logging, 3 also enables SQLAlchemy engine logging.
         version (bool): When set, prints the application version and exits (handled via a callback).
-    
+
     Behavior:
         - Loads and merges configuration from the provided file and environment variables.
         - Determines effective logging configuration from CLI flags and config, and initializes selected loggers.
         - Runs database migrations before starting the bot.
         - Instantiates NerpyBot and enters its main run loop; on unexpected exceptions the process will remove the readiness sentinel file, wait briefly, and then retry.
         - Handles LoginFailure and KeyboardInterrupt by logging and exiting cleanly.
-    
+
     Raises:
         NerpyInfraException: If no bot configuration is found in the resolved configuration.
     """

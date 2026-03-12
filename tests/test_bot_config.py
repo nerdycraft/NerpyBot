@@ -183,11 +183,7 @@ class TestParseConfig:
         """Env vars should override deeply nested YAML values."""
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
-            "wow:\n"
-            "  wow_id: yaml_id\n"
-            "  guild_news:\n"
-            "    track_mounts: true\n"
-            "    poll_interval_minutes: 60\n"
+            "wow:\n  wow_id: yaml_id\n  guild_news:\n    track_mounts: true\n    poll_interval_minutes: 60\n"
         )
         monkeypatch.setenv("NERPYBOT_WOW_CLIENT_ID", "env_id")
         monkeypatch.setenv("NERPYBOT_WOW_TRACK_MOUNTS", "false")
