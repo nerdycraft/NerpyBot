@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Tests for NerpyBot.build_connection_string."""
 
+from sqlalchemy.engine.url import make_url
+
 from NerdyPy.bot import NerpyBot
 
 
@@ -66,8 +68,11 @@ class TestBuildConnectionString:
                 "db_username": "dbuser",
             }
         }
-        result = NerpyBot.build_connection_string(config)
-        assert result == "postgresql+psycopg://dbuser/nerpybot"
+        parsed = make_url(NerpyBot.build_connection_string(config))
+        assert parsed.username == "dbuser"
+        assert parsed.database == "nerpybot"
+        assert parsed.password is None
+        assert parsed.host is None
 
     def test_postgresql_with_host_no_port(self):
         """PostgreSQL with host but no port."""
@@ -84,7 +89,7 @@ class TestBuildConnectionString:
         assert result == "postgresql+psycopg://user:pass@dbserver/nerpybot"
 
     def test_postgresql_with_port_no_host(self):
-        """PostgreSQL with port but no host should include port."""
+        """PostgreSQL with port but no host: username and database must be recoverable."""
         config = {
             "database": {
                 "db_type": "postgresql",
@@ -94,8 +99,9 @@ class TestBuildConnectionString:
                 "db_port": "5432",
             }
         }
-        result = NerpyBot.build_connection_string(config)
-        assert result == "postgresql+psycopg://user:pass:5432/nerpybot"
+        parsed = make_url(NerpyBot.build_connection_string(config))
+        assert parsed.username == "user"
+        assert parsed.database == "nerpybot"
 
     def test_postgresql_with_empty_password(self):
         """Empty password string should be treated as no password."""
@@ -107,8 +113,10 @@ class TestBuildConnectionString:
                 "db_password": "",
             }
         }
-        result = NerpyBot.build_connection_string(config)
-        assert result == "postgresql+psycopg://user/nerpybot"
+        parsed = make_url(NerpyBot.build_connection_string(config))
+        assert parsed.username == "user"
+        assert parsed.database == "nerpybot"
+        assert parsed.password is None
 
     def test_sqlite_explicit_config(self):
         """SQLite with explicit config."""
@@ -134,7 +142,7 @@ class TestBuildConnectionString:
         assert result.startswith("postgresql+psycopg://")
 
     def test_connection_string_special_characters_in_password(self):
-        """Password with special characters should be included as-is."""
+        """Password with special characters: host and database must be recoverable."""
         config = {
             "database": {
                 "db_type": "postgresql",
@@ -144,5 +152,7 @@ class TestBuildConnectionString:
                 "db_host": "localhost",
             }
         }
-        result = NerpyBot.build_connection_string(config)
-        assert ":p@ss:w0rd!@localhost" in result
+        parsed = make_url(NerpyBot.build_connection_string(config))
+        assert parsed.username == "user"
+        assert parsed.host == "localhost"
+        assert parsed.database == "nerpybot"

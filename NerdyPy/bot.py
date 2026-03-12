@@ -41,6 +41,7 @@ from discord.ext.commands import (
 from alembic.config import Config
 import alembic.command as alembic_command
 from sqlalchemy import create_engine
+from sqlalchemy.engine.url import URL
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from models.admin import BotGuild
@@ -352,25 +353,18 @@ class NerpyBot(Bot):
         database_config = config["database"]
         db_type = database_config["db_type"]
         db_name = database_config["db_name"]
-        db_username = ""
-        db_password = ""
-        db_host = ""
-        db_port = ""
 
         if "postgresql" in db_type:
             db_type = f"{db_type}+psycopg"
 
-        if "db_password" in database_config and database_config["db_password"]:
-            db_password = f":{database_config['db_password']}"
-        if "db_username" in database_config and database_config["db_username"]:
-            db_username = database_config["db_username"]
-        if "db_host" in database_config and database_config["db_host"]:
-            db_host = f"@{database_config['db_host']}"
-        if "db_port" in database_config and database_config["db_port"]:
-            db_port = f":{database_config['db_port']}"
-
-        db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
-        return f"{db_type}://{db_authentication}/{db_name}"
+        return URL.create(
+            drivername=db_type,
+            username=database_config.get("db_username") or None,
+            password=database_config.get("db_password") or None,
+            host=database_config.get("db_host") or None,
+            port=int(database_config["db_port"]) if database_config.get("db_port") else None,
+            database=db_name,
+        ).render_as_string(hide_password=False)
 
     def create_all(self) -> None:
         """creates all tables previously defined"""
