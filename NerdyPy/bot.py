@@ -5,7 +5,6 @@ Main Class of the NerpyBot
 
 import json
 import os
-import tempfile
 import time
 from asyncio import CancelledError, create_task, run, run_coroutine_threadsafe, sleep, to_thread
 from contextlib import contextmanager
@@ -55,7 +54,7 @@ from utils.helpers import error_context, notify_error, parse_id
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 from utils.strings import get_localized_string, get_string, load_strings
 
-SENTINEL_PATH = Path(tempfile.gettempdir()) / "nerpybot_ready"
+SENTINEL_PATH = Path("/tmp/nerpybot_ready")
 
 ACTIVITIES = [
     "💡 Use / for commands",
@@ -822,6 +821,7 @@ def main(
         resolved_loglevel = "DEBUG" if (debug or verbosity > 0) else effective_loglevel
         for logger_name in loggers:
             logging.create_logger(resolved_loglevel, logger_name)
+        SENTINEL_PATH.unlink(missing_ok=True)
         run_migrations()
         bot = NerpyBot(resolved_config, intents, is_debug)
 

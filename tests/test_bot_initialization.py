@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for NerpyBot class initialization and methods."""
 
-import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -239,7 +238,7 @@ class TestSentinelPath:
         """SENTINEL_PATH should be defined."""
         from NerdyPy.bot import SENTINEL_PATH
 
-        assert SENTINEL_PATH == Path(tempfile.gettempdir()) / "nerpybot_ready"
+        assert SENTINEL_PATH == Path("/tmp/nerpybot_ready")
 
 
 class TestVersionCallback:
