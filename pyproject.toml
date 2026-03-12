@@ -31,6 +31,7 @@ bot = [
     "yt-dlp",
     "typer",
     "valkey",
+    "alembic",
 ]
 test = [
     "pytest",
@@ -38,12 +39,6 @@ test = [
     "pytest-cov",
     "pre-commit",
     "ruff==0.15.5",
-]
-migrations = [
-    "alembic",
-    "SQLAlchemy",
-    "psycopg[binary]",
-    "pyyaml",
 ]
 web = [
     "fastapi",

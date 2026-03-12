@@ -5,6 +5,7 @@ Main Class of the NerpyBot
 
 import json
 import os
+import time
 from asyncio import CancelledError, create_task, run, run_coroutine_threadsafe, sleep, to_thread
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -16,8 +17,8 @@ from typing import Annotated, Any, Generator, Optional
 from warnings import filterwarnings
 
 import typer
-from importlib.metadata import version as pkg_version
 import yaml
+from importlib.metadata import version as pkg_version
 from discord import (
     ClientException,
     DMChannel,
@@ -37,7 +38,10 @@ from discord.ext.commands import (
     Context,
     ExtensionFailed,
 )
+from alembic.config import Config
+import alembic.command as alembic_command
 from sqlalchemy import create_engine
+from sqlalchemy.engine.url import URL
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from models.admin import BotGuild
@@ -50,6 +54,8 @@ from utils.errors import NerpyException, NerpyInfraException, SilentCheckFailure
 from utils.helpers import error_context, notify_error, parse_id
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 from utils.strings import get_localized_string, get_string, load_strings
+
+SENTINEL_PATH = Path("/tmp/nerpybot_ready")
 
 ACTIVITIES = [
     "💡 Use / for commands",
@@ -72,8 +78,46 @@ ACTIVITIES = [
 ACTIVITY_WEIGHTS = [3 if "/" in a else 1 for a in ACTIVITIES]
 
 
+def run_migrations() -> None:
+    """Apply all pending Alembic migrations before the bot connects.
+
+    Searches upward from this file's directory for alembic.ini, so it works
+    both in the repo (alembic.ini at root) and in Docker. Raises on failure —
+    callers must not catch it.
+    """
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "alembic.ini"
+        if candidate.exists():
+            alembic_ini = candidate
+            break
+    else:
+        raise FileNotFoundError("alembic.ini not found in any parent directory of bot.py")
+    alembic_cfg = Config(str(alembic_ini))
+    alembic_command.upgrade(alembic_cfg, "head")
+
+
 def handle_valkey_command(bot, command: str, payload: dict) -> dict:
-    """Synchronous dispatcher for Valkey pub/sub commands from the web dashboard."""
+    """
+    Dispatches Valkey pub/sub commands from the web dashboard and returns a command-specific response dictionary.
+
+    Parameters:
+        bot: The running NerpyBot instance handling commands.
+        command (str): The Valkey command name to execute (e.g., "health", "list_modules", "module_load").
+        payload (dict): Command parameters; contents vary by command.
+
+    Returns:
+        dict: A command-specific response. Examples include:
+            - health: {"guild_count", "voice_connections", "latency_ms", "uptime_seconds", "python_version", "discord_py_version", "bot_version"}
+            - list_modules: {"modules": [{"name", "loaded"}, ...]}
+            - module_load/module_unload: {"success": True} or {"success": False, "error": "..."}
+            - get_channels: {"channels": [{"id", "name", "type"}, ...]}
+            - get_roles: {"roles": [{"id", "name"}, ...]}
+            - get_member_names: mapping of user ID strings to display names
+            - post_apply_button: {"queued": True} or {"error": "..."}
+            - search_realms: {"realms": [{"name", "slug"}, ...]} or {"error": "..."}
+            - validate_wow_guild: {"valid": bool, "display_name": str or None} and optionally {"error": "..."}
+            - unknown commands: {"error": "Unknown command: ..."}
+    """
     if command == "health":
         import sys
 
@@ -309,25 +353,18 @@ class NerpyBot(Bot):
         database_config = config["database"]
         db_type = database_config["db_type"]
         db_name = database_config["db_name"]
-        db_username = ""
-        db_password = ""
-        db_host = ""
-        db_port = ""
 
         if "postgresql" in db_type:
             db_type = f"{db_type}+psycopg"
 
-        if "db_password" in database_config and database_config["db_password"]:
-            db_password = f":{database_config['db_password']}"
-        if "db_username" in database_config and database_config["db_username"]:
-            db_username = database_config["db_username"]
-        if "db_host" in database_config and database_config["db_host"]:
-            db_host = f"@{database_config['db_host']}"
-        if "db_port" in database_config and database_config["db_port"]:
-            db_port = f":{database_config['db_port']}"
-
-        db_authentication = f"{db_username}{db_password}{db_host}{db_port}"
-        return f"{db_type}://{db_authentication}/{db_name}"
+        return URL.create(
+            drivername=db_type,
+            username=database_config.get("db_username") or None,
+            password=database_config.get("db_password") or None,
+            host=database_config.get("db_host") or None,
+            port=int(database_config["db_port"]) if database_config.get("db_port") else None,
+            database=db_name,
+        ).render_as_string(hide_password=False)
 
     def create_all(self) -> None:
         """creates all tables previously defined"""
@@ -459,7 +496,11 @@ class NerpyBot(Bot):
             self.log.error(f"Activity loop crashed: {e}")
 
     async def on_ready(self) -> None:
-        """calls when successfully logged in"""
+        """
+        Handle post-login initialization and readiness tasks.
+
+        Starts the activity status loop and the Valkey listener (if configured), synchronizes guild membership state to the database, checks each guild for required permissions and notifies subscribed guild admins of any missing permissions, and writes the readiness sentinel file to signal that the bot is healthy and ready.
+        """
         from models.admin import PermissionSubscriber
 
         self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
@@ -494,6 +535,9 @@ class NerpyBot(Bot):
                         await user.send(embed=emb)
                     except Exception as ex:
                         self.log.debug(f"Could not DM permission alert to {sub.UserId}: {ex}")
+
+        SENTINEL_PATH.touch()
+        self.log.info("Readiness sentinel written — healthcheck will pass.")
 
     # noinspection PyUnusedLocal
     async def on_app_command_completion(self, interaction: Interaction, command: app_commands.Command) -> None:
@@ -730,7 +774,26 @@ def main(
         bool, typer.Option("--version", "-V", callback=_version_callback, is_eager=True, help="Show version and exit")
     ] = False,
 ) -> None:
-    """NerpyBot — the nerdiest Discord bot."""
+    """
+    Start the NerpyBot CLI: load configuration, configure logging, run database migrations, instantiate the bot, and run its main lifecycle loop with automatic restart on unexpected crashes.
+
+    Parameters:
+        config (Path | None): Path to a YAML config file; if omitted, default config paths and environment variables are used.
+        debug (bool): Enable verbose debug logging and developer-focused behavior.
+        loglevel (str): Base log level (e.g., "DEBUG", "INFO", "WARNING", "ERROR"); environment config may override this when not explicitly provided.
+        verbosity (int): Extra verbosity flags: 1 enables debug-style logging, 2 also enables Discord library logging, 3 also enables SQLAlchemy engine logging.
+        version (bool): When set, prints the application version and exits (handled via a callback).
+
+    Behavior:
+        - Loads and merges configuration from the provided file and environment variables.
+        - Determines effective logging configuration from CLI flags and config, and initializes selected loggers.
+        - Runs database migrations before starting the bot.
+        - Instantiates NerpyBot and enters its main run loop; on unexpected exceptions the process will remove the readiness sentinel file, wait briefly, and then retry.
+        - Handles LoginFailure and KeyboardInterrupt by logging and exiting cleanly.
+
+    Raises:
+        NerpyInfraException: If no bot configuration is found in the resolved configuration.
+    """
     print(BANNER)
     filterwarnings("ignore", category=DeprecationWarning, module=r"discord\.http")
 
@@ -752,6 +815,8 @@ def main(
         resolved_loglevel = "DEBUG" if (debug or verbosity > 0) else effective_loglevel
         for logger_name in loggers:
             logging.create_logger(resolved_loglevel, logger_name)
+        SENTINEL_PATH.unlink(missing_ok=True)
+        run_migrations()
         bot = NerpyBot(resolved_config, intents, is_debug)
 
         while True:
@@ -768,7 +833,8 @@ def main(
             except Exception as e:
                 bot.log.error(f"Crashed: {e}")
                 bot.log.warning("Restarting in 5s...")
-                sleep(5)
+                SENTINEL_PATH.unlink(missing_ok=True)
+                time.sleep(5)
     else:
         raise NerpyInfraException("Bot config not found.")
 

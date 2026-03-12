@@ -14,7 +14,6 @@ NerpyBot is a Discord bot built with discord.py using the Cog extension system. 
 # Install dependencies
 uv sync                              # All bot dependencies (default)
 uv sync --group test                 # Include test dependencies
-uv sync --only-group migrations      # Migration tools only
 
 # Run the bot
 uv run python NerdyPy/bot.py                    # Start with default config
@@ -39,17 +38,15 @@ uv run ruff format --check           # Check formatting only
 uv run python -m pytest              # Run tests
 uv run python -m pytest --cov        # With coverage
 
-# Database migrations
-uv sync --group migrations
-uv run alembic upgrade head                              # Apply migrations
-uv run alembic revision --autogenerate -m "description"  # Create migration
+# Database migrations (alembic is now part of the bot dependency group)
+uv run alembic upgrade head                              # Apply migrations manually
+uv run alembic revision --autogenerate -m "description"  # Create a new migration
 # NOTE: New tables do NOT need migrations — SQLAlchemy auto-creates missing tables at startup.
 # Only create migrations when altering existing tables (add/remove columns, change constraints).
 # When adding columns to existing tables, use server_default (not just ORM default) so existing rows get a value.
 
-# Docker builds (two targets)
+# Docker builds
 docker buildx build --target bot --build-arg VERSION=0.6.0 -t nerpybot .
-docker buildx build --target migrations -t nerpybot-migrations .
 
 # Validate GitHub Actions workflows
 actionlint .github/workflows/*.yml
@@ -62,7 +59,6 @@ prettier --write "docs/**/*.md" "**/*.yaml" "**/*.yml" "*.md"
 
 # Docker smoke tests (run locally to verify images work)
 docker run --rm nerpybot python -c "from bot import NerpyBot; print('OK')"
-docker run --rm nerpybot-migrations alembic heads  # uses alembic.ini (default)
 ```
 
 ## Architecture
@@ -154,7 +150,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **`session.commit()` before `background_tasks.add_task()`** — FastAPI background tasks run after the response is sent but before yield-dependency cleanup, so `session.commit()` in `_get_db_session` fires too late. Always call `session.commit()` explicitly before scheduling any background task that re-reads data written by the same request.
 - **`selectinload` for multiple one-to-many collections** — Two `joinedload` on different one-to-many relationships on the same parent produce a Cartesian product (rows × rows). Use `selectinload` for the second (and any further) collection — it fires a separate `IN` query instead.
 - **`Guild.get_channel()` is cache-only** — Returns `None` on cache miss (e.g. after reconnect). Fall back to `await guild.fetch_channel(channel_id)` and catch `(discord.NotFound, discord.Forbidden)` before treating a channel as missing or deleting related DB rows.
-- **No `return` inside `finally`** — Biome flags this as `noUnsafeFinally`; it suppresses any exception that escapes the `catch` block. Move stale-sequence guards and cleanup logic to *after* the `try/catch` block instead.
+- **No `return` inside `finally`** — Biome flags this as `noUnsafeFinally`; it suppresses any exception that escapes the `catch` block. Move stale-sequence guards and cleanup logic to _after_ the `try/catch` block instead.
 - **`route.query` TypeScript types** — Vue Router types query values as `LocationQueryValue | LocationQueryValue[]` where `LocationQueryValue = string | null`. Any helper that normalises a query param must accept `(string | null)[]`, not `string[]`.
 
 ## Configuration
@@ -176,4 +172,4 @@ Copy `NerdyPy/config.yaml.template` to `NerdyPy/config.yaml` and fill in:
 
 ## Git
 
-- **`docs/plans/`** is gitignored — never stage or commit plan files
+- **`docs/plans/`** and **`docs/superpowers/`** are gitignored — never stage or commit plan/spec files

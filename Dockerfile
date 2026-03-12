@@ -39,12 +39,6 @@ RUN npm ci
 COPY web/frontend .
 RUN npm run build
 
-# ── Builder: migration dependencies only ──
-FROM builder-base AS builder-migrations
-
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-managed-python --only-group migrations
-
 # ── Runtime base: shared env for bot and migrations ──
 FROM python:3.14-alpine AS runtime
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 \
@@ -69,24 +63,16 @@ RUN apk add --no-cache ffmpeg opus freetype libpng
 USER NerdyBot
 COPY --chown=${UID} --from=builder-bot /app/.venv /app/.venv
 COPY --chown=${UID} NerdyPy /app
+COPY --chown=${UID} alembic.ini ./
+COPY --chown=${UID} database-migrations/ database-migrations/
+
+HEALTHCHECK --interval=5s --timeout=3s --start-period=60s \
+  CMD test -f /tmp/nerpybot_ready
 
 CMD ["python", "bot.py"]
 
 LABEL org.opencontainers.image.source=https://github.com/nerdycraft/NerpyBot
 LABEL org.opencontainers.image.description="NerpyBot, the nerdiest Python Bot"
-
-
-# ── Migrations: minimal runtime ──
-FROM runtime AS migrations
-
-COPY --chown=${UID} --from=builder-migrations /app/.venv /app/.venv
-COPY --chown=${UID} alembic.ini ./
-COPY --chown=${UID} database-migrations /app/database-migrations/
-
-CMD ["alembic", "upgrade", "head"]
-
-LABEL org.opencontainers.image.source=https://github.com/nerdycraft/NerpyBot
-LABEL org.opencontainers.image.description="Database migrations for the nerdiest Python Bot"
 
 
 # ── Web dashboard: FastAPI API ──

@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 
 class TestBotCommandHandler:
@@ -17,6 +17,24 @@ class TestBotCommandHandler:
         assert result["guild_count"] == 2
         assert result["voice_connections"] == 1
         assert "latency_ms" in result
+        assert "uptime_seconds" in result
+        assert "python_version" in result
+        assert "discord_py_version" in result
+        assert "bot_version" in result
+
+    def test_health_command_with_zero_guilds(self, mock_bot):
+        """Health command should handle bot in no guilds."""
+        from bot import handle_valkey_command
+
+        mock_bot.guilds = []
+        mock_bot.latency = 0.02
+        mock_bot.voice_clients = []
+        mock_bot.uptime = datetime.now(UTC) - timedelta(seconds=30)
+        mock_bot.extensions = {}
+
+        result = handle_valkey_command(mock_bot, "health", {})
+        assert result["guild_count"] == 0
+        assert result["voice_connections"] == 0
 
     def test_list_modules_command(self, mock_bot):
         from bot import handle_valkey_command
@@ -29,8 +47,340 @@ class TestBotCommandHandler:
         assert "admin" in names
         assert "music" in names
 
+    def test_list_modules_empty(self, mock_bot):
+        """List modules should handle no loaded modules."""
+        from bot import handle_valkey_command
+
+        mock_bot.extensions = {}
+
+        result = handle_valkey_command(mock_bot, "list_modules", {})
+        assert result["modules"] == []
+
+    def test_module_load_success(self, mock_bot):
+        """Module load should succeed for valid module."""
+        from bot import handle_valkey_command
+
+        future_mock = MagicMock()
+        future_mock.result = MagicMock(return_value=None)
+
+        with patch("bot.run_coroutine_threadsafe", return_value=future_mock):
+            result = handle_valkey_command(mock_bot, "module_load", {"module": "tagging"})
+            assert result["success"] is True
+
+    def test_module_load_invalid_name(self, mock_bot):
+        """Module load should reject invalid module names."""
+        from bot import handle_valkey_command
+
+        result = handle_valkey_command(mock_bot, "module_load", {"module": ""})
+        assert result["success"] is False
+        assert "Invalid module name" in result["error"]
+
+        result = handle_valkey_command(mock_bot, "module_load", {"module": "foo-bar"})
+        assert result["success"] is False
+
+        result = handle_valkey_command(mock_bot, "module_load", {"module": "Foo"})
+        assert result["success"] is False
+
+    def test_module_load_exception(self, mock_bot):
+        """Module load should handle load exceptions."""
+        from bot import handle_valkey_command
+
+        future_mock = MagicMock()
+        future_mock.result = MagicMock(side_effect=Exception("Module not found"))
+
+        with patch("bot.run_coroutine_threadsafe", return_value=future_mock):
+            result = handle_valkey_command(mock_bot, "module_load", {"module": "invalid"})
+            assert result["success"] is False
+            assert "Module not found" in result["error"]
+
+    def test_module_unload_success(self, mock_bot):
+        """Module unload should succeed for valid module."""
+        from bot import handle_valkey_command
+
+        future_mock = MagicMock()
+        future_mock.result = MagicMock(return_value=None)
+
+        with patch("bot.run_coroutine_threadsafe", return_value=future_mock):
+            result = handle_valkey_command(mock_bot, "module_unload", {"module": "music"})
+            assert result["success"] is True
+
+    def test_module_unload_invalid_name(self, mock_bot):
+        """Module unload should reject invalid module names."""
+        from bot import handle_valkey_command
+
+        result = handle_valkey_command(mock_bot, "module_unload", {"module": "invalid-module"})
+        assert result["success"] is False
+        assert "Invalid module name" in result["error"]
+
+    def test_get_channels_success(self, mock_bot):
+        """Get channels should return sorted channel list."""
+        from bot import handle_valkey_command
+
+        mock_channel1 = MagicMock()
+        mock_channel1.id = 111
+        mock_channel1.name = "general"
+        mock_channel1.type.value = 0
+
+        mock_channel2 = MagicMock()
+        mock_channel2.id = 222
+        mock_channel2.name = "announcements"
+        mock_channel2.type.value = 0
+
+        mock_guild = MagicMock()
+        mock_guild.channels = [mock_channel1, mock_channel2]
+        mock_bot.get_guild = MagicMock(return_value=mock_guild)
+
+        result = handle_valkey_command(mock_bot, "get_channels", {"guild_id": "123"})
+        assert len(result["channels"]) == 2
+        assert result["channels"][0]["name"] == "announcements"  # sorted alphabetically
+        assert result["channels"][1]["name"] == "general"
+
+    def test_get_channels_guild_not_found(self, mock_bot):
+        """Get channels should handle missing guild."""
+        from bot import handle_valkey_command
+
+        mock_bot.get_guild = MagicMock(return_value=None)
+
+        result = handle_valkey_command(mock_bot, "get_channels", {"guild_id": "999"})
+        assert result["channels"] == []
+
+    def test_get_roles_success(self, mock_bot):
+        """Get roles should return sorted role list excluding @everyone."""
+        from bot import handle_valkey_command
+
+        mock_role1 = MagicMock()
+        mock_role1.id = 111
+        mock_role1.name = "Admin"
+        mock_role1.position = 10
+        mock_role1.is_default = MagicMock(return_value=False)
+
+        mock_role2 = MagicMock()
+        mock_role2.id = 222
+        mock_role2.name = "Member"
+        mock_role2.position = 5
+        mock_role2.is_default = MagicMock(return_value=False)
+
+        mock_role_default = MagicMock()
+        mock_role_default.id = 123
+        mock_role_default.name = "@everyone"
+        mock_role_default.position = 0
+        mock_role_default.is_default = MagicMock(return_value=True)
+
+        mock_guild = MagicMock()
+        mock_guild.roles = [mock_role1, mock_role2, mock_role_default]
+        mock_bot.get_guild = MagicMock(return_value=mock_guild)
+
+        result = handle_valkey_command(mock_bot, "get_roles", {"guild_id": "123"})
+        assert len(result["roles"]) == 2
+        assert result["roles"][0]["name"] == "Admin"  # sorted by position descending
+        assert result["roles"][1]["name"] == "Member"
+
+    def test_get_roles_guild_not_found(self, mock_bot):
+        """Get roles should handle missing guild."""
+        from bot import handle_valkey_command
+
+        mock_bot.get_guild = MagicMock(return_value=None)
+
+        result = handle_valkey_command(mock_bot, "get_roles", {"guild_id": "999"})
+        assert result["roles"] == []
+
+    def test_get_member_names_success(self, mock_bot):
+        """Get member names should return mapping of IDs to display names."""
+        from bot import handle_valkey_command
+
+        mock_member1 = MagicMock()
+        mock_member1.display_name = "Alice"
+
+        mock_member2 = MagicMock()
+        mock_member2.display_name = "Bob"
+
+        mock_guild = MagicMock()
+        mock_guild.get_member = lambda uid: mock_member1 if uid == 111 else (mock_member2 if uid == 222 else None)
+        mock_bot.get_guild = MagicMock(return_value=mock_guild)
+
+        result = handle_valkey_command(
+            mock_bot, "get_member_names", {"guild_id": "123", "user_ids": ["111", "222", "999"]}
+        )
+        assert result["111"] == "Alice"
+        assert result["222"] == "Bob"
+        assert "999" not in result
+
+    def test_get_member_names_guild_not_found(self, mock_bot):
+        """Get member names should handle missing guild."""
+        from bot import handle_valkey_command
+
+        mock_bot.get_guild = MagicMock(return_value=None)
+
+        result = handle_valkey_command(mock_bot, "get_member_names", {"guild_id": "999", "user_ids": ["111"]})
+        assert result == {}
+
+    def test_post_apply_button_success(self, mock_bot):
+        """Post apply button should queue task."""
+        from bot import handle_valkey_command
+
+        with patch("bot.run_coroutine_threadsafe"):
+            result = handle_valkey_command(mock_bot, "post_apply_button", {"form_id": "42"})
+            assert result["queued"] is True
+
+    def test_post_apply_button_no_form_id(self, mock_bot):
+        """Post apply button should require form_id."""
+        from bot import handle_valkey_command
+
+        result = handle_valkey_command(mock_bot, "post_apply_button", {})
+        assert "error" in result
+        assert "form_id required" in result["error"]
+
+    def test_search_realms_success(self, mock_bot):
+        """Search realms should return matching realms."""
+        from bot import handle_valkey_command
+
+        mock_wow_cog = MagicMock()
+        mock_wow_cog._realm_cache = {
+            "eu-silvermoon": {"region": "eu", "name": "Silvermoon", "slug": "silvermoon"},
+            "eu-argent-dawn": {"region": "eu", "name": "Argent Dawn", "slug": "argent-dawn"},
+            "us-stormrage": {"region": "us", "name": "Stormrage", "slug": "stormrage"},
+        }
+
+        future_mock = MagicMock()
+        future_mock.result = MagicMock(return_value=None)
+
+        mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
+
+        with patch("bot.run_coroutine_threadsafe", return_value=future_mock):
+            result = handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": "silver"})
+            assert len(result["realms"]) == 1
+            assert result["realms"][0]["name"] == "Silvermoon"
+
+    def test_search_realms_no_query(self, mock_bot):
+        """Search realms should handle empty query."""
+        from bot import handle_valkey_command
+
+        result = handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": ""})
+        assert result["realms"] == []
+
+        result = handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": "a"})
+        assert result["realms"] == []
+
+    def test_search_realms_module_not_loaded(self, mock_bot):
+        """Search realms should handle missing WoW module."""
+        from bot import handle_valkey_command
+
+        mock_bot.cogs = {}
+
+        result = handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": "silver"})
+        assert result["realms"] == []
+        assert "WoW module not loaded" in result["error"]
+
+    def test_search_realms_cache_unavailable(self, mock_bot):
+        """Search realms should handle cache unavailability."""
+        from bot import handle_valkey_command
+
+        mock_wow_cog = MagicMock()
+        future_mock = MagicMock()
+        future_mock.result = MagicMock(side_effect=Exception("Timeout"))
+
+        mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
+
+        with patch("bot.run_coroutine_threadsafe", return_value=future_mock):
+            result = handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": "test"})
+            assert result["realms"] == []
+            assert "Realm cache unavailable" in result["error"]
+
+    def test_validate_wow_guild_success(self, mock_bot):
+        """Validate WoW guild should return valid guild info."""
+        from bot import handle_valkey_command
+
+        mock_wow_cog = MagicMock()
+        mock_api = MagicMock()
+        mock_api.guild_roster = MagicMock(return_value={"guild": {"name": "Test Guild"}})
+        mock_wow_cog._get_retailclient = MagicMock(return_value=mock_api)
+
+        mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
+
+        result = handle_valkey_command(
+            mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test-guild"}
+        )
+        assert result["valid"] is True
+        assert result["display_name"] == "Test Guild"
+
+    def test_validate_wow_guild_not_found(self, mock_bot):
+        """Validate WoW guild should handle 404."""
+        from bot import handle_valkey_command
+
+        mock_wow_cog = MagicMock()
+        mock_api = MagicMock()
+        mock_api.guild_roster = MagicMock(return_value={"code": 404})
+        mock_wow_cog._get_retailclient = MagicMock(return_value=mock_api)
+
+        mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
+
+        result = handle_valkey_command(
+            mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "nonexistent"}
+        )
+        assert result["valid"] is False
+        assert result["display_name"] is None
+
+    def test_validate_wow_guild_rate_limited(self, mock_bot):
+        """Validate WoW guild should handle 429 rate limit."""
+        from bot import handle_valkey_command
+
+        mock_wow_cog = MagicMock()
+        mock_api = MagicMock()
+        mock_api.guild_roster = MagicMock(return_value={"code": 429})
+        mock_wow_cog._get_retailclient = MagicMock(return_value=mock_api)
+
+        mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
+        mock_bot.log = MagicMock()
+
+        result = handle_valkey_command(
+            mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test"}
+        )
+        assert result["valid"] is False
+        assert "rate limited" in result["error"]
+
+    def test_validate_wow_guild_empty_params(self, mock_bot):
+        """Validate WoW guild should handle missing params."""
+        from bot import handle_valkey_command
+
+        result = handle_valkey_command(
+            mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "", "guild_name": "test"}
+        )
+        assert result["valid"] is False
+        assert result["display_name"] is None
+
+    def test_validate_wow_guild_module_not_loaded(self, mock_bot):
+        """Validate WoW guild should handle missing module."""
+        from bot import handle_valkey_command
+
+        mock_bot.cogs = {}
+
+        result = handle_valkey_command(
+            mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test"}
+        )
+        assert result["valid"] is False
+        assert "WoW module not loaded" in result["error"]
+
+    def test_validate_wow_guild_exception(self, mock_bot):
+        """Validate WoW guild should handle exceptions."""
+        from bot import handle_valkey_command
+
+        mock_wow_cog = MagicMock()
+        mock_api = MagicMock()
+        mock_api.guild_roster = MagicMock(side_effect=Exception("Network error"))
+        mock_wow_cog._get_retailclient = MagicMock(return_value=mock_api)
+
+        mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
+        mock_bot.log = MagicMock()
+
+        result = handle_valkey_command(
+            mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test"}
+        )
+        assert result["valid"] is False
+        assert "Network error" in result["error"]
+
     def test_unknown_command_returns_error(self, mock_bot):
         from bot import handle_valkey_command
 
         result = handle_valkey_command(mock_bot, "unknown_cmd", {})
         assert "error" in result
+        assert "Unknown command" in result["error"]

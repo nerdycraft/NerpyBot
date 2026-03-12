@@ -1,29 +1,8 @@
 services:
-  nerpybot-migrations:
-    image: ghcr.io/nerdycraft/nerpybot-database-migrations:latest
-    restart: "no"
-    environment:
-      NERPYBOT_DB_TYPE: sqlite
-      NERPYBOT_DB_NAME: /data/db.db
-      # ── PostgreSQL alternative ──
-      # NERPYBOT_DB_TYPE: postgresql
-      # NERPYBOT_DB_NAME: nerpybot
-      # NERPYBOT_DB_USERNAME: nerpybot
-      # NERPYBOT_DB_PASSWORD: changeme
-      # NERPYBOT_DB_HOST: postgres
-      # NERPYBOT_DB_PORT: "5432"
-    volumes:
-      - nerpybot-data:/data
-    # depends_on:
-    #   postgres:
-    #     condition: service_healthy
-
   nerpybot:
     image: ghcr.io/nerdycraft/nerpybot:latest
     restart: unless-stopped
     depends_on:
-      nerpybot-migrations:
-        condition: service_completed_successfully
       valkey:
         condition: service_healthy
       # postgres:
@@ -77,10 +56,8 @@ services:
     image: ghcr.io/nerdycraft/nerpybot-web:latest
     restart: unless-stopped
     depends_on:
-      nerpybot-migrations:
-        condition: service_completed_successfully
       nerpybot:
-        condition: service_started
+        condition: service_healthy
       valkey:
         condition: service_healthy
       # postgres:
