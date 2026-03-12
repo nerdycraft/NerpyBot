@@ -1,10 +1,4 @@
 services:
-  nerpybot-migrations:
-    image: nerpybot-database-migrations:dev
-    build:
-      context: .
-      target: migrations
-
   nerpybot:
     image: nerpybot:dev
     build:
