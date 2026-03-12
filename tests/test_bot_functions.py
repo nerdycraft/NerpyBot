@@ -7,6 +7,23 @@ import pytest
 from NerdyPy.bot import get_intents, _csv, _to_bool, _set_nested, _valkey_listener_loop
 
 
+@pytest.fixture(autouse=True)
+def _patch_bot_subsystems():
+    """Prevent Audio/ConversationManager/ErrorThrottle from touching real config."""
+    with (
+        patch("NerdyPy.bot.Audio"),
+        patch("NerdyPy.bot.ConversationManager"),
+        patch("NerdyPy.bot.ErrorThrottle"),
+    ):
+        yield
+
+
+def _mock_session_scope(mock_self) -> None:
+    """Configure mock_self.session_scope to behave as a no-op context manager."""
+    mock_self.session_scope.return_value.__enter__ = MagicMock(return_value=MagicMock())
+    mock_self.session_scope.return_value.__exit__ = MagicMock(return_value=False)
+
+
 class TestHelperFunctions:
     """Test helper functions in bot.py."""
 
@@ -197,9 +214,6 @@ class TestNerpyBotInit:
         with (
             patch("NerdyPy.bot.create_engine"),
             patch("NerdyPy.bot.sessionmaker"),
-            patch("NerdyPy.bot.Audio"),
-            patch("NerdyPy.bot.ConversationManager"),
-            patch("NerdyPy.bot.ErrorThrottle"),
         ):
             bot = NerpyBot(config, Intents.all(), debug=False)
 
@@ -221,9 +235,6 @@ class TestNerpyBotInit:
         with (
             patch("NerdyPy.bot.create_engine"),
             patch("NerdyPy.bot.sessionmaker"),
-            patch("NerdyPy.bot.Audio"),
-            patch("NerdyPy.bot.ConversationManager"),
-            patch("NerdyPy.bot.ErrorThrottle"),
             patch("NerdyPy.bot.logging.get_logger") as mock_logger,
         ):
             mock_log = MagicMock()
@@ -246,9 +257,6 @@ class TestNerpyBotInit:
         with (
             patch("NerdyPy.bot.create_engine"),
             patch("NerdyPy.bot.sessionmaker"),
-            patch("NerdyPy.bot.Audio"),
-            patch("NerdyPy.bot.ConversationManager"),
-            patch("NerdyPy.bot.ErrorThrottle"),
         ):
             bot = NerpyBot(config, Intents.all(), debug=True)
             assert bot.debug is True
@@ -265,24 +273,19 @@ class TestNerpyBotSessionScope:
 
         config = {"bot": {"token": "test_token", "client_id": "12345", "ops": ["111"], "modules": []}}
 
-        with (
-            patch("NerdyPy.bot.Audio"),
-            patch("NerdyPy.bot.ConversationManager"),
-            patch("NerdyPy.bot.ErrorThrottle"),
-        ):
-            bot = NerpyBot(config, Intents.all(), debug=False)
-            bot.ENGINE = db_engine
-            from sqlalchemy.orm import sessionmaker
+        bot = NerpyBot(config, Intents.all(), debug=False)
+        bot.ENGINE = db_engine
+        from sqlalchemy.orm import sessionmaker
 
-            bot.SESSION = sessionmaker(bind=db_engine, expire_on_commit=False)
+        bot.SESSION = sessionmaker(bind=db_engine, expire_on_commit=False)
 
-            with bot.session_scope() as session:
-                BotGuild.add(12345, session)
+        with bot.session_scope() as session:
+            BotGuild.add(12345, session)
 
-            # After exiting context, changes should be committed
-            with bot.session_scope() as session:
-                guild = session.query(BotGuild).filter_by(GuildId=12345).first()
-                assert guild is not None
+        # After exiting context, changes should be committed
+        with bot.session_scope() as session:
+            guild = session.query(BotGuild).filter_by(GuildId=12345).first()
+            assert guild is not None
 
     def test_nerpybot_session_scope_rolls_back_on_error(self, db_engine):
         """NerpyBot.session_scope() should rollback on exception."""
@@ -293,21 +296,16 @@ class TestNerpyBotSessionScope:
 
         config = {"bot": {"token": "test_token", "client_id": "12345", "ops": ["111"], "modules": []}}
 
-        with (
-            patch("NerdyPy.bot.Audio"),
-            patch("NerdyPy.bot.ConversationManager"),
-            patch("NerdyPy.bot.ErrorThrottle"),
-        ):
-            bot = NerpyBot(config, Intents.all(), debug=False)
-            bot.ENGINE = db_engine
-            from sqlalchemy.orm import sessionmaker
+        bot = NerpyBot(config, Intents.all(), debug=False)
+        bot.ENGINE = db_engine
+        from sqlalchemy.orm import sessionmaker
 
-            bot.SESSION = sessionmaker(bind=db_engine, expire_on_commit=False)
+        bot.SESSION = sessionmaker(bind=db_engine, expire_on_commit=False)
 
-            # Raising SQLAlchemyError inside session_scope should rollback and re-raise as NerpyInfraException
-            with pytest.raises(NerpyInfraException):
-                with bot.session_scope():
-                    raise SQLAlchemyError("forced error")
+        # Raising SQLAlchemyError inside session_scope should rollback and re-raise as NerpyInfraException
+        with pytest.raises(NerpyInfraException):
+            with bot.session_scope():
+                raise SQLAlchemyError("forced error")
 
 
 class TestOnReady:
@@ -324,10 +322,9 @@ class TestOnReady:
         mock_self.config = {"web": {"valkey_url": "valkey://localhost:6379"}}
         mock_self.log = MagicMock()
         mock_self._activity_task.done.return_value = True
-        # _valkey_task doesn't have done() method (not yet created)
+        # remove auto-created MagicMock attribute so hasattr() returns False, simulating first run
         delattr(mock_self, "_valkey_task")
-        mock_self.session_scope.return_value.__enter__ = MagicMock(return_value=MagicMock())
-        mock_self.session_scope.return_value.__exit__ = MagicMock(return_value=False)
+        _mock_session_scope(mock_self)
 
         with (
             patch("NerdyPy.bot.SENTINEL_PATH", sentinel),
@@ -357,8 +354,7 @@ class TestOnReady:
         mock_self.client_id = 111222333
         mock_self._activity_task.done.return_value = True
         delattr(mock_self, "_valkey_task")
-        mock_self.session_scope.return_value.__enter__ = MagicMock(return_value=MagicMock())
-        mock_self.session_scope.return_value.__exit__ = MagicMock(return_value=False)
+        _mock_session_scope(mock_self)
 
         with (
             patch("NerdyPy.bot.SENTINEL_PATH", sentinel),
@@ -393,8 +389,7 @@ class TestOnReady:
         mock_self.log = MagicMock()
         mock_self._activity_task.done.return_value = True
         delattr(mock_self, "_valkey_task")
-        mock_self.session_scope.return_value.__enter__ = MagicMock(return_value=MagicMock())
-        mock_self.session_scope.return_value.__exit__ = MagicMock(return_value=False)
+        _mock_session_scope(mock_self)
 
         with (
             patch("NerdyPy.bot.SENTINEL_PATH", sentinel),

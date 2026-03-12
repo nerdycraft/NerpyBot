@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from discord import Intents
 
-from NerdyPy.bot import NerpyBot, get_intents
+from NerdyPy.bot import NerpyBot
 
 
 @pytest.fixture(autouse=True)
@@ -203,76 +203,6 @@ class TestNerpyBotCreateAll:
 
         # Should not raise
         bot.create_all()
-
-
-class TestGetIntents:
-    """Test get_intents helper function."""
-
-    def test_get_intents_returns_all(self):
-        """get_intents should return Intents.all()."""
-        intents = get_intents()
-
-        assert isinstance(intents, Intents)
-        # Verify it's basically "all" by checking common flags
-        assert intents.guilds
-        assert intents.members
-        assert intents.messages
-        assert intents.message_content
-
-
-class TestHelperFunctions:
-    """Test helper functions in bot.py."""
-
-    def test_csv_splits_correctly(self):
-        """_csv should split comma-separated values."""
-        from NerdyPy.bot import _csv
-
-        assert _csv("a,b,c") == ["a", "b", "c"]
-        assert _csv("a, b, c") == ["a", "b", "c"]  # strips whitespace
-        assert _csv("") == []
-        assert _csv("single") == ["single"]
-        assert _csv("a,,b") == ["a", "b"]  # skips empty
-
-    def test_to_bool_parses_correctly(self):
-        """_to_bool should parse boolean strings."""
-        from NerdyPy.bot import _to_bool
-
-        assert _to_bool("true") is True
-        assert _to_bool("True") is True
-        assert _to_bool("TRUE") is True
-        assert _to_bool("1") is True
-        assert _to_bool("yes") is True
-        assert _to_bool("YES") is True
-
-        assert _to_bool("false") is False
-        assert _to_bool("False") is False
-        assert _to_bool("0") is False
-        assert _to_bool("no") is False
-        assert _to_bool("anything") is False
-
-    def test_set_nested_creates_structure(self):
-        """_set_nested should create nested dict structure."""
-        from NerdyPy.bot import _set_nested
-
-        d = {}
-        _set_nested(d, ["a", "b", "c"], "value")
-        assert d == {"a": {"b": {"c": "value"}}}
-
-    def test_set_nested_overwrites_existing(self):
-        """_set_nested should overwrite existing values."""
-        from NerdyPy.bot import _set_nested
-
-        d = {"a": {"b": {"c": "old"}}}
-        _set_nested(d, ["a", "b", "c"], "new")
-        assert d["a"]["b"]["c"] == "new"
-
-    def test_set_nested_single_key(self):
-        """_set_nested should work with single key."""
-        from NerdyPy.bot import _set_nested
-
-        d = {}
-        _set_nested(d, ["key"], "value")
-        assert d == {"key": "value"}
 
 
 class TestActivityConstants:
