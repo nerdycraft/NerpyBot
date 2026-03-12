@@ -1,6 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, AsyncMock, patch
-import pytest
+from unittest.mock import MagicMock, patch
 
 
 class TestBotCommandHandler:
@@ -199,7 +198,9 @@ class TestBotCommandHandler:
         mock_guild.get_member = lambda uid: mock_member1 if uid == 111 else (mock_member2 if uid == 222 else None)
         mock_bot.get_guild = MagicMock(return_value=mock_guild)
 
-        result = handle_valkey_command(mock_bot, "get_member_names", {"guild_id": "123", "user_ids": ["111", "222", "999"]})
+        result = handle_valkey_command(
+            mock_bot, "get_member_names", {"guild_id": "123", "user_ids": ["111", "222", "999"]}
+        )
         assert result["111"] == "Alice"
         assert result["222"] == "Bob"
         assert "999" not in result
@@ -296,7 +297,9 @@ class TestBotCommandHandler:
 
         mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
 
-        result = handle_valkey_command(mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test-guild"})
+        result = handle_valkey_command(
+            mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test-guild"}
+        )
         assert result["valid"] is True
         assert result["display_name"] == "Test Guild"
 
@@ -311,7 +314,9 @@ class TestBotCommandHandler:
 
         mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
 
-        result = handle_valkey_command(mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "nonexistent"})
+        result = handle_valkey_command(
+            mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "nonexistent"}
+        )
         assert result["valid"] is False
         assert result["display_name"] is None
 
@@ -327,7 +332,9 @@ class TestBotCommandHandler:
         mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
         mock_bot.log = MagicMock()
 
-        result = handle_valkey_command(mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test"})
+        result = handle_valkey_command(
+            mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test"}
+        )
         assert result["valid"] is False
         assert "rate limited" in result["error"]
 
@@ -335,7 +342,9 @@ class TestBotCommandHandler:
         """Validate WoW guild should handle missing params."""
         from bot import handle_valkey_command
 
-        result = handle_valkey_command(mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "", "guild_name": "test"})
+        result = handle_valkey_command(
+            mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "", "guild_name": "test"}
+        )
         assert result["valid"] is False
         assert result["display_name"] is None
 
@@ -345,7 +354,9 @@ class TestBotCommandHandler:
 
         mock_bot.cogs = {}
 
-        result = handle_valkey_command(mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test"})
+        result = handle_valkey_command(
+            mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test"}
+        )
         assert result["valid"] is False
         assert "WoW module not loaded" in result["error"]
 
@@ -361,7 +372,9 @@ class TestBotCommandHandler:
         mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
         mock_bot.log = MagicMock()
 
-        result = handle_valkey_command(mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test"})
+        result = handle_valkey_command(
+            mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test"}
+        )
         assert result["valid"] is False
         assert "Network error" in result["error"]
 

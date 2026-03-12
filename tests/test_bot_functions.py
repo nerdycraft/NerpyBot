@@ -1,7 +1,6 @@
 """Comprehensive tests for bot.py functions and NerpyBot class."""
 
 from unittest.mock import MagicMock, patch, AsyncMock
-from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -104,12 +103,7 @@ class TestNerpyBotBuildConnectionString:
         """Should build SQLite connection string."""
         from NerdyPy.bot import NerpyBot
 
-        config = {
-            "database": {
-                "db_type": "sqlite",
-                "db_name": "/data/mydb.db"
-            }
-        }
+        config = {"database": {"db_type": "sqlite", "db_name": "/data/mydb.db"}}
         result = NerpyBot.build_connection_string(config)
         assert result == "sqlite:////data/mydb.db"
 
@@ -124,7 +118,7 @@ class TestNerpyBotBuildConnectionString:
                 "db_username": "admin",
                 "db_password": "secret",
                 "db_host": "localhost",
-                "db_port": "5432"
+                "db_port": "5432",
             }
         }
         result = NerpyBot.build_connection_string(config)
@@ -140,7 +134,7 @@ class TestNerpyBotBuildConnectionString:
                 "db_name": "nerpybot",
                 "db_username": "admin",
                 "db_password": "secret",
-                "db_host": "localhost"
+                "db_host": "localhost",
             }
         }
         result = NerpyBot.build_connection_string(config)
@@ -156,7 +150,7 @@ class TestNerpyBotBuildConnectionString:
                 "db_name": "nerpybot",
                 "db_username": "admin",
                 "db_host": "localhost",
-                "db_port": "5432"
+                "db_port": "5432",
             }
         }
         result = NerpyBot.build_connection_string(config)
@@ -166,12 +160,7 @@ class TestNerpyBotBuildConnectionString:
         """Should build minimal PostgreSQL connection string."""
         from NerdyPy.bot import NerpyBot
 
-        config = {
-            "database": {
-                "db_type": "postgresql",
-                "db_name": "nerpybot"
-            }
-        }
+        config = {"database": {"db_type": "postgresql", "db_name": "nerpybot"}}
         result = NerpyBot.build_connection_string(config)
         assert result == "postgresql+psycopg:///nerpybot"
 
@@ -185,7 +174,7 @@ class TestNerpyBotBuildConnectionString:
                 "db_name": "nerpybot",
                 "db_username": "admin",
                 "db_password": "",
-                "db_host": "localhost"
+                "db_host": "localhost",
             }
         }
         result = NerpyBot.build_connection_string(config)
@@ -202,12 +191,7 @@ class TestNerpyBotInit:
         from discord import Intents
 
         config = {
-            "bot": {
-                "token": "test_token",
-                "client_id": "12345",
-                "ops": ["111", "222"],
-                "modules": ["admin", "music"]
-            }
+            "bot": {"token": "test_token", "client_id": "12345", "ops": ["111", "222"], "modules": ["admin", "music"]}
         }
 
         with (
@@ -232,14 +216,7 @@ class TestNerpyBotInit:
         from NerdyPy.bot import NerpyBot
         from discord import Intents
 
-        config = {
-            "bot": {
-                "token": "test_token",
-                "client_id": "12345",
-                "ops": ["111"],
-                "modules": []
-            }
-        }
+        config = {"bot": {"token": "test_token", "client_id": "12345", "ops": ["111"], "modules": []}}
 
         with (
             patch("NerdyPy.bot.create_engine"),
@@ -252,7 +229,7 @@ class TestNerpyBotInit:
             mock_log = MagicMock()
             mock_logger.return_value = mock_log
 
-            bot = NerpyBot(config, Intents.all(), debug=False)
+            NerpyBot(config, Intents.all(), debug=False)
 
             # Should log warning about missing database config
             mock_log.warning.assert_called_once()
@@ -264,14 +241,7 @@ class TestNerpyBotInit:
         from NerdyPy.bot import NerpyBot
         from discord import Intents
 
-        config = {
-            "bot": {
-                "token": "test_token",
-                "client_id": "12345",
-                "ops": ["111"],
-                "modules": []
-            }
-        }
+        config = {"bot": {"token": "test_token", "client_id": "12345", "ops": ["111"], "modules": []}}
 
         with (
             patch("NerdyPy.bot.create_engine"),
@@ -293,14 +263,7 @@ class TestNerpyBotSessionScope:
         from discord import Intents
         from models.admin import BotGuild
 
-        config = {
-            "bot": {
-                "token": "test_token",
-                "client_id": "12345",
-                "ops": ["111"],
-                "modules": []
-            }
-        }
+        config = {"bot": {"token": "test_token", "client_id": "12345", "ops": ["111"], "modules": []}}
 
         with (
             patch("NerdyPy.bot.Audio"),
@@ -310,6 +273,7 @@ class TestNerpyBotSessionScope:
             bot = NerpyBot(config, Intents.all(), debug=False)
             bot.ENGINE = db_engine
             from sqlalchemy.orm import sessionmaker
+
             bot.SESSION = sessionmaker(bind=db_engine, expire_on_commit=False)
 
             with bot.session_scope() as session:
@@ -325,16 +289,9 @@ class TestNerpyBotSessionScope:
         from NerdyPy.bot import NerpyBot
         from discord import Intents
         from utils.errors import NerpyInfraException
-        from models.admin import BotGuild
+        from sqlalchemy.exc import SQLAlchemyError
 
-        config = {
-            "bot": {
-                "token": "test_token",
-                "client_id": "12345",
-                "ops": ["111"],
-                "modules": []
-            }
-        }
+        config = {"bot": {"token": "test_token", "client_id": "12345", "ops": ["111"], "modules": []}}
 
         with (
             patch("NerdyPy.bot.Audio"),
@@ -344,16 +301,13 @@ class TestNerpyBotSessionScope:
             bot = NerpyBot(config, Intents.all(), debug=False)
             bot.ENGINE = db_engine
             from sqlalchemy.orm import sessionmaker
+
             bot.SESSION = sessionmaker(bind=db_engine, expire_on_commit=False)
 
-            # First add a guild
-            with bot.session_scope() as session:
-                BotGuild.add(12345, session)
-
-            # Now try to add it again (should fail due to unique constraint)
+            # Raising SQLAlchemyError inside session_scope should rollback and re-raise as NerpyInfraException
             with pytest.raises(NerpyInfraException):
-                with bot.session_scope() as session:
-                    BotGuild.add(12345, session)  # Duplicate, should fail
+                with bot.session_scope():
+                    raise SQLAlchemyError("forced error")
 
 
 class TestOnReady:
@@ -369,7 +323,7 @@ class TestOnReady:
         mock_self.modules = []
         mock_self.config = {"web": {"valkey_url": "valkey://localhost:6379"}}
         mock_self.log = MagicMock()
-        mock_self._activity_task.done.return_value = False
+        mock_self._activity_task.done.return_value = True
         # _valkey_task doesn't have done() method (not yet created)
         delattr(mock_self, "_valkey_task")
         mock_self.session_scope.return_value.__enter__ = MagicMock(return_value=MagicMock())
@@ -401,13 +355,14 @@ class TestOnReady:
         mock_self.config = {}
         mock_self.log = MagicMock()
         mock_self.client_id = 111222333
-        mock_self._activity_task.done.return_value = False
+        mock_self._activity_task.done.return_value = True
         delattr(mock_self, "_valkey_task")
         mock_self.session_scope.return_value.__enter__ = MagicMock(return_value=MagicMock())
         mock_self.session_scope.return_value.__exit__ = MagicMock(return_value=False)
 
         with (
             patch("NerdyPy.bot.SENTINEL_PATH", sentinel),
+            patch("NerdyPy.bot.create_task"),
             patch("NerdyPy.bot.required_permissions_for") as mock_required,
             patch("NerdyPy.bot.check_guild_permissions") as mock_check,
             patch("NerdyPy.bot.build_permissions_embed"),
@@ -436,7 +391,7 @@ class TestOnReady:
         mock_self.modules = []
         mock_self.config = {}  # No web.valkey_url
         mock_self.log = MagicMock()
-        mock_self._activity_task.done.return_value = False
+        mock_self._activity_task.done.return_value = True
         delattr(mock_self, "_valkey_task")
         mock_self.session_scope.return_value.__enter__ = MagicMock(return_value=MagicMock())
         mock_self.session_scope.return_value.__exit__ = MagicMock(return_value=False)
@@ -469,9 +424,10 @@ class TestValkeyListenerLoop:
         mock_client.close = MagicMock()
 
         with (
-            patch("NerdyPy.bot.to_thread", new_callable=AsyncMock) as mock_to_thread,
+            patch("NerdyPy.bot.to_thread", new_callable=AsyncMock),
         ):
             import valkey as valkey_lib
+
             with patch.object(valkey_lib, "from_url", return_value=mock_client):
                 await _valkey_listener_loop(mock_bot, "valkey://localhost:6379")
 
@@ -494,6 +450,7 @@ class TestValkeyListenerLoop:
 
         with patch("NerdyPy.bot.to_thread", new_callable=AsyncMock):
             import valkey as valkey_lib
+
             with patch.object(valkey_lib, "from_url", return_value=mock_client):
                 await _valkey_listener_loop(mock_bot, "valkey://localhost:6379")
                 # Should exit without raising
@@ -508,6 +465,7 @@ class TestValkeyListenerLoop:
             patch("NerdyPy.bot.to_thread", new_callable=AsyncMock, side_effect=Exception("Connection failed")),
         ):
             import valkey as valkey_lib
+
             with patch.object(valkey_lib, "from_url", side_effect=Exception("Connection failed")):
                 await _valkey_listener_loop(mock_bot, "valkey://localhost:6379")
 
@@ -642,8 +600,6 @@ class TestSentinelClearing:
 
     def test_sentinel_cleared_on_crash(self, tmp_path):
         """Sentinel should be cleared when bot crashes and restarts."""
-        from NerdyPy.bot import SENTINEL_PATH
-
         with patch("NerdyPy.bot.SENTINEL_PATH", tmp_path / "sentinel"):
             sentinel = tmp_path / "sentinel"
             sentinel.touch()

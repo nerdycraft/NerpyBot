@@ -1,14 +1,26 @@
 # -*- coding: utf-8 -*-
 """Tests for NerpyBot class initialization and methods."""
 
+import tempfile
 from datetime import UTC, datetime
-from unittest.mock import MagicMock, patch, AsyncMock
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from discord import Intents
 
 from NerdyPy.bot import NerpyBot, get_intents
+
+
+@pytest.fixture(autouse=True)
+def _patch_bot_subsystems():
+    """Prevent Audio/ConversationManager/ErrorThrottle from touching real config."""
+    with (
+        patch("NerdyPy.bot.Audio"),
+        patch("NerdyPy.bot.ConversationManager"),
+        patch("NerdyPy.bot.ErrorThrottle"),
+    ):
+        yield
 
 
 class TestNerpyBotInitialization:
@@ -297,7 +309,7 @@ class TestSentinelPath:
         """SENTINEL_PATH should be defined."""
         from NerdyPy.bot import SENTINEL_PATH
 
-        assert SENTINEL_PATH == Path("/tmp/nerpybot_ready")
+        assert SENTINEL_PATH == Path(tempfile.gettempdir()) / "nerpybot_ready"
 
 
 class TestVersionCallback:
@@ -315,6 +327,5 @@ class TestVersionCallback:
         """_version_callback should not exit when value is False."""
         from NerdyPy.bot import _version_callback
 
-        # Should return None without raising
-        result = _version_callback(False)
-        assert result is None
+        # Should complete without raising (returns None)
+        _version_callback(False)

@@ -1,5 +1,6 @@
 """Tests for run_migrations() in bot.py."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,8 +18,8 @@ def test_run_migrations_calls_alembic_upgrade():
     ):
         run_migrations()
 
-        # Config constructed with a Path pointing to alembic.ini
-        called_path = mock_cfg_cls.call_args[0][0]
+        # Config constructed with a str path pointing to alembic.ini
+        called_path = Path(mock_cfg_cls.call_args[0][0])
         assert called_path.name == "alembic.ini"
         # upgrade("head") was called with the config object
         mock_cmd.upgrade.assert_called_once_with(mock_config, "head")
@@ -68,12 +69,12 @@ def test_run_migrations_locates_alembic_ini():
     """run_migrations() should locate alembic.ini relative to bot.py."""
     with (
         patch("NerdyPy.bot.Config") as mock_cfg_cls,
-        patch("NerdyPy.bot.alembic_command") as mock_cmd,
+        patch("NerdyPy.bot.alembic_command"),
     ):
         run_migrations()
 
         # Verify the alembic.ini path is constructed correctly
-        called_path = mock_cfg_cls.call_args[0][0]
+        called_path = Path(mock_cfg_cls.call_args[0][0])
         assert called_path.name == "alembic.ini"
         assert called_path.is_absolute()
 
