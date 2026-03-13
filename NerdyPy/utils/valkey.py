@@ -37,6 +37,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         dict: A command-specific response. Examples include:
             - health: {"guild_count", "voice_connections", "latency_ms", "uptime_seconds", "python_version", "discord_py_version", "bot_version", "memory_mb", "cpu_percent", "error_count_24h", "active_reminders", "voice_details"}
             - list_modules: {"modules": [{"name", "loaded"}, ...]}
+            - list_guilds: {"guilds": [{"id", "name", "icon", "member_count"}, ...]}
             - module_load/module_unload: {"success": True} or {"success": False, "error": "..."}
             - get_channels: {"channels": [{"id", "name", "type"}, ...]}
             - get_roles: {"roles": [{"id", "name"}, ...]}
@@ -202,6 +203,18 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         except Exception as e:
             bot.log.warning("validate_wow_guild failed: %s", e)
             return {"valid": False, "display_name": None, "error": str(e)}
+    elif command == "list_guilds":
+        return {
+            "guilds": [
+                {
+                    "id": str(g.id),
+                    "name": g.name,
+                    "icon": g.icon.key if g.icon else None,
+                    "member_count": g.member_count,
+                }
+                for g in bot.guilds
+            ]
+        }
     else:
         return {"error": f"Unknown command: {command}"}
 

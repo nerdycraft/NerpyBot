@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 
 from web.dependencies import get_db_session, get_valkey, require_operator
 from web.schemas import (
+    BotGuildInfo,
+    BotGuildListResponse,
     HealthResponse,
     ModuleActionResponse,
     ModuleListResponse,
@@ -140,3 +142,15 @@ async def unload_module(
     if result is None:
         return ModuleActionResponse(module=name, action="unload", success=False, error="Bot unreachable")
     return ModuleActionResponse(module=name, action="unload", **result)
+
+
+@router.get("/guilds", response_model=BotGuildListResponse)
+async def list_bot_guilds(
+    user: dict = Depends(require_operator),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """List all guilds the bot is currently in."""
+    result = await vk.send_bot_command("list_guilds", {})
+    if result is None:
+        return BotGuildListResponse(guilds=[])
+    return BotGuildListResponse(guilds=[BotGuildInfo(**g) for g in result.get("guilds", [])])

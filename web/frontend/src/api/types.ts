@@ -371,6 +371,13 @@ export interface ModuleActionResponse {
   error: string | null;
 }
 
+export interface BotGuildInfo {
+  id: string;
+  name: string;
+  icon: string | null;
+  member_count: number | null;
+}
+
 export interface TokenResponse {
   access_token: string;
   token_type: string;

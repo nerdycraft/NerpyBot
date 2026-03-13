@@ -365,6 +365,20 @@ class CraftingOrderSchema(BaseModel):
     create_date: str
 
 
+# ── Bot Guild List ──
+
+
+class BotGuildInfo(BaseModel):
+    id: str
+    name: str
+    icon: str | None
+    member_count: int | None
+
+
+class BotGuildListResponse(BaseModel):
+    guilds: list[BotGuildInfo]
+
+
 # ── Premium ──
 
 

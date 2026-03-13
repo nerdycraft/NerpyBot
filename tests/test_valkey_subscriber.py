@@ -435,3 +435,34 @@ class TestBotCommandHandler:
         result = await handle_valkey_command(mock_bot, "unknown_cmd", {})
         assert "error" in result
         assert "Unknown command" in result["error"]
+
+    async def test_list_guilds_command(self, mock_bot):
+        """list_guilds returns info about all bot guilds."""
+        mock_guild1 = MagicMock()
+        mock_guild1.id = 111111
+        mock_guild1.name = "Guild One"
+        mock_guild1.icon = MagicMock()
+        mock_guild1.icon.key = "abc123"
+        mock_guild1.member_count = 42
+
+        mock_guild2 = MagicMock()
+        mock_guild2.id = 222222
+        mock_guild2.name = "Guild Two"
+        mock_guild2.icon = None
+        mock_guild2.member_count = 100
+
+        mock_bot.guilds = [mock_guild1, mock_guild2]
+
+        result = await handle_valkey_command(mock_bot, "list_guilds", {})
+        assert len(result["guilds"]) == 2
+        assert result["guilds"][0]["id"] == "111111"
+        assert result["guilds"][0]["name"] == "Guild One"
+        assert result["guilds"][0]["icon"] == "abc123"
+        assert result["guilds"][0]["member_count"] == 42
+        assert result["guilds"][1]["icon"] is None
+
+    async def test_list_guilds_empty(self, mock_bot):
+        """list_guilds returns empty list when bot is in no guilds."""
+        mock_bot.guilds = []
+        result = await handle_valkey_command(mock_bot, "list_guilds", {})
+        assert result["guilds"] == []
