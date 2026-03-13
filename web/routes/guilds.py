@@ -58,6 +58,21 @@ _log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/guilds", tags=["guilds"], dependencies=[Depends(require_premium)])
 
+_REDACTED = "[redacted]"
+
+
+def _redact(value: str | None, user: dict) -> str | None:
+    """Return _REDACTED if user is in support mode, otherwise return value unchanged."""
+    if not user.get("support_mode") or value is None:
+        return value
+    return _REDACTED
+
+
+def _deny_support_write(user: dict) -> None:
+    """Raise 403 if user is in support mode (operators browsing without real guild perms)."""
+    if user.get("support_mode"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Read-only in support mode")
+
 
 # ── Language ──
 
@@ -67,10 +82,13 @@ async def get_language(
     guild_id: int,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    response: Response = None,
 ):
     """Return the configured language for a guild (defaults to 'en')."""
     from models.admin import GuildLanguageConfig
 
+    if user.get("support_mode") and response is not None:
+        response.headers["X-Support-Mode"] = "true"
     cfg = GuildLanguageConfig.get(guild_id, session)
     lang = cfg.Language if cfg else "en"
     return LanguageConfig(guild_id=str(guild_id), language=lang)
@@ -84,6 +102,7 @@ async def set_language(
     session: Session = Depends(get_db_session),
 ):
     """Set or update the bot language for a guild."""
+    _deny_support_write(user)
     from models.admin import GuildLanguageConfig
 
     cfg = GuildLanguageConfig.get(guild_id, session)
@@ -121,6 +140,7 @@ async def add_moderator_role(
     session: Session = Depends(get_db_session),
 ):
     """Set or replace the moderator role for a guild."""
+    _deny_support_write(user)
     from models.admin import BotModeratorRole
 
     existing = BotModeratorRole.get(guild_id, session)
@@ -140,6 +160,7 @@ async def delete_moderator_role(
     session: Session = Depends(get_db_session),
 ):
     """Remove the moderator role for a guild. Returns 404 if the role is not configured."""
+    _deny_support_write(user)
     from models.admin import BotModeratorRole
 
     existing = BotModeratorRole.get(guild_id, session)
@@ -180,6 +201,7 @@ async def set_leave_message(
     session: Session = Depends(get_db_session),
 ):
     """Create or update the leave message configuration for a guild."""
+    _deny_support_write(user)
     from models.leavemsg import LeaveMessage
 
     cfg = LeaveMessage.get(guild_id, session)
@@ -235,6 +257,7 @@ async def create_auto_delete(
     session: Session = Depends(get_db_session),
 ):
     """Create a new auto-delete rule for a channel. Returns 409 if a rule already exists for that channel."""
+    _deny_support_write(user)
     from models.moderation import AutoDelete
 
     rule = AutoDelete(
@@ -273,6 +296,7 @@ async def update_auto_delete(
     session: Session = Depends(get_db_session),
 ):
     """Update an existing auto-delete rule. Returns 404 if the rule does not belong to this guild."""
+    _deny_support_write(user)
     from models.moderation import AutoDelete
 
     rule = session.query(AutoDelete).filter(AutoDelete.Id == rule_id, AutoDelete.GuildId == guild_id).first()
@@ -305,6 +329,7 @@ async def delete_auto_delete(
     session: Session = Depends(get_db_session),
 ):
     """Delete an auto-delete rule. Returns 404 if not found for this guild."""
+    _deny_support_write(user)
     from models.moderation import AutoDelete
 
     rule = session.query(AutoDelete).filter(AutoDelete.Id == rule_id, AutoDelete.GuildId == guild_id).first()
@@ -345,6 +370,7 @@ async def set_auto_kicker(
     session: Session = Depends(get_db_session),
 ):
     """Create or update the auto-kicker configuration for a guild."""
+    _deny_support_write(user)
     from models.moderation import AutoKicker
 
     cfg = AutoKicker.get_by_guild(guild_id, session)
@@ -421,6 +447,7 @@ async def create_role_mapping(
     session: Session = Depends(get_db_session),
 ):
     """Create a new role mapping. Returns 409 if the mapping already exists."""
+    _deny_support_write(user)
     from models.rolemanage import RoleMapping
 
     mapping = RoleMapping(
@@ -450,6 +477,7 @@ async def delete_role_mapping(
     session: Session = Depends(get_db_session),
 ):
     """Delete a role mapping. Returns 404 if not found for this guild."""
+    _deny_support_write(user)
     from models.rolemanage import RoleMapping
 
     mapping = session.query(RoleMapping).filter(RoleMapping.Id == mapping_id, RoleMapping.GuildId == guild_id).first()
@@ -462,12 +490,12 @@ async def delete_role_mapping(
 # ── Reminders ──
 
 
-def _reminder_to_schema(r) -> ReminderSchema:
+def _reminder_to_schema(r, user: dict) -> ReminderSchema:
     return ReminderSchema(
         id=r.Id,
         channel_id=str(r.ChannelId),
         channel_name=r.ChannelName,
-        author=r.Author,
+        author=_redact(r.Author, user),
         message=r.Message,
         enabled=r.Enabled,
         schedule_type=r.ScheduleType,
@@ -486,11 +514,14 @@ async def list_reminders(
     guild_id: int,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    response: Response = None,
 ):
     """List all reminder schedules for a guild."""
     from models.reminder import ReminderMessage
 
-    return [_reminder_to_schema(r) for r in ReminderMessage.get_all_by_guild(guild_id, session)]
+    if user.get("support_mode") and response is not None:
+        response.headers["X-Support-Mode"] = "true"
+    return [_reminder_to_schema(r, user) for r in ReminderMessage.get_all_by_guild(guild_id, session)]
 
 
 @router.post("/{guild_id}/reminders", response_model=ReminderSchema, status_code=status.HTTP_201_CREATED)
@@ -501,6 +532,7 @@ async def create_reminder(
     session: Session = Depends(get_db_session),
 ):
     """Create a new channel reminder schedule."""
+    _deny_support_write(user)
     from datetime import UTC, datetime, time
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -562,7 +594,7 @@ async def create_reminder(
     )
     session.add(reminder)
     session.flush()
-    return _reminder_to_schema(reminder)
+    return _reminder_to_schema(reminder, user)
 
 
 @router.patch("/{guild_id}/reminders/{reminder_id}", response_model=ReminderSchema)
@@ -574,6 +606,7 @@ async def update_reminder(
     session: Session = Depends(get_db_session),
 ):
     """Update a reminder's message, channel, or enabled state."""
+    _deny_support_write(user)
     from models.reminder import ReminderMessage
 
     r = ReminderMessage.get_by_id(reminder_id, guild_id, session)
@@ -587,7 +620,7 @@ async def update_reminder(
     if body.channel_id is not None:
         r.ChannelId = int(body.channel_id)
 
-    return _reminder_to_schema(r)
+    return _reminder_to_schema(r, user)
 
 
 @router.delete("/{guild_id}/reminders/{reminder_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -598,6 +631,7 @@ async def delete_reminder(
     session: Session = Depends(get_db_session),
 ):
     """Delete a reminder schedule."""
+    _deny_support_write(user)
     from models.reminder import ReminderMessage
 
     r = ReminderMessage.get_by_id(reminder_id, guild_id, session)
@@ -610,12 +644,12 @@ async def delete_reminder(
 # ── Application Forms ──
 
 
-def _submission_to_schema(s, question_texts: dict | None = None) -> ApplicationSubmissionSchema:
+def _submission_to_schema(s, user: dict, question_texts: dict | None = None) -> ApplicationSubmissionSchema:
     return ApplicationSubmissionSchema(
         id=s.Id,
         form_name=s.form.Name if s.form else None,
-        user_id=str(s.UserId),
-        user_name=s.UserName,
+        user_id=_redact(str(s.UserId), user),
+        user_name=_redact(s.UserName, user),
         status=s.Status.value,
         submitted_at=str(s.SubmittedAt),
         decision_reason=s.DecisionReason,
@@ -627,14 +661,14 @@ def _submission_to_schema(s, question_texts: dict | None = None) -> ApplicationS
                     if question_texts is not None
                     else (a.question.QuestionText if a.question else "")
                 ),
-                answer_text=a.AnswerText,
+                answer_text=_redact(a.AnswerText, user),
             )
             for a in s.answers
         ],
         votes=[
             ApplicationVoteSchema(
-                voter_id=str(v.UserId),
-                voter_name=v.VoterName,
+                voter_id=_redact(str(v.UserId), user),
+                voter_name=_redact(v.VoterName, user),
                 vote=v.Vote.value,
             )
             for v in s.votes
@@ -682,6 +716,7 @@ async def create_application_form(
     vk: ValkeyClient = Depends(get_valkey),
 ):
     """Create a new application form for a guild. Returns 409 if a form with that name already exists."""
+    _deny_support_write(user)
     from models.application import ApplicationForm
 
     if ApplicationForm.get(body.name, guild_id, session):
@@ -721,6 +756,7 @@ async def update_application_form(
     vk: ValkeyClient = Depends(get_valkey),
 ):
     """Update an existing application form. Returns 404 if not found for this guild."""
+    _deny_support_write(user)
     from models.application import ApplicationForm
 
     form = (
@@ -772,6 +808,7 @@ async def delete_application_form(
     session: Session = Depends(get_db_session),
 ):
     """Delete an application form and all its questions and submissions."""
+    _deny_support_write(user)
     from models.application import ApplicationForm
 
     form = (
@@ -798,6 +835,7 @@ async def add_form_question(
     session: Session = Depends(get_db_session),
 ):
     """Add a question to a form. Auto-assigns sort_order as max+1 if not provided."""
+    _deny_support_write(user)
     from models.application import ApplicationForm, ApplicationQuestion
 
     form = (
@@ -831,6 +869,7 @@ async def update_form_question(
     session: Session = Depends(get_db_session),
 ):
     """Update a question's text or sort order."""
+    _deny_support_write(user)
     from models.application import ApplicationForm, ApplicationQuestion
 
     form = (
@@ -865,6 +904,7 @@ async def delete_form_question(
     session: Session = Depends(get_db_session),
 ):
     """Delete a question from a form."""
+    _deny_support_write(user)
     from models.application import ApplicationForm, ApplicationQuestion
 
     form = (
@@ -911,7 +951,7 @@ async def list_form_submissions(
         .all()
     )
     question_texts = {q.Id: q.QuestionText for q in form.questions}
-    return [_submission_to_schema(s, question_texts) for s in submissions]
+    return [_submission_to_schema(s, user, question_texts) for s in submissions]
 
 
 # ── All Submissions (cross-form) ──
@@ -936,7 +976,7 @@ async def list_all_submissions(
     if form_id is not None:
         q = q.filter(ApplicationSubmission.FormId == form_id)
     submissions = q.order_by(ApplicationSubmission.Id.desc()).all()
-    return [_submission_to_schema(s) for s in submissions]
+    return [_submission_to_schema(s, user) for s in submissions]
 
 
 # ── Application Templates ──
@@ -978,6 +1018,7 @@ async def create_application_template(
     session: Session = Depends(get_db_session),
 ):
     """Create a guild-specific application template."""
+    _deny_support_write(user)
     from models.application import ApplicationTemplate, ApplicationTemplateQuestion
 
     template = ApplicationTemplate(
@@ -1009,6 +1050,7 @@ async def update_application_template(
     session: Session = Depends(get_db_session),
 ):
     """Update a guild-specific template. Returns 403 for built-in templates."""
+    _deny_support_write(user)
     from models.application import ApplicationTemplate
 
     template = (
@@ -1037,6 +1079,7 @@ async def delete_application_template(
     session: Session = Depends(get_db_session),
 ):
     """Delete a guild-specific template. Returns 403 for built-in templates."""
+    _deny_support_write(user)
     from models.application import ApplicationTemplate
 
     template = (
@@ -1065,6 +1108,7 @@ async def add_template_question(
     session: Session = Depends(get_db_session),
 ):
     """Add a question to a guild template."""
+    _deny_support_write(user)
     from models.application import ApplicationTemplate, ApplicationTemplateQuestion
 
     template = (
@@ -1099,6 +1143,7 @@ async def delete_template_question(
     session: Session = Depends(get_db_session),
 ):
     """Delete a question from a guild template."""
+    _deny_support_write(user)
     from models.application import ApplicationTemplate, ApplicationTemplateQuestion
 
     template = (
@@ -1185,6 +1230,7 @@ async def create_wow_news_config(
     session: Session = Depends(get_db_session),
 ):
     """Create a WoW guild news tracker for a Discord guild. Returns 409 if already tracked."""
+    _deny_support_write(user)
     from models.wow import WowGuildNewsConfig
     from utils.strings import get_guild_language
 
@@ -1220,6 +1266,7 @@ async def update_wow_news_config(
     session: Session = Depends(get_db_session),
 ):
     """Partial update for a WoW guild news tracker (channel, active_days, min_level, enabled)."""
+    _deny_support_write(user)
     from sqlalchemy import func
 
     from models.wow import WowCharacterMounts, WowGuildNewsConfig
@@ -1252,6 +1299,7 @@ async def delete_wow_news_config(
     session: Session = Depends(get_db_session),
 ):
     """Delete a WoW guild news tracker and all associated character mount data."""
+    _deny_support_write(user)
     from models.wow import WowGuildNewsConfig
 
     cfg = WowGuildNewsConfig.get_by_id(config_id, guild_id, session)
@@ -1341,12 +1389,12 @@ async def list_crafting_orders(
             id=o.Id,
             item_name=o.ItemName,
             icon_url=o.IconUrl,
-            notes=o.Notes,
+            notes=_redact(o.Notes, user),
             status=o.Status,
-            creator_id=str(o.CreatorId),
-            creator_name=o.CreatorName,
-            crafter_id=str(o.CrafterId) if o.CrafterId else None,
-            crafter_name=o.CrafterName,
+            creator_id=_redact(str(o.CreatorId), user),
+            creator_name=_redact(o.CreatorName, user),
+            crafter_id=_redact(str(o.CrafterId), user) if o.CrafterId else None,
+            crafter_name=_redact(o.CrafterName, user),
             create_date=str(o.CreateDate),
         )
         for o in orders
@@ -1400,6 +1448,7 @@ async def create_crafting_role_mapping(
     session: Session = Depends(get_db_session),
 ):
     """Add a role → profession mapping for a guild."""
+    _deny_support_write(user)
     from models.wow import CraftingRoleMapping
 
     profession_name_by_id = _PROFESSION_NAME_BY_ID
@@ -1429,6 +1478,7 @@ async def update_crafting_role_mapping(
     session: Session = Depends(get_db_session),
 ):
     """Update the profession for a role mapping."""
+    _deny_support_write(user)
     from models.wow import CraftingRoleMapping
 
     if body.profession_id not in _PROFESSION_NAME_BY_ID:
@@ -1458,6 +1508,7 @@ async def delete_crafting_role_mapping(
     session: Session = Depends(get_db_session),
 ):
     """Remove a role → profession mapping."""
+    _deny_support_write(user)
     from models.wow import CraftingRoleMapping
 
     mapping = (
