@@ -22,10 +22,18 @@ def parse_id(value: int | str) -> int:
 
 
 async def send_hidden_message(interaction: Interaction, msg: str | None = None, **kwargs) -> None:
-    """Send an ephemeral message via slash command interaction."""
-    if not interaction.response.is_done():
-        return await interaction.response.send_message(msg, ephemeral=True, **kwargs)
-    return await interaction.followup.send(msg, ephemeral=True, **kwargs)
+    """Send an ephemeral message via slash command interaction.
+
+    Silently swallows send errors (e.g. expired interaction tokens) so callers
+    that need post-send logic (error recording, operator notifications) are not
+    interrupted by a failed delivery.
+    """
+    try:
+        if not interaction.response.is_done():
+            return await interaction.response.send_message(msg, ephemeral=True, **kwargs)
+        return await interaction.followup.send(msg, ephemeral=True, **kwargs)
+    except Exception:
+        pass
 
 
 _MESSAGE_LINK_RE = re.compile(r"https?://(?:canary\.|ptb\.)?discord(?:app)?\.com/channels/\d+/(\d+)/(\d+)")

@@ -42,18 +42,18 @@ onMounted(() => {
 });
 
 // Support mode: set by server via X-Support-Mode header on the first guild API call.
-const serverSupportMode = ref(false);
+const supportMode = ref(false);
 
 async function probeGuildAccess(id: string | undefined) {
   if (!id || !auth.user?.is_operator) {
-    serverSupportMode.value = false;
+    supportMode.value = false;
     return;
   }
   try {
-    const { supportMode } = await api.getWithHeaders<unknown>(`/guilds/${id}/language`);
-    serverSupportMode.value = supportMode;
+    const { supportMode: serverMode } = await api.getWithHeaders<unknown>(`/guilds/${id}/language`);
+    supportMode.value = serverMode;
   } catch {
-    serverSupportMode.value = false;
+    supportMode.value = false;
   }
 }
 
@@ -178,7 +178,6 @@ const activeComponent = computed(() => {
   return found?.component;
 });
 
-const supportMode = computed(() => serverSupportMode.value);
 
 const GROUP_ACCENTS: Record<string, string> = {
   General:      "text-blue-400",

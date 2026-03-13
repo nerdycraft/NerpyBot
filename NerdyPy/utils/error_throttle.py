@@ -91,16 +91,18 @@ class ErrorCounter:
     def __init__(self):
         self._timestamps: collections.deque[float] = collections.deque()
 
-    def record(self) -> None:
-        """Record that an error occurred now."""
+    def _evict_stale(self) -> None:
+        """Remove timestamps older than the 24-hour window."""
         cutoff = time.monotonic() - self.WINDOW
         while self._timestamps and self._timestamps[0] < cutoff:
             self._timestamps.popleft()
+
+    def record(self) -> None:
+        """Record that an error occurred now."""
+        self._evict_stale()
         self._timestamps.append(time.monotonic())
 
     def count(self) -> int:
         """Return the number of errors recorded in the last 24 hours."""
-        cutoff = time.monotonic() - self.WINDOW
-        while self._timestamps and self._timestamps[0] < cutoff:
-            self._timestamps.popleft()
+        self._evict_stale()
         return len(self._timestamps)
