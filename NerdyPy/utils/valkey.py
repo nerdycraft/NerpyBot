@@ -12,6 +12,8 @@ from asyncio import CancelledError, ensure_future, sleep, to_thread
 from datetime import UTC, datetime
 from importlib.metadata import version as pkg_version
 
+import psutil
+
 
 def _is_valid_module_name(module: str) -> bool:
     """Return True if module is a valid loadable module name (lowercase alpha + underscores)."""
@@ -51,7 +53,6 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         import sys
 
         import discord
-        import psutil
 
         uptime_seconds = (datetime.now(UTC) - bot.uptime).total_seconds()
         proc = psutil.Process()
