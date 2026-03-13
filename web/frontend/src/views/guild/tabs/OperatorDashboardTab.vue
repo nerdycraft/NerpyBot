@@ -15,7 +15,8 @@ function formatUptime(seconds: number): string {
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
-  return [d && `${d}d`, h && `${h}h`, m && `${m}m`, `${s}s`].filter(Boolean).join(" ");
+  const parts = [d && `${d}d`, h && `${h}h`, m && `${m}m`, s && `${s}s`].filter(Boolean);
+  return parts.length ? parts.join(" ") : "0s";
 }
 
 async function fetchHealth() {
@@ -114,16 +115,16 @@ onUnmounted(() => {
         <span
           :class="[
             'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold',
-            health.status === 'ok'
+            health.status === 'online'
               ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
               : 'bg-destructive/15 text-destructive border border-destructive/30',
           ]"
         >
           <Icon
-            :icon="health.status === 'ok' ? 'mdi:check-circle-outline' : 'mdi:alert-circle-outline'"
+            :icon="health.status === 'online' ? 'mdi:check-circle-outline' : 'mdi:alert-circle-outline'"
             class="w-3.5 h-3.5"
           />
-          {{ health.status === "ok" ? "Online" : "Unreachable" }}
+          {{ health.status === "online" ? "Online" : "Unreachable" }}
         </span>
       </div>
 
