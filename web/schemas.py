@@ -424,7 +424,7 @@ class ModuleInfo(BaseModel):
 
 
 class ModuleListResponse(BaseModel):
-    modules: list[dict]
+    modules: list[ModuleInfo]
     status: str = "ok"
 
 

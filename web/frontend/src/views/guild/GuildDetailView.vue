@@ -20,6 +20,7 @@ import WowGuildNewsTab from "./tabs/WowGuildNewsTab.vue";
 import WowCraftingTab from "./tabs/WowCraftingTab.vue";
 import OperatorUserManagementTab from "./tabs/OperatorUserManagementTab.vue";
 import OperatorDashboardTab from "./tabs/OperatorDashboardTab.vue";
+import OperatorModulesTab from "./tabs/OperatorModulesTab.vue";
 import MockupToolbar from "@/components/MockupToolbar.vue";
 import { api } from "@/api/client";
 import { useMockup } from "@/composables/useMockup";
@@ -151,6 +152,7 @@ const allSectionGroups: SectionGroup[] = [
     operatorOnly: true,
     items: [
       { id: "operator-dashboard", label: "Bot Health", icon: "mdi:heart-pulse", component: OperatorDashboardTab },
+      { id: "operator-modules", label: "Modules", icon: "mdi:puzzle-outline", component: OperatorModulesTab },
       { id: "operator-user-management", label: "User Management", icon: "mdi:crown-outline", component: OperatorUserManagementTab },
     ],
   },

@@ -360,7 +360,7 @@ export interface ModuleInfo {
 }
 
 export interface ModuleListResponse {
-  modules: Record<string, unknown>[];
+  modules: ModuleInfo[];
   status: string;
 }
 
