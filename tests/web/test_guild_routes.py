@@ -1,5 +1,6 @@
 import pytest
 
+from tests.web.conftest import make_auth_header
 
 GUILD_ID = 987654321
 
@@ -499,3 +500,45 @@ class TestWowNewsConfigCRUD:
         assert len(data) == 1
         assert data[0]["character_name"] == "Testchar"
         assert data[0]["mount_count"] == 3
+
+
+class TestSupportModeGuildAccess:
+    """Tests for operator support_mode logic in require_guild_access."""
+
+    def test_operator_with_real_guild_perms_gets_normal_access(self, client, fake_valkey):
+        """Operator with admin/mod perms on the guild → no support_mode, normal 200."""
+        # Seed admin perms for the operator (user_id=111222333) on this guild
+        fake_valkey.set_permissions("111222333", {str(GUILD_ID): {"level": "admin", "name": "Test Guild"}}, ttl=300)
+        header = make_auth_header(user_id="111222333", username="Operator")
+        response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=header)
+        assert response.status_code == 200
+        # No support_mode key in the language response body (it's a user-dict concern, not response body)
+        data = response.json()
+        assert "language" in data
+
+    def test_operator_without_guild_perms_gets_support_mode(self, client, fake_valkey):
+        """Operator with no guild permissions → still 200 (access granted), but support_mode=True on user dict.
+
+        We verify the endpoint still returns 200 — the support_mode flag is on the internal user dict
+        and will be used in Step 5. For now, 200 confirms the operator bypassed the 403 gate.
+        """
+        # Empty perms for operator — no entry for this guild
+        fake_valkey.set_permissions("111222333", {}, ttl=300)
+        header = make_auth_header(user_id="111222333", username="Operator")
+        response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=header)
+        assert response.status_code == 200
+
+    def test_operator_without_any_cached_perms_gets_support_mode(self, client, fake_valkey):
+        """Operator with no cached permission entry at all → still 200, support_mode path."""
+        # No permissions seeded for operator at all (get_permissions returns None)
+        header = make_auth_header(user_id="111222333", username="Operator")
+        response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=header)
+        assert response.status_code == 200
+
+    def test_non_operator_without_guild_perms_is_rejected(self, client, fake_valkey):
+        """Non-operator with no guild permissions → 403 Forbidden."""
+        # Seed perms with no entry for this guild for the regular user
+        fake_valkey.set_permissions("999888777", {}, ttl=300)
+        header = make_auth_header(user_id="999888777", username="RandomUser")
+        response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=header)
+        assert response.status_code == 403

@@ -94,7 +94,13 @@ async def require_guild_access(
     """
     user_id = int(user["sub"])
     if user_id in config.ops:
-        return user
+        perms = vk.get_permissions(user["sub"])
+        guild_str = str(guild_id)
+        if perms and guild_str in perms:
+            entry = perms[guild_str]
+            if isinstance(entry, dict) and entry.get("level") in ("admin", "mod"):
+                return user  # real guild permissions — normal access
+        return {**user, "support_mode": True}
 
     perms = vk.get_permissions(user["sub"])
     if perms is None:
