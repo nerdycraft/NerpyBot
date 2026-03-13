@@ -20,6 +20,8 @@ import WowGuildNewsTab from "./tabs/WowGuildNewsTab.vue";
 import WowCraftingTab from "./tabs/WowCraftingTab.vue";
 import OperatorUserManagementTab from "./tabs/OperatorUserManagementTab.vue";
 import OperatorDashboardTab from "./tabs/OperatorDashboardTab.vue";
+import MockupToolbar from "@/components/MockupToolbar.vue";
+import { useMockup } from "@/composables/useMockup";
 
 const route = useRoute();
 const router = useRouter();
@@ -42,6 +44,8 @@ onMounted(() => {
 watch(guildId, () => {
   router.replace({ query: {} });
 });
+
+const { mockupLevel } = useMockup();
 
 const otherManagedGuilds = computed(() =>
   auth.guilds.filter((g) => g.bot_present && g.id !== guildId.value),
@@ -124,12 +128,16 @@ const allSectionGroups: SectionGroup[] = [
   },
 ];
 
-const sectionGroups = computed(() =>
-  allSectionGroups
+const sectionGroups = computed(() => {
+  const effectiveIsOperator = mockupLevel.value === null
+    ? auth.user?.is_operator
+    : mockupLevel.value === "operator";
+
+  return allSectionGroups
     .map((g) => ({ ...g, items: g.items.filter((item) => !item.guildOnly || !!guildId.value) }))
     .filter((g) => g.items.length > 0)
-    .filter((g) => !g.operatorOnly || auth.user?.is_operator),
-);
+    .filter((g) => !g.operatorOnly || effectiveIsOperator);
+});
 
 const allSections = computed(() => sectionGroups.value.flatMap((g) => g.items));
 const activeComponent = computed(() => {
@@ -358,6 +366,8 @@ function guildIconUrl(): string | null {
             <strong>Support Mode</strong> — Viewing as operator. Sensitive content is redacted. Write operations are disabled.
           </span>
         </div>
+        <!-- Mockup toolbar (operator only) -->
+        <MockupToolbar />
         <div class="max-w-4xl">
           <component :is="activeComponent" :guild-id="guildId" />
         </div>
