@@ -4,7 +4,9 @@ from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytest
 
-from NerdyPy.bot import get_intents, _csv, _to_bool, _set_nested, _valkey_listener_loop
+from NerdyPy.bot import get_intents
+from NerdyPy.utils.config import _csv, _to_bool, _set_nested
+from NerdyPy.utils.valkey import valkey_listener_loop as _valkey_listener_loop
 
 
 @pytest.fixture(autouse=True)
@@ -25,7 +27,7 @@ def _mock_session_scope(mock_self) -> None:
 
 
 class TestHelperFunctions:
-    """Test helper functions in bot.py."""
+    """Test helper functions in utils/config.py."""
 
     def test_csv_splits_comma_separated_values(self):
         """_csv() should split comma-separated string into list."""
@@ -408,7 +410,8 @@ class TestValkeyListenerLoop:
     async def test_valkey_listener_subscribes_to_channel(self):
         """_valkey_listener_loop() should subscribe to nerpybot:cmd channel."""
         mock_bot = MagicMock()
-        mock_bot.is_closed = MagicMock(return_value=True)  # Exit immediately
+        # False: enter outer loop; True: exit inner loop; True: exit outer loop
+        mock_bot.is_closed = MagicMock(side_effect=[False, True, True])
         mock_bot.log = MagicMock()
 
         mock_client = MagicMock()
@@ -419,7 +422,7 @@ class TestValkeyListenerLoop:
         mock_client.close = MagicMock()
 
         with (
-            patch("NerdyPy.bot.to_thread", new_callable=AsyncMock),
+            patch("NerdyPy.utils.valkey.to_thread", new_callable=AsyncMock),
         ):
             import valkey as valkey_lib
 
@@ -438,15 +441,10 @@ class TestValkeyListenerLoop:
         mock_bot.is_closed = MagicMock(side_effect=CancelledError)
         mock_bot.log = MagicMock()
 
-        mock_client = MagicMock()
-        mock_pubsub = MagicMock()
-        mock_client.pubsub = MagicMock(return_value=mock_pubsub)
-        mock_client.close = MagicMock()
-
-        with patch("NerdyPy.bot.to_thread", new_callable=AsyncMock):
+        with patch("NerdyPy.utils.valkey.to_thread", new_callable=AsyncMock):
             import valkey as valkey_lib
 
-            with patch.object(valkey_lib, "from_url", return_value=mock_client):
+            with patch.object(valkey_lib, "from_url", return_value=MagicMock()):
                 await _valkey_listener_loop(mock_bot, "valkey://localhost:6379")
                 # Should exit without raising
 
@@ -455,9 +453,11 @@ class TestValkeyListenerLoop:
         """_valkey_listener_loop() should log errors."""
         mock_bot = MagicMock()
         mock_bot.log = MagicMock()
+        # False: enter outer loop; True: exit after error + sleep
+        mock_bot.is_closed = MagicMock(side_effect=[False, True])
 
         with (
-            patch("NerdyPy.bot.to_thread", new_callable=AsyncMock, side_effect=Exception("Connection failed")),
+            patch("NerdyPy.utils.valkey.sleep", new_callable=AsyncMock),
         ):
             import valkey as valkey_lib
 

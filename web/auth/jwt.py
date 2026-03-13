@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from jose import jwt
+import jwt
 
 ALGORITHM = "HS256"
 
@@ -36,5 +36,5 @@ def create_access_token(
 
 
 def decode_access_token(token: str, secret: str) -> dict:
-    """Decode and validate a JWT token. Raises jose.JWTError on failure."""
+    """Decode and validate a JWT token. Raises jwt.PyJWTError on failure."""
     return jwt.decode(token, secret, algorithms=[ALGORITHM])
