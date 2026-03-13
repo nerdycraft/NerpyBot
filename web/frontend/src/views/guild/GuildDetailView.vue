@@ -19,6 +19,7 @@ import ReactionRolesTab from "./tabs/ReactionRolesTab.vue";
 import WowGuildNewsTab from "./tabs/WowGuildNewsTab.vue";
 import WowCraftingTab from "./tabs/WowCraftingTab.vue";
 import OperatorUserManagementTab from "./tabs/OperatorUserManagementTab.vue";
+import OperatorDashboardTab from "./tabs/OperatorDashboardTab.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -117,6 +118,7 @@ const allSectionGroups: SectionGroup[] = [
     label: "Operator",
     operatorOnly: true,
     items: [
+      { id: "operator-dashboard", label: "Bot Health", icon: "mdi:heart-pulse", component: OperatorDashboardTab },
       { id: "operator-user-management", label: "User Management", icon: "mdi:crown-outline", component: OperatorUserManagementTab },
     ],
   },
