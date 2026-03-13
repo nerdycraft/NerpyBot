@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -7,8 +8,6 @@ from utils.valkey import handle_valkey_command
 class TestBotCommandHandler:
     async def test_health_command_returns_stats(self, mock_bot):
         """The health command handler returns bot metrics."""
-        from contextlib import contextmanager
-
         mock_bot.guilds = [MagicMock(), MagicMock()]
         mock_bot.latency = 0.045
         mock_bot.voice_clients = []
@@ -47,8 +46,6 @@ class TestBotCommandHandler:
 
     async def test_health_command_with_voice_clients(self, mock_bot):
         """Health command includes voice connection details."""
-        from contextlib import contextmanager
-
         mock_guild = MagicMock()
         mock_guild.id = 12345
         mock_guild.name = "Test Guild"
@@ -86,8 +83,6 @@ class TestBotCommandHandler:
 
     async def test_health_command_with_zero_guilds(self, mock_bot):
         """Health command should handle bot in no guilds."""
-        from contextlib import contextmanager
-
         mock_bot.guilds = []
         mock_bot.latency = 0.02
         mock_bot.voice_clients = []

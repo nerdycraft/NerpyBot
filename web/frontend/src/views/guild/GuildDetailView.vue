@@ -52,11 +52,12 @@ async function probeGuildAccess(id: string | undefined) {
     supportMode.value = false;
     return;
   }
+  const probeId = id;
   try {
     const { supportMode: serverMode } = await api.getWithHeaders<unknown>(`/guilds/${id}/language`);
-    supportMode.value = serverMode;
+    if (guildId.value === probeId) supportMode.value = serverMode;
   } catch {
-    supportMode.value = false;
+    if (guildId.value === probeId) supportMode.value = false;
   }
 }
 
@@ -170,7 +171,7 @@ const allSectionGroups: SectionGroup[] = [
 
 const sectionGroups = computed(() => {
   const effectiveIsOperator = mockupLevel.value === null && auth.user?.is_operator;
-  const effectiveLevel = mockupLevel.value ?? "operator";
+  const effectiveLevel = mockupLevel.value ?? guild.current?.permission_level ?? "member";
 
   return allSectionGroups
     .map((g) => ({ ...g, items: g.items.filter((item) => !item.guildOnly || !!guildId.value) }))

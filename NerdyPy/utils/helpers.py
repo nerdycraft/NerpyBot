@@ -32,7 +32,7 @@ async def send_hidden_message(interaction: Interaction, msg: str | None = None, 
         if not interaction.response.is_done():
             return await interaction.response.send_message(msg, ephemeral=True, **kwargs)
         return await interaction.followup.send(msg, ephemeral=True, **kwargs)
-    except Exception:
+    except (discord.HTTPException, discord.InteractionResponded, discord.NotFound):
         pass
 
 

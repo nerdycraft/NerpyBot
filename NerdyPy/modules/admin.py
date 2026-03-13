@@ -12,11 +12,10 @@ from discord.ext.commands import Cog, Context, Greedy, command, hybrid_command
 from models.admin import BotModeratorRole, GuildLanguageConfig, PermissionSubscriber
 from utils.checks import is_admin_or_operator, require_operator
 from utils.cog import NerpyBotCog
+from utils.constants import PROTECTED_MODULES
 from utils.errors import NerpyInfraException, NerpyPermissionError
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 from utils.strings import available_languages, get_guild_language, get_localized_string, get_string
-
-PROTECTED_MODULES = frozenset({"admin", "voicecontrol"})
 
 _DURATION_MULTIPLIERS = {"m": 60, "h": 3600, "d": 86400}
 

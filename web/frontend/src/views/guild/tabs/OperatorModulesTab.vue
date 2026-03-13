@@ -175,7 +175,7 @@ onMounted(fetchModules);
         <select
           v-model="selectedModule"
           class="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-          :disabled="available.length === 0 || pendingModule !== null"
+          :disabled="pendingModule !== null"
         >
           <option value="" disabled>Select a module…</option>
           <option v-for="name in available" :key="name" :value="name">{{ name }}</option>

@@ -15,12 +15,10 @@ from pathlib import Path
 
 import psutil
 
+from utils.constants import PROTECTED_MODULES
+
 _proc = psutil.Process()
 _proc.cpu_percent(interval=None)  # prime the baseline; first call always returns 0.0
-
-
-# Modules that are always auto-loaded by the bot and must never be unloaded at runtime.
-PROTECTED_MODULES: frozenset[str] = frozenset({"admin", "voicecontrol"})
 
 
 def _is_valid_module_name(module: str) -> bool:
@@ -78,6 +76,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                 "channel_name": vc.channel.name,
             }
             for vc in bot.voice_clients
+            if vc.guild and vc.channel
         ]
         active_reminders: int | None = None
         try:
@@ -256,7 +255,11 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                 dm_user = await bot.fetch_user(uid)
                 await dm_user.send(embed=embed)
                 return True
-            except Exception:
+            except (discord.Forbidden, discord.NotFound) as e:
+                bot.log.warning("support_message: cannot DM uid=%s: %s", uid, e)
+                return False
+            except discord.HTTPException as e:
+                bot.log.warning("support_message: send failed for uid=%s: %s", uid, e)
                 return False
 
         recipients = bot.config.get("notifications", {}).get("error_recipients", [])

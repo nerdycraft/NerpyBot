@@ -29,4 +29,6 @@ async def send_support_message(
     )
     if result is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Bot unreachable")
+    if result.get("error"):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=result["error"])
     return SupportMessageResponse(**result)
