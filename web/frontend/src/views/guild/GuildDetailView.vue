@@ -164,7 +164,7 @@ const sectionGroups = computed(() => {
     .map((g) => ({ ...g, items: g.items.filter((item) => !item.guildOnly || !!guildId.value) }))
     .filter((g) => g.items.length > 0)
     .filter((g) => !g.operatorOnly || effectiveIsOperator)
-    .filter((g) => LEVEL_RANK[effectiveLevel] >= LEVEL_RANK[g.minLevel ?? "mod"]);
+    .filter((g) => (LEVEL_RANK[effectiveLevel] ?? 0) >= (LEVEL_RANK[g.minLevel ?? "mod"] ?? 0));
 });
 
 const allSections = computed(() => sectionGroups.value.flatMap((g) => g.items));
