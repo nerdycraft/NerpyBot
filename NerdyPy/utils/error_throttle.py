@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import collections
 import time
 
 
@@ -75,3 +76,28 @@ class ErrorThrottle:
             "throttle_window": self.THROTTLE_WINDOW,
             "buckets": buckets,
         }
+
+
+class ErrorCounter:
+    """Sliding-window 24h error counter.
+
+    Records timestamps of errors in a deque and counts how many occurred
+    within the last 86400 seconds (24 hours). Thread-safe for single-threaded
+    asyncio use — no explicit locking required.
+    """
+
+    WINDOW = 86400  # 24 hours in seconds
+
+    def __init__(self):
+        self._timestamps: collections.deque[float] = collections.deque()
+
+    def record(self) -> None:
+        """Record that an error occurred now."""
+        self._timestamps.append(time.monotonic())
+
+    def count(self) -> int:
+        """Return the number of errors recorded in the last 24 hours."""
+        cutoff = time.monotonic() - self.WINDOW
+        while self._timestamps and self._timestamps[0] < cutoff:
+            self._timestamps.popleft()
+        return len(self._timestamps)

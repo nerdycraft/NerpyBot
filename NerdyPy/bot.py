@@ -47,7 +47,7 @@ from utils.audio import Audio
 from utils.config import parse_config
 from utils.conversation import AnswerType, ConversationManager
 from utils.database import BASE
-from utils.error_throttle import ErrorThrottle
+from utils.error_throttle import ErrorCounter, ErrorThrottle
 from utils.errors import NerpyException, NerpyInfraException, SilentCheckFailure
 from utils.helpers import error_context, notify_error, parse_id
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
@@ -145,6 +145,7 @@ class NerpyBot(Bot):
         self.audio = Audio(self)
         self.convMan = ConversationManager(self)
         self.error_throttle = ErrorThrottle()
+        self.error_counter = ErrorCounter()
         self.disabled_modules: set[str] = set()
 
         # database variables
@@ -385,6 +386,7 @@ class NerpyBot(Bot):
                 else:
                     await interaction.followup.send(err_msg, ephemeral=True)
                 if isinstance(error.original, NerpyInfraException):
+                    self.error_counter.record()
                     await notify_error(self, err_ctx, error.original)
             else:
                 self.log.error(f"{err_ctx}: {error.original.__class__.__name__}: {error.original}")
@@ -401,6 +403,7 @@ class NerpyBot(Bot):
                         await interaction.followup.send(msg, ephemeral=True)
                 except Exception:
                     pass  # interaction may have expired; still notify operator
+                self.error_counter.record()
                 await notify_error(self, err_ctx, error.original)
         else:
             self.log.error(f"{err_ctx}: {error}")
@@ -413,9 +416,11 @@ class NerpyBot(Bot):
             self.log.error(f"{error_context(ctx)}: {error.original.args[0]}")
             await ctx.send(str(error.original.args[0]))
             if isinstance(error.original, NerpyInfraException):
+                self.error_counter.record()
                 await notify_error(self, error_context(ctx), error.original)
         elif isinstance(error, CommandError):
             self.log.error(f"{error_context(ctx)}: {error}")
+            self.error_counter.record()
             await ctx.send("An error occurred.")
 
     async def on_guild_join(self, guild) -> None:
