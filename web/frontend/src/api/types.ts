@@ -382,3 +382,15 @@ export interface TokenResponse {
   access_token: string;
   token_type: string;
 }
+
+// ── Support ──
+
+export interface SupportMessageRequest {
+  category: "bug" | "feature" | "feedback" | "other";
+  message: string;
+}
+
+export interface SupportMessageResponse {
+  success: boolean;
+  sent_to: number;
+}

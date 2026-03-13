@@ -438,3 +438,16 @@ class ModuleActionResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+# ── Support ──
+
+
+class SupportMessageRequest(BaseModel):
+    category: Literal["bug", "feature", "feedback", "other"]
+    message: str = Field(..., min_length=10, max_length=2000)
+
+
+class SupportMessageResponse(BaseModel):
+    success: bool
+    sent_to: int = 0

@@ -22,6 +22,7 @@ import OperatorUserManagementTab from "./tabs/OperatorUserManagementTab.vue";
 import OperatorDashboardTab from "./tabs/OperatorDashboardTab.vue";
 import OperatorModulesTab from "./tabs/OperatorModulesTab.vue";
 import OperatorGuildsTab from "./tabs/OperatorGuildsTab.vue";
+import SupportTab from "./tabs/SupportTab.vue";
 import MockupToolbar from "@/components/MockupToolbar.vue";
 import { api } from "@/api/client";
 import { useMockup } from "@/composables/useMockup";
@@ -149,6 +150,13 @@ const allSectionGroups: SectionGroup[] = [
     ],
   },
   {
+    label: "Support",
+    minLevel: "member",
+    items: [
+      { id: "support", label: "Contact & Feedback", icon: "mdi:message-text-outline", component: SupportTab },
+    ],
+  },
+  {
     label: "Operator",
     operatorOnly: true,
     items: [
@@ -189,6 +197,7 @@ const GROUP_ACCENTS: Record<string, string> = {
   Roles:        "text-violet-400",
   Applications: "text-emerald-400",
   WoW:          "text-yellow-400",
+  Support:      "text-cyan-400",
   Operator:     "text-rose-400",
 };
 

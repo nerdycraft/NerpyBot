@@ -218,6 +218,33 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                 for g in bot.guilds
             ]
         }
+    elif command == "support_message":
+        import discord
+
+        user_id = payload.get("user_id", "unknown")
+        username = payload.get("username", "unknown")
+        category = payload.get("category", "general")
+        message_text = payload.get("message", "")
+
+        category_labels = {"bug": "Bug Report", "feature": "Feature Request", "feedback": "Feedback", "other": "Other"}
+        embed = discord.Embed(
+            title=f"Dashboard: {category_labels.get(category, category)}",
+            description=message_text,
+            color=discord.Color.blue(),
+            timestamp=datetime.now(UTC),
+        )
+        embed.set_footer(text=f"From: {username} (ID: {user_id})")
+
+        recipients = bot.config.get("notifications", {}).get("error_recipients", [])
+        sent = 0
+        for uid in recipients:
+            try:
+                user = await bot.fetch_user(int(uid))
+                await user.send(embed=embed)
+                sent += 1
+            except Exception:
+                pass
+        return {"success": True, "sent_to": sent}
     else:
         return {"error": f"Unknown command: {command}"}
 
