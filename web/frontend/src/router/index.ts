@@ -91,8 +91,13 @@ router.beforeEach(async (to) => {
   if (to.params.id) {
     const guildId = to.params.id as string;
     const g = auth.guildById(guildId);
-    if (!g || !g.bot_present) return "/guilds";
-    guild.setCurrent(g);
+    if (!g || !g.bot_present) {
+      // Operators can browse any guild the bot is in (support mode)
+      if (!auth.user?.is_operator) return "/guilds";
+      // Let operator through without setting guild context — GuildDetailView handles this
+    } else {
+      guild.setCurrent(g);
+    }
   }
 
   return true;

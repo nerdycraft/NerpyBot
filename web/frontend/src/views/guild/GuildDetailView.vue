@@ -142,6 +142,13 @@ const activeComponent = computed(() => {
   return found?.component;
 });
 
+// Support mode: operator browsing a guild they don't personally manage
+const supportMode = computed(() =>
+  !!auth.user?.is_operator &&
+  !!guildId.value &&
+  !auth.guildById(guildId.value)
+);
+
 const GROUP_ACCENTS: Record<string, string> = {
   General:      "text-blue-400",
   Moderation:   "text-amber-400",
@@ -341,6 +348,16 @@ function guildIconUrl(): string | null {
 
       <!-- Content area -->
       <main class="flex-1 overflow-y-auto p-8">
+        <!-- Support mode banner -->
+        <div
+          v-if="supportMode"
+          class="mb-6 flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded px-4 py-3 text-amber-400 text-sm"
+        >
+          <Icon icon="mdi:eye-outline" class="w-4 h-4 flex-shrink-0" />
+          <span>
+            <strong>Support Mode</strong> — Viewing as operator. Sensitive content is redacted. Write operations are disabled.
+          </span>
+        </div>
         <div class="max-w-4xl">
           <component :is="activeComponent" :guild-id="guildId" />
         </div>
