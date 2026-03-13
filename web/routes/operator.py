@@ -115,7 +115,7 @@ async def list_modules(
     result = await vk.send_bot_command("list_modules", {})
     if result is None:
         return ModuleListResponse(modules=[], status="bot unreachable")
-    return ModuleListResponse(modules=result.get("modules", []))
+    return ModuleListResponse(modules=result.get("modules", []), available=result.get("available", []))
 
 
 @router.post("/modules/{name}/load", response_model=ModuleActionResponse)
