@@ -129,9 +129,7 @@ const allSectionGroups: SectionGroup[] = [
 ];
 
 const sectionGroups = computed(() => {
-  const effectiveIsOperator = mockupLevel.value === null
-    ? auth.user?.is_operator
-    : mockupLevel.value === "operator";
+  const effectiveIsOperator = mockupLevel.value === null && auth.user?.is_operator;
 
   return allSectionGroups
     .map((g) => ({ ...g, items: g.items.filter((item) => !item.guildOnly || !!guildId.value) }))

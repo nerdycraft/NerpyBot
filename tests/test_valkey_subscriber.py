@@ -8,7 +8,6 @@ class TestBotCommandHandler:
     async def test_health_command_returns_stats(self, mock_bot):
         """The health command handler returns bot metrics."""
         from contextlib import contextmanager
-        from unittest.mock import MagicMock, patch
 
         mock_bot.guilds = [MagicMock(), MagicMock()]
         mock_bot.latency = 0.045
@@ -27,12 +26,10 @@ class TestBotCommandHandler:
 
         mock_bot.session_scope = _mock_scope
 
-        with patch("utils.valkey.psutil") as mock_psutil:
-            mock_proc = MagicMock()
-            mock_proc.memory_info.return_value.rss = 100 * 1024 * 1024
-            mock_proc.cpu_percent.return_value = 2.5
-            mock_psutil.Process.return_value = mock_proc
-
+        mock_proc = MagicMock()
+        mock_proc.memory_info.return_value.rss = 100 * 1024 * 1024
+        mock_proc.cpu_percent.return_value = 2.5
+        with patch("utils.valkey._proc", mock_proc):
             result = await handle_valkey_command(mock_bot, "health", {})
 
         assert result["guild_count"] == 2
@@ -51,7 +48,6 @@ class TestBotCommandHandler:
     async def test_health_command_with_voice_clients(self, mock_bot):
         """Health command includes voice connection details."""
         from contextlib import contextmanager
-        from unittest.mock import MagicMock, patch
 
         mock_guild = MagicMock()
         mock_guild.id = 12345
@@ -77,12 +73,10 @@ class TestBotCommandHandler:
 
         mock_bot.session_scope = _mock_scope
 
-        with patch("utils.valkey.psutil") as mock_psutil:
-            mock_proc = MagicMock()
-            mock_proc.memory_info.return_value.rss = 50 * 1024 * 1024
-            mock_proc.cpu_percent.return_value = 1.0
-            mock_psutil.Process.return_value = mock_proc
-
+        mock_proc = MagicMock()
+        mock_proc.memory_info.return_value.rss = 50 * 1024 * 1024
+        mock_proc.cpu_percent.return_value = 1.0
+        with patch("utils.valkey._proc", mock_proc):
             result = await handle_valkey_command(mock_bot, "health", {})
 
         assert len(result["voice_details"]) == 1
@@ -93,7 +87,6 @@ class TestBotCommandHandler:
     async def test_health_command_with_zero_guilds(self, mock_bot):
         """Health command should handle bot in no guilds."""
         from contextlib import contextmanager
-        from unittest.mock import MagicMock, patch
 
         mock_bot.guilds = []
         mock_bot.latency = 0.02
@@ -109,12 +102,10 @@ class TestBotCommandHandler:
 
         mock_bot.session_scope = _mock_scope
 
-        with patch("utils.valkey.psutil") as mock_psutil:
-            mock_proc = MagicMock()
-            mock_proc.memory_info.return_value.rss = 50 * 1024 * 1024
-            mock_proc.cpu_percent.return_value = 0.0
-            mock_psutil.Process.return_value = mock_proc
-
+        mock_proc = MagicMock()
+        mock_proc.memory_info.return_value.rss = 50 * 1024 * 1024
+        mock_proc.cpu_percent.return_value = 0.0
+        with patch("utils.valkey._proc", mock_proc):
             result = await handle_valkey_command(mock_bot, "health", {})
 
         assert result["guild_count"] == 0

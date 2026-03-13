@@ -5,7 +5,7 @@ import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
 import { useGuildStore } from "@/stores/guild";
 import { api } from "@/api/client";
-import type { GuildSummary, BotGuildInfo } from "@/api/types";
+import type { BotGuildInfo } from "@/api/types";
 
 const auth = useAuthStore();
 const guildStore = useGuildStore();
@@ -25,7 +25,7 @@ onMounted(async () => {
   }
 });
 
-function iconUrl(guild: GuildSummary): string | null {
+function iconUrl(guild: { id: string; icon: string | null }): string | null {
   if (!guild.icon) return null;
   return `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`;
 }
@@ -137,8 +137,8 @@ function iconUrl(guild: GuildSummary): string | null {
           @click="router.push(`/guilds/${g.id}`)"
         >
           <img
-            v-if="g.icon"
-            :src="`https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png`"
+            v-if="iconUrl(g)"
+            :src="iconUrl(g)!"
             :alt="g.name"
             class="w-10 h-10 rounded-full object-cover flex-shrink-0"
           />

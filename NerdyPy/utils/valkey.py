@@ -14,6 +14,8 @@ from importlib.metadata import version as pkg_version
 
 import psutil
 
+_proc = psutil.Process()
+
 
 def _is_valid_module_name(module: str) -> bool:
     """Return True if module is a valid loadable module name (lowercase alpha + underscores)."""
@@ -55,25 +57,24 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         import discord
 
         uptime_seconds = (datetime.now(UTC) - bot.uptime).total_seconds()
-        proc = psutil.Process()
-        voice_details = []
-        for vc in bot.voice_clients:
-            guild = vc.guild
-            channel = vc.channel
-            voice_details.append(
-                {
-                    "guild_id": str(guild.id),
-                    "guild_name": guild.name,
-                    "channel_id": str(channel.id),
-                    "channel_name": channel.name,
-                }
-            )
+        voice_details = [
+            {
+                "guild_id": str(vc.guild.id),
+                "guild_name": vc.guild.name,
+                "channel_id": str(vc.channel.id),
+                "channel_name": vc.channel.name,
+            }
+            for vc in bot.voice_clients
+        ]
         active_reminders = 0
         try:
             from models.reminder import ReminderMessage
 
-            with bot.session_scope() as session:
-                active_reminders = session.query(ReminderMessage).filter(ReminderMessage.Enabled == True).count()  # noqa: E712
+            def _count_reminders():
+                with bot.session_scope() as session:
+                    return session.query(ReminderMessage).filter(ReminderMessage.Enabled == True).count()  # noqa: E712
+
+            active_reminders = await to_thread(_count_reminders)
         except Exception:
             pass
         return {
@@ -84,8 +85,8 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             "python_version": sys.version.split()[0],
             "discord_py_version": discord.__version__,
             "bot_version": pkg_version("NerpyBot"),
-            "memory_mb": round(proc.memory_info().rss / (1024 * 1024), 2),
-            "cpu_percent": proc.cpu_percent(interval=None),
+            "memory_mb": round(_proc.memory_info().rss / (1024 * 1024), 2),
+            "cpu_percent": _proc.cpu_percent(interval=None),
             "error_count_24h": bot.error_counter.count(),
             "active_reminders": active_reminders,
             "voice_details": voice_details,

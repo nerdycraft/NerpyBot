@@ -1,6 +1,6 @@
 import { ref } from "vue";
 
-export type MockupLevel = "operator" | "admin" | "mod" | "member" | null;
+export type MockupLevel = "admin" | "mod" | "member" | null;
 
 // Module-level singleton — shared across all component instances
 const mockupLevel = ref<MockupLevel>(null);

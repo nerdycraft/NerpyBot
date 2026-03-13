@@ -74,6 +74,12 @@ def _deny_support_write(user: dict) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Read-only in support mode")
 
 
+def _set_support_mode_header(user: dict, response: Response | None) -> None:
+    """Set X-Support-Mode: true header when the request is in support mode."""
+    if user.get("support_mode") and response is not None:
+        response.headers["X-Support-Mode"] = "true"
+
+
 # ── Language ──
 
 
@@ -87,8 +93,7 @@ async def get_language(
     """Return the configured language for a guild (defaults to 'en')."""
     from models.admin import GuildLanguageConfig
 
-    if user.get("support_mode") and response is not None:
-        response.headers["X-Support-Mode"] = "true"
+    _set_support_mode_header(user, response)
     cfg = GuildLanguageConfig.get(guild_id, session)
     lang = cfg.Language if cfg else "en"
     return LanguageConfig(guild_id=str(guild_id), language=lang)
@@ -519,8 +524,7 @@ async def list_reminders(
     """List all reminder schedules for a guild."""
     from models.reminder import ReminderMessage
 
-    if user.get("support_mode") and response is not None:
-        response.headers["X-Support-Mode"] = "true"
+    _set_support_mode_header(user, response)
     return [_reminder_to_schema(r, user) for r in ReminderMessage.get_all_by_guild(guild_id, session)]
 
 
