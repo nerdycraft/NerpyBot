@@ -127,15 +127,17 @@ onMounted(fetchModules);
             :key="mod.name"
             class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
           >
-            <td class="px-4 py-2.5 font-mono text-sm flex items-center gap-2">
-              {{ mod.name }}
-              <span
-                v-if="mod.protected"
-                class="inline-flex items-center gap-1 text-xs text-amber-400/80 bg-amber-400/10 border border-amber-400/20 rounded px-1.5 py-0.5"
-              >
-                <Icon icon="mdi:lock-outline" class="w-3 h-3" />
-                protected
-              </span>
+            <td class="px-4 py-2.5">
+              <div class="flex items-center gap-2 font-mono text-sm">
+                {{ mod.name }}
+                <span
+                  v-if="mod.protected"
+                  class="inline-flex items-center gap-1 text-xs text-amber-400/80 bg-amber-400/10 border border-amber-400/20 rounded px-1.5 py-0.5"
+                >
+                  <Icon icon="mdi:lock-outline" class="w-3 h-3" />
+                  protected
+                </span>
+              </div>
             </td>
             <td class="px-4 py-2.5 text-right">
               <button
@@ -165,8 +167,8 @@ onMounted(fetchModules);
         Load Module
       </p>
 
-      <div v-if="available.length === 0 && !loading" class="text-muted-foreground text-sm">
-        All available modules are already loaded.
+      <div v-if="available.length === 0" class="text-muted-foreground text-sm">
+        {{ loading ? "…" : "All available modules are already loaded." }}
       </div>
 
       <div v-else class="flex gap-2">

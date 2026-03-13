@@ -8,9 +8,10 @@ The listener loop runs as an asyncio background task. It subscribes to the
 """
 
 import json
-from asyncio import CancelledError, ensure_future, sleep, to_thread
+from asyncio import CancelledError, ensure_future, gather, sleep, to_thread
 from datetime import UTC, datetime
 from importlib.metadata import version as pkg_version
+from pathlib import Path
 
 import psutil
 
@@ -29,8 +30,6 @@ def _is_valid_module_name(module: str) -> bool:
 
 def _discover_available_modules(loaded_names: set[str]) -> list[str]:
     """Return module names present on disk but not currently loaded (and not protected)."""
-    from pathlib import Path
-
     modules_dir = Path(__file__).parent.parent / "modules"
     discovered = {p.stem for p in modules_dir.glob("*.py") if p.stem != "__init__"}
     return sorted(discovered - loaded_names - PROTECTED_MODULES)
@@ -252,16 +251,17 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         )
         embed.set_footer(text=f"From: {username} (ID: {user_id})")
 
-        recipients = bot.config.get("notifications", {}).get("error_recipients", [])
-        sent = 0
-        for uid in recipients:
+        async def _send_to(uid: int) -> bool:
             try:
-                user = await bot.fetch_user(int(uid))
-                await user.send(embed=embed)
-                sent += 1
+                dm_user = await bot.fetch_user(uid)
+                await dm_user.send(embed=embed)
+                return True
             except Exception:
-                pass
-        return {"success": True, "sent_to": sent}
+                return False
+
+        recipients = bot.config.get("notifications", {}).get("error_recipients", [])
+        results = await gather(*(_send_to(int(uid)) for uid in recipients))
+        return {"success": True, "sent_to": sum(results)}
     else:
         return {"error": f"Unknown command: {command}"}
 
