@@ -18,9 +18,22 @@ _proc = psutil.Process()
 _proc.cpu_percent(interval=None)  # prime the baseline; first call always returns 0.0
 
 
+# Modules that are always auto-loaded by the bot and must never be unloaded at runtime.
+PROTECTED_MODULES: frozenset[str] = frozenset({"admin", "voicecontrol"})
+
+
 def _is_valid_module_name(module: str) -> bool:
     """Return True if module is a valid loadable module name (lowercase alpha + underscores)."""
     return bool(module and module.replace("_", "").isalpha() and module.islower())
+
+
+def _discover_available_modules(loaded_names: set[str]) -> list[str]:
+    """Return module names present on disk but not currently loaded (and not protected)."""
+    from pathlib import Path
+
+    modules_dir = Path(__file__).parent.parent / "modules"
+    discovered = {p.stem for p in modules_dir.glob("*.py") if p.stem != "__init__"}
+    return sorted(discovered - loaded_names - PROTECTED_MODULES)
 
 
 def _get_guild(bot, payload: dict):
@@ -93,11 +106,13 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             "voice_details": voice_details,
         }
     elif command == "list_modules":
+        loaded_names: set[str] = set()
         modules = []
         for ext_name in bot.extensions:
             name = ext_name.replace("modules.", "")
-            modules.append({"name": name, "loaded": True})
-        return {"modules": modules}
+            loaded_names.add(name)
+            modules.append({"name": name, "loaded": True, "protected": name in PROTECTED_MODULES})
+        return {"modules": modules, "available": _discover_available_modules(loaded_names)}
     elif command == "module_load":
         module = payload.get("module", "")
         if not _is_valid_module_name(module):
@@ -111,6 +126,8 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         module = payload.get("module", "")
         if not _is_valid_module_name(module):
             return {"success": False, "error": "Invalid module name"}
+        if module in PROTECTED_MODULES:
+            return {"success": False, "error": f"Module '{module}' is protected and cannot be unloaded"}
         try:
             await bot.unload_extension(f"modules.{module}")
             return {"success": True}

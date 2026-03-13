@@ -357,10 +357,12 @@ export interface HealthResponse {
 export interface ModuleInfo {
   name: string;
   loaded: boolean;
+  protected: boolean;
 }
 
 export interface ModuleListResponse {
   modules: ModuleInfo[];
+  available: string[];
   status: string;
 }
 

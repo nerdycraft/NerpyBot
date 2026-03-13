@@ -421,10 +421,12 @@ class HealthResponse(BaseModel):
 class ModuleInfo(BaseModel):
     name: str
     loaded: bool
+    protected: bool = False
 
 
 class ModuleListResponse(BaseModel):
     modules: list[ModuleInfo]
+    available: list[str] = []
     status: str = "ok"
 
 

@@ -5,10 +5,11 @@ import { api } from "@/api/client";
 import type { ModuleInfo, ModuleActionResponse } from "@/api/types";
 
 const modules = ref<ModuleInfo[]>([]);
+const available = ref<string[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const actionError = ref<string | null>(null);
-const loadName = ref("");
+const selectedModule = ref("");
 const pendingModule = ref<string | null>(null);
 
 async function fetchModules() {
@@ -16,8 +17,13 @@ async function fetchModules() {
   loading.value = true;
   error.value = null;
   try {
-    const res = await api.get<{ modules: ModuleInfo[]; status: string }>("/operator/modules");
+    const res = await api.get<{ modules: ModuleInfo[]; available: string[]; status: string }>("/operator/modules");
     modules.value = res.modules;
+    available.value = res.available ?? [];
+    // Reset selection if no longer in available list
+    if (selectedModule.value && !available.value.includes(selectedModule.value)) {
+      selectedModule.value = "";
+    }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : "Failed to fetch modules";
   } finally {
@@ -42,14 +48,14 @@ async function unload(name: string) {
 }
 
 async function load() {
-  const name = loadName.value.trim();
+  const name = selectedModule.value;
   if (!name) return;
   pendingModule.value = name;
   actionError.value = null;
   try {
     const res = await api.post<ModuleActionResponse>(`/operator/modules/${name}/load`, {});
     if (res.success) {
-      loadName.value = "";
+      selectedModule.value = "";
     } else {
       actionError.value = res.error ?? "Load failed";
     }
@@ -121,9 +127,19 @@ onMounted(fetchModules);
             :key="mod.name"
             class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
           >
-            <td class="px-4 py-2.5 font-mono text-sm">{{ mod.name }}</td>
+            <td class="px-4 py-2.5 font-mono text-sm flex items-center gap-2">
+              {{ mod.name }}
+              <span
+                v-if="mod.protected"
+                class="inline-flex items-center gap-1 text-xs text-amber-400/80 bg-amber-400/10 border border-amber-400/20 rounded px-1.5 py-0.5"
+              >
+                <Icon icon="mdi:lock-outline" class="w-3 h-3" />
+                protected
+              </span>
+            </td>
             <td class="px-4 py-2.5 text-right">
               <button
+                v-if="!mod.protected"
                 class="px-3 py-1 rounded text-xs font-medium bg-destructive/10 text-destructive border border-destructive/30 hover:bg-destructive/20 transition-colors disabled:opacity-40"
                 :disabled="pendingModule === mod.name"
                 @click="unload(mod.name)"
@@ -135,29 +151,36 @@ onMounted(fetchModules);
                 />
                 Unload
               </button>
+              <span v-else class="text-xs text-muted-foreground/50 px-3 py-1">—</span>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <!-- Load by name -->
+    <!-- Load from available modules -->
     <div class="border border-border rounded px-4 py-4">
       <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
         <Icon icon="mdi:plus-circle-outline" class="w-3.5 h-3.5" />
         Load Module
       </p>
-      <div class="flex gap-2">
-        <input
-          v-model="loadName"
-          type="text"
-          placeholder="module name (e.g. reminder)"
-          class="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          @keydown.enter="load"
-        />
+
+      <div v-if="available.length === 0 && !loading" class="text-muted-foreground text-sm">
+        All available modules are already loaded.
+      </div>
+
+      <div v-else class="flex gap-2">
+        <select
+          v-model="selectedModule"
+          class="flex-1 rounded border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+          :disabled="available.length === 0 || pendingModule !== null"
+        >
+          <option value="" disabled>Select a module…</option>
+          <option v-for="name in available" :key="name" :value="name">{{ name }}</option>
+        </select>
         <button
           class="px-4 py-1.5 rounded bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 hover:bg-primary/90 transition-colors"
-          :disabled="!loadName.trim() || pendingModule !== null"
+          :disabled="!selectedModule || pendingModule !== null"
           @click="load"
         >
           <Icon v-if="pendingModule !== null" icon="mdi:loading" class="w-4 h-4 animate-spin inline mr-1" />
