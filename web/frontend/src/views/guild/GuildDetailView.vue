@@ -53,12 +53,14 @@ async function probeGuildAccess(id: string | undefined) {
     return;
   }
   const probeId = id;
+  let newMode = false;
   try {
     const { supportMode: serverMode } = await api.getWithHeaders<unknown>(`/guilds/${id}/language`);
-    if (guildId.value === probeId) supportMode.value = serverMode;
+    newMode = serverMode;
   } catch {
-    if (guildId.value === probeId) supportMode.value = false;
+    // network error → treat as non-support access
   }
+  if (guildId.value === probeId) supportMode.value = newMode;
 }
 
 // Reset to overview when switching guilds, clear mockup, and probe support mode
