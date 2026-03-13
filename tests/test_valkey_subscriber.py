@@ -1,11 +1,11 @@
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from utils.valkey import handle_valkey_command
 
 
 class TestBotCommandHandler:
-    def test_health_command_returns_stats(self, mock_bot):
+    async def test_health_command_returns_stats(self, mock_bot):
         """The health command handler returns bot metrics."""
 
         mock_bot.guilds = [MagicMock(), MagicMock()]
@@ -14,7 +14,7 @@ class TestBotCommandHandler:
         mock_bot.uptime = datetime.now(UTC) - timedelta(hours=1)
         mock_bot.extensions = {"modules.admin": MagicMock(), "modules.music": MagicMock()}
 
-        result = handle_valkey_command(mock_bot, "health", {})
+        result = await handle_valkey_command(mock_bot, "health", {})
         assert result["guild_count"] == 2
         assert result["voice_connections"] == 1
         assert "latency_ms" in result
@@ -23,7 +23,7 @@ class TestBotCommandHandler:
         assert "discord_py_version" in result
         assert "bot_version" in result
 
-    def test_health_command_with_zero_guilds(self, mock_bot):
+    async def test_health_command_with_zero_guilds(self, mock_bot):
         """Health command should handle bot in no guilds."""
 
         mock_bot.guilds = []
@@ -32,80 +32,74 @@ class TestBotCommandHandler:
         mock_bot.uptime = datetime.now(UTC) - timedelta(seconds=30)
         mock_bot.extensions = {}
 
-        result = handle_valkey_command(mock_bot, "health", {})
+        result = await handle_valkey_command(mock_bot, "health", {})
         assert result["guild_count"] == 0
         assert result["voice_connections"] == 0
 
-    def test_list_modules_command(self, mock_bot):
+    async def test_list_modules_command(self, mock_bot):
 
         mock_bot.extensions = {"modules.admin": MagicMock(), "modules.music": MagicMock()}
 
-        result = handle_valkey_command(mock_bot, "list_modules", {})
+        result = await handle_valkey_command(mock_bot, "list_modules", {})
         assert len(result["modules"]) == 2
         names = [m["name"] for m in result["modules"]]
         assert "admin" in names
         assert "music" in names
 
-    def test_list_modules_empty(self, mock_bot):
+    async def test_list_modules_empty(self, mock_bot):
         """List modules should handle no loaded modules."""
 
         mock_bot.extensions = {}
 
-        result = handle_valkey_command(mock_bot, "list_modules", {})
+        result = await handle_valkey_command(mock_bot, "list_modules", {})
         assert result["modules"] == []
 
-    def test_module_load_success(self, mock_bot):
+    async def test_module_load_success(self, mock_bot):
         """Module load should succeed for valid module."""
 
-        future_mock = MagicMock()
-        future_mock.result = MagicMock(return_value=None)
+        mock_bot.load_extension = AsyncMock(return_value=None)
 
-        with patch("utils.valkey.run_coroutine_threadsafe", return_value=future_mock):
-            result = handle_valkey_command(mock_bot, "module_load", {"module": "tagging"})
-            assert result["success"] is True
+        result = await handle_valkey_command(mock_bot, "module_load", {"module": "tagging"})
+        assert result["success"] is True
 
-    def test_module_load_invalid_name(self, mock_bot):
+    async def test_module_load_invalid_name(self, mock_bot):
         """Module load should reject invalid module names."""
 
-        result = handle_valkey_command(mock_bot, "module_load", {"module": ""})
+        result = await handle_valkey_command(mock_bot, "module_load", {"module": ""})
         assert result["success"] is False
         assert "Invalid module name" in result["error"]
 
-        result = handle_valkey_command(mock_bot, "module_load", {"module": "foo-bar"})
+        result = await handle_valkey_command(mock_bot, "module_load", {"module": "foo-bar"})
         assert result["success"] is False
 
-        result = handle_valkey_command(mock_bot, "module_load", {"module": "Foo"})
+        result = await handle_valkey_command(mock_bot, "module_load", {"module": "Foo"})
         assert result["success"] is False
 
-    def test_module_load_exception(self, mock_bot):
+    async def test_module_load_exception(self, mock_bot):
         """Module load should handle load exceptions."""
 
-        future_mock = MagicMock()
-        future_mock.result = MagicMock(side_effect=Exception("Module not found"))
+        mock_bot.load_extension = AsyncMock(side_effect=Exception("Module not found"))
 
-        with patch("utils.valkey.run_coroutine_threadsafe", return_value=future_mock):
-            result = handle_valkey_command(mock_bot, "module_load", {"module": "invalid"})
-            assert result["success"] is False
-            assert "Module not found" in result["error"]
+        result = await handle_valkey_command(mock_bot, "module_load", {"module": "invalid"})
+        assert result["success"] is False
+        assert "Module not found" in result["error"]
 
-    def test_module_unload_success(self, mock_bot):
+    async def test_module_unload_success(self, mock_bot):
         """Module unload should succeed for valid module."""
 
-        future_mock = MagicMock()
-        future_mock.result = MagicMock(return_value=None)
+        mock_bot.unload_extension = AsyncMock(return_value=None)
 
-        with patch("utils.valkey.run_coroutine_threadsafe", return_value=future_mock):
-            result = handle_valkey_command(mock_bot, "module_unload", {"module": "music"})
-            assert result["success"] is True
+        result = await handle_valkey_command(mock_bot, "module_unload", {"module": "music"})
+        assert result["success"] is True
 
-    def test_module_unload_invalid_name(self, mock_bot):
+    async def test_module_unload_invalid_name(self, mock_bot):
         """Module unload should reject invalid module names."""
 
-        result = handle_valkey_command(mock_bot, "module_unload", {"module": "invalid-module"})
+        result = await handle_valkey_command(mock_bot, "module_unload", {"module": "invalid-module"})
         assert result["success"] is False
         assert "Invalid module name" in result["error"]
 
-    def test_get_channels_success(self, mock_bot):
+    async def test_get_channels_success(self, mock_bot):
         """Get channels should return sorted channel list."""
 
         mock_channel1 = MagicMock()
@@ -122,20 +116,20 @@ class TestBotCommandHandler:
         mock_guild.channels = [mock_channel1, mock_channel2]
         mock_bot.get_guild = MagicMock(return_value=mock_guild)
 
-        result = handle_valkey_command(mock_bot, "get_channels", {"guild_id": "123"})
+        result = await handle_valkey_command(mock_bot, "get_channels", {"guild_id": "123"})
         assert len(result["channels"]) == 2
         assert result["channels"][0]["name"] == "announcements"  # sorted alphabetically
         assert result["channels"][1]["name"] == "general"
 
-    def test_get_channels_guild_not_found(self, mock_bot):
+    async def test_get_channels_guild_not_found(self, mock_bot):
         """Get channels should handle missing guild."""
 
         mock_bot.get_guild = MagicMock(return_value=None)
 
-        result = handle_valkey_command(mock_bot, "get_channels", {"guild_id": "999"})
+        result = await handle_valkey_command(mock_bot, "get_channels", {"guild_id": "999"})
         assert result["channels"] == []
 
-    def test_get_roles_success(self, mock_bot):
+    async def test_get_roles_success(self, mock_bot):
         """Get roles should return sorted role list excluding @everyone."""
 
         mock_role1 = MagicMock()
@@ -160,20 +154,20 @@ class TestBotCommandHandler:
         mock_guild.roles = [mock_role1, mock_role2, mock_role_default]
         mock_bot.get_guild = MagicMock(return_value=mock_guild)
 
-        result = handle_valkey_command(mock_bot, "get_roles", {"guild_id": "123"})
+        result = await handle_valkey_command(mock_bot, "get_roles", {"guild_id": "123"})
         assert len(result["roles"]) == 2
         assert result["roles"][0]["name"] == "Admin"  # sorted by position descending
         assert result["roles"][1]["name"] == "Member"
 
-    def test_get_roles_guild_not_found(self, mock_bot):
+    async def test_get_roles_guild_not_found(self, mock_bot):
         """Get roles should handle missing guild."""
 
         mock_bot.get_guild = MagicMock(return_value=None)
 
-        result = handle_valkey_command(mock_bot, "get_roles", {"guild_id": "999"})
+        result = await handle_valkey_command(mock_bot, "get_roles", {"guild_id": "999"})
         assert result["roles"] == []
 
-    def test_get_member_names_success(self, mock_bot):
+    async def test_get_member_names_success(self, mock_bot):
         """Get member names should return mapping of IDs to display names."""
 
         mock_member1 = MagicMock()
@@ -186,36 +180,42 @@ class TestBotCommandHandler:
         mock_guild.get_member = lambda uid: mock_member1 if uid == 111 else (mock_member2 if uid == 222 else None)
         mock_bot.get_guild = MagicMock(return_value=mock_guild)
 
-        result = handle_valkey_command(
+        result = await handle_valkey_command(
             mock_bot, "get_member_names", {"guild_id": "123", "user_ids": ["111", "222", "999"]}
         )
         assert result["111"] == "Alice"
         assert result["222"] == "Bob"
         assert "999" not in result
 
-    def test_get_member_names_guild_not_found(self, mock_bot):
+    async def test_get_member_names_guild_not_found(self, mock_bot):
         """Get member names should handle missing guild."""
 
         mock_bot.get_guild = MagicMock(return_value=None)
 
-        result = handle_valkey_command(mock_bot, "get_member_names", {"guild_id": "999", "user_ids": ["111"]})
+        result = await handle_valkey_command(mock_bot, "get_member_names", {"guild_id": "999", "user_ids": ["111"]})
         assert result == {}
 
-    def test_post_apply_button_success(self, mock_bot):
+    async def test_post_apply_button_success(self, mock_bot):
         """Post apply button should queue task."""
 
-        with patch("utils.valkey.run_coroutine_threadsafe"):
-            result = handle_valkey_command(mock_bot, "post_apply_button", {"form_id": "42"})
+        mock_task = MagicMock()
+
+        def _fake_ensure_future(coro):
+            coro.close()  # prevent unawaited-coroutine warning
+            return mock_task
+
+        with patch("utils.valkey.ensure_future", side_effect=_fake_ensure_future):
+            result = await handle_valkey_command(mock_bot, "post_apply_button", {"form_id": "42"})
             assert result["queued"] is True
 
-    def test_post_apply_button_no_form_id(self, mock_bot):
+    async def test_post_apply_button_no_form_id(self, mock_bot):
         """Post apply button should require form_id."""
 
-        result = handle_valkey_command(mock_bot, "post_apply_button", {})
+        result = await handle_valkey_command(mock_bot, "post_apply_button", {})
         assert "error" in result
         assert "form_id required" in result["error"]
 
-    def test_search_realms_success(self, mock_bot):
+    async def test_search_realms_success(self, mock_bot):
         """Search realms should return matching realms."""
 
         mock_wow_cog = MagicMock()
@@ -224,50 +224,43 @@ class TestBotCommandHandler:
             "eu-argent-dawn": {"region": "eu", "name": "Argent Dawn", "slug": "argent-dawn"},
             "us-stormrage": {"region": "us", "name": "Stormrage", "slug": "stormrage"},
         }
-
-        future_mock = MagicMock()
-        future_mock.result = MagicMock(return_value=None)
-
+        mock_wow_cog._ensure_realm_cache = AsyncMock(return_value=None)
         mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
 
-        with patch("utils.valkey.run_coroutine_threadsafe", return_value=future_mock):
-            result = handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": "silver"})
-            assert len(result["realms"]) == 1
-            assert result["realms"][0]["name"] == "Silvermoon"
+        result = await handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": "silver"})
+        assert len(result["realms"]) == 1
+        assert result["realms"][0]["name"] == "Silvermoon"
 
-    def test_search_realms_no_query(self, mock_bot):
+    async def test_search_realms_no_query(self, mock_bot):
         """Search realms should handle empty query."""
 
-        result = handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": ""})
+        result = await handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": ""})
         assert result["realms"] == []
 
-        result = handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": "a"})
+        result = await handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": "a"})
         assert result["realms"] == []
 
-    def test_search_realms_module_not_loaded(self, mock_bot):
+    async def test_search_realms_module_not_loaded(self, mock_bot):
         """Search realms should handle missing WoW module."""
 
         mock_bot.cogs = {}
 
-        result = handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": "silver"})
+        result = await handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": "silver"})
         assert result["realms"] == []
         assert "WoW module not loaded" in result["error"]
 
-    def test_search_realms_cache_unavailable(self, mock_bot):
+    async def test_search_realms_cache_unavailable(self, mock_bot):
         """Search realms should handle cache unavailability."""
 
         mock_wow_cog = MagicMock()
-        future_mock = MagicMock()
-        future_mock.result = MagicMock(side_effect=Exception("Timeout"))
-
+        mock_wow_cog._ensure_realm_cache = AsyncMock(side_effect=Exception("Timeout"))
         mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
 
-        with patch("utils.valkey.run_coroutine_threadsafe", return_value=future_mock):
-            result = handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": "test"})
-            assert result["realms"] == []
-            assert "Realm cache unavailable" in result["error"]
+        result = await handle_valkey_command(mock_bot, "search_realms", {"region": "eu", "q": "test"})
+        assert result["realms"] == []
+        assert "Realm cache unavailable" in result["error"]
 
-    def test_validate_wow_guild_success(self, mock_bot):
+    async def test_validate_wow_guild_success(self, mock_bot):
         """Validate WoW guild should return valid guild info."""
 
         mock_wow_cog = MagicMock()
@@ -277,13 +270,13 @@ class TestBotCommandHandler:
 
         mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
 
-        result = handle_valkey_command(
+        result = await handle_valkey_command(
             mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test-guild"}
         )
         assert result["valid"] is True
         assert result["display_name"] == "Test Guild"
 
-    def test_validate_wow_guild_not_found(self, mock_bot):
+    async def test_validate_wow_guild_not_found(self, mock_bot):
         """Validate WoW guild should handle 404."""
 
         mock_wow_cog = MagicMock()
@@ -293,13 +286,13 @@ class TestBotCommandHandler:
 
         mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
 
-        result = handle_valkey_command(
+        result = await handle_valkey_command(
             mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "nonexistent"}
         )
         assert result["valid"] is False
         assert result["display_name"] is None
 
-    def test_validate_wow_guild_rate_limited(self, mock_bot):
+    async def test_validate_wow_guild_rate_limited(self, mock_bot):
         """Validate WoW guild should handle 429 rate limit."""
 
         mock_wow_cog = MagicMock()
@@ -310,33 +303,33 @@ class TestBotCommandHandler:
         mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
         mock_bot.log = MagicMock()
 
-        result = handle_valkey_command(
+        result = await handle_valkey_command(
             mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test"}
         )
         assert result["valid"] is False
         assert "rate limited" in result["error"]
 
-    def test_validate_wow_guild_empty_params(self, mock_bot):
+    async def test_validate_wow_guild_empty_params(self, mock_bot):
         """Validate WoW guild should handle missing params."""
 
-        result = handle_valkey_command(
+        result = await handle_valkey_command(
             mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "", "guild_name": "test"}
         )
         assert result["valid"] is False
         assert result["display_name"] is None
 
-    def test_validate_wow_guild_module_not_loaded(self, mock_bot):
+    async def test_validate_wow_guild_module_not_loaded(self, mock_bot):
         """Validate WoW guild should handle missing module."""
 
         mock_bot.cogs = {}
 
-        result = handle_valkey_command(
+        result = await handle_valkey_command(
             mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test"}
         )
         assert result["valid"] is False
         assert "WoW module not loaded" in result["error"]
 
-    def test_validate_wow_guild_exception(self, mock_bot):
+    async def test_validate_wow_guild_exception(self, mock_bot):
         """Validate WoW guild should handle exceptions."""
 
         mock_wow_cog = MagicMock()
@@ -347,14 +340,14 @@ class TestBotCommandHandler:
         mock_bot.cogs = {"WorldofWarcraft": mock_wow_cog}
         mock_bot.log = MagicMock()
 
-        result = handle_valkey_command(
+        result = await handle_valkey_command(
             mock_bot, "validate_wow_guild", {"region": "eu", "realm_slug": "silvermoon", "guild_name": "test"}
         )
         assert result["valid"] is False
         assert "Network error" in result["error"]
 
-    def test_unknown_command_returns_error(self, mock_bot):
+    async def test_unknown_command_returns_error(self, mock_bot):
 
-        result = handle_valkey_command(mock_bot, "unknown_cmd", {})
+        result = await handle_valkey_command(mock_bot, "unknown_cmd", {})
         assert "error" in result
         assert "Unknown command" in result["error"]

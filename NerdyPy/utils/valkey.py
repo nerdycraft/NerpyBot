@@ -8,15 +8,9 @@ The listener loop runs as an asyncio background task. It subscribes to the
 """
 
 import json
-from asyncio import CancelledError, run_coroutine_threadsafe, to_thread
+from asyncio import CancelledError, ensure_future, sleep, to_thread
 from datetime import UTC, datetime
 from importlib.metadata import version as pkg_version
-
-
-def _run_in_bot_loop(bot, coro, timeout: float = 5):
-    """Run a coroutine on the bot's event loop from a sync context and return its result."""
-    future = run_coroutine_threadsafe(coro, bot.loop)
-    return future.result(timeout=timeout)
 
 
 def _is_valid_module_name(module: str) -> bool:
@@ -30,7 +24,7 @@ def _get_guild(bot, payload: dict):
     return bot.get_guild(guild_id)
 
 
-def handle_valkey_command(bot, command: str, payload: dict) -> dict:
+async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
     """
     Dispatches Valkey pub/sub commands from the web dashboard and returns a command-specific response dictionary.
 
@@ -78,7 +72,7 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         if not _is_valid_module_name(module):
             return {"success": False, "error": "Invalid module name"}
         try:
-            _run_in_bot_loop(bot, bot.load_extension(f"modules.{module}"))
+            await bot.load_extension(f"modules.{module}")
             return {"success": True}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -87,7 +81,7 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         if not _is_valid_module_name(module):
             return {"success": False, "error": "Invalid module name"}
         try:
-            _run_in_bot_loop(bot, bot.unload_extension(f"modules.{module}"))
+            await bot.unload_extension(f"modules.{module}")
             return {"success": True}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -124,14 +118,14 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             return {"error": "form_id required"}
         from modules.views.application import post_apply_button_message
 
-        future = run_coroutine_threadsafe(post_apply_button_message(bot, form_id), bot.loop)
+        task = ensure_future(post_apply_button_message(bot, form_id))
 
-        def _log_exc(f):
-            exc = f.exception()
+        def _log_exc(t):
+            exc = t.exception()
             if exc:
                 bot.log.error("post_apply_button_message failed for form_id=%s: %s", form_id, exc)
 
-        future.add_done_callback(_log_exc)
+        task.add_done_callback(_log_exc)
         return {"queued": True}
     elif command == "search_realms":
         region = payload.get("region", "eu").lower()
@@ -142,7 +136,7 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         if wow_cog is None:
             return {"realms": [], "error": "WoW module not loaded"}
         try:
-            _run_in_bot_loop(bot, wow_cog._ensure_realm_cache())
+            await wow_cog._ensure_realm_cache()
         except Exception:
             return {"realms": [], "error": "Realm cache unavailable"}
         matches = []
@@ -164,8 +158,12 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         if wow_cog is None:
             return {"valid": False, "display_name": None, "error": "WoW module not loaded"}
         try:
-            api = wow_cog._get_retailclient(region, "en")
-            roster = api.guild_roster(realmSlug=realm_slug, nameSlug=guild_name)
+
+            def _call_api():
+                api = wow_cog._get_retailclient(region, "en")
+                return api.guild_roster(realmSlug=realm_slug, nameSlug=guild_name)
+
+            roster = await to_thread(_call_api)
             if isinstance(roster, dict) and roster.get("code") == 429:
                 return {"valid": False, "display_name": None, "error": "WoW API rate limited"}
             if isinstance(roster, dict) and roster.get("code") in (404, 403):
@@ -183,47 +181,61 @@ def handle_valkey_command(bot, command: str, payload: dict) -> dict:
 
 async def valkey_listener_loop(bot, valkey_url: str) -> None:
     """Background task that subscribes to Valkey pub/sub for web dashboard commands."""
-    client = None
-    pubsub = None
+    import valkey as valkey_lib
+
+    retry_delay = 1.0
+    max_delay = 60.0
+
     try:
-        import valkey as valkey_lib
-
-        client = valkey_lib.from_url(valkey_url, decode_responses=True)
-        pubsub = client.pubsub()
-        pubsub.subscribe("nerpybot:cmd")
-        bot.log.info("Valkey pub/sub listener started")
-
         while not bot.is_closed():
-            msg = await to_thread(pubsub.get_message, ignore_subscribe_messages=True, timeout=1.0)
-            if msg and msg["type"] == "message":
-                request_id = None
+            client = None
+            pubsub = None
+            try:
+                client = valkey_lib.from_url(valkey_url, decode_responses=True)
+                pubsub = client.pubsub()
+                pubsub.subscribe("nerpybot:cmd")
+                bot.log.info("Valkey pub/sub listener started")
+                retry_delay = 1.0  # reset backoff on successful connection
+
+                while not bot.is_closed():
+                    try:
+                        msg = await to_thread(pubsub.get_message, ignore_subscribe_messages=True, timeout=1.0)
+                        if msg and msg["type"] == "message":
+                            request_id = None
+                            try:
+                                data = json.loads(msg["data"])
+                                request_id = data.pop("request_id", None)
+                                command = data.pop("command", "")
+                                result = await handle_valkey_command(bot, command, data)
+                            except Exception as e:
+                                bot.log.error("Valkey command handler error: %s", e)
+                                result = {"error": str(e)}
+                            if request_id:
+                                reply_key = f"nerpybot:reply:{request_id}"
+
+                                def _push_reply():
+                                    pipe = client.pipeline()
+                                    pipe.lpush(reply_key, json.dumps(result))
+                                    pipe.expire(reply_key, 10)
+                                    pipe.execute()
+
+                                await to_thread(_push_reply)
+                    except Exception as e:
+                        bot.log.error("Valkey read/reply error: %s", e)
+                        await sleep(retry_delay)
+                        retry_delay = min(retry_delay * 2, max_delay)
+                        break  # reconnect outer loop
+            except Exception as e:
+                bot.log.error("Valkey listener error: %s", e)
+                await sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, max_delay)
+            finally:
                 try:
-                    data = json.loads(msg["data"])
-                    request_id = data.pop("request_id", None)
-                    command = data.pop("command", "")
-                    result = await to_thread(handle_valkey_command, bot, command, data)
+                    if pubsub is not None:
+                        pubsub.unsubscribe()
+                    if client is not None:
+                        client.close()
                 except Exception as e:
-                    bot.log.error(f"Valkey command handler error: {e}")
-                    result = {"error": str(e)}
-                if request_id:
-                    reply_key = f"nerpybot:reply:{request_id}"
-
-                    def _push_reply():
-                        pipe = client.pipeline()
-                        pipe.lpush(reply_key, json.dumps(result))
-                        pipe.expire(reply_key, 10)
-                        pipe.execute()
-
-                    await to_thread(_push_reply)
+                    bot.log.debug("Valkey cleanup error: %s", e)
     except CancelledError:
         return
-    except Exception as e:
-        bot.log.error(f"Valkey listener error: {e}")
-    finally:
-        try:
-            if pubsub is not None:
-                pubsub.unsubscribe()
-            if client is not None:
-                client.close()
-        except Exception as e:
-            bot.log.debug(f"Valkey cleanup error: {e}")
