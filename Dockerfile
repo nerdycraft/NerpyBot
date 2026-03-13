@@ -32,7 +32,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-managed-python --group web
 
 # ── Builder: Vue 3 frontend (SPA) ──
-FROM node:22-alpine AS builder-frontend
+FROM node:25-alpine AS builder-frontend
 WORKDIR /app/web/frontend
 COPY web/frontend/package*.json ./
 RUN npm ci
