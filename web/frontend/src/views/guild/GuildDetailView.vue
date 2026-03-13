@@ -64,6 +64,9 @@ function navigateTo(tabId: string) {
   if (window.innerWidth < LG_BREAKPOINT) sidebarOpen.value = false;
 }
 
+// Permission hierarchy: member < mod < admin < operator
+const LEVEL_RANK: Record<string, number> = { member: 0, mod: 1, admin: 2, operator: 3 };
+
 type SectionItem = {
   id: string;
   label: string;
@@ -75,12 +78,15 @@ type SectionItem = {
 type SectionGroup = {
   label: string;
   operatorOnly?: boolean;
+  /** Minimum permission level required to see this group. Defaults to "mod" if omitted. */
+  minLevel?: "member" | "mod" | "admin";
   items: SectionItem[];
 };
 
 const allSectionGroups: SectionGroup[] = [
   {
     label: "General",
+    minLevel: "member",
     items: [
       { id: "server-overview", label: "Server Overview", icon: "mdi:view-grid-outline", component: ServerOverviewTab },
       { id: "language", label: "Language", icon: "mdi:translate", component: LanguageTab, guildOnly: true },
@@ -130,11 +136,13 @@ const allSectionGroups: SectionGroup[] = [
 
 const sectionGroups = computed(() => {
   const effectiveIsOperator = mockupLevel.value === null && auth.user?.is_operator;
+  const effectiveLevel = mockupLevel.value ?? "operator";
 
   return allSectionGroups
     .map((g) => ({ ...g, items: g.items.filter((item) => !item.guildOnly || !!guildId.value) }))
     .filter((g) => g.items.length > 0)
-    .filter((g) => !g.operatorOnly || effectiveIsOperator);
+    .filter((g) => !g.operatorOnly || effectiveIsOperator)
+    .filter((g) => LEVEL_RANK[effectiveLevel] >= LEVEL_RANK[g.minLevel ?? "mod"]);
 });
 
 const allSections = computed(() => sectionGroups.value.flatMap((g) => g.items));
