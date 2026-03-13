@@ -35,7 +35,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
 
     Returns:
         dict: A command-specific response. Examples include:
-            - health: {"guild_count", "voice_connections", "latency_ms", "uptime_seconds", "python_version", "discord_py_version", "bot_version"}
+            - health: {"guild_count", "voice_connections", "latency_ms", "uptime_seconds", "python_version", "discord_py_version", "bot_version", "memory_mb", "cpu_percent", "error_count_24h", "active_reminders", "voice_details"}
             - list_modules: {"modules": [{"name", "loaded"}, ...]}
             - module_load/module_unload: {"success": True} or {"success": False, "error": "..."}
             - get_channels: {"channels": [{"id", "name", "type"}, ...]}
