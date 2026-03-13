@@ -84,6 +84,7 @@ def run_migrations() -> None:
     both in the repo (alembic.ini at root) and in Docker. Raises on failure —
     callers must not catch it.
     """
+    log = logging.get_logger("nerpybot")
     for parent in Path(__file__).resolve().parents:
         candidate = parent / "alembic.ini"
         if candidate.exists():
@@ -91,8 +92,14 @@ def run_migrations() -> None:
             break
     else:
         raise FileNotFoundError("alembic.ini not found in any parent directory of bot.py")
-    alembic_cfg = Config(str(alembic_ini))
-    alembic_command.upgrade(alembic_cfg, "head")
+    log.info("Running database migrations...")
+    try:
+        alembic_cfg = Config(str(alembic_ini))
+        alembic_command.upgrade(alembic_cfg, "head")
+    except Exception as e:
+        log.error(f"Database migration failed: {e}")
+        raise
+    log.info("Database migrations complete.")
 
 
 class NerpyBot(Bot):
@@ -547,6 +554,11 @@ def main(
         loggers.append("sqlalchemy.engine")
 
     if "bot" in resolved_config:
+        # Configure alembic at INFO before run_migrations().
+        # The guard in database-migrations/env.py checks logging.getLogger("alembic").handlers
+        # to decide whether to skip fileConfig. Moving run_migrations() above this line
+        # will silently revert embedded runs to alembic.ini formatting.
+        logging.create_logger("INFO", "alembic")
         resolved_loglevel = "DEBUG" if (debug or verbosity > 0) else effective_loglevel
         for logger_name in loggers:
             logging.create_logger(resolved_loglevel, logger_name)

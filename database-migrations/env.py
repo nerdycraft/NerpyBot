@@ -1,5 +1,5 @@
+import logging as _logging
 import os
-from logging.config import fileConfig
 from pathlib import Path
 
 import yaml
@@ -12,10 +12,12 @@ from sqlalchemy import engine_from_config, pool
 # access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# Only configure logging from alembic.ini when running standalone (no handlers yet).
+# When embedded in the bot, bot.py has already set up the alembic logger.
+if config.config_file_name is not None and not _logging.getLogger("alembic").handlers:
+    from logging.config import fileConfig
+
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 
 def _build_url_from_bot_config(bot_config: dict) -> str | None:

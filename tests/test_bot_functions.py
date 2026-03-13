@@ -587,3 +587,71 @@ class TestGlobalInteractionCheck:
                 await NerpyBot._global_interaction_check(mock_self, mock_interaction)
 
             mock_interaction.response.send_message.assert_called_once()
+
+
+class TestRunMigrations:
+    """Test run_migrations() logging and error handling."""
+
+    def test_run_migrations_logs_start_and_complete(self, tmp_path):
+        """run_migrations() should log start and complete messages on success."""
+        from NerdyPy.bot import run_migrations
+
+        (tmp_path / "alembic.ini").touch()
+
+        with (
+            patch("NerdyPy.bot.Path") as mock_path_cls,
+            patch("NerdyPy.bot.alembic_command.upgrade"),
+            patch("NerdyPy.bot.Config"),
+            patch("NerdyPy.bot.logging.get_logger") as mock_get_logger,
+        ):
+            mock_log = MagicMock()
+            mock_get_logger.return_value = mock_log
+
+            mock_resolve = MagicMock()
+            mock_resolve.parents = [tmp_path]
+            mock_path_cls.return_value.resolve.return_value = mock_resolve
+
+            run_migrations()
+
+        calls = [str(c[0][0]) for c in mock_log.info.call_args_list]
+        assert any("Running database migrations" in msg for msg in calls)
+        assert any("complete" in msg.lower() for msg in calls)
+
+    def test_run_migrations_logs_error_and_reraises(self, tmp_path):
+        """run_migrations() should log the error and re-raise on failure."""
+        from NerdyPy.bot import run_migrations
+
+        (tmp_path / "alembic.ini").touch()
+
+        with (
+            patch("NerdyPy.bot.Path") as mock_path_cls,
+            patch("NerdyPy.bot.alembic_command.upgrade", side_effect=RuntimeError("migration failed")),
+            patch("NerdyPy.bot.Config"),
+            patch("NerdyPy.bot.logging.get_logger") as mock_get_logger,
+        ):
+            mock_log = MagicMock()
+            mock_get_logger.return_value = mock_log
+
+            mock_resolve = MagicMock()
+            mock_resolve.parents = [tmp_path]
+            mock_path_cls.return_value.resolve.return_value = mock_resolve
+
+            with pytest.raises(RuntimeError, match="migration failed"):
+                run_migrations()
+
+        mock_log.error.assert_called_once()
+        error_msg = str(mock_log.error.call_args[0][0])
+        assert "migration failed" in error_msg
+
+    def test_run_migrations_raises_when_ini_not_found(self, tmp_path):
+        """run_migrations() should raise FileNotFoundError when alembic.ini is missing."""
+        from NerdyPy.bot import run_migrations
+
+        with patch("NerdyPy.bot.Path") as mock_path_cls:
+            mock_resolve = MagicMock()
+            # Empty parents list → for/else immediately hits the else branch
+            mock_resolve.parents = []
+            mock_path_cls.return_value.resolve.return_value = mock_resolve
+
+            with pytest.raises(FileNotFoundError, match="alembic.ini not found"):
+                run_migrations()
