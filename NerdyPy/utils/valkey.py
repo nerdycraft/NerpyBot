@@ -50,8 +50,30 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         import sys
 
         import discord
+        import psutil
 
         uptime_seconds = (datetime.now(UTC) - bot.uptime).total_seconds()
+        proc = psutil.Process()
+        voice_details = []
+        for vc in bot.voice_clients:
+            guild = vc.guild
+            channel = vc.channel
+            voice_details.append(
+                {
+                    "guild_id": str(guild.id),
+                    "guild_name": guild.name,
+                    "channel_id": str(channel.id),
+                    "channel_name": channel.name,
+                }
+            )
+        active_reminders = 0
+        try:
+            from models.reminder import ReminderMessage
+
+            with bot.session_scope() as session:
+                active_reminders = session.query(ReminderMessage).filter(ReminderMessage.Enabled == True).count()  # noqa: E712
+        except Exception:
+            pass
         return {
             "guild_count": len(bot.guilds),
             "voice_connections": len(bot.voice_clients),
@@ -60,6 +82,11 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             "python_version": sys.version.split()[0],
             "discord_py_version": discord.__version__,
             "bot_version": pkg_version("NerpyBot"),
+            "memory_mb": round(proc.memory_info().rss / (1024 * 1024), 2),
+            "cpu_percent": proc.cpu_percent(interval=None),
+            "error_count_24h": bot.error_counter.count(),
+            "active_reminders": active_reminders,
+            "voice_details": voice_details,
         }
     elif command == "list_modules":
         modules = []

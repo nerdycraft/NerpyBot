@@ -381,17 +381,27 @@ class PremiumUserGrant(BaseModel):
 # ── Operator ──
 
 
+class VoiceConnectionDetail(BaseModel):
+    guild_id: str
+    guild_name: str
+    channel_id: str
+    channel_name: str
+
+
 class HealthResponse(BaseModel):
     status: str  # "online" or "unreachable"
     uptime_seconds: float | None = None
     latency_ms: float | None = None
     guild_count: int | None = None
     voice_connections: int | None = None
-    active_reminders: int | None = None  # Phase 3: populated once bot exposes it
-    error_count_24h: int | None = None  # Phase 3: populated once error log is implemented
+    active_reminders: int | None = None
+    error_count_24h: int | None = None
+    memory_mb: float | None = None
+    cpu_percent: float | None = None
     python_version: str | None = None
     discord_py_version: str | None = None
     bot_version: str | None = None
+    voice_details: list[VoiceConnectionDetail] = []
 
 
 class ModuleInfo(BaseModel):

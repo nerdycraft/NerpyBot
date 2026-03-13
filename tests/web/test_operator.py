@@ -8,6 +8,11 @@ class TestHealthEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "unreachable"
+        assert data["memory_mb"] is None
+        assert data["cpu_percent"] is None
+        assert data["error_count_24h"] is None
+        assert data["active_reminders"] is None
+        assert data["voice_details"] == []
 
 
 class TestModuleEndpoints:

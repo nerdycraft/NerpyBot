@@ -24,6 +24,7 @@ bot = [
     "humanize",
     "aiohttp",
     "pyyaml",
+    "psutil>=7.0",
     "blizzapi",
     "requests",
     "cachetools",

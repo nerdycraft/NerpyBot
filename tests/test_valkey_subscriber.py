@@ -7,32 +7,116 @@ from utils.valkey import handle_valkey_command
 class TestBotCommandHandler:
     async def test_health_command_returns_stats(self, mock_bot):
         """The health command handler returns bot metrics."""
+        from contextlib import contextmanager
+        from unittest.mock import MagicMock, patch
 
         mock_bot.guilds = [MagicMock(), MagicMock()]
         mock_bot.latency = 0.045
-        mock_bot.voice_clients = [MagicMock()]
+        mock_bot.voice_clients = []
         mock_bot.uptime = datetime.now(UTC) - timedelta(hours=1)
         mock_bot.extensions = {"modules.admin": MagicMock(), "modules.music": MagicMock()}
+        mock_bot.error_counter = MagicMock()
+        mock_bot.error_counter.count.return_value = 3
 
-        result = await handle_valkey_command(mock_bot, "health", {})
+        mock_session = MagicMock()
+        mock_session.query.return_value.filter.return_value.count.return_value = 5
+
+        @contextmanager
+        def _mock_scope():
+            yield mock_session
+
+        mock_bot.session_scope = _mock_scope
+
+        with patch("utils.valkey.psutil") as mock_psutil:
+            mock_proc = MagicMock()
+            mock_proc.memory_info.return_value.rss = 100 * 1024 * 1024
+            mock_proc.cpu_percent.return_value = 2.5
+            mock_psutil.Process.return_value = mock_proc
+
+            result = await handle_valkey_command(mock_bot, "health", {})
+
         assert result["guild_count"] == 2
-        assert result["voice_connections"] == 1
+        assert result["voice_connections"] == 0
         assert "latency_ms" in result
         assert "uptime_seconds" in result
         assert "python_version" in result
         assert "discord_py_version" in result
         assert "bot_version" in result
+        assert result["memory_mb"] == 100.0
+        assert result["cpu_percent"] == 2.5
+        assert result["error_count_24h"] == 3
+        assert result["active_reminders"] == 5
+        assert result["voice_details"] == []
+
+    async def test_health_command_with_voice_clients(self, mock_bot):
+        """Health command includes voice connection details."""
+        from contextlib import contextmanager
+        from unittest.mock import MagicMock, patch
+
+        mock_guild = MagicMock()
+        mock_guild.id = 12345
+        mock_guild.name = "Test Guild"
+        mock_channel = MagicMock()
+        mock_channel.id = 67890
+        mock_channel.name = "General Voice"
+        mock_vc = MagicMock()
+        mock_vc.guild = mock_guild
+        mock_vc.channel = mock_channel
+
+        mock_bot.guilds = []
+        mock_bot.latency = 0.01
+        mock_bot.voice_clients = [mock_vc]
+        mock_bot.uptime = datetime.now(UTC) - timedelta(seconds=60)
+        mock_bot.extensions = {}
+        mock_bot.error_counter = MagicMock()
+        mock_bot.error_counter.count.return_value = 0
+
+        @contextmanager
+        def _mock_scope():
+            yield MagicMock()
+
+        mock_bot.session_scope = _mock_scope
+
+        with patch("utils.valkey.psutil") as mock_psutil:
+            mock_proc = MagicMock()
+            mock_proc.memory_info.return_value.rss = 50 * 1024 * 1024
+            mock_proc.cpu_percent.return_value = 1.0
+            mock_psutil.Process.return_value = mock_proc
+
+            result = await handle_valkey_command(mock_bot, "health", {})
+
+        assert len(result["voice_details"]) == 1
+        assert result["voice_details"][0]["guild_id"] == "12345"
+        assert result["voice_details"][0]["guild_name"] == "Test Guild"
+        assert result["voice_details"][0]["channel_name"] == "General Voice"
 
     async def test_health_command_with_zero_guilds(self, mock_bot):
         """Health command should handle bot in no guilds."""
+        from contextlib import contextmanager
+        from unittest.mock import MagicMock, patch
 
         mock_bot.guilds = []
         mock_bot.latency = 0.02
         mock_bot.voice_clients = []
         mock_bot.uptime = datetime.now(UTC) - timedelta(seconds=30)
         mock_bot.extensions = {}
+        mock_bot.error_counter = MagicMock()
+        mock_bot.error_counter.count.return_value = 0
 
-        result = await handle_valkey_command(mock_bot, "health", {})
+        @contextmanager
+        def _mock_scope():
+            yield MagicMock()
+
+        mock_bot.session_scope = _mock_scope
+
+        with patch("utils.valkey.psutil") as mock_psutil:
+            mock_proc = MagicMock()
+            mock_proc.memory_info.return_value.rss = 50 * 1024 * 1024
+            mock_proc.cpu_percent.return_value = 0.0
+            mock_psutil.Process.return_value = mock_proc
+
+            result = await handle_valkey_command(mock_bot, "health", {})
+
         assert result["guild_count"] == 0
         assert result["voice_connections"] == 0
 

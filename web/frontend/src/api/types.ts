@@ -331,6 +331,13 @@ export interface DiscordRole {
 
 // ── Operator ──
 
+export interface VoiceConnectionDetail {
+  guild_id: string;
+  guild_name: string;
+  channel_id: string;
+  channel_name: string;
+}
+
 export interface HealthResponse {
   status: string;
   uptime_seconds: number | null;
@@ -339,9 +346,12 @@ export interface HealthResponse {
   voice_connections: number | null;
   active_reminders: number | null;
   error_count_24h: number | null;
+  memory_mb: number | null;
+  cpu_percent: number | null;
   python_version: string | null;
   discord_py_version: string | null;
   bot_version: string | null;
+  voice_details: VoiceConnectionDetail[];
 }
 
 export interface ModuleInfo {
