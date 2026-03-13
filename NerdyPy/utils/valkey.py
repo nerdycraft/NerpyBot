@@ -15,6 +15,7 @@ from importlib.metadata import version as pkg_version
 import psutil
 
 _proc = psutil.Process()
+_proc.cpu_percent(interval=None)  # prime the baseline; first call always returns 0.0
 
 
 def _is_valid_module_name(module: str) -> bool:
@@ -66,7 +67,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             }
             for vc in bot.voice_clients
         ]
-        active_reminders = 0
+        active_reminders: int | None = None
         try:
             from models.reminder import ReminderMessage
 
@@ -75,8 +76,8 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                     return session.query(ReminderMessage).filter(ReminderMessage.Enabled == True).count()  # noqa: E712
 
             active_reminders = await to_thread(_count_reminders)
-        except Exception:
-            pass
+        except Exception as e:
+            bot.log.warning("Failed to count active reminders for health response: %s", e)
         return {
             "guild_count": len(bot.guilds),
             "voice_connections": len(bot.voice_clients),
@@ -86,7 +87,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             "discord_py_version": discord.__version__,
             "bot_version": pkg_version("NerpyBot"),
             "memory_mb": round(_proc.memory_info().rss / (1024 * 1024), 2),
-            "cpu_percent": _proc.cpu_percent(interval=None),
+            "cpu_percent": round(_proc.cpu_percent(interval=None), 2),
             "error_count_24h": bot.error_counter.count(),
             "active_reminders": active_reminders,
             "voice_details": voice_details,

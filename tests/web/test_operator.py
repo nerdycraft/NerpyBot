@@ -52,6 +52,7 @@ class TestGuildListEndpoint:
         }
 
         async def mock_send_bot_command(self, command, payload):
+            assert command == "list_guilds"
             return mock_result
 
         from web.cache import ValkeyClient
@@ -68,10 +69,11 @@ class TestGuildListEndpoint:
         assert data["guilds"][0]["member_count"] == 42
         assert data["guilds"][1]["icon"] is None
 
-    def test_list_guilds_returns_empty_when_bot_unreachable(self, client, operator_header, monkeypatch):
-        """list_guilds returns empty guilds list when bot is unreachable."""
+    def test_list_guilds_returns_503_when_bot_unreachable(self, client, operator_header, monkeypatch):
+        """list_guilds returns 503 when bot is unreachable (not an empty list)."""
 
         async def mock_send_bot_command(self, command, payload):
+            assert command == "list_guilds"
             return None
 
         from web.cache import ValkeyClient
@@ -79,6 +81,4 @@ class TestGuildListEndpoint:
         monkeypatch.setattr(ValkeyClient, "send_bot_command", mock_send_bot_command)
 
         response = client.get("/api/operator/guilds", headers=operator_header)
-        assert response.status_code == 200
-        data = response.json()
-        assert data["guilds"] == []
+        assert response.status_code == 503

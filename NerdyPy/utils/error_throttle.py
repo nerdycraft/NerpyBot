@@ -93,6 +93,9 @@ class ErrorCounter:
 
     def record(self) -> None:
         """Record that an error occurred now."""
+        cutoff = time.monotonic() - self.WINDOW
+        while self._timestamps and self._timestamps[0] < cutoff:
+            self._timestamps.popleft()
         self._timestamps.append(time.monotonic())
 
     def count(self) -> int:

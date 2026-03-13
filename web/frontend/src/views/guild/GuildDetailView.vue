@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
@@ -21,6 +21,7 @@ import WowCraftingTab from "./tabs/WowCraftingTab.vue";
 import OperatorUserManagementTab from "./tabs/OperatorUserManagementTab.vue";
 import OperatorDashboardTab from "./tabs/OperatorDashboardTab.vue";
 import MockupToolbar from "@/components/MockupToolbar.vue";
+import { api } from "@/api/client";
 import { useMockup } from "@/composables/useMockup";
 
 const route = useRoute();
@@ -40,12 +41,33 @@ onMounted(() => {
   if (window.innerWidth < LG_BREAKPOINT) sidebarOpen.value = false;
 });
 
-// Reset to overview when switching guilds
-watch(guildId, () => {
+// Support mode: set by server via X-Support-Mode header on the first guild API call.
+const serverSupportMode = ref(false);
+
+async function probeGuildAccess(id: string | undefined) {
+  if (!id || !auth.user?.is_operator) {
+    serverSupportMode.value = false;
+    return;
+  }
+  try {
+    const { supportMode } = await api.getWithHeaders<unknown>(`/guilds/${id}/language`);
+    serverSupportMode.value = supportMode;
+  } catch {
+    serverSupportMode.value = false;
+  }
+}
+
+// Reset to overview when switching guilds, clear mockup, and probe support mode
+watch(guildId, (id) => {
   router.replace({ query: {} });
+  clearMockup();
+  probeGuildAccess(id);
 });
 
-const { mockupLevel } = useMockup();
+onMounted(() => probeGuildAccess(guildId.value));
+onUnmounted(() => clearMockup());
+
+const { mockupLevel, clearMockup } = useMockup();
 
 const otherManagedGuilds = computed(() =>
   auth.guilds.filter((g) => g.bot_present && g.id !== guildId.value),
@@ -156,12 +178,7 @@ const activeComponent = computed(() => {
   return found?.component;
 });
 
-// Support mode: operator browsing a guild they don't personally manage
-const supportMode = computed(() =>
-  !!auth.user?.is_operator &&
-  !!guildId.value &&
-  !auth.guildById(guildId.value)
-);
+const supportMode = computed(() => serverSupportMode.value);
 
 const GROUP_ACCENTS: Record<string, string> = {
   General:      "text-blue-400",

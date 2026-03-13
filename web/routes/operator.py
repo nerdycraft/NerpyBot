@@ -152,5 +152,5 @@ async def list_bot_guilds(
     """List all guilds the bot is currently in."""
     result = await vk.send_bot_command("list_guilds", {})
     if result is None:
-        return BotGuildListResponse(guilds=[])
+        raise HTTPException(status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE, detail="Bot unreachable")
     return BotGuildListResponse(guilds=[BotGuildInfo(**g) for g in result.get("guilds", [])])

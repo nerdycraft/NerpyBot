@@ -381,10 +381,13 @@ class NerpyBot(Bot):
             if isinstance(error.original, NerpyException):
                 err_msg = "".join(error.original.args[0])
                 self.log.error(f"{err_ctx}: {err_msg}")
-                if not interaction.response.is_done():
-                    await interaction.response.send_message(err_msg, ephemeral=True)
-                else:
-                    await interaction.followup.send(err_msg, ephemeral=True)
+                try:
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message(err_msg, ephemeral=True)
+                    else:
+                        await interaction.followup.send(err_msg, ephemeral=True)
+                except Exception:
+                    pass  # interaction may have expired; still record and notify
                 if isinstance(error.original, NerpyInfraException):
                     self.error_counter.record()
                     await notify_error(self, err_ctx, error.original)

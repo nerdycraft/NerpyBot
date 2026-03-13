@@ -20,6 +20,7 @@ function formatUptime(seconds: number): string {
 }
 
 async function fetchHealth() {
+  if (loading.value) return;
   loading.value = true;
   error.value = null;
   try {

@@ -535,13 +535,19 @@ class TestSupportModeGuildAccess:
         response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=header)
         assert response.status_code == 200
 
-    def test_non_operator_without_guild_perms_is_rejected(self, client, fake_valkey):
-        """Non-operator with no guild permissions → 403 Forbidden."""
+    def test_non_operator_without_guild_perms_is_rejected(self, client, fake_valkey, web_db_session):
+        """Non-operator with no guild permissions → 403 from require_guild_access (not require_premium)."""
+        from models.admin import PremiumUser
+
+        # Grant premium so the request passes require_premium and reaches require_guild_access
+        PremiumUser.grant(999888777, 111222333, web_db_session)
+        web_db_session.commit()
         # Seed perms with no entry for this guild for the regular user
         fake_valkey.set_permissions("999888777", {}, ttl=300)
         header = make_auth_header(user_id="999888777", username="RandomUser")
         response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=header)
         assert response.status_code == 403
+        assert "guild" in response.json()["detail"].lower()
 
 
 class TestSupportModeRedactionAndWriteBlocking:

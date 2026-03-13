@@ -96,10 +96,32 @@ async def require_guild_access(
     if user_id in config.ops:
         perms = vk.get_permissions(user["sub"])
         guild_str = str(guild_id)
-        if perms and guild_str in perms:
-            entry = perms[guild_str]
-            if isinstance(entry, dict) and entry.get("level") in ("admin", "mod"):
-                return user  # real guild permissions — normal access
+
+        def _has_real_perms(p) -> bool:
+            if not p or guild_str not in p:
+                return False
+            entry = p[guild_str]
+            return isinstance(entry, dict) and entry.get("level") in ("admin", "mod")
+
+        if not _has_real_perms(perms):
+            # Try to refresh from Discord before degrading to support mode
+            discord_token = vk.get_discord_token(user["sub"])
+            if discord_token is not None:
+                try:
+                    import httpx
+
+                    from web.auth.oauth2 import fetch_user_guilds
+                    from web.auth.permissions import resolve_guild_permissions
+                    from web.cache import PERM_CACHE_TTL
+
+                    guilds = await fetch_user_guilds(discord_token)
+                    perms = resolve_guild_permissions(guilds)
+                    vk.set_permissions(user["sub"], perms, ttl=PERM_CACHE_TTL)
+                except Exception:
+                    pass  # network/API failure → degrade to support_mode
+
+        if _has_real_perms(perms):
+            return user  # real guild permissions — normal access
         return {**user, "support_mode": True}
 
     perms = vk.get_permissions(user["sub"])

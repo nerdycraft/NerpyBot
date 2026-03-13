@@ -935,8 +935,10 @@ async def list_form_submissions(
     form_id: int,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    response: Response = None,
 ):
     """List all submissions for a specific form."""
+    _set_support_mode_header(user, response)
     from models.application import ApplicationForm, ApplicationSubmission
 
     form = (
@@ -967,8 +969,10 @@ async def list_all_submissions(
     form_id: int | None = None,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    response: Response = None,
 ):
     """List all submissions for a guild, optionally filtered by form."""
+    _set_support_mode_header(user, response)
     from models.application import ApplicationAnswer, ApplicationSubmission
 
     q = (
@@ -1359,8 +1363,10 @@ async def list_crafting_orders(
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
     vk: ValkeyClient = Depends(get_valkey),
+    response: Response = None,
 ):
     """List crafting orders for a guild. Optionally filter by status (open/completed/cancelled)."""
+    _set_support_mode_header(user, response)
     from models.wow import CraftingOrder
 
     query = session.query(CraftingOrder).filter(CraftingOrder.GuildId == guild_id)
@@ -1377,7 +1383,8 @@ async def list_crafting_orders(
             null_ids.add(o.CreatorId)
         if o.CrafterName is None and o.CrafterId:
             null_ids.add(o.CrafterId)
-    if null_ids:
+    if null_ids and not user.get("support_mode"):
+        # Skip in support mode — avoid resolving/persisting real member names for redacted views
         resolved = (
             await vk.send_bot_command("get_member_names", {"guild_id": guild_id, "user_ids": list(null_ids)}) or {}
         )
