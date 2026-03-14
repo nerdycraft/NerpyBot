@@ -37,6 +37,8 @@ WORKDIR /app/web/frontend
 COPY web/frontend/package*.json ./
 RUN npm ci
 COPY web/frontend .
+ARG VITE_TEST_MODE=false
+ENV VITE_TEST_MODE=${VITE_TEST_MODE}
 RUN npm run build
 
 # ── Runtime base: shared env for bot and migrations ──

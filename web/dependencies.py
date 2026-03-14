@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 from fastapi import Depends, HTTPException, status
@@ -12,6 +13,16 @@ from sqlalchemy.orm import Session
 if TYPE_CHECKING:
     from web.config import WebConfig
     from web.cache import ValkeyClient
+
+_TEST_MODE: bool = os.environ.get("NERPYBOT_TEST_MODE", "").lower() in {"1", "true", "yes", "y", "on"}
+_TEST_USER_ID = "999000000000000000"
+_TEST_GUILD_IDS = {"999000000000000001", "999000000000000002", "999000000000000004"}
+_TEST_SUPPORT_GUILD_ID = "999000000000000003"
+
+
+def _is_test_user(user: dict) -> bool:
+    return _TEST_MODE and user.get("sub") == _TEST_USER_ID
+
 
 security = HTTPBearer(auto_error=False)
 
@@ -57,6 +68,8 @@ def require_operator(
     config: WebConfig = Depends(get_config),
 ) -> dict:
     """Require the current user to be a bot operator."""
+    if _is_test_user(user):
+        return user
     user_id = int(user["sub"])
     if user_id not in config.ops:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Operator access required")
@@ -69,6 +82,8 @@ def require_premium(
     session: Session = Depends(get_db_session),
 ) -> dict:
     """Require the current user to have premium access. Operators bypass."""
+    if _is_test_user(user):
+        return user
     user_id = int(user["sub"])
     if user_id in config.ops:
         return user
@@ -119,6 +134,14 @@ async def require_guild_access(
     active sessions survive the short TTL without forcing a re-login. If the Discord
     token is also expired the user must re-authenticate to get fresh permissions.
     """
+    if _is_test_user(user):
+        guild_str = str(guild_id)
+        if guild_str == _TEST_SUPPORT_GUILD_ID:
+            return {**user, "support_mode": True}
+        if guild_str in _TEST_GUILD_IDS:
+            return user
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient guild permissions")
+
     user_id = int(user["sub"])
     guild_str = str(guild_id)
 

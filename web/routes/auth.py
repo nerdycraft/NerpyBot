@@ -15,12 +15,62 @@ from web.auth.oauth2 import build_authorize_url, exchange_code, fetch_discord_us
 from web.auth.permissions import resolve_guild_permissions
 from web.cache import PERM_CACHE_TTL, ValkeyClient
 from web.config import WebConfig
-from web.dependencies import get_config, get_current_user, get_db_session, get_valkey
+from web.dependencies import _TEST_MODE, _TEST_USER_ID, get_config, get_current_user, get_db_session, get_valkey
 from web.schemas import GuildSummary, UserInfo
 
 _log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+_TEST_GUILDS = [
+    GuildSummary(
+        id="999000000000000001",
+        name="Nerdcraft Central",
+        icon=None,
+        permission_level="admin",
+        bot_present=True,
+        invite_url=None,
+    ),
+    GuildSummary(
+        id="999000000000000002",
+        name="Quiet Corner",
+        icon=None,
+        permission_level="mod",
+        bot_present=True,
+        invite_url=None,
+    ),
+    GuildSummary(
+        id="999000000000000004",
+        name="Cool Guild",
+        icon=None,
+        permission_level="admin",
+        bot_present=False,
+        invite_url=(
+            "https://discord.com/oauth2/authorize"
+            "?client_id=0&scope=bot+applications.commands&permissions=0"
+            "&guild_id=999000000000000004"
+        ),
+    ),
+]
+
+
+@router.get("/test-login")
+async def test_login(config: WebConfig = Depends(get_config)):
+    """Synthetic login for test mode — issues a JWT for the test operator user.
+
+    Only available when NERPYBOT_TEST_MODE is set.  Redirects to the frontend
+    the same way the real OAuth callback does, so the frontend token-handling
+    code is exercised identically.
+    """
+    if not _TEST_MODE:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    token = create_access_token(
+        user_id=_TEST_USER_ID,
+        username="TestOperator",
+        secret=config.jwt_secret,
+        expiry_hours=config.jwt_expiry_hours,
+    )
+    base = config.frontend_url.rstrip("/")
+    return RedirectResponse(url=f"{base}/#token={token}", status_code=302)
 
 
 @router.get("/login")
@@ -99,6 +149,16 @@ async def me(
 ):
     """Return the current user's profile and accessible guilds."""
     user_id = user["sub"]
+
+    if _TEST_MODE and user_id == _TEST_USER_ID:
+        return UserInfo(
+            id=_TEST_USER_ID,
+            username="TestOperator",
+            is_operator=True,
+            is_premium=True,
+            guilds=_TEST_GUILDS,
+        )
+
     perms = vk.get_permissions(user_id)
     if perms is None:
         # Cache miss (TTL expired mid-session) — rehydrate from stored Discord token.

@@ -2,6 +2,11 @@ import { useAuthStore } from "@/stores/auth";
 
 const BASE = "/api";
 
+// Cached module reference — import("@/dev") is resolved once then reused.
+// Declared at module scope so Vite can eliminate it entirely in production builds
+// where VITE_TEST_MODE is "false" (dead-code elimination of the if-branch).
+let _devMod: Awaited<typeof import("@/dev")> | null = null;
+
 export class ApiError extends Error {
   status: number;
 
@@ -16,6 +21,13 @@ async function requestWithHeaders<T>(
   path: string,
   body?: unknown,
 ): Promise<{ data: T; supportMode: boolean }> {
+  if (import.meta.env.VITE_TEST_MODE === "true") {
+    _devMod ??= await import("@/dev");
+    if (_devMod.isTestRequest(path)) {
+      return _devMod.resolveTestRequest(method, path, body) as Promise<{ data: T; supportMode: boolean }>;
+    }
+  }
+
   const auth = useAuthStore();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

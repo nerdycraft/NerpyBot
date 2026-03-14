@@ -26,6 +26,12 @@ import SupportTab from "./tabs/SupportTab.vue";
 import MockupToolbar from "@/components/MockupToolbar.vue";
 import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
 import { api } from "@/api/client";
+import { defineAsyncComponent } from "vue";
+
+const TestModeIndicator =
+  import.meta.env.VITE_TEST_MODE === "true"
+    ? defineAsyncComponent(() => import("@/dev/TestModeIndicator.vue"))
+    : null;
 import { useMockup } from "@/composables/useMockup";
 import { useI18n, type I18nKey } from "@/i18n";
 import { toQueryScalar } from "@/utils/route";
@@ -193,7 +199,7 @@ const allSectionGroups: SectionGroup[] = [
 
 const sectionGroups = computed(() => {
   const effectiveIsOperator = mockupLevel.value === null && auth.user?.is_operator;
-  const effectiveLevel = mockupLevel.value ?? guild.current?.permission_level ?? "member";
+  const effectiveLevel = mockupLevel.value ?? guild.current?.permission_level ?? (supportMode.value ? "admin" : "member");
 
   return allSectionGroups
     .map((g) => ({ ...g, items: g.items.filter((item) => !item.guildOnly || !!guildId.value) }))
@@ -383,7 +389,9 @@ function guildIconUrl(): string | null {
       </nav>
 
       <!-- Sidebar footer -->
-      <div class="border-t border-border p-4 flex items-center gap-3 flex-shrink-0">
+      <div class="flex flex-col flex-shrink-0">
+        <component :is="TestModeIndicator" v-if="TestModeIndicator && sidebarOpen" />
+        <div class="border-t border-border p-4 flex items-center gap-3">
         <span v-show="sidebarOpen" class="text-sm text-muted-foreground truncate flex-1">
           {{ auth.user?.username }}
         </span>
@@ -399,6 +407,7 @@ function guildIconUrl(): string | null {
         >
           <Icon icon="mdi:logout" class="w-5 h-5" />
         </button>
+        </div>
       </div>
       </aside>
 
