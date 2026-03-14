@@ -67,8 +67,7 @@ export const en = {
       expand: "Expand sidebar",
       open_nav: "Open navigation",
       support_mode: "Support Mode",
-      support_mode_desc:
-        "Viewing as operator. Sensitive content is redacted. Write operations are disabled.",
+      support_mode_desc: "Viewing as operator. Sensitive content is redacted. Write operations are disabled.",
       guild_fallback: "Guild",
     },
   },
@@ -134,7 +133,8 @@ export const en = {
       changes_body:
         "We may update these terms from time to time. For material changes, we will provide advance notice through our Discord community or the dashboard. Continued use of the service after the notice period constitutes acceptance of the updated terms.",
       contact_title: "8. Contact",
-      contact_body_before: "For questions about these terms, contact a bot operator through Discord or by email as listed in our ",
+      contact_body_before:
+        "For questions about these terms, contact a bot operator through Discord or by email as listed in our ",
       contact_body_link: "Legal Notice",
       contact_body_after: ".",
       governing_law_title: "9. Governing Law and Jurisdiction",
@@ -172,7 +172,8 @@ export const en = {
       data_retention_body2:
         "Dashboard user data (Discord User ID, username, premium status) is retained until access is revoked by an operator. All other data is not retained beyond what is necessary for the stated purpose.",
       data_sharing_title: "4. Data Sharing",
-      data_sharing_body1: "We do not sell, rent, or share your data with third parties. Data may be disclosed if required by law.",
+      data_sharing_body1:
+        "We do not sell, rent, or share your data with third parties. Data may be disclosed if required by law.",
       data_sharing_body2:
         "NerpyBot integrates with third-party APIs (Blizzard Entertainment, Riot Games) to fetch public game data on request. We do not share your personal Discord data with these services.",
       international_title: "5. International Data Transfers",
@@ -219,8 +220,7 @@ export const en = {
     session_expired_hint: "Please log in again to continue.",
     dismiss: "Dismiss",
     premium_required: "Premium required",
-    premium_required_desc:
-      "Dashboard access is a premium feature. Contact a bot operator to request access.",
+    premium_required_desc: "Dashboard access is a premium feature. Contact a bot operator to request access.",
   },
 
   tabs: {
@@ -290,8 +290,7 @@ export const en = {
       desc: "Automatically kicks members who have not verified or shown activity within a configurable number of days. The bot will send an optional reminder message before kicking if one is set.",
       enabled_tooltip: "When disabled, no members will be kicked regardless of the other settings.",
       kick_after_label: "Kick after (days)",
-      kick_after_tooltip:
-        "Number of days of inactivity before a member is kicked. Must be at least 1.",
+      kick_after_tooltip: "Number of days of inactivity before a member is kicked. Must be at least 1.",
       kick_after_validation: "Kick-after must be at least 1 day.",
       reminder_label: "Reminder message (optional)",
       reminder_tooltip:
@@ -305,14 +304,12 @@ export const en = {
       empty: "No auto-delete rules configured.",
       add_rule: "Add Rule",
       channel_label: "Channel",
-      channel_tooltip:
-        "The channel where auto-deletion will be applied. Each channel can only have one rule.",
+      channel_tooltip: "The channel where auto-deletion will be applied. Each channel can only have one rule.",
       keep_label: "Keep msgs",
       keep_tooltip:
         "Always keep at least this many recent messages in the channel, regardless of age. Set to 0 to disable.",
       older_label: "Older than (s)",
-      older_tooltip:
-        "Delete messages older than this many seconds. Set to 0 to only use the keep-count limit.",
+      older_tooltip: "Delete messages older than this many seconds. Set to 0 to only use the keep-count limit.",
       delete_pinned_label: "Delete pinned",
       delete_pinned_tooltip:
         "When enabled, pinned messages in this channel are also subject to deletion. By default, pinned messages are kept.",
@@ -326,8 +323,7 @@ export const en = {
       desc: "Delegate role assignment to specific roles — each mapping grants members of the source role the ability to give the target role to others via bot commands. Multiple mappings can share the same source or target role.",
       empty: "No role mappings configured.",
       source_label: "Source role",
-      source_tooltip:
-        "The role whose members are allowed to assign the target role to others using bot commands.",
+      source_tooltip: "The role whose members are allowed to assign the target role to others using bot commands.",
       source_placeholder: "Source role…",
       target_label: "Target role",
       target_tooltip:
@@ -389,8 +385,7 @@ export const en = {
       desc: "Live metrics from the running bot instance.",
       auto_refresh: "Auto-refresh (30s)",
       loading: "Loading health data…",
-      unreachable:
-        "Bot unreachable — the bot process may be offline or not responding.",
+      unreachable: "Bot unreachable — the bot process may be offline or not responding.",
       status: "Status:",
       online: "Online",
       status_unreachable: "Unreachable",
@@ -424,22 +419,17 @@ export const en = {
       schedule_type_tooltip:
         "How often the reminder fires: a repeating interval, or a fixed time each day, week, or month.",
       repeat_label: "Repeat every",
-      repeat_tooltip:
-        "The interval between fires. Enter a number and choose minutes, hours, or days.",
+      repeat_tooltip: "The interval between fires. Enter a number and choose minutes, hours, or days.",
       time_label: "Time",
-      time_tooltip:
-        "The time of day the reminder fires, interpreted in the selected timezone.",
+      time_tooltip: "The time of day the reminder fires, interpreted in the selected timezone.",
       dow_label: "Day of Week",
       dow_tooltip: "Which day of the week the reminder fires for weekly schedules.",
       dom_label: "Day of Month (1–28)",
-      dom_tooltip:
-        "Which day of the month the reminder fires. Capped at 28 to ensure it fires every month.",
+      dom_tooltip: "Which day of the month the reminder fires. Capped at 28 to ensure it fires every month.",
       tz_label: "Timezone",
-      tz_tooltip:
-        "The timezone used to interpret the schedule time. Defaults to UTC if left blank.",
+      tz_tooltip: "The timezone used to interpret the schedule time. Defaults to UTC if left blank.",
       message_label: "Message",
-      message_tooltip:
-        "The text content that will be posted to the channel each time the reminder fires.",
+      message_tooltip: "The text content that will be posted to the channel each time the reminder fires.",
       saving: "Saving…",
       type: {
         interval: "Repeat every…",
@@ -480,8 +470,7 @@ export const en = {
       title: "Submissions",
       desc: "Browse all application submissions from server members, including their answers, current status, and reviewer votes. This view is read-only — approvals and denials are cast by moderators directly in the review channel on Discord.",
       form_label: "Form",
-      form_tooltip:
-        "Filter submissions to show only those belonging to a specific application form.",
+      form_tooltip: "Filter submissions to show only those belonging to a specific application form.",
       status_label: "Status",
       status_tooltip:
         "Filter submissions by their current review status: pending awaiting votes, approved by moderators, or denied.",
@@ -512,8 +501,7 @@ export const en = {
       new_panel: "New Template",
       empty: "No templates.",
       name_label: "Name",
-      name_tooltip:
-        "A unique name identifying this template. Used when selecting a template to base a new form on.",
+      name_tooltip: "A unique name identifying this template. Used when selecting a template to base a new form on.",
       questions_label: "Questions",
       questions_tooltip:
         "The questions members will be asked when filling out a form that uses this template. Questions are presented in order via DM.",
@@ -533,8 +521,7 @@ export const en = {
       new_panel: "New Form",
       empty: "No forms yet.",
       name_label: "Name",
-      name_tooltip:
-        "A unique, human-readable name for this form shown in the dashboard and on the Apply button embed.",
+      name_tooltip: "A unique, human-readable name for this form shown in the dashboard and on the Apply button embed.",
       name_placeholder: "e.g. Guild Application",
       review_channel_label: "Review Channel",
       review_channel_tooltip:
@@ -546,11 +533,9 @@ export const en = {
       apply_desc_tooltip:
         "Optional text displayed on the Apply button embed to describe the application or set expectations for applicants.",
       required_approvals_label: "Required Approvals",
-      required_approvals_tooltip:
-        "Number of moderator approve votes needed to automatically accept the application.",
+      required_approvals_tooltip: "Number of moderator approve votes needed to automatically accept the application.",
       required_denials_label: "Required Denials",
-      required_denials_tooltip:
-        "Number of moderator deny votes needed to automatically reject the application.",
+      required_denials_tooltip: "Number of moderator deny votes needed to automatically reject the application.",
       approval_message_label: "Approval Message",
       approval_message_tooltip:
         "Optional message the bot sends to the applicant via DM when their application is approved.",
@@ -585,8 +570,7 @@ export const en = {
       guild_name_tooltip:
         "The exact in-game name of the WoW guild to track. The bot will verify this guild exists on the chosen realm before saving.",
       realm_label: "Realm",
-      realm_tooltip:
-        "The WoW realm (server) the guild is on. Must match the region selected above.",
+      realm_tooltip: "The WoW realm (server) the guild is on. Must match the region selected above.",
       channel_label: "Channel",
       channel_tooltip:
         "The Discord channel where guild news updates will be posted. The bot must have permission to send messages there.",
@@ -628,8 +612,7 @@ export const en = {
       board: "Board",
       no_board: "No crafting board configured.",
       role_mappings: "Role → Profession Mappings",
-      role_mappings_desc:
-        "Map Discord roles to WoW professions so crafters can accept matching orders.",
+      role_mappings_desc: "Map Discord roles to WoW professions so crafters can accept matching orders.",
       no_mappings: "No mappings yet.",
       role_label: "Role",
       role_tooltip:

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useI18n } from "@/i18n";
 import LegalPageLayout from "@/components/LegalPageLayout.vue";
+import { useI18n } from "@/i18n";
 
 const { t } = useI18n();
 </script>

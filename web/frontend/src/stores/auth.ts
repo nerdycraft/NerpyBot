@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
-import { ref, computed } from "vue";
-import type { UserInfo, GuildSummary } from "@/api/types";
+import { computed, ref } from "vue";
+import type { GuildSummary, UserInfo } from "@/api/types";
 
 export const useAuthStore = defineStore(
   "auth",

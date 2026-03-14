@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from "vue";
+import { nextTick, ref, watch } from "vue";
 import { api } from "@/api/client";
 import type { LeaveMessageConfig } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
@@ -42,7 +42,11 @@ async function loadConfig() {
   ready.value = true;
 }
 
-watch(() => props.guildId, () => void loadConfig(), { immediate: true });
+watch(
+  () => props.guildId,
+  () => void loadConfig(),
+  { immediate: true },
+);
 </script>
 
 <template>

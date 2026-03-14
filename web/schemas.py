@@ -446,6 +446,7 @@ class TokenResponse(BaseModel):
 
 
 class LegalContactResponse(BaseModel):
+    enabled: bool
     name: str
     street: str
     zip_city: str

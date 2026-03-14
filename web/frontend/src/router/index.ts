@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { useAuthStore } from "@/stores/auth";
-import { useGuildStore } from "@/stores/guild";
 import { api } from "@/api/client";
 import type { UserInfo } from "@/api/types";
+import { useAuthStore } from "@/stores/auth";
+import { useGuildStore } from "@/stores/guild";
 
 const router = createRouter({
   history: createWebHistory(),

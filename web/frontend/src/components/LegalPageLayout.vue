@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import { RouterLink } from "vue-router";
 import { Icon } from "@iconify/vue";
-import { useI18n } from "@/i18n";
+import { RouterLink } from "vue-router";
 import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
+import { useI18n } from "@/i18n";
 
-withDefaults(defineProps<{
-  title: string;
-  backText: string;
-  footerLinks: Array<{ to: string; text: string }>;
-  showMeta?: boolean;
-}>(), {
-  showMeta: true,
-});
+withDefaults(
+  defineProps<{
+    title: string;
+    backText: string;
+    footerLinks: Array<{ to: string; text: string }>;
+    showMeta?: boolean;
+  }>(),
+  {
+    showMeta: true,
+  },
+);
 
 const { t } = useI18n();
 </script>

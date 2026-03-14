@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
 import { Icon } from "@iconify/vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { api } from "@/api/client";
-import type { CraftingBoardSchema, CraftingOrderSchema, CraftingRoleMappingSchema, CraftingRoleMappingUpdate, DiscordRole } from "@/api/types";
-import { useGuildEntities } from "@/composables/useGuildEntities";
+import type {
+  CraftingBoardSchema,
+  CraftingOrderSchema,
+  CraftingRoleMappingSchema,
+  CraftingRoleMappingUpdate,
+  DiscordRole,
+} from "@/api/types";
 import InfoTooltip from "@/components/InfoTooltip.vue";
-import { useI18n, type I18nKey } from "@/i18n";
+import { useGuildEntities } from "@/composables/useGuildEntities";
+import { type I18nKey, useI18n } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
 
@@ -51,9 +57,7 @@ function professionLabel(professionId: number, fallback: string): string {
   return p ? t(p.labelKey) : fallback;
 }
 
-const orderDateFormatter = computed(
-  () => new Intl.DateTimeFormat(locale.current, { dateStyle: "short" }),
-);
+const orderDateFormatter = computed(() => new Intl.DateTimeFormat(locale.current, { dateStyle: "short" }));
 
 const STATUS_LABEL_KEYS: Record<string, I18nKey> = {
   "": "tabs.wow_crafting.status.all",
@@ -75,9 +79,7 @@ async function fetchOrders() {
   ordersError.value = null;
   try {
     const params = statusFilter.value ? `?order_status=${statusFilter.value}` : "";
-    orders.value = await api.get<CraftingOrderSchema[]>(
-      `/guilds/${props.guildId}/wow/crafting-orders${params}`,
-    );
+    orders.value = await api.get<CraftingOrderSchema[]>(`/guilds/${props.guildId}/wow/crafting-orders${params}`);
   } catch (e: unknown) {
     ordersError.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
@@ -89,9 +91,7 @@ async function fetchMappings() {
   mappingsLoading.value = true;
   mappingsError.value = null;
   try {
-    mappings.value = await api.get<CraftingRoleMappingSchema[]>(
-      `/guilds/${props.guildId}/wow/crafting-role-mappings`,
-    );
+    mappings.value = await api.get<CraftingRoleMappingSchema[]>(`/guilds/${props.guildId}/wow/crafting-role-mappings`);
   } catch (e: unknown) {
     mappingsError.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
@@ -104,10 +104,10 @@ async function addMapping() {
   opError.value = null;
   addingMapping.value = true;
   try {
-    const created = await api.post<CraftingRoleMappingSchema>(
-      `/guilds/${props.guildId}/wow/crafting-role-mappings`,
-      { role_id: newMappingRoleId.value, profession_id: newMappingProfessionId.value },
-    );
+    const created = await api.post<CraftingRoleMappingSchema>(`/guilds/${props.guildId}/wow/crafting-role-mappings`, {
+      role_id: newMappingRoleId.value,
+      profession_id: newMappingProfessionId.value,
+    });
     mappings.value.push(created);
     newMappingRoleId.value = "";
     newMappingProfessionId.value = "";
@@ -158,7 +158,9 @@ onMounted(async () => {
     loading.value = false;
   }
 
-  const rolesData = await api.get<{ roles: { id: string; name: string }[] }>(`/guilds/${props.guildId}/discord/roles`).catch(() => ({ roles: [] }));
+  const rolesData = await api
+    .get<{ roles: { id: string; name: string }[] }>(`/guilds/${props.guildId}/discord/roles`)
+    .catch(() => ({ roles: [] }));
   allRoles.value = rolesData.roles;
 
   await Promise.all([fetchOrders(), fetchMappings()]);

@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
-import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
+import { computed, onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { api } from "@/api/client";
-import { formatDatetime } from "@/utils/date";
 import type { ApplicationFormSchema, ApplicationSubmissionSchema } from "@/api/types";
-import { useI18n, type I18nKey } from "@/i18n";
+import { type I18nKey, useI18n } from "@/i18n";
+import { formatDatetime } from "@/utils/date";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -35,9 +35,7 @@ const STATUS_BADGES: Record<string, string> = {
 };
 
 const filtered = computed(() =>
-  statusFilter.value
-    ? submissions.value.filter((s) => s.status === statusFilter.value)
-    : submissions.value,
+  statusFilter.value ? submissions.value.filter((s) => s.status === statusFilter.value) : submissions.value,
 );
 
 const selected = computed<ApplicationSubmissionSchema | null>(() =>
@@ -62,7 +60,6 @@ onMounted(async () => {
     loading.value = false;
   }
 });
-
 </script>
 
 <template>

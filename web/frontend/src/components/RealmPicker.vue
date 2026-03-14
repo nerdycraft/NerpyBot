@@ -45,9 +45,7 @@ async function fetchRealms(q: string) {
   const seq = ++requestSeq;
   loading.value = true;
   try {
-    const data = await api.get<RealmResult[]>(
-      `/wow/realms?region=${props.region}&q=${encodeURIComponent(q)}`,
-    );
+    const data = await api.get<RealmResult[]>(`/wow/realms?region=${props.region}&q=${encodeURIComponent(q)}`);
     if (seq !== requestSeq) return;
     results.value = data;
     offline.value = false;

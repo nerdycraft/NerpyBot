@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
+import { computed, onMounted, ref } from "vue";
 import { api } from "@/api/client";
-import type { ReminderSchema, ReminderCreate, ReminderUpdate } from "@/api/types";
+import type { ReminderCreate, ReminderSchema, ReminderUpdate } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
 import InfoTooltip from "@/components/InfoTooltip.vue";
 import { useI18n } from "@/i18n";
@@ -55,9 +55,7 @@ const tzQuery = ref("UTC");
 const tzOpen = ref(false);
 const filteredTz = computed(() => {
   const q = tzQuery.value.toLowerCase();
-  return q
-    ? ALL_TIMEZONES.filter((tz) => tz.toLowerCase().includes(q)).slice(0, 80)
-    : ALL_TIMEZONES.slice(0, 80);
+  return q ? ALL_TIMEZONES.filter((tz) => tz.toLowerCase().includes(q)).slice(0, 80) : ALL_TIMEZONES.slice(0, 80);
 });
 
 function selectTz(tz: string) {
@@ -66,7 +64,9 @@ function selectTz(tz: string) {
 }
 
 function closeTzDropdown() {
-  setTimeout(() => { tzOpen.value = false; }, 150);
+  setTimeout(() => {
+    tzOpen.value = false;
+  }, 150);
 }
 
 // ── Draft ──
@@ -102,22 +102,23 @@ function formatInterval(seconds: number | null): string {
 }
 
 function scheduleLabel(r: ReminderSchema): string {
-  if (r.schedule_type === "interval") return t("tabs.reminders.schedule.interval", { interval: formatInterval(r.interval_seconds) });
+  if (r.schedule_type === "interval")
+    return t("tabs.reminders.schedule.interval", { interval: formatInterval(r.interval_seconds) });
   if (r.schedule_type === "daily") return t("tabs.reminders.schedule.daily", { time: r.schedule_time ?? "?" });
   if (r.schedule_type === "weekly") {
     const dow = r.schedule_day_of_week != null ? (DOW_LABELS.value[r.schedule_day_of_week] ?? "?") : "?";
     return t("tabs.reminders.schedule.weekly", { dow, time: r.schedule_time ?? "?" });
   }
-  if (r.schedule_type === "monthly") return t("tabs.reminders.schedule.monthly", { dom: r.schedule_day_of_month ?? "?", time: r.schedule_time ?? "?" });
+  if (r.schedule_type === "monthly")
+    return t("tabs.reminders.schedule.monthly", { dom: r.schedule_day_of_month ?? "?", time: r.schedule_time ?? "?" });
   return r.schedule_type;
 }
 
 async function toggleReminder(r: ReminderSchema) {
   try {
-    const updated = await api.patch<ReminderSchema>(
-      `/guilds/${props.guildId}/reminders/${r.id}`,
-      { enabled: !r.enabled } satisfies ReminderUpdate,
-    );
+    const updated = await api.patch<ReminderSchema>(`/guilds/${props.guildId}/reminders/${r.id}`, {
+      enabled: !r.enabled,
+    } satisfies ReminderUpdate);
     const idx = reminders.value.findIndex((x) => x.id === r.id);
     if (idx !== -1) reminders.value[idx] = updated;
   } catch (e: unknown) {

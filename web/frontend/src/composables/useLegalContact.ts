@@ -6,6 +6,7 @@
 import { reactive } from "vue";
 
 interface LegalContact {
+  enabled: boolean;
   name: string;
   street: string;
   zip_city: string;
@@ -15,6 +16,7 @@ interface LegalContact {
 }
 
 const contact = reactive<LegalContact>({
+  enabled: false,
   name: "",
   street: "",
   zip_city: "",
@@ -27,10 +29,10 @@ let fetched = false;
 
 export function useLegalContact() {
   if (!fetched) {
-    fetched = true;
     fetch("/api/legal/contact")
       .then((res) => res.json())
       .then((data: LegalContact) => {
+        fetched = true;
         Object.assign(contact, data);
       })
       .catch(() => {

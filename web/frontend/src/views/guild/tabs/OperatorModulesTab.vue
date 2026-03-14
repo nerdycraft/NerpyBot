@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
+import { onMounted, ref } from "vue";
 import { api } from "@/api/client";
-import type { ModuleInfo, ModuleActionResponse } from "@/api/types";
+import type { ModuleActionResponse, ModuleInfo } from "@/api/types";
 import { useI18n } from "@/i18n";
 
 const { t } = useI18n();

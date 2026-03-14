@@ -1,10 +1,10 @@
 <script setup lang="ts">
+import { Icon } from "@iconify/vue";
 import { computed } from "vue";
 import { useRouter } from "vue-router";
-import { Icon } from "@iconify/vue";
+import { useI18n } from "@/i18n";
 import { useAuthStore } from "@/stores/auth";
 import { useGuildStore } from "@/stores/guild";
-import { useI18n } from "@/i18n";
 
 const auth = useAuthStore();
 const guildStore = useGuildStore();

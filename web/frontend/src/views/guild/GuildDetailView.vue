@@ -1,40 +1,38 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
-import { useAuthStore } from "@/stores/auth";
-import { useGuildStore } from "@/stores/guild";
-import ServerOverviewTab from "./tabs/ServerOverviewTab.vue";
-import ApplicationFormsTab from "./tabs/ApplicationFormsTab.vue";
-import ApplicationTemplatesTab from "./tabs/ApplicationTemplatesTab.vue";
-import ApplicationSubmissionsTab from "./tabs/ApplicationSubmissionsTab.vue";
-import LanguageTab from "./tabs/LanguageTab.vue";
-import ModeratorRolesTab from "./tabs/ModeratorRolesTab.vue";
-import LeaveMessagesTab from "./tabs/LeaveMessagesTab.vue";
-import AutoDeleteTab from "./tabs/AutoDeleteTab.vue";
-import AutoKickerTab from "./tabs/AutoKickerTab.vue";
-import RoleMappingsTab from "./tabs/RoleMappingsTab.vue";
-import RemindersTab from "./tabs/RemindersTab.vue";
-import ReactionRolesTab from "./tabs/ReactionRolesTab.vue";
-import WowGuildNewsTab from "./tabs/WowGuildNewsTab.vue";
-import WowCraftingTab from "./tabs/WowCraftingTab.vue";
-import OperatorUserManagementTab from "./tabs/OperatorUserManagementTab.vue";
-import OperatorDashboardTab from "./tabs/OperatorDashboardTab.vue";
-import OperatorModulesTab from "./tabs/OperatorModulesTab.vue";
-import OperatorGuildsTab from "./tabs/OperatorGuildsTab.vue";
-import SupportTab from "./tabs/SupportTab.vue";
-import MockupToolbar from "@/components/MockupToolbar.vue";
-import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { api } from "@/api/client";
 import type { BotGuildInfo } from "@/api/types";
-import { defineAsyncComponent } from "vue";
+import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
+import MockupToolbar from "@/components/MockupToolbar.vue";
+import { useAuthStore } from "@/stores/auth";
+import { useGuildStore } from "@/stores/guild";
+import ApplicationFormsTab from "./tabs/ApplicationFormsTab.vue";
+import ApplicationSubmissionsTab from "./tabs/ApplicationSubmissionsTab.vue";
+import ApplicationTemplatesTab from "./tabs/ApplicationTemplatesTab.vue";
+import AutoDeleteTab from "./tabs/AutoDeleteTab.vue";
+import AutoKickerTab from "./tabs/AutoKickerTab.vue";
+import LanguageTab from "./tabs/LanguageTab.vue";
+import LeaveMessagesTab from "./tabs/LeaveMessagesTab.vue";
+import ModeratorRolesTab from "./tabs/ModeratorRolesTab.vue";
+import OperatorDashboardTab from "./tabs/OperatorDashboardTab.vue";
+import OperatorGuildsTab from "./tabs/OperatorGuildsTab.vue";
+import OperatorModulesTab from "./tabs/OperatorModulesTab.vue";
+import OperatorUserManagementTab from "./tabs/OperatorUserManagementTab.vue";
+import ReactionRolesTab from "./tabs/ReactionRolesTab.vue";
+import RemindersTab from "./tabs/RemindersTab.vue";
+import RoleMappingsTab from "./tabs/RoleMappingsTab.vue";
+import ServerOverviewTab from "./tabs/ServerOverviewTab.vue";
+import SupportTab from "./tabs/SupportTab.vue";
+import WowCraftingTab from "./tabs/WowCraftingTab.vue";
+import WowGuildNewsTab from "./tabs/WowGuildNewsTab.vue";
 
 const TestModeIndicator =
-  import.meta.env.VITE_TEST_MODE === "true"
-    ? defineAsyncComponent(() => import("@/dev/TestModeIndicator.vue"))
-    : null;
+  import.meta.env.VITE_TEST_MODE === "true" ? defineAsyncComponent(() => import("@/dev/TestModeIndicator.vue")) : null;
+
 import { useMockup } from "@/composables/useMockup";
-import { useI18n, type I18nKey } from "@/i18n";
+import { type I18nKey, useI18n } from "@/i18n";
 import { toQueryScalar } from "@/utils/route";
 
 const route = useRoute();
@@ -122,9 +120,7 @@ onUnmounted(() => clearMockup());
 
 const { mockupLevel, clearMockup } = useMockup();
 
-const otherManagedGuilds = computed(() =>
-  auth.guilds.filter((g) => g.bot_present && g.id !== guildId.value),
-);
+const otherManagedGuilds = computed(() => auth.guilds.filter((g) => g.bot_present && g.id !== guildId.value));
 
 function switchGuild(id: string) {
   const g = auth.guildById(id);
@@ -167,9 +163,26 @@ const allSectionGroups: SectionGroup[] = [
     accentClass: "text-blue-400",
     minLevel: "member",
     items: [
-      { id: "server-overview", labelKey: "nav.items.server_overview", icon: "mdi:view-grid-outline", component: ServerOverviewTab },
-      { id: "language", labelKey: "nav.items.language", icon: "mdi:translate", component: LanguageTab, guildOnly: true },
-      { id: "reminders", labelKey: "nav.items.reminders", icon: "mdi:bell-outline", component: RemindersTab, guildOnly: true },
+      {
+        id: "server-overview",
+        labelKey: "nav.items.server_overview",
+        icon: "mdi:view-grid-outline",
+        component: ServerOverviewTab,
+      },
+      {
+        id: "language",
+        labelKey: "nav.items.language",
+        icon: "mdi:translate",
+        component: LanguageTab,
+        guildOnly: true,
+      },
+      {
+        id: "reminders",
+        labelKey: "nav.items.reminders",
+        icon: "mdi:bell-outline",
+        component: RemindersTab,
+        guildOnly: true,
+      },
     ],
   },
   {
@@ -177,10 +190,34 @@ const allSectionGroups: SectionGroup[] = [
     labelKey: "nav.groups.moderation",
     accentClass: "text-amber-400",
     items: [
-      { id: "moderator-roles", labelKey: "nav.items.moderator_roles", icon: "mdi:shield-account", component: ModeratorRolesTab, guildOnly: true },
-      { id: "auto-kicker", labelKey: "nav.items.auto_kicker", icon: "mdi:account-remove", component: AutoKickerTab, guildOnly: true },
-      { id: "auto-delete", labelKey: "nav.items.auto_delete", icon: "mdi:delete-clock", component: AutoDeleteTab, guildOnly: true },
-      { id: "leave-messages", labelKey: "nav.items.leave_messages", icon: "mdi:door-open", component: LeaveMessagesTab, guildOnly: true },
+      {
+        id: "moderator-roles",
+        labelKey: "nav.items.moderator_roles",
+        icon: "mdi:shield-account",
+        component: ModeratorRolesTab,
+        guildOnly: true,
+      },
+      {
+        id: "auto-kicker",
+        labelKey: "nav.items.auto_kicker",
+        icon: "mdi:account-remove",
+        component: AutoKickerTab,
+        guildOnly: true,
+      },
+      {
+        id: "auto-delete",
+        labelKey: "nav.items.auto_delete",
+        icon: "mdi:delete-clock",
+        component: AutoDeleteTab,
+        guildOnly: true,
+      },
+      {
+        id: "leave-messages",
+        labelKey: "nav.items.leave_messages",
+        icon: "mdi:door-open",
+        component: LeaveMessagesTab,
+        guildOnly: true,
+      },
     ],
   },
   {
@@ -188,8 +225,20 @@ const allSectionGroups: SectionGroup[] = [
     labelKey: "nav.groups.roles",
     accentClass: "text-violet-400",
     items: [
-      { id: "role-mappings", labelKey: "nav.items.role_mappings", icon: "mdi:account-switch", component: RoleMappingsTab, guildOnly: true },
-      { id: "reaction-roles", labelKey: "nav.items.reaction_roles", icon: "mdi:emoticon-outline", component: ReactionRolesTab, guildOnly: true },
+      {
+        id: "role-mappings",
+        labelKey: "nav.items.role_mappings",
+        icon: "mdi:account-switch",
+        component: RoleMappingsTab,
+        guildOnly: true,
+      },
+      {
+        id: "reaction-roles",
+        labelKey: "nav.items.reaction_roles",
+        icon: "mdi:emoticon-outline",
+        component: ReactionRolesTab,
+        guildOnly: true,
+      },
     ],
   },
   {
@@ -197,9 +246,27 @@ const allSectionGroups: SectionGroup[] = [
     labelKey: "nav.groups.applications",
     accentClass: "text-emerald-400",
     items: [
-      { id: "application-forms", labelKey: "nav.items.application_forms", icon: "mdi:file-document-outline", component: ApplicationFormsTab, guildOnly: true },
-      { id: "application-templates", labelKey: "nav.items.application_templates", icon: "mdi:file-document-multiple-outline", component: ApplicationTemplatesTab, guildOnly: true },
-      { id: "application-submissions", labelKey: "nav.items.application_submissions", icon: "mdi:file-account-outline", component: ApplicationSubmissionsTab, guildOnly: true },
+      {
+        id: "application-forms",
+        labelKey: "nav.items.application_forms",
+        icon: "mdi:file-document-outline",
+        component: ApplicationFormsTab,
+        guildOnly: true,
+      },
+      {
+        id: "application-templates",
+        labelKey: "nav.items.application_templates",
+        icon: "mdi:file-document-multiple-outline",
+        component: ApplicationTemplatesTab,
+        guildOnly: true,
+      },
+      {
+        id: "application-submissions",
+        labelKey: "nav.items.application_submissions",
+        icon: "mdi:file-account-outline",
+        component: ApplicationSubmissionsTab,
+        guildOnly: true,
+      },
     ],
   },
   {
@@ -207,8 +274,20 @@ const allSectionGroups: SectionGroup[] = [
     labelKey: "nav.groups.wow",
     accentClass: "text-yellow-400",
     items: [
-      { id: "wow-guild-news", labelKey: "nav.items.wow_guild_news", icon: "mdi:newspaper-variant-outline", component: WowGuildNewsTab, guildOnly: true },
-      { id: "wow-crafting", labelKey: "nav.items.wow_crafting", icon: "mdi:hammer-wrench", component: WowCraftingTab, guildOnly: true },
+      {
+        id: "wow-guild-news",
+        labelKey: "nav.items.wow_guild_news",
+        icon: "mdi:newspaper-variant-outline",
+        component: WowGuildNewsTab,
+        guildOnly: true,
+      },
+      {
+        id: "wow-crafting",
+        labelKey: "nav.items.wow_crafting",
+        icon: "mdi:hammer-wrench",
+        component: WowCraftingTab,
+        guildOnly: true,
+      },
     ],
   },
   {
@@ -216,9 +295,7 @@ const allSectionGroups: SectionGroup[] = [
     labelKey: "nav.groups.support",
     accentClass: "text-cyan-400",
     minLevel: "member",
-    items: [
-      { id: "support", labelKey: "nav.items.support", icon: "mdi:message-text-outline", component: SupportTab },
-    ],
+    items: [{ id: "support", labelKey: "nav.items.support", icon: "mdi:message-text-outline", component: SupportTab }],
   },
   {
     id: "operator",
@@ -226,17 +303,38 @@ const allSectionGroups: SectionGroup[] = [
     accentClass: "text-rose-400",
     operatorOnly: true,
     items: [
-      { id: "operator-dashboard", labelKey: "nav.items.operator_dashboard", icon: "mdi:heart-pulse", component: OperatorDashboardTab },
-      { id: "operator-guilds", labelKey: "nav.items.operator_guilds", icon: "mdi:server-network-outline", component: OperatorGuildsTab },
-      { id: "operator-modules", labelKey: "nav.items.operator_modules", icon: "mdi:puzzle-outline", component: OperatorModulesTab },
-      { id: "operator-user-management", labelKey: "nav.items.operator_user_management", icon: "mdi:crown-outline", component: OperatorUserManagementTab },
+      {
+        id: "operator-dashboard",
+        labelKey: "nav.items.operator_dashboard",
+        icon: "mdi:heart-pulse",
+        component: OperatorDashboardTab,
+      },
+      {
+        id: "operator-guilds",
+        labelKey: "nav.items.operator_guilds",
+        icon: "mdi:server-network-outline",
+        component: OperatorGuildsTab,
+      },
+      {
+        id: "operator-modules",
+        labelKey: "nav.items.operator_modules",
+        icon: "mdi:puzzle-outline",
+        component: OperatorModulesTab,
+      },
+      {
+        id: "operator-user-management",
+        labelKey: "nav.items.operator_user_management",
+        icon: "mdi:crown-outline",
+        component: OperatorUserManagementTab,
+      },
     ],
   },
 ];
 
 const sectionGroups = computed(() => {
   const effectiveIsOperator = mockupLevel.value === null && auth.user?.is_operator;
-  const effectiveLevel = mockupLevel.value ?? guild.current?.permission_level ?? (supportMode.value ? "admin" : "member");
+  const effectiveLevel =
+    mockupLevel.value ?? guild.current?.permission_level ?? (supportMode.value ? "admin" : "member");
 
   return allSectionGroups
     .map((g) => ({ ...g, items: g.items.filter((item) => !item.guildOnly || !!guildId.value) }))

@@ -8,54 +8,54 @@
 
 import {
   CHANNELS,
-  ROLES,
-  guild1Language,
-  guild1ModRoles,
-  guild1LeaveMessages,
+  guild1ApplicationForms,
+  guild1ApplicationSubmissions,
+  guild1ApplicationTemplates,
   guild1AutoDelete,
   guild1AutoKicker,
-  guild1Reminders,
-  guild1ReactionRoles,
-  guild1RoleMappings,
-  guild1ApplicationForms,
-  guild1ApplicationTemplates,
-  guild1ApplicationSubmissions,
-  guild1WowGuildNews,
   guild1CraftingBoard,
   guild1CraftingMappings,
   guild1CraftingOrders,
-  guild2Language,
-  guild2ModRoles,
-  guild2LeaveMessages,
+  guild1Language,
+  guild1LeaveMessages,
+  guild1ModRoles,
+  guild1ReactionRoles,
+  guild1Reminders,
+  guild1RoleMappings,
+  guild1WowGuildNews,
+  guild2ApplicationForms,
+  guild2ApplicationSubmissions,
+  guild2ApplicationTemplates,
   guild2AutoDelete,
   guild2AutoKicker,
-  guild2Reminders,
+  guild2Language,
+  guild2LeaveMessages,
+  guild2ModRoles,
   guild2ReactionRoles,
+  guild2Reminders,
   guild2RoleMappings,
-  guild2ApplicationForms,
-  guild2ApplicationTemplates,
-  guild2ApplicationSubmissions,
   guild2WowGuildNews,
-  guild3Info,
-  guild3Language,
-  guild3ModRoles,
-  guild3LeaveMessages,
+  guild3ApplicationForms,
+  guild3ApplicationSubmissions,
+  guild3ApplicationTemplates,
   guild3AutoDelete,
   guild3AutoKicker,
-  guild3Reminders,
-  guild3ReactionRoles,
-  guild3RoleMappings,
-  guild3ApplicationForms,
-  guild3ApplicationTemplates,
-  guild3ApplicationSubmissions,
-  guild3WowGuildNews,
   guild3CraftingBoard,
   guild3CraftingMappings,
   guild3CraftingOrders,
+  guild3Info,
+  guild3Language,
+  guild3LeaveMessages,
+  guild3ModRoles,
+  guild3ReactionRoles,
+  guild3Reminders,
+  guild3RoleMappings,
+  guild3WowGuildNews,
+  operatorBotGuilds,
   operatorHealth,
   operatorModules,
-  operatorBotGuilds,
   operatorPremiumUsers,
+  ROLES,
 } from "./fixtures";
 
 // ── In-memory stores (seeded from fixtures, mutated by POST/PUT/DELETE) ──────
@@ -129,11 +129,7 @@ let mutablePremiumUsers = [...operatorPremiumUsers];
 // is 3 (full-match + 3 groups), so 5 elements is enough with spare room.
 type Caps = [string, string, string, string, string];
 
-type Handler = (
-  method: string,
-  match: Caps,
-  body: unknown,
-) => { data: unknown; supportMode: boolean };
+type Handler = (method: string, match: Caps, body: unknown) => { data: unknown; supportMode: boolean };
 
 interface Route {
   pattern: RegExp;
@@ -427,7 +423,11 @@ const routes: Route[] = [
   {
     pattern: /^\/guilds\/(\d+)\/application-submissions\/(\d+)\/decide$/,
     handler: (_m, [, guildId, subId], body) => {
-      const subs = guildStore(guildId, "applicationSubmissions") as { id: number; status: string; decision_reason: string | null }[];
+      const subs = guildStore(guildId, "applicationSubmissions") as {
+        id: number;
+        status: string;
+        decision_reason: string | null;
+      }[];
       const sub = subs.find((s) => s.id === Number(subId));
       if (sub && body) {
         const { decision, reason } = body as { decision: string; reason?: string };
@@ -457,7 +457,15 @@ const routes: Route[] = [
     handler: (_m, [, guildId], body) => {
       if (_m === "POST" && body) {
         const trackers = guildStore(guildId, "wowGuildNews") as unknown[];
-        trackers.push({ id: nextId(), enabled: true, last_activity: null, tracked_characters: 0, min_level: 10, active_days: 7, ...(body as object) });
+        trackers.push({
+          id: nextId(),
+          enabled: true,
+          last_activity: null,
+          tracked_characters: 0,
+          min_level: 10,
+          active_days: 7,
+          ...(body as object),
+        });
       }
       return ok(guildStore(guildId, "wowGuildNews"));
     },

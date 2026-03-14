@@ -6,27 +6,27 @@
  */
 
 import type {
+  ApplicationFormSchema,
+  ApplicationSubmissionSchema,
+  ApplicationTemplateSchema,
   AutoDeleteRule,
   AutoKickerConfig,
   BotGuildInfo,
   CraftingBoardSchema,
   CraftingOrderSchema,
   CraftingRoleMappingSchema,
-  ApplicationFormSchema,
-  ApplicationSubmissionSchema,
-  ApplicationTemplateSchema,
   DiscordChannel,
   DiscordRole,
   HealthResponse,
   LanguageConfig,
   LeaveMessageConfig,
-  ModuleListResponse,
   ModeratorRole,
+  ModuleListResponse,
+  PremiumUserSchema,
   ReactionRoleMessageSchema,
   ReminderSchema,
   RoleMappingSchema,
   WowGuildNewsSchema,
-  PremiumUserSchema,
 } from "@/api/types";
 
 // ── Shared: channels and roles (used across all guilds) ──────────────────────
@@ -219,7 +219,11 @@ export const guild1ApplicationSubmissions: ApplicationSubmissionSchema[] = [
     submitted_at: "2026-03-13T14:22:00Z",
     decision_reason: null,
     answers: [
-      { question_id: 1, question_text: "Tell us about yourself.", answer_text: "Hi! I'm a veteran MMO player looking for a chill guild." },
+      {
+        question_id: 1,
+        question_text: "Tell us about yourself.",
+        answer_text: "Hi! I'm a veteran MMO player looking for a chill guild.",
+      },
       { question_id: 2, question_text: "What games do you play?", answer_text: "WoW, FFXIV, and some indie games." },
       { question_id: 3, question_text: "How did you find us?", answer_text: "A friend recommended you." },
     ],
@@ -234,7 +238,11 @@ export const guild1ApplicationSubmissions: ApplicationSubmissionSchema[] = [
     submitted_at: "2026-03-10T09:00:00Z",
     decision_reason: null,
     answers: [
-      { question_id: 1, question_text: "Tell us about yourself.", answer_text: "I'm a casual player who loves community events." },
+      {
+        question_id: 1,
+        question_text: "Tell us about yourself.",
+        answer_text: "I'm a casual player who loves community events.",
+      },
       { question_id: 2, question_text: "What games do you play?", answer_text: "WoW main, occasional Diablo." },
       { question_id: 3, question_text: "How did you find us?", answer_text: "Discord server listing." },
     ],
@@ -377,9 +385,7 @@ export const guild3Info: BotGuildInfo = {
 
 export const guild3Language: LanguageConfig = { guild_id: GUILD3, language: "en" };
 
-export const guild3ModRoles: ModeratorRole[] = [
-  { guild_id: GUILD3, role_id: "700000000000000001" },
-];
+export const guild3ModRoles: ModeratorRole[] = [{ guild_id: GUILD3, role_id: "700000000000000001" }];
 
 export const guild3LeaveMessages: LeaveMessageConfig = {
   guild_id: GUILD3,
@@ -472,9 +478,7 @@ export const guild3ApplicationTemplates: ApplicationTemplateSchema[] = [
     is_built_in: false,
     approval_message: "You're in!",
     denial_message: "Application denied.",
-    questions: [
-      { id: 10, question_text: "Tell us about yourself.", sort_order: 1 },
-    ],
+    questions: [{ id: 10, question_text: "Tell us about yourself.", sort_order: 1 }],
   },
 ];
 

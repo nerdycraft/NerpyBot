@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { useI18n } from "@/i18n";
-import { useLegalContact } from "@/composables/useLegalContact";
 import LegalPageLayout from "@/components/LegalPageLayout.vue";
+import { useLegalContact } from "@/composables/useLegalContact";
+import { useI18n } from "@/i18n";
 
 const { t, locale } = useI18n();
 const { contact } = useLegalContact();
@@ -13,7 +13,7 @@ const { contact } = useLegalContact();
     :back-text="t('legal.back')"
     :footer-links="[{ to: '/terms', text: t('legal.terms') }, { to: '/impressum', text: t('legal.impressum') }]"
   >
-    <div class="controller-block">
+    <div v-if="contact.name" class="controller-block">
       <p class="controller-label">{{ t('legal.privacy_page.controller_label') }}</p>
       <p>
         {{ contact.name }}<br>

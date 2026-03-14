@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useMockup, type MockupLevel } from "@/composables/useMockup";
+import { type MockupLevel, useMockup } from "@/composables/useMockup";
+import { type I18nKey, useI18n } from "@/i18n";
 import { useAuthStore } from "@/stores/auth";
-import { useI18n, type I18nKey } from "@/i18n";
 
 const auth = useAuthStore();
 const { mockupLevel, setMockupLevel, clearMockup } = useMockup();

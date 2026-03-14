@@ -13,7 +13,18 @@ router = APIRouter(prefix="/legal", tags=["legal"])
 
 @router.get("/contact", response_model=LegalContactResponse)
 async def get_legal_contact(config: WebConfig = Depends(get_config)) -> LegalContactResponse:
+    enabled = all(
+        [
+            config.legal_name,
+            config.legal_street,
+            config.legal_zip_city,
+            config.legal_country_en,
+            config.legal_country_de,
+            config.legal_email,
+        ]
+    )
     return LegalContactResponse(
+        enabled=enabled,
         name=config.legal_name,
         street=config.legal_street,
         zip_city=config.legal_zip_city,

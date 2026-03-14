@@ -69,8 +69,7 @@ export const de: typeof en = {
       expand: "Seitenleiste ausklappen",
       open_nav: "Navigation öffnen",
       support_mode: "Support-Modus",
-      support_mode_desc:
-        "Ansicht als Operator. Sensible Inhalte sind verborgen. Schreibvorgänge sind deaktiviert.",
+      support_mode_desc: "Ansicht als Operator. Sensible Inhalte sind verborgen. Schreibvorgänge sind deaktiviert.",
       guild_fallback: "Server",
     },
   },
@@ -136,14 +135,16 @@ export const de: typeof en = {
       changes_body:
         "Wir können diese Bedingungen von Zeit zu Zeit aktualisieren. Bei wesentlichen Änderungen werden wir im Voraus über unsere Discord-Community oder das Dashboard informieren. Die weitere Nutzung des Dienstes nach Ablauf der Ankündigungsfrist gilt als Zustimmung zu den aktualisierten Bedingungen.",
       contact_title: "8. Kontakt",
-      contact_body_before: "Bei Fragen zu diesen Bedingungen wende dich über Discord an einen Bot-Operator oder per E-Mail gemäß unserem ",
+      contact_body_before:
+        "Bei Fragen zu diesen Bedingungen wende dich über Discord an einen Bot-Operator oder per E-Mail gemäß unserem ",
       contact_body_link: "Impressum",
       contact_body_after: ".",
       governing_law_title: "9. Anwendbares Recht und Gerichtsstand",
       governing_law_body:
         "Diese Nutzungsbedingungen unterliegen dem Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts (CISG). Ausschließlicher Gerichtsstand für alle Streitigkeiten aus oder im Zusammenhang mit diesen Bedingungen ist Hamburg, Deutschland, soweit gesetzlich zulässig.",
       dispute_title: "10. Online-Streitbeilegung",
-      dispute_body_before: "Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung bereit, die unter ",
+      dispute_body_before:
+        "Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung bereit, die unter ",
       dispute_body_after:
         " erreichbar ist. Wir sind weder bereit noch verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.",
     },
@@ -153,8 +154,7 @@ export const de: typeof en = {
       data_collection_title: "1. Welche Daten wir erheben",
       data_collection_intro:
         "NerpyBot erhebt und speichert die minimal notwendigen Daten, um seine Funktionen bereitzustellen. Rechtsgrundlage für die Verarbeitung ist Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung), sofern nicht anders angegeben:",
-      data_collection_item_guild_ids:
-        "<strong>Server-IDs</strong> — zur Zuordnung der Konfiguration zu deinem Server",
+      data_collection_item_guild_ids: "<strong>Server-IDs</strong> — zur Zuordnung der Konfiguration zu deinem Server",
       data_collection_item_user_ids:
         "<strong>Discord-Nutzer-IDs und Benutzernamen</strong> — für Dashboard-Zugang, Erinnerungen und Moderationsaktionen",
       data_collection_item_channel_role_ids:
@@ -291,11 +291,9 @@ export const de: typeof en = {
     auto_kicker: {
       title: "Auto-Kicker",
       desc: "Kickt automatisch Mitglieder, die sich innerhalb einer konfigurierbaren Anzahl von Tagen nicht verifiziert oder keine Aktivität gezeigt haben. Der Bot sendet bei Bedarf eine optionale Erinnerungsnachricht vor dem Kick.",
-      enabled_tooltip:
-        "Wenn deaktiviert, werden keine Mitglieder gekickt, unabhängig von den anderen Einstellungen.",
+      enabled_tooltip: "Wenn deaktiviert, werden keine Mitglieder gekickt, unabhängig von den anderen Einstellungen.",
       kick_after_label: "Kick nach (Tagen)",
-      kick_after_tooltip:
-        "Anzahl der Inaktivitätstage, bevor ein Mitglied gekickt wird. Muss mindestens 1 sein.",
+      kick_after_tooltip: "Anzahl der Inaktivitätstage, bevor ein Mitglied gekickt wird. Muss mindestens 1 sein.",
       kick_after_validation: "Kick-nach-Tagen muss mindestens 1 betragen.",
       reminder_label: "Erinnerungsnachricht (optional)",
       reminder_tooltip:
@@ -330,8 +328,7 @@ export const de: typeof en = {
       desc: "Delegiere die Rollenzuweisung an bestimmte Rollen — jede Zuordnung gibt Mitgliedern der Quellrolle die Möglichkeit, die Zielrolle anderen über Bot-Befehle zuzuweisen. Mehrere Zuordnungen können dieselbe Quell- oder Zielrolle teilen.",
       empty: "Keine Rollenzuweisungen konfiguriert.",
       source_label: "Quellrolle",
-      source_tooltip:
-        "Die Rolle, deren Mitglieder die Zielrolle anderen über Bot-Befehle zuweisen dürfen.",
+      source_tooltip: "Die Rolle, deren Mitglieder die Zielrolle anderen über Bot-Befehle zuweisen dürfen.",
       source_placeholder: "Quellrolle…",
       target_label: "Zielrolle",
       target_tooltip:
@@ -393,8 +390,7 @@ export const de: typeof en = {
       desc: "Live-Metriken der laufenden Bot-Instanz.",
       auto_refresh: "Auto-Aktualisierung (30s)",
       loading: "Statusdaten werden geladen…",
-      unreachable:
-        "Bot nicht erreichbar — der Bot-Prozess ist möglicherweise offline oder antwortet nicht.",
+      unreachable: "Bot nicht erreichbar — der Bot-Prozess ist möglicherweise offline oder antwortet nicht.",
       status: "Status:",
       online: "Online",
       status_unreachable: "Nicht erreichbar",
@@ -428,22 +424,18 @@ export const de: typeof en = {
       schedule_type_tooltip:
         "Wie oft die Erinnerung ausgelöst wird: ein sich wiederholendes Intervall oder eine feste Zeit täglich, wöchentlich oder monatlich.",
       repeat_label: "Alle wiederholen",
-      repeat_tooltip:
-        "Das Intervall zwischen den Auslösungen. Gib eine Zahl ein und wähle Minuten, Stunden oder Tage.",
+      repeat_tooltip: "Das Intervall zwischen den Auslösungen. Gib eine Zahl ein und wähle Minuten, Stunden oder Tage.",
       time_label: "Uhrzeit",
-      time_tooltip:
-        "Die Tageszeit, zu der die Erinnerung ausgelöst wird, interpretiert in der ausgewählten Zeitzone.",
+      time_tooltip: "Die Tageszeit, zu der die Erinnerung ausgelöst wird, interpretiert in der ausgewählten Zeitzone.",
       dow_label: "Wochentag",
       dow_tooltip: "An welchem Wochentag die Erinnerung für wöchentliche Zeitpläne ausgelöst wird.",
       dom_label: "Tag im Monat (1–28)",
       dom_tooltip:
         "An welchem Tag des Monats die Erinnerung ausgelöst wird. Begrenzt auf 28, damit sie jeden Monat ausgelöst wird.",
       tz_label: "Zeitzone",
-      tz_tooltip:
-        "Die Zeitzone zur Interpretation der Zeitplanzeit. Standardmäßig UTC, wenn leer gelassen.",
+      tz_tooltip: "Die Zeitzone zur Interpretation der Zeitplanzeit. Standardmäßig UTC, wenn leer gelassen.",
       message_label: "Nachricht",
-      message_tooltip:
-        "Der Textinhalt, der jedes Mal in den Kanal gepostet wird, wenn die Erinnerung ausgelöst wird.",
+      message_tooltip: "Der Textinhalt, der jedes Mal in den Kanal gepostet wird, wenn die Erinnerung ausgelöst wird.",
       saving: "Speichern…",
       type: {
         interval: "Alle wiederholen…",
@@ -484,8 +476,7 @@ export const de: typeof en = {
       title: "Einsendungen",
       desc: "Durchsuche alle Bewerbungseinsendungen von Servermitgliedern, einschließlich ihrer Antworten, des aktuellen Status und der Moderatorenstimmen. Diese Ansicht ist schreibgeschützt — Zustimmungen und Ablehnungen werden von Moderatoren direkt im Überprüfungskanal auf Discord abgegeben.",
       form_label: "Formular",
-      form_tooltip:
-        "Einsendungen filtern, um nur die eines bestimmten Bewerbungsformulars anzuzeigen.",
+      form_tooltip: "Einsendungen filtern, um nur die eines bestimmten Bewerbungsformulars anzuzeigen.",
       status_label: "Status",
       status_tooltip:
         "Einsendungen nach ihrem aktuellen Überprüfungsstatus filtern: ausstehend (wartet auf Stimmen), genehmigt von Moderatoren oder abgelehnt.",
@@ -589,8 +580,7 @@ export const de: typeof en = {
       guild_name_tooltip:
         "Der genaue In-Game-Name der zu verfolgenden WoW-Gilde. Der Bot überprüft, ob diese Gilde auf dem gewählten Realm existiert, bevor er speichert.",
       realm_label: "Realm",
-      realm_tooltip:
-        "Der WoW-Realm (Server), auf dem sich die Gilde befindet. Muss zur ausgewählten Region passen.",
+      realm_tooltip: "Der WoW-Realm (Server), auf dem sich die Gilde befindet. Muss zur ausgewählten Region passen.",
       channel_label: "Kanal",
       channel_tooltip:
         "Der Discord-Kanal, in dem Gildennachrichten-Updates gepostet werden. Der Bot muss die Berechtigung haben, dort Nachrichten zu senden.",
@@ -632,8 +622,7 @@ export const de: typeof en = {
       board: "Tafel",
       no_board: "Keine Handwerkstafel konfiguriert.",
       role_mappings: "Rolle → Beruf-Zuweisungen",
-      role_mappings_desc:
-        "Ordne Discord-Rollen WoW-Berufen zu, damit Handwerker passende Aufträge annehmen können.",
+      role_mappings_desc: "Ordne Discord-Rollen WoW-Berufen zu, damit Handwerker passende Aufträge annehmen können.",
       no_mappings: "Noch keine Zuweisungen.",
       role_label: "Rolle",
       role_tooltip:

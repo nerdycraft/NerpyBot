@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useLocaleStore, type SupportedLocale } from "@/stores/locale";
 import { useI18n } from "@/i18n";
+import { type SupportedLocale, useLocaleStore } from "@/stores/locale";
 
 const locale = useLocaleStore();
 const { t } = useI18n();

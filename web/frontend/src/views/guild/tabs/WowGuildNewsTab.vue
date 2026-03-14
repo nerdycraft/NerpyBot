@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
+import { onMounted, ref } from "vue";
 import { api } from "@/api/client";
 import type {
-  WowGuildNewsSchema,
+  GuildValidateResult,
   WowCharacterMountSchema,
   WowGuildNewsCreate,
+  WowGuildNewsSchema,
   WowGuildNewsUpdate,
-  GuildValidateResult,
 } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
+import InfoTooltip from "@/components/InfoTooltip.vue";
 import RealmPicker from "@/components/RealmPicker.vue";
 import { useGuildEntities } from "@/composables/useGuildEntities";
-import InfoTooltip from "@/components/InfoTooltip.vue";
 import { useI18n } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
@@ -71,10 +71,9 @@ async function toggleEnabled(tracker: WowGuildNewsSchema) {
   const prev = tracker.enabled;
   tracker.enabled = !prev; // optimistic
   try {
-    const updated = await api.patch<WowGuildNewsSchema>(
-      `/guilds/${props.guildId}/wow/news-configs/${tracker.id}`,
-      { enabled: !prev },
-    );
+    const updated = await api.patch<WowGuildNewsSchema>(`/guilds/${props.guildId}/wow/news-configs/${tracker.id}`, {
+      enabled: !prev,
+    });
     const idx = trackers.value.findIndex((t) => t.id === tracker.id);
     if (idx !== -1) trackers.value[idx] = updated;
   } catch {

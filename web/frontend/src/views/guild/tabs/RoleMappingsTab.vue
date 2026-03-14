@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import { api } from "@/api/client";
 import type { RoleMappingSchema } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
-import { useGuildEntities } from "@/composables/useGuildEntities";
 import InfoTooltip from "@/components/InfoTooltip.vue";
+import { useGuildEntities } from "@/composables/useGuildEntities";
 import { useI18n } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
@@ -18,7 +18,10 @@ const error = ref<string | null>(null);
 const newMapping = ref({ source_role_id: "", target_role_id: "" });
 const adding = ref(false);
 
-onMounted(() => { void load(); void fetchRoles(); });
+onMounted(() => {
+  void load();
+  void fetchRoles();
+});
 
 async function load() {
   loading.value = true;

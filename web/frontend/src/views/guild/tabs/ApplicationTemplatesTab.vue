@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
+import { onMounted, ref } from "vue";
 import { api } from "@/api/client";
 import type { ApplicationTemplateSchema } from "@/api/types";
 import InfoTooltip from "@/components/InfoTooltip.vue";
@@ -44,21 +44,22 @@ async function saveTemplate() {
     if (editingTemplateId.value !== null) {
       const updated = await api.put<ApplicationTemplateSchema>(
         `/guilds/${props.guildId}/application-templates/${editingTemplateId.value}`,
-        { name: templateDraft.value.name, approval_message: templateDraft.value.approval_message || null, denial_message: templateDraft.value.denial_message || null },
+        {
+          name: templateDraft.value.name,
+          approval_message: templateDraft.value.approval_message || null,
+          denial_message: templateDraft.value.denial_message || null,
+        },
       );
       const idx = templates.value.findIndex((t) => t.id === editingTemplateId.value);
       if (idx !== -1) templates.value[idx] = updated;
       editingTemplateId.value = null;
     } else {
-      const created = await api.post<ApplicationTemplateSchema>(
-        `/guilds/${props.guildId}/application-templates`,
-        {
-          name: templateDraft.value.name,
-          approval_message: templateDraft.value.approval_message || null,
-          denial_message: templateDraft.value.denial_message || null,
-          question_texts: templateDraft.value.question_texts.filter((q) => q.trim()),
-        },
-      );
+      const created = await api.post<ApplicationTemplateSchema>(`/guilds/${props.guildId}/application-templates`, {
+        name: templateDraft.value.name,
+        approval_message: templateDraft.value.approval_message || null,
+        denial_message: templateDraft.value.denial_message || null,
+        question_texts: templateDraft.value.question_texts.filter((q) => q.trim()),
+      });
       templates.value.push(created);
       showCreateTemplate.value = false;
     }
@@ -85,7 +86,9 @@ async function addTemplateQuestion(templateId: number) {
   if (!text) return;
   opError.value = null;
   try {
-    const q = await api.post(`/guilds/${props.guildId}/application-templates/${templateId}/questions`, { question_text: text });
+    const q = await api.post(`/guilds/${props.guildId}/application-templates/${templateId}/questions`, {
+      question_text: text,
+    });
     const tpl = templates.value.find((t) => t.id === templateId);
     if (tpl) tpl.questions.push(q as never);
     newTemplateQuestionText.value[templateId] = "";
