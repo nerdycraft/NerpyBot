@@ -59,16 +59,17 @@ watch(sidebarOpen, (v) => localStorage.setItem("sidebarOpen", String(v)));
 
 // Support mode: set by server via X-Support-Mode header on the first guild API call.
 const supportMode = ref(false);
-// True while probeGuildAccess is in flight — prevents activeComponent from redirecting
-// away from the active tab before we know which tabs are available in support mode.
-const probeLoading = ref(false);
+// Starts true so the first synchronous computed evaluation (before onMounted) never fires
+// the tab fallback redirect. Set to false once probeGuildAccess resolves or exits early.
+const probeLoading = ref(true);
 
 async function probeGuildAccess(id: string | undefined) {
+  probeLoading.value = true;
   if (!id || !auth.user?.is_operator) {
     supportMode.value = false;
+    probeLoading.value = false;
     return;
   }
-  probeLoading.value = true;
   const probeId = id;
   let newMode = false;
   let botGuild: BotGuildInfo | null = null;
