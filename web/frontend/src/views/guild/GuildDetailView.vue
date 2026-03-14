@@ -389,11 +389,12 @@ function guildIconUrl(): string | null {
       </nav>
 
       <!-- Sidebar footer -->
-      <div class="border-t border-border p-4 flex items-center gap-3 flex-shrink-0">
+      <div class="flex flex-col flex-shrink-0">
+        <component :is="TestModeIndicator" v-if="TestModeIndicator && sidebarOpen" />
+        <div class="border-t border-border p-4 flex items-center gap-3">
         <span v-show="sidebarOpen" class="text-sm text-muted-foreground truncate flex-1">
           {{ auth.user?.username }}
         </span>
-        <component :is="TestModeIndicator" v-if="TestModeIndicator && sidebarOpen" />
         <LanguageSwitcher v-show="sidebarOpen" />
         <button
           :class="[
@@ -406,6 +407,7 @@ function guildIconUrl(): string | null {
         >
           <Icon icon="mdi:logout" class="w-5 h-5" />
         </button>
+        </div>
       </div>
       </aside>
 

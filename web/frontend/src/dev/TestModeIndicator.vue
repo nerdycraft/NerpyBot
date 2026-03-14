@@ -6,10 +6,10 @@ import { Icon } from "@iconify/vue";
 
 <template>
   <div
-    class="flex items-center gap-1.5 text-amber-400 text-xs font-medium px-2 py-1 rounded bg-amber-400/10 border border-amber-400/20"
+    class="w-full flex items-center gap-2 px-4 py-2 bg-amber-400/10 border-t border-amber-400/25 text-amber-400 text-xs font-medium"
     title="Test mode active — using synthetic data"
   >
     <Icon icon="mdi:flask-outline" class="w-3.5 h-3.5 flex-shrink-0" />
-    <span>Test Mode</span>
+    <span class="truncate">Test mode — synthetic data</span>
   </div>
 </template>
