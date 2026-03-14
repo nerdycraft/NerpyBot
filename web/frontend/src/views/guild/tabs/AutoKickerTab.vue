@@ -4,14 +4,16 @@ import { api } from "@/api/client";
 import type { AutoKickerConfig } from "@/api/types";
 import InfoTooltip from "@/components/InfoTooltip.vue";
 import { useManualSave } from "@/composables/useManualSave";
+import { useI18n } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
+const { t } = useI18n();
 
 const config = ref<AutoKickerConfig | null>(null);
 const loading = ref(true);
 const { saving, error, success, dirty, ready, save } = useManualSave(config, async (c) => {
   if (!Number.isInteger(c.kick_after) || c.kick_after < 1) {
-    throw new Error("Kick-after must be at least 1 day.");
+    throw new Error(t("tabs.auto_kicker.kick_after_validation"));
   }
   return api.put<AutoKickerConfig>(`/guilds/${props.guildId}/auto-kicker`, {
     kick_after: c.kick_after,
@@ -35,7 +37,7 @@ async function loadConfig() {
     config.value = next;
   } catch (e: unknown) {
     if (seq !== _loadSeq) return;
-    error.value = e instanceof Error ? e.message : "Failed to load";
+    error.value = e instanceof Error ? e.message : t("common.load_failed");
   }
   if (seq !== _loadSeq) return;
   loading.value = false;
@@ -49,28 +51,25 @@ watch(() => props.guildId, () => void loadConfig(), { immediate: true });
 <template>
   <div class="space-y-6">
     <div>
-      <h2 class="text-lg font-semibold">Auto-Kicker</h2>
-      <p class="text-muted-foreground text-sm">
-        Automatically kicks members who have not verified or shown activity within a configurable number of days.
-        The bot will send an optional reminder message before kicking if one is set.
-      </p>
+      <h2 class="text-lg font-semibold">{{ t("tabs.auto_kicker.title") }}</h2>
+      <p class="text-muted-foreground text-sm">{{ t("tabs.auto_kicker.desc") }}</p>
     </div>
 
-    <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
+    <div v-if="loading" class="text-muted-foreground text-sm">{{ t("common.loading") }}</div>
 
     <div v-else-if="config" class="space-y-4">
       <label class="flex items-center gap-3 cursor-pointer">
         <input type="checkbox" v-model="config.enabled" class="w-4 h-4" />
         <span class="text-sm font-medium flex items-center gap-1.5">
-          Enabled
-          <InfoTooltip text="When disabled, no members will be kicked regardless of the other settings." />
+          {{ t("common.enabled") }}
+          <InfoTooltip :text="t('tabs.auto_kicker.enabled_tooltip')" />
         </span>
       </label>
 
       <div class="flex flex-col gap-2">
         <label class="text-sm font-medium flex items-center gap-1.5" for="kick-after">
-          Kick after (days)
-          <InfoTooltip text="Number of days of inactivity before a member is kicked. Must be at least 1." />
+          {{ t("tabs.auto_kicker.kick_after_label") }}
+          <InfoTooltip :text="t('tabs.auto_kicker.kick_after_tooltip')" />
         </label>
         <input
           id="kick-after"
@@ -83,14 +82,14 @@ watch(() => props.guildId, () => void loadConfig(), { immediate: true });
 
       <div class="flex flex-col gap-2">
         <label class="text-sm font-medium flex items-center gap-1.5" for="kick-reminder">
-          Reminder message (optional)
-          <InfoTooltip text="If set, NerpyBot will DM this message to the member before kicking them. Leave blank to kick silently." />
+          {{ t("tabs.auto_kicker.reminder_label") }}
+          <InfoTooltip :text="t('tabs.auto_kicker.reminder_tooltip')" />
         </label>
         <textarea
           id="kick-reminder"
           v-model="config.reminder_message"
           rows="3"
-          placeholder="You will be kicked soon due to inactivity…"
+          :placeholder="t('tabs.auto_kicker.placeholder')"
           class="bg-input border border-border rounded px-3 py-2 text-sm w-full resize-y"
         />
       </div>
@@ -102,9 +101,9 @@ watch(() => props.guildId, () => void loadConfig(), { immediate: true });
           class="px-4 py-1.5 text-sm font-medium rounded bg-primary text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
           @click="save"
         >
-          {{ saving ? "Saving…" : "Save" }}
+          {{ saving ? t("common.saving") : t("common.save") }}
         </button>
-        <span v-if="success" class="text-xs text-green-400">✓ Saved</span>
+        <span v-if="success" class="text-xs text-green-400">{{ t("common.saved") }}</span>
       </div>
     </div>
 

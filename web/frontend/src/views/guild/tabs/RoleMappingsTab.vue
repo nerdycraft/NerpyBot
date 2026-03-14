@@ -5,8 +5,10 @@ import type { RoleMappingSchema } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
 import { useGuildEntities } from "@/composables/useGuildEntities";
 import InfoTooltip from "@/components/InfoTooltip.vue";
+import { useI18n } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
+const { t } = useI18n();
 
 const { fetchRoles, roleName } = useGuildEntities(props.guildId);
 
@@ -24,7 +26,7 @@ async function load() {
   try {
     mappings.value = await api.get<RoleMappingSchema[]>(`/guilds/${props.guildId}/role-mappings`);
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to load";
+    error.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
     loading.value = false;
   }
@@ -41,7 +43,7 @@ async function add() {
     newMapping.value = { source_role_id: "", target_role_id: "" };
     await load();
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to add mapping";
+    error.value = e instanceof Error ? e.message : t("common.save_failed");
   } finally {
     adding.value = false;
   }
@@ -53,7 +55,7 @@ async function remove(id: number) {
     await api.delete(`/guilds/${props.guildId}/role-mappings/${id}`);
     await load();
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to remove mapping";
+    error.value = e instanceof Error ? e.message : t("common.delete_failed");
   }
 }
 </script>
@@ -61,18 +63,15 @@ async function remove(id: number) {
 <template>
   <div class="space-y-6">
     <div>
-      <h2 class="text-lg font-semibold">Role Mappings</h2>
-      <p class="text-muted-foreground text-sm">
-        Delegate role assignment to specific roles — each mapping grants members of the source role the ability to give
-        the target role to others via bot commands. Multiple mappings can share the same source or target role.
-      </p>
+      <h2 class="text-lg font-semibold">{{ t("tabs.role_mappings.title") }}</h2>
+      <p class="text-muted-foreground text-sm">{{ t("tabs.role_mappings.desc") }}</p>
     </div>
 
-    <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
+    <div v-if="loading" class="text-muted-foreground text-sm">{{ t("common.loading") }}</div>
 
     <div v-else class="space-y-4">
       <p v-if="mappings.length === 0 && !error" class="text-muted-foreground text-sm">
-        No role mappings configured.
+        {{ t("tabs.role_mappings.empty") }}
       </p>
 
       <div
@@ -85,32 +84,32 @@ async function remove(id: number) {
           class="text-destructive hover:text-destructive/80 text-sm transition-colors"
           @click="remove(m.id)"
         >
-          Remove
+          {{ t("common.remove") }}
         </button>
       </div>
 
       <div class="flex flex-wrap gap-2 items-end mt-4">
         <div class="w-44 flex flex-col gap-1.5">
           <label class="text-sm font-medium flex items-center gap-1.5">
-            Source role
-            <InfoTooltip text="The role whose members are allowed to assign the target role to others using bot commands." />
+            {{ t("tabs.role_mappings.source_label") }}
+            <InfoTooltip :text="t('tabs.role_mappings.source_tooltip')" />
           </label>
-          <DiscordPicker v-model="newMapping.source_role_id" :guild-id="guildId" kind="role" placeholder="Source role…" />
+          <DiscordPicker v-model="newMapping.source_role_id" :guild-id="guildId" kind="role" :placeholder="t('tabs.role_mappings.source_placeholder')" />
         </div>
         <span class="text-muted-foreground pb-2">→</span>
         <div class="w-44 flex flex-col gap-1.5">
           <label class="text-sm font-medium flex items-center gap-1.5">
-            Target role
-            <InfoTooltip text="The role that will be assigned to members when a user with the source role runs the assign command." />
+            {{ t("tabs.role_mappings.target_label") }}
+            <InfoTooltip :text="t('tabs.role_mappings.target_tooltip')" />
           </label>
-          <DiscordPicker v-model="newMapping.target_role_id" :guild-id="guildId" kind="role" placeholder="Target role…" />
+          <DiscordPicker v-model="newMapping.target_role_id" :guild-id="guildId" kind="role" :placeholder="t('tabs.role_mappings.target_placeholder')" />
         </div>
         <button
           class="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors"
           :disabled="adding || !newMapping.source_role_id.trim() || !newMapping.target_role_id.trim()"
           @click="add"
         >
-          {{ adding ? "Adding…" : "Add" }}
+          {{ adding ? t("common.adding") : t("common.add") }}
         </button>
       </div>
 

@@ -6,10 +6,12 @@ import { useAuthStore } from "@/stores/auth";
 import { useGuildStore } from "@/stores/guild";
 import { api } from "@/api/client";
 import type { BotGuildInfo } from "@/api/types";
+import { useI18n } from "@/i18n";
 
 const auth = useAuthStore();
 const guildStore = useGuildStore();
 const router = useRouter();
+const { t, locale } = useI18n();
 
 const managedGuilds = computed(() => auth.guilds.filter((g) => g.bot_present));
 const invitableGuilds = computed(() => auth.guilds.filter((g) => !g.bot_present));
@@ -33,11 +35,11 @@ function iconUrl(guild: { id: string; icon: string | null }): string | null {
 
 <template>
   <div>
-    <h2 class="text-xl font-bold mb-1">Your Servers</h2>
-    <p class="text-muted-foreground text-sm mb-6">All servers where NerpyBot is active and you have access to the dashboard. Click any card to jump to that server's settings — the currently selected server is highlighted with a "Current" badge.</p>
+    <h2 class="text-xl font-bold mb-1">{{ t("tabs.server_overview.title") }}</h2>
+    <p class="text-muted-foreground text-sm mb-6">{{ t("tabs.server_overview.desc") }}</p>
 
     <div v-if="managedGuilds.length === 0" class="text-muted-foreground text-sm mb-8">
-      NerpyBot is not in any of your servers yet.
+      {{ t("tabs.server_overview.empty") }}
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-10">
@@ -74,17 +76,15 @@ function iconUrl(guild: { id: string; icon: string | null }): string | null {
           v-if="guild.id === guildStore.current?.id"
           class="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary flex-shrink-0"
         >
-          Current
+          {{ t("tabs.server_overview.current") }}
         </span>
         <Icon v-else icon="mdi:arrow-right" class="w-4 h-4 text-muted-foreground flex-shrink-0" />
       </button>
     </div>
 
     <template v-if="invitableGuilds.length > 0">
-      <h3 class="text-base font-semibold mb-1">Add to a Server</h3>
-      <p class="text-muted-foreground text-sm mb-4">
-        You have sufficient permissions to invite NerpyBot to these servers.
-      </p>
+      <h3 class="text-base font-semibold mb-1">{{ t("tabs.server_overview.add_title") }}</h3>
+      <p class="text-muted-foreground text-sm mb-4">{{ t("tabs.server_overview.add_desc") }}</p>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div
@@ -117,7 +117,7 @@ function iconUrl(guild: { id: string; icon: string | null }): string | null {
             class="text-xs font-medium px-2.5 py-1 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity whitespace-nowrap"
             @click.stop
           >
-            Invite
+            {{ t("tabs.server_overview.invite") }}
           </a>
         </div>
       </div>
@@ -125,10 +125,8 @@ function iconUrl(guild: { id: string; icon: string | null }): string | null {
 
     <!-- All Bot Guilds — operator only -->
     <template v-if="auth.user?.is_operator && botGuilds.length > 0">
-      <h2 class="text-xl font-bold mb-1 mt-10">All Bot Guilds</h2>
-      <p class="text-muted-foreground text-sm mb-6">
-        All servers NerpyBot is currently in. Click any card to open that server's settings (support mode).
-      </p>
+      <h2 class="text-xl font-bold mb-1 mt-10">{{ t("tabs.server_overview.all_bot_guilds") }}</h2>
+      <p class="text-muted-foreground text-sm mb-6">{{ t("tabs.server_overview.all_bot_guilds_desc") }}</p>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <button
           v-for="g in botGuilds"
@@ -151,7 +149,9 @@ function iconUrl(guild: { id: string; icon: string | null }): string | null {
           </div>
           <div class="min-w-0 flex-1">
             <div class="font-semibold text-sm truncate">{{ g.name }}</div>
-            <div class="text-xs text-muted-foreground">{{ g.member_count?.toLocaleString() ?? "?" }} members</div>
+            <div class="text-xs text-muted-foreground">
+              {{ t("tabs.server_overview.members", { count: g.member_count?.toLocaleString(locale.current) ?? "?" }) }}
+            </div>
           </div>
         </button>
       </div>

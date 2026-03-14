@@ -5,8 +5,10 @@ import type { AutoDeleteRule } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
 import { useGuildEntities } from "@/composables/useGuildEntities";
 import InfoTooltip from "@/components/InfoTooltip.vue";
+import { useI18n } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
+const { t } = useI18n();
 
 const { fetchChannels, channelName } = useGuildEntities(props.guildId);
 
@@ -31,7 +33,7 @@ async function load() {
   try {
     rules.value = await api.get<AutoDeleteRule[]>(`/guilds/${props.guildId}/auto-delete`);
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to load";
+    error.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
     loading.value = false;
   }
@@ -46,7 +48,7 @@ async function add() {
     newRule.value = { channel_id: "", keep_messages: 0, delete_older_than: 0, delete_pinned: false, enabled: true };
     await load();
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to add rule";
+    error.value = e instanceof Error ? e.message : t("common.save_failed");
   } finally {
     adding.value = false;
   }
@@ -62,7 +64,7 @@ async function toggleEnabled(rule: AutoDeleteRule) {
     const idx = rules.value.findIndex((r) => r.id === rule.id);
     if (idx !== -1) rules.value[idx] = updated;
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to update rule";
+    error.value = e instanceof Error ? e.message : t("common.save_failed");
   }
 }
 
@@ -72,7 +74,7 @@ async function remove(id: number) {
     await api.delete(`/guilds/${props.guildId}/auto-delete/${id}`);
     await load();
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to delete rule";
+    error.value = e instanceof Error ? e.message : t("common.delete_failed");
   }
 }
 </script>
@@ -80,18 +82,15 @@ async function remove(id: number) {
 <template>
   <div class="space-y-6">
     <div>
-      <h2 class="text-lg font-semibold">Auto-Delete</h2>
-      <p class="text-muted-foreground text-sm">
-        Automatically deletes messages in specific channels once they exceed a configured age or message count.
-        Each rule targets one channel — add as many rules as needed, and toggle them on or off without deleting them.
-      </p>
+      <h2 class="text-lg font-semibold">{{ t("tabs.auto_delete.title") }}</h2>
+      <p class="text-muted-foreground text-sm">{{ t("tabs.auto_delete.desc") }}</p>
     </div>
 
-    <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
+    <div v-if="loading" class="text-muted-foreground text-sm">{{ t("common.loading") }}</div>
 
     <div v-else class="space-y-4">
       <p v-if="rules.length === 0 && !error" class="text-muted-foreground text-sm">
-        No auto-delete rules configured.
+        {{ t("tabs.auto_delete.empty") }}
       </p>
 
       <div
@@ -107,28 +106,28 @@ async function remove(id: number) {
               class="transition-colors"
               @click="toggleEnabled(rule)"
             >
-              {{ rule.enabled ? "Enabled" : "Disabled" }}
+              {{ rule.enabled ? t("common.enabled") : t("common.disabled") }}
             </button>
             <button class="text-destructive hover:text-destructive/80 transition-colors" @click="remove(rule.id)">
-              Delete
+              {{ t("common.delete") }}
             </button>
           </div>
         </div>
         <div class="text-muted-foreground text-xs flex flex-wrap gap-4">
-          <span>Keep: {{ rule.keep_messages }} msgs</span>
-          <span>Older than: {{ rule.delete_older_than }}s</span>
-          <span>Delete pinned: {{ rule.delete_pinned ? "Yes" : "No" }}</span>
+          <span>{{ t("tabs.auto_delete.keep_display", { count: rule.keep_messages }) }}</span>
+          <span>{{ t("tabs.auto_delete.older_display", { seconds: rule.delete_older_than }) }}</span>
+          <span>{{ t("tabs.auto_delete.delete_pinned_display", { value: rule.delete_pinned ? t("common.yes") : t("common.no") }) }}</span>
         </div>
       </div>
 
       <!-- Add form -->
       <div class="bg-card border border-border rounded p-4 space-y-3">
-        <p class="text-sm font-medium">Add Rule</p>
+        <p class="text-sm font-medium">{{ t("tabs.auto_delete.add_rule") }}</p>
         <div class="flex flex-wrap gap-2 items-end">
           <div class="flex flex-col gap-1">
             <label class="text-xs text-muted-foreground flex items-center gap-1">
-              Channel
-              <InfoTooltip text="The channel where auto-deletion will be applied. Each channel can only have one rule." />
+              {{ t("tabs.auto_delete.channel_label") }}
+              <InfoTooltip :text="t('tabs.auto_delete.channel_tooltip')" />
             </label>
             <div class="w-48">
               <DiscordPicker v-model="newRule.channel_id" :guild-id="guildId" kind="channel" />
@@ -136,16 +135,16 @@ async function remove(id: number) {
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-xs text-muted-foreground flex items-center gap-1" for="ad-keep">
-              Keep msgs
-              <InfoTooltip text="Always keep at least this many recent messages in the channel, regardless of age. Set to 0 to disable." />
+              {{ t("tabs.auto_delete.keep_label") }}
+              <InfoTooltip :text="t('tabs.auto_delete.keep_tooltip')" />
             </label>
             <input id="ad-keep" v-model.number="newRule.keep_messages" type="number" min="0"
               class="bg-input border border-border rounded px-3 py-2 text-sm w-24" />
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-xs text-muted-foreground flex items-center gap-1" for="ad-older">
-              Older than (s)
-              <InfoTooltip text="Delete messages older than this many seconds. Set to 0 to only use the keep-count limit." />
+              {{ t("tabs.auto_delete.older_label") }}
+              <InfoTooltip :text="t('tabs.auto_delete.older_tooltip')" />
             </label>
             <input id="ad-older" v-model.number="newRule.delete_older_than" type="number" min="0"
               class="bg-input border border-border rounded px-3 py-2 text-sm w-28" />
@@ -153,8 +152,8 @@ async function remove(id: number) {
           <label class="flex items-center gap-2 text-sm pb-2">
             <input type="checkbox" v-model="newRule.delete_pinned" />
             <span class="flex items-center gap-1">
-              Delete pinned
-              <InfoTooltip text="When enabled, pinned messages in this channel are also subject to deletion. By default, pinned messages are kept." />
+              {{ t("tabs.auto_delete.delete_pinned_label") }}
+              <InfoTooltip :text="t('tabs.auto_delete.delete_pinned_tooltip')" />
             </span>
           </label>
           <button
@@ -162,7 +161,7 @@ async function remove(id: number) {
             :disabled="adding || !newRule.channel_id.trim()"
             @click="add"
           >
-            {{ adding ? "Adding…" : "Add" }}
+            {{ adding ? t("common.adding") : t("common.add") }}
           </button>
         </div>
       </div>

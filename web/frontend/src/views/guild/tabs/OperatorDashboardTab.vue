@@ -3,6 +3,9 @@ import { ref, onMounted, onUnmounted } from "vue";
 import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { HealthResponse } from "@/api/types";
+import { useI18n } from "@/i18n";
+
+const { t } = useI18n();
 
 const health = ref<HealthResponse | null>(null);
 const loading = ref(false);
@@ -26,7 +29,7 @@ async function fetchHealth() {
   try {
     health.value = await api.get<HealthResponse>("/operator/health");
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to fetch health data";
+    error.value = e instanceof Error ? e.message : t("tabs.operator_dashboard.fetch_failed");
     health.value = null;
   } finally {
     loading.value = false;
@@ -62,7 +65,7 @@ onUnmounted(() => {
     <div class="flex items-center justify-between mb-1">
       <div class="flex items-center gap-2">
         <Icon icon="mdi:heart-pulse" class="w-5 h-5 text-rose-400" />
-        <h2 class="text-xl font-bold">Bot Health</h2>
+        <h2 class="text-xl font-bold">{{ t("tabs.operator_dashboard.title") }}</h2>
       </div>
       <div class="flex items-center gap-3">
         <label class="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
@@ -72,7 +75,7 @@ onUnmounted(() => {
             class="rounded"
             @change="toggleAutoRefresh"
           />
-          Auto-refresh (30s)
+          {{ t("tabs.operator_dashboard.auto_refresh") }}
         </label>
         <button
           class="px-3 py-1.5 rounded bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 flex items-center gap-1.5 hover:bg-primary/90 transition-colors"
@@ -80,18 +83,16 @@ onUnmounted(() => {
           @click="fetchHealth"
         >
           <Icon icon="mdi:refresh" class="w-4 h-4" :class="{ 'animate-spin': loading }" />
-          Refresh
+          {{ t("common.refresh") }}
         </button>
       </div>
     </div>
-    <p class="text-muted-foreground text-sm mb-6">
-      Live metrics from the running bot instance. This panel is only visible to bot operators.
-    </p>
+    <p class="text-muted-foreground text-sm mb-6">{{ t("tabs.operator_dashboard.desc") }}</p>
 
     <!-- Loading state -->
     <div v-if="loading && !health" class="flex items-center gap-2 text-muted-foreground text-sm py-4">
       <Icon icon="mdi:loading" class="w-4 h-4 animate-spin" />
-      Loading health data…
+      {{ t("tabs.operator_dashboard.loading") }}
     </div>
 
     <!-- Error state -->
@@ -105,14 +106,14 @@ onUnmounted(() => {
       class="flex items-center gap-2 bg-destructive/10 border border-destructive/30 rounded px-4 py-3 text-destructive text-sm mb-6"
     >
       <Icon icon="mdi:alert-circle-outline" class="w-5 h-5 flex-shrink-0" />
-      Bot unreachable — the bot process may be offline or not responding.
+      {{ t("tabs.operator_dashboard.unreachable") }}
     </div>
 
     <!-- Metrics -->
     <div v-if="health">
       <!-- Status row -->
       <div class="flex items-center gap-3 mb-6">
-        <span class="text-sm text-muted-foreground">Status:</span>
+        <span class="text-sm text-muted-foreground">{{ t("tabs.operator_dashboard.status") }}</span>
         <span
           :class="[
             'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold',
@@ -125,7 +126,7 @@ onUnmounted(() => {
             :icon="health.status === 'online' ? 'mdi:check-circle-outline' : 'mdi:alert-circle-outline'"
             class="w-3.5 h-3.5"
           />
-          {{ health.status === "online" ? "Online" : "Unreachable" }}
+          {{ health.status === "online" ? t("tabs.operator_dashboard.online") : t("tabs.operator_dashboard.status_unreachable") }}
         </span>
       </div>
 
@@ -135,7 +136,7 @@ onUnmounted(() => {
         <div class="bg-card border border-border rounded px-4 py-3">
           <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
             <Icon icon="mdi:timer-outline" class="w-3.5 h-3.5" />
-            Uptime
+            {{ t("tabs.operator_dashboard.uptime") }}
           </p>
           <p class="text-sm font-medium">
             {{ health.uptime_seconds !== null ? formatUptime(health.uptime_seconds) : "—" }}
@@ -146,7 +147,7 @@ onUnmounted(() => {
         <div class="bg-card border border-border rounded px-4 py-3">
           <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
             <Icon icon="mdi:lightning-bolt-outline" class="w-3.5 h-3.5" />
-            Latency
+            {{ t("tabs.operator_dashboard.latency") }}
           </p>
           <p class="text-sm font-medium">
             {{ health.latency_ms !== null ? `${health.latency_ms} ms` : "—" }}
@@ -157,7 +158,7 @@ onUnmounted(() => {
         <div class="bg-card border border-border rounded px-4 py-3">
           <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
             <Icon icon="mdi:server-outline" class="w-3.5 h-3.5" />
-            Guilds
+            {{ t("tabs.operator_dashboard.guilds") }}
           </p>
           <p class="text-sm font-medium">
             {{ health.guild_count !== null ? health.guild_count : "—" }}
@@ -168,7 +169,7 @@ onUnmounted(() => {
         <div class="bg-card border border-border rounded px-4 py-3">
           <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
             <Icon icon="mdi:bell-outline" class="w-3.5 h-3.5" />
-            Active Reminders
+            {{ t("tabs.operator_dashboard.active_reminders") }}
           </p>
           <p class="text-sm font-medium">
             {{ health.active_reminders !== null ? health.active_reminders : "—" }}
@@ -179,7 +180,7 @@ onUnmounted(() => {
         <div class="bg-card border border-border rounded px-4 py-3">
           <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
             <Icon icon="mdi:alert-outline" class="w-3.5 h-3.5" />
-            Errors (24h)
+            {{ t("tabs.operator_dashboard.errors_24h") }}
           </p>
           <p
             :class="[
@@ -195,7 +196,7 @@ onUnmounted(() => {
         <div class="bg-card border border-border rounded px-4 py-3">
           <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
             <Icon icon="mdi:memory" class="w-3.5 h-3.5" />
-            Memory
+            {{ t("tabs.operator_dashboard.memory") }}
           </p>
           <p class="text-sm font-medium">
             {{ health.memory_mb !== null ? `${health.memory_mb} MB` : "—" }}
@@ -206,7 +207,7 @@ onUnmounted(() => {
         <div class="bg-card border border-border rounded px-4 py-3">
           <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
             <Icon icon="mdi:cpu-64-bit" class="w-3.5 h-3.5" />
-            CPU
+            {{ t("tabs.operator_dashboard.cpu") }}
           </p>
           <p class="text-sm font-medium">
             {{ health.cpu_percent !== null ? `${health.cpu_percent}%` : "—" }}
@@ -217,7 +218,7 @@ onUnmounted(() => {
         <div class="bg-card border border-border rounded px-4 py-3">
           <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
             <Icon icon="mdi:microphone-outline" class="w-3.5 h-3.5" />
-            Voice Connections
+            {{ t("tabs.operator_dashboard.voice_connections") }}
           </p>
           <p class="text-sm font-medium">
             {{ health.voice_connections !== null ? health.voice_connections : "—" }}
@@ -227,17 +228,17 @@ onUnmounted(() => {
 
       <!-- Version info -->
       <div class="bg-card border border-border rounded px-4 py-3 mb-6 space-y-1.5">
-        <p class="text-xs text-muted-foreground font-semibold uppercase tracking-wide mb-2">Version Info</p>
+        <p class="text-xs text-muted-foreground font-semibold uppercase tracking-wide mb-2">{{ t("tabs.operator_dashboard.version_info") }}</p>
         <div class="flex items-center gap-2 text-sm">
-          <span class="text-muted-foreground w-32 flex-shrink-0">Bot version</span>
+          <span class="text-muted-foreground w-32 flex-shrink-0">{{ t("tabs.operator_dashboard.bot_version") }}</span>
           <span class="font-mono text-xs">{{ health.bot_version ?? "—" }}</span>
         </div>
         <div class="flex items-center gap-2 text-sm">
-          <span class="text-muted-foreground w-32 flex-shrink-0">Python</span>
+          <span class="text-muted-foreground w-32 flex-shrink-0">{{ t("tabs.operator_dashboard.python") }}</span>
           <span class="font-mono text-xs">{{ health.python_version ?? "—" }}</span>
         </div>
         <div class="flex items-center gap-2 text-sm">
-          <span class="text-muted-foreground w-32 flex-shrink-0">discord.py</span>
+          <span class="text-muted-foreground w-32 flex-shrink-0">{{ t("tabs.operator_dashboard.discord_py") }}</span>
           <span class="font-mono text-xs">{{ health.discord_py_version ?? "—" }}</span>
         </div>
       </div>
@@ -246,14 +247,14 @@ onUnmounted(() => {
       <div v-if="health.voice_details.length > 0">
         <h3 class="text-sm font-semibold mb-2 flex items-center gap-1.5">
           <Icon icon="mdi:microphone-outline" class="w-4 h-4 text-muted-foreground" />
-          Active Voice Sessions
+          {{ t("tabs.operator_dashboard.active_voice_sessions") }}
         </h3>
         <div class="border border-border rounded overflow-hidden">
           <table class="w-full text-sm">
             <thead>
               <tr class="bg-muted/50 border-b border-border">
-                <th class="text-left px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Guild</th>
-                <th class="text-left px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Channel</th>
+                <th class="text-left px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{{ t("tabs.operator_dashboard.col_guild") }}</th>
+                <th class="text-left px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{{ t("tabs.operator_dashboard.col_channel") }}</th>
               </tr>
             </thead>
             <tbody>

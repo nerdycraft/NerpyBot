@@ -24,18 +24,22 @@ import OperatorModulesTab from "./tabs/OperatorModulesTab.vue";
 import OperatorGuildsTab from "./tabs/OperatorGuildsTab.vue";
 import SupportTab from "./tabs/SupportTab.vue";
 import MockupToolbar from "@/components/MockupToolbar.vue";
+import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
 import { api } from "@/api/client";
 import { useMockup } from "@/composables/useMockup";
+import { useI18n, type I18nKey } from "@/i18n";
+import { toQueryScalar } from "@/utils/route";
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const guild = useGuildStore();
+const { t } = useI18n();
 
 // Reactive — Vue Router reuses the component instance when navigating between guilds.
 const guildId = computed(() => route.params.id as string | undefined);
 
-const activeSection = computed(() => (route.query.tab as string) ?? "server-overview");
+const activeSection = computed(() => toQueryScalar(route.query.tab) ?? "server-overview");
 const switcherOpen = ref(false);
 const sidebarOpen = ref(true);
 const LG_BREAKPOINT = 1024;
@@ -97,14 +101,16 @@ const LEVEL_RANK: Record<string, number> = { member: 0, mod: 1, admin: 2, operat
 
 type SectionItem = {
   id: string;
-  label: string;
+  labelKey: I18nKey;
   icon: string;
   component: unknown;
   guildOnly?: boolean;
 };
 
 type SectionGroup = {
-  label: string;
+  id: string;
+  labelKey: I18nKey;
+  accentClass: string;
   operatorOnly?: boolean;
   /** Minimum permission level required to see this group. Defaults to "mod" if omitted. */
   minLevel?: "member" | "mod" | "admin";
@@ -113,60 +119,74 @@ type SectionGroup = {
 
 const allSectionGroups: SectionGroup[] = [
   {
-    label: "General",
+    id: "general",
+    labelKey: "nav.groups.general",
+    accentClass: "text-blue-400",
     minLevel: "member",
     items: [
-      { id: "server-overview", label: "Server Overview", icon: "mdi:view-grid-outline", component: ServerOverviewTab },
-      { id: "language", label: "Language", icon: "mdi:translate", component: LanguageTab, guildOnly: true },
-      { id: "reminders", label: "Reminders", icon: "mdi:bell-outline", component: RemindersTab, guildOnly: true },
+      { id: "server-overview", labelKey: "nav.items.server_overview", icon: "mdi:view-grid-outline", component: ServerOverviewTab },
+      { id: "language", labelKey: "nav.items.language", icon: "mdi:translate", component: LanguageTab, guildOnly: true },
+      { id: "reminders", labelKey: "nav.items.reminders", icon: "mdi:bell-outline", component: RemindersTab, guildOnly: true },
     ],
   },
   {
-    label: "Moderation",
+    id: "moderation",
+    labelKey: "nav.groups.moderation",
+    accentClass: "text-amber-400",
     items: [
-      { id: "moderator-roles", label: "Moderator Roles", icon: "mdi:shield-account", component: ModeratorRolesTab, guildOnly: true },
-      { id: "auto-kicker", label: "Auto-Kicker", icon: "mdi:account-remove", component: AutoKickerTab, guildOnly: true },
-      { id: "auto-delete", label: "Auto-Delete", icon: "mdi:delete-clock", component: AutoDeleteTab, guildOnly: true },
-      { id: "leave-messages", label: "Leave Messages", icon: "mdi:door-open", component: LeaveMessagesTab, guildOnly: true },
+      { id: "moderator-roles", labelKey: "nav.items.moderator_roles", icon: "mdi:shield-account", component: ModeratorRolesTab, guildOnly: true },
+      { id: "auto-kicker", labelKey: "nav.items.auto_kicker", icon: "mdi:account-remove", component: AutoKickerTab, guildOnly: true },
+      { id: "auto-delete", labelKey: "nav.items.auto_delete", icon: "mdi:delete-clock", component: AutoDeleteTab, guildOnly: true },
+      { id: "leave-messages", labelKey: "nav.items.leave_messages", icon: "mdi:door-open", component: LeaveMessagesTab, guildOnly: true },
     ],
   },
   {
-    label: "Roles",
+    id: "roles",
+    labelKey: "nav.groups.roles",
+    accentClass: "text-violet-400",
     items: [
-      { id: "role-mappings", label: "Role Mappings", icon: "mdi:account-switch", component: RoleMappingsTab, guildOnly: true },
-      { id: "reaction-roles", label: "Reaction Roles", icon: "mdi:emoticon-outline", component: ReactionRolesTab, guildOnly: true },
+      { id: "role-mappings", labelKey: "nav.items.role_mappings", icon: "mdi:account-switch", component: RoleMappingsTab, guildOnly: true },
+      { id: "reaction-roles", labelKey: "nav.items.reaction_roles", icon: "mdi:emoticon-outline", component: ReactionRolesTab, guildOnly: true },
     ],
   },
   {
-    label: "Applications",
+    id: "applications",
+    labelKey: "nav.groups.applications",
+    accentClass: "text-emerald-400",
     items: [
-      { id: "application-forms", label: "Forms", icon: "mdi:file-document-outline", component: ApplicationFormsTab, guildOnly: true },
-      { id: "application-templates", label: "Templates", icon: "mdi:file-document-multiple-outline", component: ApplicationTemplatesTab, guildOnly: true },
-      { id: "application-submissions", label: "Submissions", icon: "mdi:file-account-outline", component: ApplicationSubmissionsTab, guildOnly: true },
+      { id: "application-forms", labelKey: "nav.items.application_forms", icon: "mdi:file-document-outline", component: ApplicationFormsTab, guildOnly: true },
+      { id: "application-templates", labelKey: "nav.items.application_templates", icon: "mdi:file-document-multiple-outline", component: ApplicationTemplatesTab, guildOnly: true },
+      { id: "application-submissions", labelKey: "nav.items.application_submissions", icon: "mdi:file-account-outline", component: ApplicationSubmissionsTab, guildOnly: true },
     ],
   },
   {
-    label: "WoW",
+    id: "wow",
+    labelKey: "nav.groups.wow",
+    accentClass: "text-yellow-400",
     items: [
-      { id: "wow-guild-news", label: "Guild News", icon: "mdi:newspaper-variant-outline", component: WowGuildNewsTab, guildOnly: true },
-      { id: "wow-crafting", label: "Crafting Boards", icon: "mdi:hammer-wrench", component: WowCraftingTab, guildOnly: true },
+      { id: "wow-guild-news", labelKey: "nav.items.wow_guild_news", icon: "mdi:newspaper-variant-outline", component: WowGuildNewsTab, guildOnly: true },
+      { id: "wow-crafting", labelKey: "nav.items.wow_crafting", icon: "mdi:hammer-wrench", component: WowCraftingTab, guildOnly: true },
     ],
   },
   {
-    label: "Support",
+    id: "support",
+    labelKey: "nav.groups.support",
+    accentClass: "text-cyan-400",
     minLevel: "member",
     items: [
-      { id: "support", label: "Contact & Feedback", icon: "mdi:message-text-outline", component: SupportTab },
+      { id: "support", labelKey: "nav.items.support", icon: "mdi:message-text-outline", component: SupportTab },
     ],
   },
   {
-    label: "Operator",
+    id: "operator",
+    labelKey: "nav.groups.operator",
+    accentClass: "text-rose-400",
     operatorOnly: true,
     items: [
-      { id: "operator-dashboard", label: "Bot Health", icon: "mdi:heart-pulse", component: OperatorDashboardTab },
-      { id: "operator-guilds", label: "All Guilds", icon: "mdi:server-network-outline", component: OperatorGuildsTab },
-      { id: "operator-modules", label: "Modules", icon: "mdi:puzzle-outline", component: OperatorModulesTab },
-      { id: "operator-user-management", label: "User Management", icon: "mdi:crown-outline", component: OperatorUserManagementTab },
+      { id: "operator-dashboard", labelKey: "nav.items.operator_dashboard", icon: "mdi:heart-pulse", component: OperatorDashboardTab },
+      { id: "operator-guilds", labelKey: "nav.items.operator_guilds", icon: "mdi:server-network-outline", component: OperatorGuildsTab },
+      { id: "operator-modules", labelKey: "nav.items.operator_modules", icon: "mdi:puzzle-outline", component: OperatorModulesTab },
+      { id: "operator-user-management", labelKey: "nav.items.operator_user_management", icon: "mdi:crown-outline", component: OperatorUserManagementTab },
     ],
   },
 ];
@@ -193,17 +213,6 @@ const activeComponent = computed(() => {
   return found?.component;
 });
 
-
-const GROUP_ACCENTS: Record<string, string> = {
-  General:      "text-blue-400",
-  Moderation:   "text-amber-400",
-  Roles:        "text-violet-400",
-  Applications: "text-emerald-400",
-  WoW:          "text-yellow-400",
-  Support:      "text-cyan-400",
-  Operator:     "text-rose-400",
-};
-
 function guildIconUrl(): string | null {
   const g = guild.current;
   if (!g?.icon) return null;
@@ -220,13 +229,13 @@ function guildIconUrl(): string | null {
     <div class="lg:hidden flex items-center h-12 px-4 border-b border-border flex-shrink-0 bg-card gap-3">
       <button
         class="text-muted-foreground hover:text-foreground transition-colors"
-        aria-label="Open navigation"
+        :aria-label="t('nav.sidebar.open_nav')"
         @click="sidebarOpen = true"
       >
         <Icon icon="mdi:menu" class="w-5 h-5" />
       </button>
       <span class="font-semibold text-sm truncate">
-        {{ guildId ? (guild.current?.name ?? "Guild") : "NerpyBot" }}
+        {{ guildId ? (guild.current?.name ?? t("nav.sidebar.guild_fallback")) : "NerpyBot" }}
       </span>
     </div>
 
@@ -263,8 +272,8 @@ function guildIconUrl(): string | null {
       <div class="hidden lg:flex justify-end px-2 py-1 flex-shrink-0">
         <button
           class="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-          :title="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
-          :aria-label="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
+          :title="sidebarOpen ? t('nav.sidebar.collapse') : t('nav.sidebar.expand')"
+          :aria-label="sidebarOpen ? t('nav.sidebar.collapse') : t('nav.sidebar.expand')"
           @click="sidebarOpen = !sidebarOpen"
         >
           <Icon
@@ -297,7 +306,7 @@ function guildIconUrl(): string | null {
             </span>
           </div>
           <span v-show="sidebarOpen" class="font-semibold text-sm truncate flex-1">
-            {{ guildId ? (guild.current?.name ?? "Guild") : "NerpyBot" }}
+            {{ guildId ? (guild.current?.name ?? t("nav.sidebar.guild_fallback")) : "NerpyBot" }}
           </span>
           <Icon
             v-if="guildId"
@@ -339,16 +348,16 @@ function guildIconUrl(): string | null {
             @click="router.push('/guilds'); switcherOpen = false"
           >
             <Icon icon="mdi:view-grid-outline" class="w-4 h-4 flex-shrink-0" />
-            All Servers
+            {{ t("nav.sidebar.all_servers") }}
           </button>
         </div>
       </div>
 
       <!-- Navigation -->
       <nav class="flex-1 p-2 space-y-4 overflow-y-auto">
-        <div v-for="group in sectionGroups" :key="group.label">
-          <p v-show="sidebarOpen" :class="['px-3 pb-1 text-xs font-semibold uppercase tracking-wider', GROUP_ACCENTS[group.label] ?? 'text-muted-foreground/50']">
-            {{ group.label }}
+        <div v-for="group in sectionGroups" :key="group.id">
+          <p v-show="sidebarOpen" :class="['px-3 pb-1 text-xs font-semibold uppercase tracking-wider', group.accentClass]">
+            {{ t(group.labelKey) }}
           </p>
           <div class="space-y-0.5">
             <button
@@ -362,12 +371,12 @@ function guildIconUrl(): string | null {
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted border-l-2 border-transparent pl-[10px]',
                 !sidebarOpen && 'lg:border-l-0 lg:px-0',
               ]"
-              :title="!sidebarOpen ? section.label : undefined"
-              :aria-label="section.label"
+              :title="!sidebarOpen ? t(section.labelKey) : undefined"
+              :aria-label="t(section.labelKey)"
               @click="navigateTo(section.id)"
             >
               <Icon :icon="section.icon" class="w-4 h-4 flex-shrink-0" />
-              <span v-show="sidebarOpen">{{ section.label }}</span>
+              <span v-show="sidebarOpen">{{ t(section.labelKey) }}</span>
             </button>
           </div>
         </div>
@@ -378,13 +387,14 @@ function guildIconUrl(): string | null {
         <span v-show="sidebarOpen" class="text-sm text-muted-foreground truncate flex-1">
           {{ auth.user?.username }}
         </span>
+        <LanguageSwitcher v-show="sidebarOpen" />
         <button
           :class="[
             'p-2 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0',
             !sidebarOpen && 'mx-auto',
           ]"
-          title="Logout"
-          aria-label="Logout"
+          :title="t('nav.sidebar.logout')"
+          :aria-label="t('nav.sidebar.logout')"
           @click="auth.clear(); router.push('/login')"
         >
           <Icon icon="mdi:logout" class="w-5 h-5" />
@@ -401,7 +411,7 @@ function guildIconUrl(): string | null {
         >
           <Icon icon="mdi:eye-outline" class="w-4 h-4 flex-shrink-0" />
           <span>
-            <strong>Support Mode</strong> — Viewing as operator. Sensitive content is redacted. Write operations are disabled.
+            <strong>{{ t("nav.sidebar.support_mode") }}</strong> — {{ t("nav.sidebar.support_mode_desc") }}
           </span>
         </div>
         <!-- Mockup toolbar (operator only) -->

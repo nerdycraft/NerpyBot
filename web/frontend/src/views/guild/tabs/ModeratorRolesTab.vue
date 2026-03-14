@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch } from "vue";
 import { api } from "@/api/client";
 import type { ModeratorRole } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
 import { useGuildEntities } from "@/composables/useGuildEntities";
 import InfoTooltip from "@/components/InfoTooltip.vue";
+import { useI18n } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
+const { t } = useI18n();
 
 const { fetchRoles, roleName } = useGuildEntities(props.guildId);
 
@@ -17,6 +19,7 @@ const newRoleId = ref("");
 const adding = ref(false);
 
 onMounted(() => { void load(); void fetchRoles(); });
+watch(() => props.guildId, () => { void load(); void fetchRoles(); });
 
 async function load() {
   loading.value = true;
@@ -24,7 +27,7 @@ async function load() {
   try {
     roles.value = await api.get<ModeratorRole[]>(`/guilds/${props.guildId}/moderator-roles`);
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to load";
+    error.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
     loading.value = false;
   }
@@ -40,7 +43,7 @@ async function add() {
     newRoleId.value = "";
     await load();
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to add role";
+    error.value = e instanceof Error ? e.message : t("common.save_failed");
   } finally {
     adding.value = false;
   }
@@ -52,7 +55,7 @@ async function remove(roleId: string) {
     await api.delete(`/guilds/${props.guildId}/moderator-roles/${roleId}`);
     await load();
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to remove role";
+    error.value = e instanceof Error ? e.message : t("common.delete_failed");
   }
 }
 </script>
@@ -60,18 +63,15 @@ async function remove(roleId: string) {
 <template>
   <div class="space-y-6">
     <div>
-      <h2 class="text-lg font-semibold">Moderator Roles</h2>
-      <p class="text-muted-foreground text-sm">
-        Assign Discord roles as NerpyBot moderators — members with any listed role can use moderation commands such as
-        kick, ban, and message cleanup. You can add as many roles as needed; changes take effect immediately.
-      </p>
+      <h2 class="text-lg font-semibold">{{ t("tabs.moderator_roles.title") }}</h2>
+      <p class="text-muted-foreground text-sm">{{ t("tabs.moderator_roles.desc") }}</p>
     </div>
 
-    <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
+    <div v-if="loading" class="text-muted-foreground text-sm">{{ t("common.loading") }}</div>
 
     <div v-else class="space-y-4">
       <p v-if="roles.length === 0 && !error" class="text-muted-foreground text-sm">
-        No moderator roles configured.
+        {{ t("tabs.moderator_roles.empty") }}
       </p>
 
       <div
@@ -84,15 +84,15 @@ async function remove(roleId: string) {
           class="text-destructive hover:text-destructive/80 text-sm transition-colors"
           @click="remove(role.role_id)"
         >
-          Remove
+          {{ t("common.remove") }}
         </button>
       </div>
 
       <div class="flex gap-2 mt-4 items-end">
         <div class="flex-1 min-w-0">
           <label class="text-sm font-medium flex items-center gap-1.5 mb-1.5">
-            Role
-            <InfoTooltip text="The Discord role to grant bot moderator permissions. Members with this role can run moderation commands." />
+            {{ t("tabs.moderator_roles.role_label") }}
+            <InfoTooltip :text="t('tabs.moderator_roles.role_tooltip')" />
           </label>
           <DiscordPicker
             v-model="newRoleId"
@@ -105,7 +105,7 @@ async function remove(roleId: string) {
           :disabled="adding || !newRoleId.trim()"
           @click="add"
         >
-          {{ adding ? "Adding…" : "Add" }}
+          {{ adding ? t("common.adding") : t("common.add") }}
         </button>
       </div>
 

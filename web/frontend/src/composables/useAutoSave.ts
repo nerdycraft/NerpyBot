@@ -1,5 +1,6 @@
 import { ref, watch, onUnmounted } from "vue";
 import type { Ref } from "vue";
+import { useI18n } from "@/i18n";
 
 /**
  * Debounced auto-save composable for config forms.
@@ -15,6 +16,7 @@ export function useAutoSave<T>(
   source: Ref<T | null>,
   saveFn: (data: T) => Promise<T>,
 ) {
+  const { t } = useI18n();
   const saving = ref(false);
   const error = ref<string | null>(null);
   const success = ref(false);
@@ -67,7 +69,7 @@ export function useAutoSave<T>(
       if (_clearSuccessTimer) clearTimeout(_clearSuccessTimer);
       _clearSuccessTimer = setTimeout(() => (success.value = false), 2000);
     } catch (e: unknown) {
-      error.value = e instanceof Error ? e.message : "Failed to save";
+      error.value = e instanceof Error ? e.message : t("common.save_failed");
     } finally {
       saving.value = false;
       // Always clear the flag — the spurious set from `source.value = result`

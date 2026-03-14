@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { CraftingBoardSchema, CraftingOrderSchema, CraftingRoleMappingSchema, CraftingRoleMappingUpdate, DiscordRole } from "@/api/types";
 import { useGuildEntities } from "@/composables/useGuildEntities";
 import InfoTooltip from "@/components/InfoTooltip.vue";
+import { useI18n, type I18nKey } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
 
+const { t, locale } = useI18n();
 const { fetchChannels, fetchRoles, channelName, roleName } = useGuildEntities(props.guildId);
 
 const boards = ref<CraftingBoardSchema[]>([]);
@@ -32,24 +34,33 @@ const addingMapping = ref(false);
 const editingMappingId = ref<number | null>(null);
 const editMappingProfessionId = ref<number | "">("");
 
-const PROFESSIONS: { id: number; name: string }[] = [
-  { id: 164, name: "Blacksmithing" },
-  { id: 165, name: "Leatherworking" },
-  { id: 197, name: "Tailoring" },
-  { id: 202, name: "Engineering" },
-  { id: 333, name: "Enchanting" },
-  { id: 171, name: "Alchemy" },
-  { id: 773, name: "Inscription" },
-  { id: 755, name: "Jewelcrafting" },
-  { id: 185, name: "Cooking" },
+const PROFESSIONS: { id: number; labelKey: I18nKey }[] = [
+  { id: 164, labelKey: "tabs.wow_crafting.profession.blacksmithing" },
+  { id: 165, labelKey: "tabs.wow_crafting.profession.leatherworking" },
+  { id: 197, labelKey: "tabs.wow_crafting.profession.tailoring" },
+  { id: 202, labelKey: "tabs.wow_crafting.profession.engineering" },
+  { id: 333, labelKey: "tabs.wow_crafting.profession.enchanting" },
+  { id: 171, labelKey: "tabs.wow_crafting.profession.alchemy" },
+  { id: 773, labelKey: "tabs.wow_crafting.profession.inscription" },
+  { id: 755, labelKey: "tabs.wow_crafting.profession.jewelcrafting" },
+  { id: 185, labelKey: "tabs.wow_crafting.profession.cooking" },
 ];
 
-const STATUS_LABELS: Record<string, string> = {
-  "": "All",
-  open: "Open",
-  in_progress: "In Progress",
-  completed: "Completed",
-  cancelled: "Cancelled",
+function professionLabel(professionId: number, fallback: string): string {
+  const p = PROFESSIONS.find((x) => x.id === professionId);
+  return p ? t(p.labelKey) : fallback;
+}
+
+const orderDateFormatter = computed(
+  () => new Intl.DateTimeFormat(locale.current, { dateStyle: "short" }),
+);
+
+const STATUS_LABEL_KEYS: Record<string, I18nKey> = {
+  "": "tabs.wow_crafting.status.all",
+  open: "tabs.wow_crafting.status.open",
+  in_progress: "tabs.wow_crafting.status.in_progress",
+  completed: "tabs.wow_crafting.status.completed",
+  cancelled: "tabs.wow_crafting.status.cancelled",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -68,7 +79,7 @@ async function fetchOrders() {
       `/guilds/${props.guildId}/wow/crafting-orders${params}`,
     );
   } catch (e: unknown) {
-    ordersError.value = e instanceof Error ? e.message : "Failed to load orders";
+    ordersError.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
     ordersLoading.value = false;
   }
@@ -82,7 +93,7 @@ async function fetchMappings() {
       `/guilds/${props.guildId}/wow/crafting-role-mappings`,
     );
   } catch (e: unknown) {
-    mappingsError.value = e instanceof Error ? e.message : "Failed to load mappings";
+    mappingsError.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
     mappingsLoading.value = false;
   }
@@ -101,7 +112,7 @@ async function addMapping() {
     newMappingRoleId.value = "";
     newMappingProfessionId.value = "";
   } catch (e: unknown) {
-    opError.value = e instanceof Error ? e.message : "Failed to add mapping";
+    opError.value = e instanceof Error ? e.message : t("common.save_failed");
   } finally {
     addingMapping.value = false;
   }
@@ -120,7 +131,7 @@ async function updateMapping(mappingId: number) {
     if (idx !== -1) mappings.value[idx] = updated;
     editingMappingId.value = null;
   } catch (e: unknown) {
-    opError.value = e instanceof Error ? e.message : "Failed to update mapping";
+    opError.value = e instanceof Error ? e.message : t("common.save_failed");
   }
 }
 
@@ -130,7 +141,7 @@ async function deleteMapping(mappingId: number) {
     await api.delete(`/guilds/${props.guildId}/wow/crafting-role-mappings/${mappingId}`);
     mappings.value = mappings.value.filter((m) => m.id !== mappingId);
   } catch (e: unknown) {
-    opError.value = e instanceof Error ? e.message : "Failed to delete mapping";
+    opError.value = e instanceof Error ? e.message : t("common.delete_failed");
   }
 }
 
@@ -142,7 +153,7 @@ onMounted(async () => {
     const config = await api.get<{ crafting_boards: CraftingBoardSchema[] }>(`/guilds/${props.guildId}/wow`);
     boards.value = config.crafting_boards;
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to load";
+    error.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
     loading.value = false;
   }
@@ -159,21 +170,18 @@ watch(statusFilter, fetchOrders);
 <template>
   <div class="space-y-8">
     <div>
-      <h2 class="text-lg font-semibold">Crafting Boards</h2>
-      <p class="text-muted-foreground text-sm">
-        The crafting board monitors World of Warcraft crafting order queues and posts new orders to a configured Discord channel.
-        Use role mappings to link Discord roles to WoW professions so the bot can ping the right crafters when matching orders appear.
-      </p>
+      <h2 class="text-lg font-semibold">{{ t("tabs.wow_crafting.title") }}</h2>
+      <p class="text-muted-foreground text-sm">{{ t("tabs.wow_crafting.desc") }}</p>
     </div>
 
-    <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
+    <div v-if="loading" class="text-muted-foreground text-sm">{{ t("common.loading") }}</div>
     <p v-else-if="error" class="text-destructive text-sm">{{ error }}</p>
 
     <div v-else class="space-y-8">
       <!-- Board Config -->
       <div class="space-y-3">
-        <h3 class="text-sm font-semibold">Board</h3>
-        <p v-if="boards.length === 0" class="text-muted-foreground text-sm">No crafting board configured.</p>
+        <h3 class="text-sm font-semibold">{{ t("tabs.wow_crafting.board") }}</h3>
+        <p v-if="boards.length === 0" class="text-muted-foreground text-sm">{{ t("tabs.wow_crafting.no_board") }}</p>
         <div
           v-for="cb in boards"
           :key="cb.id"
@@ -186,11 +194,11 @@ watch(statusFilter, fetchOrders);
 
       <!-- Role Mappings -->
       <div class="space-y-3">
-        <h3 class="text-sm font-semibold">Role → Profession Mappings</h3>
-        <p class="text-muted-foreground text-xs">Map Discord roles to WoW professions so crafters can accept matching orders.</p>
+        <h3 class="text-sm font-semibold">{{ t("tabs.wow_crafting.role_mappings") }}</h3>
+        <p class="text-muted-foreground text-xs">{{ t("tabs.wow_crafting.role_mappings_desc") }}</p>
 
         <p v-if="opError" class="text-destructive text-sm">{{ opError }}</p>
-        <div v-if="mappingsLoading" class="text-muted-foreground text-sm">Loading…</div>
+        <div v-if="mappingsLoading" class="text-muted-foreground text-sm">{{ t("common.loading") }}</div>
         <p v-else-if="mappingsError" class="text-destructive text-sm">{{ mappingsError }}</p>
 
         <div v-else class="space-y-1.5">
@@ -205,17 +213,17 @@ watch(statusFilter, fetchOrders);
                 v-model="editMappingProfessionId"
                 class="bg-input border border-border rounded px-2 py-1 text-sm flex-1 min-w-[140px]"
               >
-                <option v-for="p in PROFESSIONS" :key="p.id" :value="p.id">{{ p.name }}</option>
+                <option v-for="p in PROFESSIONS" :key="p.id" :value="p.id">{{ t(p.labelKey) }}</option>
               </select>
-              <button class="text-xs text-primary hover:text-primary/80 flex-shrink-0" @click="updateMapping(m.id)">Save</button>
+              <button class="text-xs text-primary hover:text-primary/80 flex-shrink-0" @click="updateMapping(m.id)">{{ t("common.save") }}</button>
               <button class="text-xs text-muted-foreground hover:text-foreground flex-shrink-0" @click="editingMappingId = null">×</button>
             </template>
             <template v-else>
-              <span class="flex-1">@{{ roleName(m.role_id) }} → {{ m.profession_name }}</span>
+              <span class="flex-1">@{{ roleName(m.role_id) }} → {{ professionLabel(m.profession_id, m.profession_name) }}</span>
               <button
                 class="text-xs text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                 @click="editingMappingId = m.id; editMappingProfessionId = m.profession_id"
-              >Edit</button>
+              >{{ t("common.edit") }}</button>
               <button
                 class="text-xs text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                 @click="deleteMapping(m.id)"
@@ -224,52 +232,52 @@ watch(statusFilter, fetchOrders);
               </button>
             </template>
           </div>
-          <p v-if="mappings.length === 0" class="text-muted-foreground text-sm">No mappings yet.</p>
+          <p v-if="mappings.length === 0" class="text-muted-foreground text-sm">{{ t("tabs.wow_crafting.no_mappings") }}</p>
         </div>
 
         <!-- Add mapping -->
         <div class="flex flex-wrap gap-2 items-end pt-1">
           <div class="flex flex-col gap-1">
             <label class="text-sm font-medium flex items-center gap-1.5">
-              Role
-              <InfoTooltip text="The Discord role to associate with a WoW profession. Members with this role will be pinged when a matching crafting order appears." />
+              {{ t("tabs.wow_crafting.role_label") }}
+              <InfoTooltip :text="t('tabs.wow_crafting.role_tooltip')" />
             </label>
             <select
               v-model="newMappingRoleId"
               class="bg-input border border-border rounded px-3 py-1.5 text-sm min-w-[160px]"
             >
-              <option value="">Select role…</option>
+              <option value="">{{ t("tabs.wow_crafting.select_role") }}</option>
               <option v-for="r in allRoles" :key="r.id" :value="r.id">@{{ r.name }}</option>
             </select>
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-sm font-medium flex items-center gap-1.5">
-              Profession
-              <InfoTooltip text="The WoW profession this role covers. The bot will notify the mapped role when a crafting order for this profession is detected." />
+              {{ t("tabs.wow_crafting.profession_label") }}
+              <InfoTooltip :text="t('tabs.wow_crafting.profession_tooltip')" />
             </label>
             <select
               v-model="newMappingProfessionId"
               class="bg-input border border-border rounded px-3 py-1.5 text-sm min-w-[160px]"
             >
-              <option value="">Select profession…</option>
-              <option v-for="p in PROFESSIONS" :key="p.id" :value="p.id">{{ p.name }}</option>
+              <option value="">{{ t("tabs.wow_crafting.select_profession") }}</option>
+              <option v-for="p in PROFESSIONS" :key="p.id" :value="p.id">{{ t(p.labelKey) }}</option>
             </select>
           </div>
           <button
             class="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50 transition-colors"
             :disabled="!newMappingRoleId || newMappingProfessionId === '' || addingMapping"
             @click="addMapping"
-          >Add</button>
+          >{{ t("common.add") }}</button>
         </div>
       </div>
 
       <!-- Crafting Orders -->
       <div class="space-y-3">
         <div class="flex items-center justify-between">
-          <h3 class="text-sm font-semibold">Orders</h3>
+          <h3 class="text-sm font-semibold">{{ t("tabs.wow_crafting.orders") }}</h3>
           <div class="flex items-center gap-1 rounded-md border border-border p-0.5 bg-muted text-xs">
             <button
-              v-for="(label, value) in STATUS_LABELS"
+              v-for="(labelKey, value) in STATUS_LABEL_KEYS"
               :key="value"
               :class="[
                 'px-2.5 py-1 rounded transition-colors',
@@ -279,14 +287,14 @@ watch(statusFilter, fetchOrders);
               ]"
               @click="statusFilter = value"
             >
-              {{ label }}
+              {{ t(labelKey) }}
             </button>
           </div>
         </div>
 
-        <div v-if="ordersLoading" class="text-muted-foreground text-sm">Loading orders…</div>
+        <div v-if="ordersLoading" class="text-muted-foreground text-sm">{{ t("tabs.wow_crafting.loading_orders") }}</div>
         <p v-else-if="ordersError" class="text-destructive text-sm">{{ ordersError }}</p>
-        <p v-else-if="orders.length === 0" class="text-muted-foreground text-sm">No orders found.</p>
+        <p v-else-if="orders.length === 0" class="text-muted-foreground text-sm">{{ t("tabs.wow_crafting.no_orders") }}</p>
         <div v-else class="space-y-2">
           <div
             v-for="order in orders"
@@ -309,19 +317,19 @@ watch(statusFilter, fetchOrders);
             <div class="flex-1 min-w-0">
               <div class="font-medium text-sm truncate">{{ order.item_name }}</div>
               <div class="text-xs text-muted-foreground space-x-2">
-                <span>by {{ order.creator_name ?? order.creator_id }}</span>
+                <span>{{ t("tabs.wow_crafting.order_by", { name: order.creator_name ?? order.creator_id ?? "" }) }}</span>
                 <span v-if="order.crafter_name ?? order.crafter_id">
-                  · crafter: {{ order.crafter_name ?? order.crafter_id }}
+                  · {{ t("tabs.wow_crafting.order_crafter", { name: order.crafter_name ?? order.crafter_id ?? "" }) }}
                 </span>
               </div>
               <div v-if="order.notes" class="text-xs text-muted-foreground truncate mt-0.5">{{ order.notes }}</div>
             </div>
 
             <div class="flex items-center gap-3 text-xs flex-shrink-0">
-              <span :class="STATUS_COLORS[order.status] ?? 'text-muted-foreground'" class="capitalize font-medium">
-                {{ order.status.replace("_", " ") }}
+              <span :class="STATUS_COLORS[order.status] ?? 'text-muted-foreground'" class="font-medium">
+                {{ STATUS_LABEL_KEYS[order.status] ? t(STATUS_LABEL_KEYS[order.status]!) : order.status }}
               </span>
-              <span class="text-muted-foreground">{{ order.create_date.slice(0, 10) }}</span>
+              <span class="text-muted-foreground">{{ orderDateFormatter.format(new Date(order.create_date)) }}</span>
             </div>
           </div>
         </div>

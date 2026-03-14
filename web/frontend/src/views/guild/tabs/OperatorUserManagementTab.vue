@@ -5,6 +5,9 @@ import { api } from "@/api/client";
 import type { PremiumUserSchema } from "@/api/types";
 import InfoTooltip from "@/components/InfoTooltip.vue";
 import { formatDate } from "@/utils/date";
+import { useI18n } from "@/i18n";
+
+const { t } = useI18n();
 
 const premiumUsers = ref<PremiumUserSchema[]>([]);
 const newUserId = ref("");
@@ -31,7 +34,7 @@ async function grantPremium() {
     }
     newUserId.value = "";
   } catch (e: unknown) {
-    grantError.value = e instanceof Error ? e.message : "Failed to grant access";
+    grantError.value = e instanceof Error ? e.message : t("common.save_failed");
   } finally {
     granting.value = false;
   }
@@ -43,7 +46,7 @@ async function revokePremium(userId: string) {
     await api.delete(`/operator/premium-users/${userId}`);
     premiumUsers.value = premiumUsers.value.filter((u) => u.user_id !== userId);
   } catch (e: unknown) {
-    grantError.value = e instanceof Error ? e.message : "Failed to revoke access";
+    grantError.value = e instanceof Error ? e.message : t("common.delete_failed");
   }
 }
 
@@ -53,18 +56,16 @@ async function revokePremium(userId: string) {
   <div>
     <div class="flex items-center gap-2 mb-1">
       <Icon icon="mdi:crown-outline" class="w-5 h-5 text-yellow-400" />
-      <h2 class="text-xl font-bold">User Management</h2>
+      <h2 class="text-xl font-bold">{{ t("tabs.operator_user_management.title") }}</h2>
     </div>
-    <p class="text-muted-foreground text-sm mb-6">
-      Grant or revoke dashboard access for Discord users. Users with premium status can log in and manage servers they have permission on; users without it are redirected to the login page. This panel is only visible to bot operators.
-    </p>
+    <p class="text-muted-foreground text-sm mb-6">{{ t("tabs.operator_user_management.desc") }}</p>
 
     <p v-if="grantError" class="text-destructive text-sm mb-3">{{ grantError }}</p>
 
     <!-- Current premium users -->
     <div class="space-y-1.5 mb-6">
       <p v-if="premiumUsers.length === 0" class="text-muted-foreground text-sm">
-        No premium users yet.
+        {{ t("tabs.operator_user_management.empty") }}
       </p>
       <div
         v-for="u in premiumUsers"
@@ -73,13 +74,13 @@ async function revokePremium(userId: string) {
       >
         <Icon icon="mdi:account-outline" class="w-4 h-4 text-muted-foreground flex-shrink-0" />
         <span class="font-mono text-xs flex-1">{{ u.user_id }}</span>
-        <span class="text-xs text-muted-foreground flex-shrink-0">since {{ formatDate(u.granted_at) }}</span>
+        <span class="text-xs text-muted-foreground flex-shrink-0">{{ t("tabs.operator_user_management.since", { date: formatDate(u.granted_at) }) }}</span>
         <button
           class="text-xs text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 flex items-center gap-1"
           @click="revokePremium(u.user_id)"
         >
           <Icon icon="mdi:close" class="w-3.5 h-3.5" />
-          Revoke
+          {{ t("tabs.operator_user_management.revoke") }}
         </button>
       </div>
     </div>
@@ -88,12 +89,12 @@ async function revokePremium(userId: string) {
     <div class="flex gap-2 items-end">
       <div class="flex flex-col gap-1">
         <label class="text-xs text-muted-foreground flex items-center gap-1">
-          Discord User ID
-          <InfoTooltip text="The 18-digit Discord snowflake ID of the user to grant access to. You can find this by enabling Developer Mode in Discord and right-clicking the user." />
+          {{ t("tabs.operator_user_management.discord_id_label") }}
+          <InfoTooltip :text="t('tabs.operator_user_management.discord_id_tooltip')" />
         </label>
         <input
           v-model="newUserId"
-          placeholder="e.g. 123456789012345678"
+          :placeholder="t('tabs.operator_user_management.discord_id_placeholder')"
           class="bg-input border border-border rounded px-3 py-1.5 text-sm font-mono w-56"
           @keyup.enter="grantPremium"
         />
@@ -104,7 +105,7 @@ async function revokePremium(userId: string) {
         @click="grantPremium"
       >
         <Icon icon="mdi:crown-plus-outline" class="w-4 h-4" />
-        {{ granting ? "Granting…" : "Grant Access" }}
+        {{ granting ? t("tabs.operator_user_management.granting") : t("tabs.operator_user_management.grant") }}
       </button>
     </div>
   </div>
