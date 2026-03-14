@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import { useRoute, useRouter, RouterLink } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
 import { useGuildStore } from "@/stores/guild";
@@ -435,36 +435,19 @@ function guildIconUrl(): string | null {
       <!-- Sidebar footer -->
       <div class="flex flex-col flex-shrink-0">
         <component :is="TestModeIndicator" v-if="TestModeIndicator && sidebarOpen" />
-        <div class="border-t border-border flex flex-col">
-          <div v-if="sidebarOpen" class="flex items-center gap-2 px-5 pt-3">
-            <RouterLink
-              to="/terms"
-              class="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {{ t("legal.terms") }}
-            </RouterLink>
-            <span class="text-xs text-muted-foreground">·</span>
-            <RouterLink
-              to="/privacy"
-              class="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {{ t("legal.privacy") }}
-            </RouterLink>
-          </div>
-          <div :class="['flex items-center', sidebarOpen ? 'p-4 gap-3' : 'p-2 justify-center']">
-            <span v-show="sidebarOpen" class="text-sm text-muted-foreground truncate flex-1">
-              {{ auth.user?.username }}
-            </span>
-            <LanguageSwitcher v-show="sidebarOpen" />
-            <button
-              class="p-2 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
-              :title="t('nav.sidebar.logout')"
-              :aria-label="t('nav.sidebar.logout')"
-              @click="auth.clear(); router.push('/login')"
-            >
-              <Icon icon="mdi:logout" class="w-5 h-5" />
-            </button>
-          </div>
+        <div :class="['border-t border-border flex items-center', sidebarOpen ? 'p-4 gap-3' : 'p-2 justify-center']">
+          <span v-show="sidebarOpen" class="text-sm text-muted-foreground truncate flex-1">
+            {{ auth.user?.username }}
+          </span>
+          <LanguageSwitcher v-show="sidebarOpen" />
+          <button
+            class="p-2 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+            :title="t('nav.sidebar.logout')"
+            :aria-label="t('nav.sidebar.logout')"
+            @click="auth.clear(); router.push('/login')"
+          >
+            <Icon icon="mdi:logout" class="w-5 h-5" />
+          </button>
         </div>
       </div>
       </aside>
