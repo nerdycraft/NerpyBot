@@ -70,6 +70,8 @@ docker run --rm nerpybot python -c "from bot import NerpyBot; print('OK')"
 
 `docs/` contains per-module markdown files documenting commands, database models, background tasks, and data flows. When adding a new module or changing an existing one, update or create the corresponding `docs/<module>.md` file.
 
+For release procedures (tagging, release branches, hotfixes), see `docs/release-process.md`.
+
 ### Entry Point
 
 `NerdyPy/bot.py` - Contains `NerpyBot` class and `main()` entry point.
