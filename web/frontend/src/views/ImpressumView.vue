@@ -1,10 +1,15 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import LegalPageLayout from "@/components/LegalPageLayout.vue";
 import { useLegalContact } from "@/composables/useLegalContact";
 import { useI18n } from "@/i18n";
 
 const { t, locale } = useI18n();
 const { contact } = useLegalContact();
+
+const isContactAvailable = computed(
+  () => contact.enabled && !!contact.name && !!contact.street && !!contact.zip_city && !!contact.email,
+);
 </script>
 
 <template>
@@ -14,7 +19,7 @@ const { contact } = useLegalContact();
     :show-meta="false"
     :footer-links="[{ to: '/terms', text: t('legal.terms') }, { to: '/privacy', text: t('legal.privacy') }]"
   >
-    <template v-if="contact.enabled">
+    <template v-if="isContactAvailable">
       <section>
         <h2>{{ t('legal.impressum_page.legal_info_title') }}</h2>
         <p>

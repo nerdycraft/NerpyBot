@@ -1,7 +1,10 @@
 /**
- * Fetches /api/legal/contact once at module scope and caches the result.
+ * Lazily fetches /api/legal/contact on the first call to useLegalContact() and
+ * caches the result in the module-level fetchPromise / contact reactive state.
+ * Subsequent calls return the same reactive contact without re-fetching.
  * No auth required — the endpoint is public.
- * Leaves empty strings on fetch failure (graceful degradation).
+ * Leaves all fields as empty strings and enabled as false on fetch failure
+ * (graceful degradation); clears fetchPromise so the next call retries.
  */
 import { reactive } from "vue";
 
