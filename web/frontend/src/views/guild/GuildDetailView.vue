@@ -26,6 +26,7 @@ import SupportTab from "./tabs/SupportTab.vue";
 import MockupToolbar from "@/components/MockupToolbar.vue";
 import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
 import { api } from "@/api/client";
+import type { BotGuildInfo } from "@/api/types";
 import { defineAsyncComponent } from "vue";
 
 const TestModeIndicator =
@@ -47,30 +48,66 @@ const guildId = computed(() => route.params.id as string | undefined);
 
 const activeSection = computed(() => toQueryScalar(route.query.tab) ?? "server-overview");
 const switcherOpen = ref(false);
-const sidebarOpen = ref(true);
 const LG_BREAKPOINT = 1024;
 
+// Persist sidebar state across refreshes; mobile always starts closed but does not
+// overwrite the stored desktop preference (guard: only write on lg+ screens).
+const sidebarOpen = ref(localStorage.getItem("sidebarOpen") !== "false");
 onMounted(() => {
   if (window.innerWidth < LG_BREAKPOINT) sidebarOpen.value = false;
+});
+watch(sidebarOpen, (v) => {
+  if (window.innerWidth >= LG_BREAKPOINT) localStorage.setItem("sidebarOpen", String(v));
 });
 
 // Support mode: set by server via X-Support-Mode header on the first guild API call.
 const supportMode = ref(false);
+// Starts true so the first synchronous computed evaluation (before onMounted) never fires
+// the tab fallback redirect. Set to false once probeGuildAccess resolves or exits early.
+const probeLoading = ref(true);
 
 async function probeGuildAccess(id: string | undefined) {
-  if (!id || !auth.user?.is_operator) {
-    supportMode.value = false;
-    return;
-  }
-  const probeId = id;
-  let newMode = false;
+  probeLoading.value = true;
   try {
-    const { supportMode: serverMode } = await api.getWithHeaders<unknown>(`/guilds/${id}/language`);
-    newMode = serverMode;
-  } catch {
-    // network error → treat as non-support access
+    if (!id || !auth.user?.is_operator) {
+      supportMode.value = false;
+      return;
+    }
+    const probeId = id;
+    let newMode = false;
+    let botGuild: BotGuildInfo | null = null;
+    try {
+      const { supportMode: serverMode } = await api.getWithHeaders<unknown>(`/guilds/${id}/language`);
+      newMode = serverMode;
+      if (newMode) {
+        try {
+          botGuild = await api.get<BotGuildInfo>(`/operator/guilds/${id}`);
+        } catch {
+          // non-critical — guild name may be unavailable if bot is offline
+        }
+      }
+    } catch {
+      // network error → treat as non-support access
+    }
+    if (guildId.value === probeId) {
+      supportMode.value = newMode;
+      if (newMode && botGuild) {
+        // permission_level is hardcoded to "admin" here because effectiveLevel (in sectionGroups)
+        // always uses "admin" as the fallback when supportMode is true, making this value irrelevant.
+        // The tabs shown in support mode are governed solely by the supportMode flag, not permission_level.
+        guild.setCurrent({
+          id: botGuild.id,
+          name: botGuild.name,
+          icon: botGuild.icon,
+          permission_level: "admin",
+          bot_present: true,
+          invite_url: null,
+        });
+      }
+    }
+  } finally {
+    probeLoading.value = false;
   }
-  if (guildId.value === probeId) supportMode.value = newMode;
 }
 
 // Reset to overview when switching guilds, clear mockup, and probe support mode
@@ -210,6 +247,9 @@ const sectionGroups = computed(() => {
 
 const allSections = computed(() => sectionGroups.value.flatMap((g) => g.items));
 const activeComponent = computed(() => {
+  // While the support-mode probe is in flight, the visible section list is incomplete.
+  // Suppress the fallback redirect until we know the real set of available tabs.
+  if (probeLoading.value) return undefined;
   const found = allSections.value.find((s) => s.id === activeSection.value);
   if (!found && allSections.value.length > 0) {
     // Requested tab is no longer available (filtered out) — fall back silently.
@@ -232,7 +272,7 @@ function guildIconUrl(): string | null {
 
   <div class="flex flex-col h-screen overflow-hidden">
     <!-- Mobile top bar — only visible below lg breakpoint -->
-    <div class="lg:hidden flex items-center h-12 px-4 border-b border-border flex-shrink-0 bg-card gap-3">
+    <div :class="['lg:hidden flex items-center h-12 px-4 border-b flex-shrink-0 bg-card gap-3', supportMode ? 'border-amber-500/50' : 'border-border']">
       <button
         class="text-muted-foreground hover:text-foreground transition-colors"
         :aria-label="t('nav.sidebar.open_nav')"
@@ -291,9 +331,12 @@ function guildIconUrl(): string | null {
       <!-- Guild switcher -->
       <div class="relative border-b border-border flex-shrink-0">
         <button
-          class="w-full p-4 flex items-center gap-2.5 hover:bg-muted transition-colors text-left"
+          :class="[
+            'w-full flex items-center hover:bg-muted transition-colors text-left',
+            sidebarOpen ? 'p-4 gap-2.5' : 'p-2 justify-center',
+            { 'cursor-default': !guildId, 'ring-2 ring-inset ring-amber-500/50': supportMode },
+          ]"
           @click="guildId ? (switcherOpen = !switcherOpen) : undefined"
-          :class="{ 'cursor-default': !guildId }"
         >
           <img
             v-if="guildId && guildIconUrl()"
@@ -360,11 +403,12 @@ function guildIconUrl(): string | null {
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 p-2 space-y-4 overflow-y-auto">
-        <div v-for="group in sectionGroups" :key="group.id">
-          <p v-show="sidebarOpen" :class="['px-3 pb-1 text-xs font-semibold uppercase tracking-wider', group.accentClass]">
+      <nav class="flex-1 p-2 overflow-y-auto" :class="sidebarOpen ? 'space-y-4' : 'space-y-2'">
+        <div v-for="(group, idx) in sectionGroups" :key="group.id">
+          <p v-if="sidebarOpen" :class="['px-3 pb-1 text-xs font-semibold uppercase tracking-wider', group.accentClass]">
             {{ t(group.labelKey) }}
           </p>
+          <div v-else-if="idx > 0" class="border-t border-border/60 mx-1 mb-1.5" />
           <div class="space-y-0.5">
             <button
               v-for="section in group.items"
@@ -391,16 +435,13 @@ function guildIconUrl(): string | null {
       <!-- Sidebar footer -->
       <div class="flex flex-col flex-shrink-0">
         <component :is="TestModeIndicator" v-if="TestModeIndicator && sidebarOpen" />
-        <div class="border-t border-border p-4 flex items-center gap-3">
+        <div :class="['border-t border-border flex items-center', sidebarOpen ? 'p-4 gap-3' : 'p-2 justify-center']">
         <span v-show="sidebarOpen" class="text-sm text-muted-foreground truncate flex-1">
           {{ auth.user?.username }}
         </span>
         <LanguageSwitcher v-show="sidebarOpen" />
         <button
-          :class="[
-            'p-2 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0',
-            !sidebarOpen && 'mx-auto',
-          ]"
+          class="p-2 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
           :title="t('nav.sidebar.logout')"
           :aria-label="t('nav.sidebar.logout')"
           @click="auth.clear(); router.push('/login')"

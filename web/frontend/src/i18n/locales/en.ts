@@ -224,15 +224,11 @@ export const en = {
       add_title: "Add to a Server",
       add_desc: "You have sufficient permissions to invite NerpyBot to these servers.",
       invite: "Invite",
-      all_bot_guilds: "All Bot Guilds",
-      all_bot_guilds_desc:
-        "All servers NerpyBot is currently in. Click any card to open that server's settings (support mode).",
-      members: "{count} members",
     },
 
     operator_guilds: {
       title: "All Bot Guilds",
-      desc: "Every server the bot is currently in. Click a server to open it in support mode.",
+      desc: "Servers the bot is in where you don't have management access. Click a server to open it in support mode.",
       loading: "Loading guilds…",
       empty: "No guilds found.",
       count_one: "{count} server total",

@@ -227,15 +227,11 @@ export const de: typeof en = {
       add_title: "Zu einem Server hinzufügen",
       add_desc: "Du hast ausreichende Berechtigungen, um NerpyBot auf diesen Servern einzuladen.",
       invite: "Einladen",
-      all_bot_guilds: "Alle Bot-Server",
-      all_bot_guilds_desc:
-        "Alle Server, auf denen NerpyBot aktuell aktiv ist. Klicke auf eine Karte, um die Einstellungen im Support-Modus zu öffnen.",
-      members: "{count} Mitglieder",
     },
 
     operator_guilds: {
       title: "Alle Bot-Server",
-      desc: "Jeder Server, auf dem der Bot aktuell aktiv ist. Klicke auf einen Server, um ihn im Support-Modus zu öffnen.",
+      desc: "Server, auf denen der Bot aktiv ist, für die du aber keine Verwaltungsrechte hast. Klicke auf einen Server, um ihn im Support-Modus zu öffnen.",
       loading: "Server werden geladen…",
       empty: "Keine Server gefunden.",
       count_one: "{count} Server insgesamt",

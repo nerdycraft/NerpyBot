@@ -1,31 +1,18 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
 import { useGuildStore } from "@/stores/guild";
-import { api } from "@/api/client";
-import type { BotGuildInfo } from "@/api/types";
 import { useI18n } from "@/i18n";
 
 const auth = useAuthStore();
 const guildStore = useGuildStore();
 const router = useRouter();
-const { t, locale } = useI18n();
+const { t } = useI18n();
 
 const managedGuilds = computed(() => auth.guilds.filter((g) => g.bot_present));
 const invitableGuilds = computed(() => auth.guilds.filter((g) => !g.bot_present));
-
-const botGuilds = ref<BotGuildInfo[]>([]);
-
-onMounted(async () => {
-  if (!auth.user?.is_operator) return;
-  try {
-    botGuilds.value = (await api.get<{ guilds: BotGuildInfo[] }>("/operator/guilds")).guilds;
-  } catch {
-    // non-critical
-  }
-});
 
 function iconUrl(guild: { id: string; icon: string | null }): string | null {
   if (!guild.icon) return null;
@@ -120,40 +107,6 @@ function iconUrl(guild: { id: string; icon: string | null }): string | null {
             {{ t("tabs.server_overview.invite") }}
           </a>
         </div>
-      </div>
-    </template>
-
-    <!-- All Bot Guilds — operator only -->
-    <template v-if="auth.user?.is_operator && botGuilds.length > 0">
-      <h2 class="text-xl font-bold mb-1 mt-10">{{ t("tabs.server_overview.all_bot_guilds") }}</h2>
-      <p class="text-muted-foreground text-sm mb-6">{{ t("tabs.server_overview.all_bot_guilds_desc") }}</p>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <button
-          v-for="g in botGuilds"
-          :key="g.id"
-          class="rounded-lg p-4 flex items-center gap-3 text-left border bg-card hover:bg-muted border-border hover:border-primary transition-colors"
-          @click="router.push(`/guilds/${g.id}`)"
-        >
-          <img
-            v-if="iconUrl(g)"
-            :src="iconUrl(g)!"
-            :alt="g.name"
-            class="w-10 h-10 rounded-full object-cover flex-shrink-0"
-          />
-          <div
-            v-else
-            class="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-base font-bold flex-shrink-0"
-            aria-hidden="true"
-          >
-            {{ g.name.charAt(0).toUpperCase() }}
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="font-semibold text-sm truncate">{{ g.name }}</div>
-            <div class="text-xs text-muted-foreground">
-              {{ t("tabs.server_overview.members", { count: g.member_count?.toLocaleString(locale.current) ?? "?" }) }}
-            </div>
-          </div>
-        </button>
       </div>
     </template>
   </div>
