@@ -426,6 +426,129 @@ export const guild3Reminders: ReminderSchema[] = [
   },
 ];
 
+export const guild3ReactionRoles: ReactionRoleMessageSchema[] = [
+  {
+    id: 10,
+    channel_id: "800000000000000002",
+    message_id: "888000000000000010",
+    entries: [
+      { emoji: "🎮", role_id: "700000000000000003" },
+      { emoji: "🔔", role_id: "700000000000000002" },
+    ],
+  },
+];
+
+export const guild3RoleMappings: RoleMappingSchema[] = [
+  {
+    id: 10,
+    guild_id: GUILD3,
+    source_role_id: "700000000000000001",
+    target_role_id: "700000000000000003",
+  },
+];
+
+export const guild3ApplicationForms: ApplicationFormSchema[] = [
+  {
+    id: 10,
+    name: "External Server Membership",
+    review_channel_id: "800000000000000003",
+    required_approvals: 1,
+    required_denials: 1,
+    approval_message: "Welcome aboard!",
+    denial_message: "Sorry, not accepting members right now.",
+    apply_channel_id: "800000000000000004",
+    apply_description: "Apply to join our community.",
+    questions: [
+      { id: 10, question_text: "Where are you from?", sort_order: 1 },
+      { id: 11, question_text: "How did you find us?", sort_order: 2 },
+    ],
+  },
+];
+
+export const guild3ApplicationTemplates: ApplicationTemplateSchema[] = [
+  {
+    id: 10,
+    name: "Basic Membership",
+    is_built_in: false,
+    approval_message: "You're in!",
+    denial_message: "Application denied.",
+    questions: [
+      { id: 10, question_text: "Tell us about yourself.", sort_order: 1 },
+    ],
+  },
+];
+
+export const guild3ApplicationSubmissions: ApplicationSubmissionSchema[] = [
+  {
+    id: 10,
+    form_name: "External Server Membership",
+    user_id: "222000000000000001",
+    user_name: "ShadowRunner",
+    status: "pending",
+    submitted_at: "2026-03-13T11:00:00Z",
+    decision_reason: null,
+    answers: [
+      { question_id: 10, question_text: "Where are you from?", answer_text: "Europe, been gaming for 10 years." },
+      { question_id: 11, question_text: "How did you find us?", answer_text: "Friend referral." },
+    ],
+    votes: [],
+  },
+  {
+    id: 11,
+    form_name: "External Server Membership",
+    user_id: "222000000000000002",
+    user_name: "NightOwl",
+    status: "approved",
+    submitted_at: "2026-03-10T08:30:00Z",
+    decision_reason: null,
+    answers: [
+      { question_id: 10, question_text: "Where are you from?", answer_text: "NA, casual player." },
+      { question_id: 11, question_text: "How did you find us?", answer_text: "Discord discovery." },
+    ],
+    votes: [{ voter_id: "333000000000000001", voter_name: "ExtAdmin", vote: "approve" }],
+  },
+];
+
+export const guild3WowGuildNews: WowGuildNewsSchema[] = [
+  {
+    id: 10,
+    channel_id: "800000000000000002",
+    wow_guild_name: "Shadow Vanguard",
+    wow_realm_slug: "silvermoon",
+    region: "eu",
+    enabled: true,
+    min_level: 10,
+    active_days: 7,
+    last_activity: "2026-03-12T18:00:00Z",
+    tracked_characters: 15,
+  },
+];
+
+export const guild3CraftingBoard: CraftingBoardSchema = {
+  id: 10,
+  channel_id: "800000000000000006",
+  description: "Crafting orders channel for External Server.",
+};
+
+export const guild3CraftingMappings: CraftingRoleMappingSchema[] = [
+  { id: 10, role_id: "700000000000000002", profession_id: 202, profession_name: "Tailoring" },
+];
+
+export const guild3CraftingOrders: CraftingOrderSchema[] = [
+  {
+    id: 10,
+    item_name: "Algari Competitor's Wrap",
+    icon_url: null,
+    notes: "Need for next raid",
+    status: "open",
+    creator_id: "222000000000000001",
+    creator_name: "ShadowRunner",
+    crafter_id: null,
+    crafter_name: null,
+    create_date: "2026-03-13T15:00:00Z",
+  },
+];
+
 // ── Operator data ────────────────────────────────────────────────────────────
 
 export const operatorHealth: HealthResponse = {
