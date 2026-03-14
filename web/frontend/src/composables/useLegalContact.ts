@@ -30,9 +30,20 @@ let fetchPromise: Promise<void> | null = null;
 export function useLegalContact() {
   if (!fetchPromise) {
     fetchPromise = fetch("/api/legal/contact")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        return res.json();
+      })
       .then((data: LegalContact) => {
-        Object.assign(contact, data);
+        Object.assign(contact, {
+          enabled: Boolean(data.enabled),
+          name: String(data.name ?? ""),
+          street: String(data.street ?? ""),
+          zip_city: String(data.zip_city ?? ""),
+          country_en: String(data.country_en ?? ""),
+          country_de: String(data.country_de ?? ""),
+          email: String(data.email ?? ""),
+        });
       })
       .catch(() => {
         fetchPromise = null; // allow retry on next call
