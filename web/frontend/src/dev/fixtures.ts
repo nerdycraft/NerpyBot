@@ -507,6 +507,23 @@ export const guild3ApplicationSubmissions: ApplicationSubmissionSchema[] = [
     ],
     votes: [{ voter_id: "333000000000000001", voter_name: "ExtAdmin", vote: "approve" }],
   },
+  {
+    id: 12,
+    form_name: "External Server Membership",
+    user_id: "222000000000000003",
+    user_name: "GhostByte",
+    status: "denied",
+    submitted_at: "2026-03-07T20:15:00Z",
+    decision_reason: "Prior conduct issues reported by other members.",
+    answers: [
+      { question_id: 10, question_text: "Where are you from?", answer_text: "EU, hardcore raider." },
+      { question_id: 11, question_text: "How did you find us?", answer_text: "Saw your recruitment post." },
+    ],
+    votes: [
+      { voter_id: "333000000000000001", voter_name: "ExtAdmin", vote: "deny" },
+      { voter_id: "333000000000000002", voter_name: "ExtMod", vote: "deny" },
+    ],
+  },
 ];
 
 export const guild3WowGuildNews: WowGuildNewsSchema[] = [

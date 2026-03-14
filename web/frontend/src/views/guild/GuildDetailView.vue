@@ -316,7 +316,8 @@ function guildIconUrl(): string | null {
       <div class="relative border-b border-border flex-shrink-0">
         <button
           :class="[
-            'w-full p-4 flex items-center gap-2.5 hover:bg-muted transition-colors text-left',
+            'w-full flex items-center hover:bg-muted transition-colors text-left',
+            sidebarOpen ? 'p-4 gap-2.5' : 'p-2 justify-center',
             { 'cursor-default': !guildId, 'ring-2 ring-inset ring-amber-500/50': supportMode },
           ]"
           @click="guildId ? (switcherOpen = !switcherOpen) : undefined"
@@ -386,11 +387,12 @@ function guildIconUrl(): string | null {
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 p-2 space-y-4 overflow-y-auto">
-        <div v-for="group in sectionGroups" :key="group.id">
-          <p v-show="sidebarOpen" :class="['px-3 pb-1 text-xs font-semibold uppercase tracking-wider', group.accentClass]">
+      <nav class="flex-1 p-2 overflow-y-auto" :class="sidebarOpen ? 'space-y-4' : 'space-y-2'">
+        <div v-for="(group, idx) in sectionGroups" :key="group.id">
+          <p v-if="sidebarOpen" :class="['px-3 pb-1 text-xs font-semibold uppercase tracking-wider', group.accentClass]">
             {{ t(group.labelKey) }}
           </p>
+          <div v-else-if="idx > 0" class="border-t border-border/60 mx-1 mb-1.5" />
           <div class="space-y-0.5">
             <button
               v-for="section in group.items"
@@ -417,16 +419,13 @@ function guildIconUrl(): string | null {
       <!-- Sidebar footer -->
       <div class="flex flex-col flex-shrink-0">
         <component :is="TestModeIndicator" v-if="TestModeIndicator && sidebarOpen" />
-        <div class="border-t border-border p-4 flex items-center gap-3">
+        <div :class="['border-t border-border flex items-center', sidebarOpen ? 'p-4 gap-3' : 'p-2 justify-center']">
         <span v-show="sidebarOpen" class="text-sm text-muted-foreground truncate flex-1">
           {{ auth.user?.username }}
         </span>
         <LanguageSwitcher v-show="sidebarOpen" />
         <button
-          :class="[
-            'p-2 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0',
-            !sidebarOpen && 'mx-auto',
-          ]"
+          class="p-2 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
           :title="t('nav.sidebar.logout')"
           :aria-label="t('nav.sidebar.logout')"
           @click="auth.clear(); router.push('/login')"
