@@ -5,9 +5,11 @@ import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { BotGuildInfo } from "@/api/types";
 import { useI18n } from "@/i18n";
+import { useAuthStore } from "@/stores/auth";
 
 const router = useRouter();
 const { t, locale } = useI18n();
+const auth = useAuthStore();
 
 const guilds = ref<BotGuildInfo[]>([]);
 const loading = ref(false);
@@ -19,7 +21,8 @@ async function fetchGuilds() {
   error.value = null;
   try {
     const res = await api.get<{ guilds: BotGuildInfo[] }>("/operator/guilds");
-    guilds.value = res.guilds;
+    const managedIds = new Set(auth.guilds.map((g) => g.id));
+    guilds.value = res.guilds.filter((g) => !managedIds.has(g.id));
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
