@@ -14,6 +14,16 @@ const router = createRouter({
       meta: { public: true },
     },
     {
+      path: "/terms",
+      component: () => import("@/views/TermsView.vue"),
+      meta: { public: true },
+    },
+    {
+      path: "/privacy",
+      component: () => import("@/views/PrivacyView.vue"),
+      meta: { public: true },
+    },
+    {
       path: "/guilds",
       component: () => import("@/views/guild/GuildDetailView.vue"),
     },

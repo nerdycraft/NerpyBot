@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute, useRouter, RouterLink } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
 import { useI18n } from "@/i18n";
@@ -127,6 +127,13 @@ function testLogin() {
         <Icon icon="mdi:flask-outline" class="w-5 h-5" aria-hidden="true" />
         Test Login
       </button>
+
+      <!-- Legal links -->
+      <p class="legal-links">
+        <RouterLink to="/terms" class="legal-link">{{ t("legal.terms") }}</RouterLink>
+        <span class="legal-sep">·</span>
+        <RouterLink to="/privacy" class="legal-link">{{ t("legal.privacy") }}</RouterLink>
+      </p>
     </div>
   </div>
 </template>
@@ -323,6 +330,23 @@ function testLogin() {
   background: hsla(38, 92%, 50%, 0.1);
   border-color: hsla(38, 92%, 50%, 0.6);
 }
+
+/* ── Legal links ── */
+.legal-links {
+  font-size: 0.75rem;
+  color: hsl(215, 20%, 42%);
+  text-align: center;
+  margin: -0.25rem 0 0;
+}
+
+.legal-link {
+  color: hsl(215, 20%, 48%);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.legal-link:hover { color: hsl(210, 40%, 75%); }
+
+.legal-sep { margin: 0 0.375rem; }
 
 /* ── Toast modal ── */
 .modal-toast {

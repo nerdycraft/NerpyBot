@@ -91,6 +91,12 @@ export const en = {
     },
   },
 
+  legal: {
+    terms: "Terms of Service",
+    privacy: "Privacy Policy",
+    back: "Back",
+  },
+
   login: {
     subtitle: "Dashboard",
     tagline: "Sign in with your Discord account to manage your servers.",

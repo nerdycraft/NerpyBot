@@ -93,6 +93,12 @@ export const de: typeof en = {
     },
   },
 
+  legal: {
+    terms: "Nutzungsbedingungen",
+    privacy: "Datenschutzerklärung",
+    back: "Zurück",
+  },
+
   login: {
     subtitle: "Dashboard",
     tagline: "Mit deinem Discord-Konto anmelden, um deine Server zu verwalten.",
