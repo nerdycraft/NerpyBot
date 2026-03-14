@@ -231,7 +231,7 @@ export const de: typeof en = {
 
     operator_guilds: {
       title: "Alle Bot-Server",
-      desc: "Jeder Server, auf dem der Bot aktuell aktiv ist. Klicke auf einen Server, um ihn im Support-Modus zu öffnen.",
+      desc: "Server, auf denen der Bot aktiv ist, für die du aber keine Verwaltungsrechte hast. Klicke auf einen Server, um ihn im Support-Modus zu öffnen.",
       loading: "Server werden geladen…",
       empty: "Keine Server gefunden.",
       count_one: "{count} Server insgesamt",

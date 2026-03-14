@@ -228,7 +228,7 @@ export const en = {
 
     operator_guilds: {
       title: "All Bot Guilds",
-      desc: "Every server the bot is currently in. Click a server to open it in support mode.",
+      desc: "Servers the bot is in where you don't have management access. Click a server to open it in support mode.",
       loading: "Loading guilds…",
       empty: "No guilds found.",
       count_one: "{count} server total",
