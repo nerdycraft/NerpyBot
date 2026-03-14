@@ -50,12 +50,15 @@ const activeSection = computed(() => toQueryScalar(route.query.tab) ?? "server-o
 const switcherOpen = ref(false);
 const LG_BREAKPOINT = 1024;
 
-// Persist sidebar state across refreshes; mobile always starts closed.
+// Persist sidebar state across refreshes; mobile always starts closed but does not
+// overwrite the stored desktop preference (guard: only write on lg+ screens).
 const sidebarOpen = ref(localStorage.getItem("sidebarOpen") !== "false");
 onMounted(() => {
   if (window.innerWidth < LG_BREAKPOINT) sidebarOpen.value = false;
 });
-watch(sidebarOpen, (v) => localStorage.setItem("sidebarOpen", String(v)));
+watch(sidebarOpen, (v) => {
+  if (window.innerWidth >= LG_BREAKPOINT) localStorage.setItem("sidebarOpen", String(v));
+});
 
 // Support mode: set by server via X-Support-Mode header on the first guild API call.
 const supportMode = ref(false);
