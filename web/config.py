@@ -51,6 +51,7 @@ class WebConfig:
     cors_origins: list[str] = field(default_factory=lambda: ["*"])
     frontend_url: str = "/"
     log_level: str = "info"
+    legal_enabled: bool = False
     legal_name: str = ""
     legal_street: str = ""
     legal_zip_city: str = ""
@@ -95,12 +96,24 @@ class WebConfig:
         cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()] if cors_origins_raw else ["*"]
         frontend_url = _get(sources, "web", "frontend_url", default="/")
         log_level = _get(sources, "web", "log_level", default="info")
-        legal_name = _get(sources, "web", "legal_name")
-        legal_street = _get(sources, "web", "legal_street")
-        legal_zip_city = _get(sources, "web", "legal_zip_city")
-        legal_country_en = _get(sources, "web", "legal_country_en")
-        legal_country_de = _get(sources, "web", "legal_country_de")
-        legal_email = _get(sources, "web", "legal_email")
+        legal_enabled = _get(sources, "web", "legal_enabled").lower() in ("true", "1", "yes")
+        if legal_enabled:
+            legal_name = _require(_get(sources, "web", "legal_name"), "web.legal_name / NERPYBOT_WEB_LEGAL_NAME")
+            legal_street = _require(
+                _get(sources, "web", "legal_street"), "web.legal_street / NERPYBOT_WEB_LEGAL_STREET"
+            )
+            legal_zip_city = _require(
+                _get(sources, "web", "legal_zip_city"), "web.legal_zip_city / NERPYBOT_WEB_LEGAL_ZIP_CITY"
+            )
+            legal_country_en = _require(
+                _get(sources, "web", "legal_country_en"), "web.legal_country_en / NERPYBOT_WEB_LEGAL_COUNTRY_EN"
+            )
+            legal_country_de = _require(
+                _get(sources, "web", "legal_country_de"), "web.legal_country_de / NERPYBOT_WEB_LEGAL_COUNTRY_DE"
+            )
+            legal_email = _require(_get(sources, "web", "legal_email"), "web.legal_email / NERPYBOT_WEB_LEGAL_EMAIL")
+        else:
+            legal_name = legal_street = legal_zip_city = legal_country_en = legal_country_de = legal_email = ""
 
         return cls(
             client_id=client_id,
@@ -114,6 +127,7 @@ class WebConfig:
             cors_origins=cors_origins,
             frontend_url=frontend_url,
             log_level=log_level,
+            legal_enabled=legal_enabled,
             legal_name=legal_name,
             legal_street=legal_street,
             legal_zip_city=legal_zip_city,
@@ -170,6 +184,7 @@ def _env_to_dict() -> dict:
         (("NERPYBOT_WEB_CORS_ORIGINS",), ("web", "cors_origins")),
         (("NERPYBOT_WEB_FRONTEND_URL",), ("web", "frontend_url")),
         (("NERPYBOT_WEB_LOG_LEVEL",), ("web", "log_level")),
+        (("NERPYBOT_WEB_LEGAL_ENABLED",), ("web", "legal_enabled")),
         (("NERPYBOT_WEB_LEGAL_NAME",), ("web", "legal_name")),
         (("NERPYBOT_WEB_LEGAL_STREET",), ("web", "legal_street")),
         (("NERPYBOT_WEB_LEGAL_ZIP_CITY",), ("web", "legal_zip_city")),

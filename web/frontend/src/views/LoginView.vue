@@ -3,6 +3,7 @@ import { Icon } from "@iconify/vue";
 import { computed, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
+import { useLegalContact } from "@/composables/useLegalContact";
 import { useI18n } from "@/i18n";
 import { useAuthStore } from "@/stores/auth";
 import { toQueryScalar } from "@/utils/route";
@@ -11,6 +12,7 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const { t } = useI18n();
+const { contact } = useLegalContact();
 
 const isTestMode = import.meta.env.VITE_TEST_MODE === "true";
 
@@ -135,7 +137,7 @@ function testLogin() {
       </button>
 
       <!-- Legal links -->
-      <p class="legal-links">
+      <p v-if="contact.enabled" class="legal-links">
         <RouterLink to="/terms" class="legal-link">{{ t("legal.terms") }}</RouterLink>
         <span class="legal-sep">·</span>
         <RouterLink to="/privacy" class="legal-link">{{ t("legal.privacy") }}</RouterLink>
