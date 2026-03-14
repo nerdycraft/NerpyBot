@@ -65,44 +65,46 @@ const probeLoading = ref(true);
 
 async function probeGuildAccess(id: string | undefined) {
   probeLoading.value = true;
-  if (!id || !auth.user?.is_operator) {
-    supportMode.value = false;
-    probeLoading.value = false;
-    return;
-  }
-  const probeId = id;
-  let newMode = false;
-  let botGuild: BotGuildInfo | null = null;
   try {
-    const { supportMode: serverMode } = await api.getWithHeaders<unknown>(`/guilds/${id}/language`);
-    newMode = serverMode;
-    if (newMode) {
-      try {
-        botGuild = await api.get<BotGuildInfo>(`/operator/guilds/${id}`);
-      } catch {
-        // non-critical — guild name may be unavailable if bot is offline
+    if (!id || !auth.user?.is_operator) {
+      supportMode.value = false;
+      return;
+    }
+    const probeId = id;
+    let newMode = false;
+    let botGuild: BotGuildInfo | null = null;
+    try {
+      const { supportMode: serverMode } = await api.getWithHeaders<unknown>(`/guilds/${id}/language`);
+      newMode = serverMode;
+      if (newMode) {
+        try {
+          botGuild = await api.get<BotGuildInfo>(`/operator/guilds/${id}`);
+        } catch {
+          // non-critical — guild name may be unavailable if bot is offline
+        }
+      }
+    } catch {
+      // network error → treat as non-support access
+    }
+    if (guildId.value === probeId) {
+      supportMode.value = newMode;
+      if (newMode && botGuild) {
+        // permission_level is hardcoded to "admin" here because effectiveLevel (in sectionGroups)
+        // always uses "admin" as the fallback when supportMode is true, making this value irrelevant.
+        // The tabs shown in support mode are governed solely by the supportMode flag, not permission_level.
+        guild.setCurrent({
+          id: botGuild.id,
+          name: botGuild.name,
+          icon: botGuild.icon,
+          permission_level: "admin",
+          bot_present: true,
+          invite_url: null,
+        });
       }
     }
-  } catch {
-    // network error → treat as non-support access
+  } finally {
+    probeLoading.value = false;
   }
-  if (guildId.value === probeId) {
-    supportMode.value = newMode;
-    if (newMode && botGuild) {
-      // permission_level is hardcoded to "admin" here because effectiveLevel (in sectionGroups)
-      // always uses "admin" as the fallback when supportMode is true, making this value irrelevant.
-      // The tabs shown in support mode are governed solely by the supportMode flag, not permission_level.
-      guild.setCurrent({
-        id: botGuild.id,
-        name: botGuild.name,
-        icon: botGuild.icon,
-        permission_level: "admin",
-        bot_present: true,
-        invite_url: null,
-      });
-    }
-  }
-  probeLoading.value = false;
 }
 
 // Reset to overview when switching guilds, clear mockup, and probe support mode
