@@ -656,7 +656,7 @@ def _submission_to_schema(s, user: dict, question_texts: dict | None = None) -> 
         user_name=_redact(s.UserName, user),
         status=s.Status.value,
         submitted_at=str(s.SubmittedAt),
-        decision_reason=s.DecisionReason,
+        decision_reason=_redact(s.DecisionReason, user),
         answers=[
             ApplicationAnswerSchema(
                 question_id=a.QuestionId,

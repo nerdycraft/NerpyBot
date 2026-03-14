@@ -26,6 +26,7 @@ import SupportTab from "./tabs/SupportTab.vue";
 import MockupToolbar from "@/components/MockupToolbar.vue";
 import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
 import { api } from "@/api/client";
+import type { BotGuildInfo } from "@/api/types";
 import { defineAsyncComponent } from "vue";
 
 const TestModeIndicator =
@@ -64,13 +65,33 @@ async function probeGuildAccess(id: string | undefined) {
   }
   const probeId = id;
   let newMode = false;
+  let botGuild: BotGuildInfo | null = null;
   try {
     const { supportMode: serverMode } = await api.getWithHeaders<unknown>(`/guilds/${id}/language`);
     newMode = serverMode;
+    if (newMode) {
+      try {
+        botGuild = await api.get<BotGuildInfo>(`/operator/guilds/${id}`);
+      } catch {
+        // non-critical — guild name may be unavailable if bot is offline
+      }
+    }
   } catch {
     // network error → treat as non-support access
   }
-  if (guildId.value === probeId) supportMode.value = newMode;
+  if (guildId.value === probeId) {
+    supportMode.value = newMode;
+    if (newMode && botGuild) {
+      guild.setCurrent({
+        id: botGuild.id,
+        name: botGuild.name,
+        icon: botGuild.icon,
+        permission_level: "admin",
+        bot_present: true,
+        invite_url: null,
+      });
+    }
+  }
 }
 
 // Reset to overview when switching guilds, clear mockup, and probe support mode
@@ -232,7 +253,7 @@ function guildIconUrl(): string | null {
 
   <div class="flex flex-col h-screen overflow-hidden">
     <!-- Mobile top bar — only visible below lg breakpoint -->
-    <div class="lg:hidden flex items-center h-12 px-4 border-b border-border flex-shrink-0 bg-card gap-3">
+    <div :class="['lg:hidden flex items-center h-12 px-4 border-b flex-shrink-0 bg-card gap-3', supportMode ? 'border-amber-500/50' : 'border-border']">
       <button
         class="text-muted-foreground hover:text-foreground transition-colors"
         :aria-label="t('nav.sidebar.open_nav')"
@@ -291,9 +312,11 @@ function guildIconUrl(): string | null {
       <!-- Guild switcher -->
       <div class="relative border-b border-border flex-shrink-0">
         <button
-          class="w-full p-4 flex items-center gap-2.5 hover:bg-muted transition-colors text-left"
+          :class="[
+            'w-full p-4 flex items-center gap-2.5 hover:bg-muted transition-colors text-left',
+            { 'cursor-default': !guildId, 'ring-2 ring-inset ring-amber-500/50': supportMode },
+          ]"
           @click="guildId ? (switcherOpen = !switcherOpen) : undefined"
-          :class="{ 'cursor-default': !guildId }"
         >
           <img
             v-if="guildId && guildIconUrl()"

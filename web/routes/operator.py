@@ -174,3 +174,19 @@ async def list_bot_guilds(
     if result is None:
         raise HTTPException(status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE, detail="Bot unreachable")
     return BotGuildListResponse(guilds=[BotGuildInfo(**g) for g in result.get("guilds", [])])
+
+
+@router.get("/guilds/{guild_id}", response_model=BotGuildInfo)
+async def get_bot_guild(
+    guild_id: str,
+    user: dict = Depends(require_operator),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """Get info for a single guild the bot is in."""
+    result = await vk.send_bot_command("list_guilds", {})
+    if result is None:
+        raise HTTPException(status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE, detail="Bot unreachable")
+    for g in result.get("guilds", []):
+        if str(g.get("id")) == guild_id:
+            return BotGuildInfo(**g)
+    raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Guild not found")
