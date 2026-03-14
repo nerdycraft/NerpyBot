@@ -48,21 +48,27 @@ const guildId = computed(() => route.params.id as string | undefined);
 
 const activeSection = computed(() => toQueryScalar(route.query.tab) ?? "server-overview");
 const switcherOpen = ref(false);
-const sidebarOpen = ref(true);
 const LG_BREAKPOINT = 1024;
 
+// Persist sidebar state across refreshes; mobile always starts closed.
+const sidebarOpen = ref(localStorage.getItem("sidebarOpen") !== "false");
 onMounted(() => {
   if (window.innerWidth < LG_BREAKPOINT) sidebarOpen.value = false;
 });
+watch(sidebarOpen, (v) => localStorage.setItem("sidebarOpen", String(v)));
 
 // Support mode: set by server via X-Support-Mode header on the first guild API call.
 const supportMode = ref(false);
+// True while probeGuildAccess is in flight — prevents activeComponent from redirecting
+// away from the active tab before we know which tabs are available in support mode.
+const probeLoading = ref(false);
 
 async function probeGuildAccess(id: string | undefined) {
   if (!id || !auth.user?.is_operator) {
     supportMode.value = false;
     return;
   }
+  probeLoading.value = true;
   const probeId = id;
   let newMode = false;
   let botGuild: BotGuildInfo | null = null;
@@ -95,6 +101,7 @@ async function probeGuildAccess(id: string | undefined) {
       });
     }
   }
+  probeLoading.value = false;
 }
 
 // Reset to overview when switching guilds, clear mockup, and probe support mode
@@ -234,6 +241,9 @@ const sectionGroups = computed(() => {
 
 const allSections = computed(() => sectionGroups.value.flatMap((g) => g.items));
 const activeComponent = computed(() => {
+  // While the support-mode probe is in flight, the visible section list is incomplete.
+  // Suppress the fallback redirect until we know the real set of available tabs.
+  if (probeLoading.value) return undefined;
   const found = allSections.value.find((s) => s.id === activeSection.value);
   if (!found && allSections.value.length > 0) {
     // Requested tab is no longer available (filtered out) — fall back silently.
