@@ -68,6 +68,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         import discord
 
         uptime_seconds = (datetime.now(UTC) - bot.uptime).total_seconds()
+        active_vcs = [vc for vc in bot.voice_clients if vc.guild and vc.channel]
         voice_details = [
             {
                 "guild_id": str(vc.guild.id),
@@ -75,8 +76,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                 "channel_id": str(vc.channel.id),
                 "channel_name": vc.channel.name,
             }
-            for vc in bot.voice_clients
-            if vc.guild and vc.channel
+            for vc in active_vcs
         ]
         active_reminders: int | None = None
         try:
@@ -91,7 +91,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             bot.log.warning("Failed to count active reminders for health response: %s", e)
         return {
             "guild_count": len(bot.guilds),
-            "voice_connections": len(bot.voice_clients),
+            "voice_connections": len(active_vcs),
             "latency_ms": round(bot.latency * 1000, 2),
             "uptime_seconds": round(uptime_seconds, 2),
             "python_version": sys.version.split()[0],
@@ -263,7 +263,13 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                 return False
 
         recipients = bot.config.get("notifications", {}).get("error_recipients", [])
-        results = await gather(*(_send_to(int(uid)) for uid in recipients))
+        valid_ids: list[int] = []
+        for uid in recipients:
+            try:
+                valid_ids.append(int(uid))
+            except (TypeError, ValueError):
+                bot.log.warning("support_message: skipping invalid recipient %r", uid)
+        results = await gather(*(_send_to(uid) for uid in valid_ids))
         return {"success": True, "sent_to": sum(results)}
     else:
         return {"error": f"Unknown command: {command}"}

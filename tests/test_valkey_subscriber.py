@@ -64,9 +64,12 @@ class TestBotCommandHandler:
         mock_bot.error_counter = MagicMock()
         mock_bot.error_counter.count.return_value = 0
 
+        mock_session = MagicMock()
+        mock_session.query.return_value.filter.return_value.count.return_value = 0
+
         @contextmanager
         def _mock_scope():
-            yield MagicMock()
+            yield mock_session
 
         mock_bot.session_scope = _mock_scope
 
@@ -76,6 +79,7 @@ class TestBotCommandHandler:
         with patch("utils.valkey._proc", mock_proc):
             result = await handle_valkey_command(mock_bot, "health", {})
 
+        assert result["active_reminders"] == 0
         assert len(result["voice_details"]) == 1
         assert result["voice_details"][0]["guild_id"] == "12345"
         assert result["voice_details"][0]["guild_name"] == "Test Guild"
@@ -91,9 +95,12 @@ class TestBotCommandHandler:
         mock_bot.error_counter = MagicMock()
         mock_bot.error_counter.count.return_value = 0
 
+        mock_session = MagicMock()
+        mock_session.query.return_value.filter.return_value.count.return_value = 0
+
         @contextmanager
         def _mock_scope():
-            yield MagicMock()
+            yield mock_session
 
         mock_bot.session_scope = _mock_scope
 

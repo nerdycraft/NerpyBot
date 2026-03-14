@@ -35,7 +35,7 @@ async function unload(name: string) {
   pendingModule.value = name;
   actionError.value = null;
   try {
-    const res = await api.post<ModuleActionResponse>(`/operator/modules/${name}/unload`, {});
+    const res = await api.post<ModuleActionResponse>(`/operator/modules/${encodeURIComponent(name)}/unload`, {});
     if (!res.success) {
       actionError.value = res.error ?? "Unload failed";
     }
@@ -53,7 +53,7 @@ async function load() {
   pendingModule.value = name;
   actionError.value = null;
   try {
-    const res = await api.post<ModuleActionResponse>(`/operator/modules/${name}/load`, {});
+    const res = await api.post<ModuleActionResponse>(`/operator/modules/${encodeURIComponent(name)}/load`, {});
     if (res.success) {
       selectedModule.value = "";
     } else {

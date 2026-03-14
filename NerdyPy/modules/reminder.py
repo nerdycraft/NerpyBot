@@ -52,7 +52,7 @@ def _format_relative(next_fire_utc: datetime, tz: ZoneInfo | None = None, lang: 
 
     display_tz = tz or UTC
     local_fire = next_fire_utc.astimezone(display_tz).date()
-    local_now = datetime.now(display_tz).date()
+    local_now = now_utc.astimezone(display_tz).date()
     day_diff = (local_fire - local_now).days
 
     if day_diff == 1:

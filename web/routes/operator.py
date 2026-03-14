@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import logging
+
+from pydantic import ValidationError
+
 from fastapi import APIRouter, Depends
 
 from fastapi import HTTPException, status as http_status
@@ -19,6 +23,22 @@ from web.schemas import (
     VoiceConnectionDetail,
 )
 from web.cache import ValkeyClient
+
+log = logging.getLogger("nerpybot")
+
+
+def _parse_voice_details(raw: list) -> list[VoiceConnectionDetail]:
+    result = []
+    for d in raw:
+        if not isinstance(d, dict):
+            log.warning("health: unexpected voice_details entry type %s, skipping", type(d).__name__)
+            continue
+        try:
+            result.append(VoiceConnectionDetail(**d))
+        except (ValidationError, TypeError) as exc:
+            log.warning("health: malformed voice_details entry %r: %s", d, exc)
+    return result
+
 
 router = APIRouter(prefix="/operator", tags=["operator"])
 
@@ -102,7 +122,7 @@ async def health(
         python_version=result.get("python_version"),
         discord_py_version=result.get("discord_py_version"),
         bot_version=result.get("bot_version"),
-        voice_details=[VoiceConnectionDetail(**d) for d in result.get("voice_details", [])],
+        voice_details=_parse_voice_details(result.get("voice_details", [])),
     )
 
 
