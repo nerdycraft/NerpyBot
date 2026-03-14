@@ -364,6 +364,7 @@ export const guild2ApplicationSubmissions: ApplicationSubmissionSchema[] = [];
 export const guild2WowGuildNews: WowGuildNewsSchema[] = [];
 
 // ── Guild 3: External Server — support mode guild ────────────────────────────
+// All data here is read-only in test mode (writes are denied with 403).
 
 const GUILD3 = "999000000000000003";
 
@@ -373,6 +374,57 @@ export const guild3Info: BotGuildInfo = {
   icon: null,
   member_count: 412,
 };
+
+export const guild3Language: LanguageConfig = { guild_id: GUILD3, language: "en" };
+
+export const guild3ModRoles: ModeratorRole[] = [
+  { guild_id: GUILD3, role_id: "700000000000000001" },
+];
+
+export const guild3LeaveMessages: LeaveMessageConfig = {
+  guild_id: GUILD3,
+  channel_id: "800000000000000001",
+  message: "Goodbye {user}!",
+  enabled: true,
+};
+
+export const guild3AutoDelete: AutoDeleteRule[] = [
+  {
+    id: 10,
+    guild_id: GUILD3,
+    channel_id: "800000000000000004",
+    keep_messages: 200,
+    delete_older_than: 14,
+    delete_pinned: false,
+    enabled: true,
+  },
+];
+
+export const guild3AutoKicker: AutoKickerConfig = {
+  guild_id: GUILD3,
+  kick_after: 14,
+  enabled: true,
+  reminder_message: "Please verify your account!",
+};
+
+export const guild3Reminders: ReminderSchema[] = [
+  {
+    id: 10,
+    channel_id: "800000000000000004",
+    channel_name: "announcements",
+    author: "ExternalAdmin",
+    message: "Weekly meeting tonight at 19:00!",
+    enabled: true,
+    schedule_type: "weekly",
+    next_fire: "2026-03-16T17:00:00Z",
+    count: 8,
+    schedule_time: "17:00",
+    schedule_day_of_week: 0,
+    timezone: "UTC",
+    interval_seconds: null,
+    schedule_day_of_month: null,
+  },
+];
 
 // ── Operator data ────────────────────────────────────────────────────────────
 

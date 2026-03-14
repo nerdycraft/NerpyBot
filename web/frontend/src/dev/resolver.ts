@@ -37,6 +37,12 @@ import {
   guild2ApplicationSubmissions,
   guild2WowGuildNews,
   guild3Info,
+  guild3Language,
+  guild3ModRoles,
+  guild3LeaveMessages,
+  guild3AutoDelete,
+  guild3AutoKicker,
+  guild3Reminders,
   operatorHealth,
   operatorModules,
   operatorBotGuilds,
@@ -85,6 +91,24 @@ const stores: Record<string, Record<string, unknown>> = {
     autoKicker: { ...guild2AutoKicker },
     language: { ...guild2Language },
   },
+  // Support-mode guild — data is readable but writes are denied at resolver level
+  "999000000000000003": {
+    modRoles: [...guild3ModRoles],
+    autoDelete: [...guild3AutoDelete],
+    reminders: [...guild3Reminders],
+    reactionRoles: [],
+    roleMappings: [],
+    applicationForms: [],
+    applicationTemplates: [],
+    applicationSubmissions: [],
+    wowGuildNews: [],
+    craftingBoard: null,
+    craftingMappings: [],
+    craftingOrders: [],
+    leaveMessages: { ...guild3LeaveMessages },
+    autoKicker: { ...guild3AutoKicker },
+    language: { ...guild3Language },
+  },
 };
 
 let mutablePremiumUsers = [...operatorPremiumUsers];
@@ -132,10 +156,6 @@ const routes: Route[] = [
   },
 
   // ── Language ──────────────────────────────────────────────────────────────
-  {
-    pattern: /^\/guilds\/(999000000000000003)\/language$/,
-    handler: () => ok({ guild_id: "999000000000000003", language: "en" }, true),
-  },
   {
     pattern: /^\/guilds\/(\d+)\/language$/,
     handler: (_m, [, guildId], body) => {
@@ -411,10 +431,6 @@ const routes: Route[] = [
 
   // ── WoW (shared endpoint — returns both guild_news and crafting_boards) ───
   {
-    pattern: /^\/guilds\/(999000000000000003)\/wow$/,
-    handler: () => ok({ guild_news: [], crafting_boards: [] }, true),
-  },
-  {
     pattern: /^\/guilds\/(\d+)\/wow$/,
     handler: (_m, [, guildId]) => {
       const news = guildStore(guildId, "wowGuildNews");
@@ -539,6 +555,8 @@ const routes: Route[] = [
 
 // ── Public resolver ───────────────────────────────────────────────────────────
 
+const SUPPORT_GUILD_ID = "999000000000000003";
+
 export async function resolveTestRequest(
   method: string,
   path: string,
@@ -546,10 +564,19 @@ export async function resolveTestRequest(
 ): Promise<{ data: unknown; supportMode: boolean }> {
   // Strip query string before matching
   const pathOnly = path.split("?")[0]!;
+  const isSupport = pathOnly.includes(SUPPORT_GUILD_ID);
+
+  // Deny all writes to the support-mode guild (mirrors backend 403 behaviour)
+  if (isSupport && method !== "GET") {
+    throw Object.assign(new Error("Support mode — write access denied"), { status: 403 });
+  }
+
   for (const route of routes) {
     const match = pathOnly.match(route.pattern);
     if (match) {
-      return route.handler(method, match as unknown as Caps, body);
+      const result = route.handler(method, match as unknown as Caps, body);
+      // Elevate supportMode flag for every response from the support guild
+      return isSupport ? { ...result, supportMode: true } : result;
     }
   }
   // Unmatched path: return empty success
