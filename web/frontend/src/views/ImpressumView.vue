@@ -14,7 +14,7 @@ const { contact } = useLegalContact();
     :show-meta="false"
     :footer-links="[{ to: '/terms', text: t('legal.terms') }, { to: '/privacy', text: t('legal.privacy') }]"
   >
-    <template v-if="contact.name">
+    <template v-if="contact.enabled">
       <section>
         <h2>{{ t('legal.impressum_page.legal_info_title') }}</h2>
         <p>

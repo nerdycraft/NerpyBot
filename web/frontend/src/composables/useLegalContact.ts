@@ -25,18 +25,17 @@ const contact = reactive<LegalContact>({
   email: "",
 });
 
-let fetched = false;
+let fetchPromise: Promise<void> | null = null;
 
 export function useLegalContact() {
-  if (!fetched) {
-    fetch("/api/legal/contact")
+  if (!fetchPromise) {
+    fetchPromise = fetch("/api/legal/contact")
       .then((res) => res.json())
       .then((data: LegalContact) => {
-        fetched = true;
         Object.assign(contact, data);
       })
       .catch(() => {
-        // leave empty strings — page renders without contact data
+        fetchPromise = null; // allow retry on next call
       });
   }
   return { contact };

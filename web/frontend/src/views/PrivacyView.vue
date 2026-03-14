@@ -13,7 +13,7 @@ const { contact } = useLegalContact();
     :back-text="t('legal.back')"
     :footer-links="[{ to: '/terms', text: t('legal.terms') }, { to: '/impressum', text: t('legal.impressum') }]"
   >
-    <div v-if="contact.name" class="controller-block">
+    <div v-if="contact.enabled" class="controller-block">
       <p class="controller-label">{{ t('legal.privacy_page.controller_label') }}</p>
       <p>
         {{ contact.name }}<br>
