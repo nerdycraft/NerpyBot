@@ -84,9 +84,11 @@ Use this when a critical bug needs fixing against an already-released version.
    git checkout -b hotfix/1.2.4 v1.2.3
    ```
 
-2. Apply the fix, commit, and tag a patch release:
+2. Apply the fix, commit, then tag the patch release:
 
    ```bash
+   git add <changed-files>
+   git commit -m "fix: <hotfix summary>"
    git tag -a v1.2.4 -m "Hotfix v1.2.4"
    git push origin hotfix/1.2.4 v1.2.4
    ```
