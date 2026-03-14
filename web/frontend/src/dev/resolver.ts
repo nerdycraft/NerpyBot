@@ -61,6 +61,7 @@ const stores: Record<string, Record<string, unknown>> = {
     applicationTemplates: [...guild1ApplicationTemplates],
     applicationSubmissions: [...guild1ApplicationSubmissions],
     wowGuildNews: [...guild1WowGuildNews],
+    craftingBoard: { ...guild1CraftingBoard },
     craftingMappings: [...guild1CraftingMappings],
     craftingOrders: [...guild1CraftingOrders],
     leaveMessages: { ...guild1LeaveMessages },
@@ -77,6 +78,7 @@ const stores: Record<string, Record<string, unknown>> = {
     applicationTemplates: [...guild2ApplicationTemplates],
     applicationSubmissions: [...guild2ApplicationSubmissions],
     wowGuildNews: [...guild2WowGuildNews],
+    craftingBoard: null,
     craftingMappings: [],
     craftingOrders: [],
     leaveMessages: { ...guild2LeaveMessages },
@@ -120,6 +122,11 @@ const routes: Route[] = [
     handler: (_m, _g) => ok(CHANNELS),
   },
   {
+    pattern: /^\/guilds\/(\d+)\/discord\/roles$/,
+    handler: (_m, _g) => ok({ roles: ROLES }),
+  },
+  // Legacy /roles path (used by some tabs)
+  {
     pattern: /^\/guilds\/(\d+)\/roles$/,
     handler: (_m, _g) => ok(ROLES),
   },
@@ -142,7 +149,7 @@ const routes: Route[] = [
 
   // ── Moderator roles ───────────────────────────────────────────────────────
   {
-    pattern: /^\/guilds\/(\d+)\/modRoles$/,
+    pattern: /^\/guilds\/(\d+)\/moderator-roles$/,
     handler: (_m, [, guildId], body) => {
       if (_m === "POST" && body) {
         const roles = guildStore(guildId, "modRoles") as { guild_id: string; role_id: string }[];
@@ -152,7 +159,7 @@ const routes: Route[] = [
     },
   },
   {
-    pattern: /^\/guilds\/(\d+)\/modRoles\/(.+)$/,
+    pattern: /^\/guilds\/(\d+)\/moderator-roles\/(.+)$/,
     handler: (_m, [, guildId, roleId]) => {
       if (_m === "DELETE") {
         const roles = guildStore(guildId, "modRoles") as { role_id: string }[];
@@ -164,7 +171,7 @@ const routes: Route[] = [
 
   // ── Leave messages ────────────────────────────────────────────────────────
   {
-    pattern: /^\/guilds\/(\d+)\/leaveMessages$/,
+    pattern: /^\/guilds\/(\d+)\/leave-messages$/,
     handler: (_m, [, guildId], body) => {
       if ((_m === "PUT" || _m === "PATCH") && body) {
         const s = stores[guildId]!;
@@ -176,7 +183,7 @@ const routes: Route[] = [
 
   // ── Auto delete ───────────────────────────────────────────────────────────
   {
-    pattern: /^\/guilds\/(\d+)\/autoDelete$/,
+    pattern: /^\/guilds\/(\d+)\/auto-delete$/,
     handler: (_m, [, guildId], body) => {
       if (_m === "POST" && body) {
         const rules = guildStore(guildId, "autoDelete") as unknown[];
@@ -186,7 +193,7 @@ const routes: Route[] = [
     },
   },
   {
-    pattern: /^\/guilds\/(\d+)\/autoDelete\/(\d+)$/,
+    pattern: /^\/guilds\/(\d+)\/auto-delete\/(\d+)$/,
     handler: (_m, [, guildId, ruleId], body) => {
       if (_m === "PATCH" && body) {
         const rules = guildStore(guildId, "autoDelete") as { id: number }[];
@@ -204,7 +211,7 @@ const routes: Route[] = [
 
   // ── Auto kicker ───────────────────────────────────────────────────────────
   {
-    pattern: /^\/guilds\/(\d+)\/autoKicker$/,
+    pattern: /^\/guilds\/(\d+)\/auto-kicker$/,
     handler: (_m, [, guildId], body) => {
       if ((_m === "PUT" || _m === "PATCH") && body) {
         const s = stores[guildId]!;
@@ -252,13 +259,13 @@ const routes: Route[] = [
 
   // ── Reaction roles ────────────────────────────────────────────────────────
   {
-    pattern: /^\/guilds\/(\d+)\/reactionRoles$/,
+    pattern: /^\/guilds\/(\d+)\/reaction-roles$/,
     handler: (_m, [, guildId]) => ok(guildStore(guildId, "reactionRoles")),
   },
 
   // ── Role mappings ─────────────────────────────────────────────────────────
   {
-    pattern: /^\/guilds\/(\d+)\/roleMappings$/,
+    pattern: /^\/guilds\/(\d+)\/role-mappings$/,
     handler: (_m, [, guildId], body) => {
       if (_m === "POST" && body) {
         const mappings = guildStore(guildId, "roleMappings") as unknown[];
@@ -268,7 +275,7 @@ const routes: Route[] = [
     },
   },
   {
-    pattern: /^\/guilds\/(\d+)\/roleMappings\/(\d+)$/,
+    pattern: /^\/guilds\/(\d+)\/role-mappings\/(\d+)$/,
     handler: (_m, [, guildId, mapId]) => {
       if (_m === "DELETE") {
         stores[guildId]!["roleMappings"] = (guildStore(guildId, "roleMappings") as { id: number }[]).filter(
@@ -281,7 +288,7 @@ const routes: Route[] = [
 
   // ── Application forms ─────────────────────────────────────────────────────
   {
-    pattern: /^\/guilds\/(\d+)\/applicationForms$/,
+    pattern: /^\/guilds\/(\d+)\/application-forms$/,
     handler: (_m, [, guildId], body) => {
       if (_m === "POST" && body) {
         const forms = guildStore(guildId, "applicationForms") as unknown[];
@@ -291,7 +298,7 @@ const routes: Route[] = [
     },
   },
   {
-    pattern: /^\/guilds\/(\d+)\/applicationForms\/(\d+)\/questions$/,
+    pattern: /^\/guilds\/(\d+)\/application-forms\/(\d+)\/questions$/,
     handler: (_m, [, guildId, formId], body) => {
       const forms = guildStore(guildId, "applicationForms") as { id: number; questions: unknown[] }[];
       const form = forms.find((f) => f.id === Number(formId));
@@ -302,7 +309,7 @@ const routes: Route[] = [
     },
   },
   {
-    pattern: /^\/guilds\/(\d+)\/applicationForms\/(\d+)\/questions\/(\d+)$/,
+    pattern: /^\/guilds\/(\d+)\/application-forms\/(\d+)\/questions\/(\d+)$/,
     handler: (_m, [, guildId, formId, qId], body) => {
       const forms = guildStore(guildId, "applicationForms") as { id: number; questions: { id: number }[] }[];
       const form = forms.find((f) => f.id === Number(formId));
@@ -317,7 +324,7 @@ const routes: Route[] = [
     },
   },
   {
-    pattern: /^\/guilds\/(\d+)\/applicationForms\/(\d+)$/,
+    pattern: /^\/guilds\/(\d+)\/application-forms\/(\d+)$/,
     handler: (_m, [, guildId, formId], body) => {
       const forms = guildStore(guildId, "applicationForms") as { id: number }[];
       if (_m === "PATCH" && body) {
@@ -333,7 +340,7 @@ const routes: Route[] = [
 
   // ── Application templates ─────────────────────────────────────────────────
   {
-    pattern: /^\/guilds\/(\d+)\/applicationTemplates$/,
+    pattern: /^\/guilds\/(\d+)\/application-templates$/,
     handler: (_m, [, guildId], body) => {
       if (_m === "POST" && body) {
         const templates = guildStore(guildId, "applicationTemplates") as unknown[];
@@ -343,7 +350,33 @@ const routes: Route[] = [
     },
   },
   {
-    pattern: /^\/guilds\/(\d+)\/applicationTemplates\/(\d+)$/,
+    pattern: /^\/guilds\/(\d+)\/application-templates\/(\d+)\/questions$/,
+    handler: (_m, [, guildId, tplId], body) => {
+      const templates = guildStore(guildId, "applicationTemplates") as { id: number; questions: unknown[] }[];
+      const tpl = templates.find((t) => t.id === Number(tplId));
+      if (_m === "POST" && body && tpl) {
+        tpl.questions.push({ id: nextId(), sort_order: tpl.questions.length + 1, ...(body as object) });
+      }
+      return ok(tpl?.questions ?? []);
+    },
+  },
+  {
+    pattern: /^\/guilds\/(\d+)\/application-templates\/(\d+)\/questions\/(\d+)$/,
+    handler: (_m, [, guildId, tplId, qId], body) => {
+      const templates = guildStore(guildId, "applicationTemplates") as { id: number; questions: { id: number }[] }[];
+      const tpl = templates.find((t) => t.id === Number(tplId));
+      if (_m === "DELETE" && tpl) {
+        tpl.questions = tpl.questions.filter((q) => q.id !== Number(qId));
+      }
+      if (_m === "PATCH" && body && tpl) {
+        const idx = tpl.questions.findIndex((q) => q.id === Number(qId));
+        if (idx >= 0) tpl.questions[idx] = { ...tpl.questions[idx]!, ...(body as object) };
+      }
+      return ok(undefined);
+    },
+  },
+  {
+    pattern: /^\/guilds\/(\d+)\/application-templates\/(\d+)$/,
     handler: (_m, [, guildId, tplId], body) => {
       const templates = guildStore(guildId, "applicationTemplates") as { id: number }[];
       if (_m === "PATCH" && body) {
@@ -359,11 +392,11 @@ const routes: Route[] = [
 
   // ── Application submissions ───────────────────────────────────────────────
   {
-    pattern: /^\/guilds\/(\d+)\/applicationSubmissions$/,
+    pattern: /^\/guilds\/(\d+)\/application-submissions$/,
     handler: (_m, [, guildId]) => ok(guildStore(guildId, "applicationSubmissions")),
   },
   {
-    pattern: /^\/guilds\/(\d+)\/applicationSubmissions\/(\d+)\/decide$/,
+    pattern: /^\/guilds\/(\d+)\/application-submissions\/(\d+)\/decide$/,
     handler: (_m, [, guildId, subId], body) => {
       const subs = guildStore(guildId, "applicationSubmissions") as { id: number; status: string; decision_reason: string | null }[];
       const sub = subs.find((s) => s.id === Number(subId));
@@ -376,9 +409,26 @@ const routes: Route[] = [
     },
   },
 
-  // ── WoW guild news ────────────────────────────────────────────────────────
+  // ── WoW (shared endpoint — returns both guild_news and crafting_boards) ───
   {
-    pattern: /^\/guilds\/(\d+)\/wowGuildNews$/,
+    pattern: /^\/guilds\/(999000000000000003)\/wow$/,
+    handler: () => ok({ guild_news: [], crafting_boards: [] }, true),
+  },
+  {
+    pattern: /^\/guilds\/(\d+)\/wow$/,
+    handler: (_m, [, guildId]) => {
+      const news = guildStore(guildId, "wowGuildNews");
+      const board = stores[guildId]?.["craftingBoard"];
+      return ok({
+        guild_news: news,
+        crafting_boards: board ? [board] : [],
+      });
+    },
+  },
+
+  // ── WoW guild news configs ────────────────────────────────────────────────
+  {
+    pattern: /^\/guilds\/(\d+)\/wow\/news-configs$/,
     handler: (_m, [, guildId], body) => {
       if (_m === "POST" && body) {
         const trackers = guildStore(guildId, "wowGuildNews") as unknown[];
@@ -388,7 +438,11 @@ const routes: Route[] = [
     },
   },
   {
-    pattern: /^\/guilds\/(\d+)\/wowGuildNews\/(\d+)$/,
+    pattern: /^\/guilds\/(\d+)\/wow\/news-configs\/(\d+)\/roster$/,
+    handler: () => ok([]),
+  },
+  {
+    pattern: /^\/guilds\/(\d+)\/wow\/news-configs\/(\d+)$/,
     handler: (_m, [, guildId, newsId], body) => {
       const trackers = guildStore(guildId, "wowGuildNews") as { id: number }[];
       if (_m === "PATCH" && body) {
@@ -404,14 +458,7 @@ const routes: Route[] = [
 
   // ── WoW crafting ──────────────────────────────────────────────────────────
   {
-    pattern: /^\/guilds\/(\d+)\/wowCrafting\/board$/,
-    handler: (_m, [, guildId]) => {
-      if (guildId === "999000000000000001") return ok(guild1CraftingBoard);
-      return ok(null);
-    },
-  },
-  {
-    pattern: /^\/guilds\/(\d+)\/wowCrafting\/roleMappings$/,
+    pattern: /^\/guilds\/(\d+)\/wow\/crafting-role-mappings$/,
     handler: (_m, [, guildId], body) => {
       if (_m === "POST" && body) {
         const mappings = guildStore(guildId, "craftingMappings") as unknown[];
@@ -421,8 +468,13 @@ const routes: Route[] = [
     },
   },
   {
-    pattern: /^\/guilds\/(\d+)\/wowCrafting\/roleMappings\/(\d+)$/,
-    handler: (_m, [, guildId, mapId]) => {
+    pattern: /^\/guilds\/(\d+)\/wow\/crafting-role-mappings\/(\d+)$/,
+    handler: (_m, [, guildId, mapId], body) => {
+      if (_m === "PUT" && body) {
+        const mappings = guildStore(guildId, "craftingMappings") as { id: number }[];
+        const idx = mappings.findIndex((m) => m.id === Number(mapId));
+        if (idx >= 0) mappings[idx] = { ...mappings[idx]!, ...(body as object) };
+      }
       if (_m === "DELETE") {
         stores[guildId]!["craftingMappings"] = (guildStore(guildId, "craftingMappings") as { id: number }[]).filter(
           (m) => m.id !== Number(mapId),
@@ -432,7 +484,7 @@ const routes: Route[] = [
     },
   },
   {
-    pattern: /^\/guilds\/(\d+)\/wowCrafting\/orders$/,
+    pattern: /^\/guilds\/(\d+)\/wow\/crafting-orders$/,
     handler: (_m, [, guildId]) => ok(guildStore(guildId, "craftingOrders")),
   },
 
@@ -446,7 +498,7 @@ const routes: Route[] = [
     handler: () => ok(operatorModules),
   },
   {
-    pattern: /^\/operator\/modules\/[^/]+$/,
+    pattern: /^\/operator\/modules\/[^/]+\/(load|unload)$/,
     handler: (_m, _g, body) => ok({ ...(body as object), success: true, error: null }),
   },
   {
@@ -458,7 +510,7 @@ const routes: Route[] = [
     handler: () => ok(guild3Info, false),
   },
   {
-    pattern: /^\/operator\/premium$/,
+    pattern: /^\/operator\/premium-users$/,
     handler: (_m, _g, body) => {
       if (_m === "POST" && body) {
         mutablePremiumUsers.push({
@@ -471,7 +523,7 @@ const routes: Route[] = [
     },
   },
   {
-    pattern: /^\/operator\/premium\/(.+)$/,
+    pattern: /^\/operator\/premium-users\/(.+)$/,
     handler: (_m, [, userId]) => {
       if (_m === "DELETE") {
         mutablePremiumUsers = mutablePremiumUsers.filter((u) => u.user_id !== userId);
@@ -492,8 +544,10 @@ export async function resolveTestRequest(
   path: string,
   body?: unknown,
 ): Promise<{ data: unknown; supportMode: boolean }> {
+  // Strip query string before matching
+  const pathOnly = path.split("?")[0]!;
   for (const route of routes) {
-    const match = path.match(route.pattern);
+    const match = pathOnly.match(route.pattern);
     if (match) {
       return route.handler(method, match as unknown as Caps, body);
     }
