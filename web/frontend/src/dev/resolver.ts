@@ -50,7 +50,7 @@ function nextId(): number {
   return ++_nextId;
 }
 
-const stores: Record<string, Record<string, unknown[]>> = {
+const stores: Record<string, Record<string, unknown>> = {
   "999000000000000001": {
     modRoles: [...guild1ModRoles],
     autoDelete: [...guild1AutoDelete],
@@ -63,6 +63,9 @@ const stores: Record<string, Record<string, unknown[]>> = {
     wowGuildNews: [...guild1WowGuildNews],
     craftingMappings: [...guild1CraftingMappings],
     craftingOrders: [...guild1CraftingOrders],
+    leaveMessages: { ...guild1LeaveMessages },
+    autoKicker: { ...guild1AutoKicker },
+    language: { ...guild1Language },
   },
   "999000000000000002": {
     modRoles: [...guild2ModRoles],
@@ -76,22 +79,10 @@ const stores: Record<string, Record<string, unknown[]>> = {
     wowGuildNews: [...guild2WowGuildNews],
     craftingMappings: [],
     craftingOrders: [],
+    leaveMessages: { ...guild2LeaveMessages },
+    autoKicker: { ...guild2AutoKicker },
+    language: { ...guild2Language },
   },
-};
-
-const mutableLeaveMessages: Record<string, unknown> = {
-  "999000000000000001": { ...guild1LeaveMessages },
-  "999000000000000002": { ...guild2LeaveMessages },
-};
-
-const mutableAutoKicker: Record<string, unknown> = {
-  "999000000000000001": { ...guild1AutoKicker },
-  "999000000000000002": { ...guild2AutoKicker },
-};
-
-const mutableLanguage: Record<string, unknown> = {
-  "999000000000000001": { ...guild1Language },
-  "999000000000000002": { ...guild2Language },
 };
 
 let mutablePremiumUsers = [...operatorPremiumUsers];
@@ -142,10 +133,10 @@ const routes: Route[] = [
     pattern: /^\/guilds\/(\d+)\/language$/,
     handler: (_m, [, guildId], body) => {
       if (_m === "PUT" && body) {
-        const current = mutableLanguage[guildId] as Record<string, unknown>;
-        mutableLanguage[guildId] = { ...current, ...(body as object) };
+        const s = stores[guildId]!;
+        s["language"] = { ...(s["language"] as object), ...(body as object) };
       }
-      return ok(mutableLanguage[guildId]);
+      return ok(stores[guildId]?.["language"]);
     },
   },
 
@@ -176,10 +167,10 @@ const routes: Route[] = [
     pattern: /^\/guilds\/(\d+)\/leaveMessages$/,
     handler: (_m, [, guildId], body) => {
       if ((_m === "PUT" || _m === "PATCH") && body) {
-        const current = mutableLeaveMessages[guildId] as Record<string, unknown>;
-        mutableLeaveMessages[guildId] = { ...current, ...(body as object) };
+        const s = stores[guildId]!;
+        s["leaveMessages"] = { ...(s["leaveMessages"] as object), ...(body as object) };
       }
-      return ok(mutableLeaveMessages[guildId]);
+      return ok(stores[guildId]?.["leaveMessages"]);
     },
   },
 
@@ -216,10 +207,10 @@ const routes: Route[] = [
     pattern: /^\/guilds\/(\d+)\/autoKicker$/,
     handler: (_m, [, guildId], body) => {
       if ((_m === "PUT" || _m === "PATCH") && body) {
-        const current = mutableAutoKicker[guildId] as Record<string, unknown>;
-        mutableAutoKicker[guildId] = { ...current, ...(body as object) };
+        const s = stores[guildId]!;
+        s["autoKicker"] = { ...(s["autoKicker"] as object), ...(body as object) };
       }
-      return ok(mutableAutoKicker[guildId]);
+      return ok(stores[guildId]?.["autoKicker"]);
     },
   },
 

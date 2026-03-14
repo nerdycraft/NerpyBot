@@ -14,13 +14,14 @@ if TYPE_CHECKING:
     from web.config import WebConfig
     from web.cache import ValkeyClient
 
+_TEST_MODE: bool = bool(os.environ.get("NERPYBOT_TEST_MODE"))
 _TEST_USER_ID = "999000000000000000"
 _TEST_GUILD_IDS = {"999000000000000001", "999000000000000002", "999000000000000004"}
 _TEST_SUPPORT_GUILD_ID = "999000000000000003"
 
 
 def _is_test_user(user: dict) -> bool:
-    return bool(os.environ.get("NERPYBOT_TEST_MODE")) and user.get("sub") == _TEST_USER_ID
+    return _TEST_MODE and user.get("sub") == _TEST_USER_ID
 
 
 security = HTTPBearer(auto_error=False)

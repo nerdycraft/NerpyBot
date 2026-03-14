@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import secrets
 
 import httpx
@@ -16,14 +15,12 @@ from web.auth.oauth2 import build_authorize_url, exchange_code, fetch_discord_us
 from web.auth.permissions import resolve_guild_permissions
 from web.cache import PERM_CACHE_TTL, ValkeyClient
 from web.config import WebConfig
-from web.dependencies import get_config, get_current_user, get_db_session, get_valkey
+from web.dependencies import _TEST_MODE, _TEST_USER_ID, get_config, get_current_user, get_db_session, get_valkey
 from web.schemas import GuildSummary, UserInfo
 
 _log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-_TEST_USER_ID = "999000000000000000"
 _TEST_GUILDS = [
     GuildSummary(
         id="999000000000000001",
@@ -64,7 +61,7 @@ async def test_login(config: WebConfig = Depends(get_config)):
     the same way the real OAuth callback does, so the frontend token-handling
     code is exercised identically.
     """
-    if not os.environ.get("NERPYBOT_TEST_MODE"):
+    if not _TEST_MODE:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     token = create_access_token(
         user_id=_TEST_USER_ID,
@@ -153,7 +150,7 @@ async def me(
     """Return the current user's profile and accessible guilds."""
     user_id = user["sub"]
 
-    if os.environ.get("NERPYBOT_TEST_MODE") and user_id == _TEST_USER_ID:
+    if _TEST_MODE and user_id == _TEST_USER_ID:
         return UserInfo(
             id=_TEST_USER_ID,
             username="TestOperator",

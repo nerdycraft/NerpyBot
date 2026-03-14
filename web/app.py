@@ -29,10 +29,10 @@ def create_app(
     1. Explicit ``config`` parameter (used by tests)
     2. Load from ``config_path`` (or ``./config.yaml`` if None) + env var overlay
     """
-    from web.config import WebConfig
-    from web.dependencies import get_config, get_db_session, get_valkey
-    from web.routes import auth, guilds, health, operator, support, wow
     from web.cache import ValkeyClient
+    from web.config import WebConfig
+    from web.dependencies import _TEST_MODE, get_config, get_db_session, get_valkey
+    from web.routes import auth, guilds, health, operator, support, wow
 
     if config is None:
         config = WebConfig.load(config_path)
@@ -54,9 +54,7 @@ def create_app(
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
 
     if valkey_client is None:
-        import os
-
-        if os.environ.get("NERPYBOT_TEST_MODE"):
+        if _TEST_MODE:
             valkey_client = ValkeyClient.create_fake()
         else:
             valkey_client = ValkeyClient.create(config.valkey_url)
