@@ -97,6 +97,7 @@ export const de: typeof en = {
     terms: "Nutzungsbedingungen",
     privacy: "Datenschutzerklärung",
     back: "Zurück",
+    last_updated: "Zuletzt aktualisiert: März 2026",
   },
 
   login: {

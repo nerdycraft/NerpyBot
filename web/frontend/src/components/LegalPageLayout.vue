@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { RouterLink } from "vue-router";
 import { Icon } from "@iconify/vue";
+import { useI18n } from "@/i18n";
+import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
 
 defineProps<{
   title: string;
@@ -8,6 +10,8 @@ defineProps<{
   footerLinkTo: string;
   footerLinkText: string;
 }>();
+
+const { t } = useI18n();
 </script>
 
 <template>
@@ -15,13 +19,17 @@ defineProps<{
 
   <div class="min-h-screen relative z-10 px-4 py-12">
     <div class="legal-card">
+      <div class="absolute top-4 right-4">
+        <LanguageSwitcher />
+      </div>
+
       <RouterLink to="/login" class="back-link">
         <Icon icon="mdi:arrow-left" class="w-4 h-4" />
         {{ backText }}
       </RouterLink>
 
       <h1 class="legal-title">{{ title }}</h1>
-      <p class="legal-meta">Last updated: March 2026</p>
+      <p class="legal-meta">{{ t("legal.last_updated") }}</p>
 
       <slot />
 
@@ -41,6 +49,7 @@ defineProps<{
 }
 
 .legal-card {
+  position: relative;
   max-width: 720px;
   margin: 0 auto;
   background: rgba(10, 14, 28, 0.72);

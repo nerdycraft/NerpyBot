@@ -95,6 +95,7 @@ export const en = {
     terms: "Terms of Service",
     privacy: "Privacy Policy",
     back: "Back",
+    last_updated: "Last updated: March 2026",
   },
 
   login: {
