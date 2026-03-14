@@ -82,6 +82,9 @@ async function probeGuildAccess(id: string | undefined) {
   if (guildId.value === probeId) {
     supportMode.value = newMode;
     if (newMode && botGuild) {
+      // permission_level is hardcoded to "admin" here because effectiveLevel (in sectionGroups)
+      // always uses "admin" as the fallback when supportMode is true, making this value irrelevant.
+      // The tabs shown in support mode are governed solely by the supportMode flag, not permission_level.
       guild.setCurrent({
         id: botGuild.id,
         name: botGuild.name,
