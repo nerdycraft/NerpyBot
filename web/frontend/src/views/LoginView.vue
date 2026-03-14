@@ -1,16 +1,22 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
+import { useI18n } from "@/i18n";
+import { toQueryScalar } from "@/utils/route";
+import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const { t } = useI18n();
 
-const isPremiumRequired = computed(() => route.query.error === "premium_required");
-const isSessionExpired = computed(() => route.query.error === "session_expired");
-const showExpiredModal = ref(isSessionExpired.value);
+const errorParam = computed(() => toQueryScalar(route.query.error));
+const isPremiumRequired = computed(() => errorParam.value === "premium_required");
+const isSessionExpired = computed(() => errorParam.value === "session_expired");
+const showExpiredModal = ref(false);
+watch(isSessionExpired, (v) => { showExpiredModal.value = v; }, { immediate: true });
 
 function login() {
   // If the user already has a valid (non-expired) JWT, skip Discord OAuth and
@@ -43,15 +49,17 @@ function login() {
         <Icon icon="mdi:clock-alert-outline" class="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
         <div class="flex-1 min-w-0">
           <p class="text-sm font-medium">
-            <template v-if="auth.user?.username">Hey {{ auth.user.username }}, your</template>
-            <template v-else>Your</template>
-            session has expired.
+            {{
+              auth.user?.username
+                ? t("login.session_expired_with_user", { username: auth.user.username })
+                : t("login.session_expired")
+            }}
           </p>
-          <p class="text-xs text-muted-foreground mt-0.5">Please log in again to continue.</p>
+          <p class="text-xs text-muted-foreground mt-0.5">{{ t("login.session_expired_hint") }}</p>
         </div>
         <button
           class="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
-          aria-label="Dismiss"
+          :aria-label="t('login.dismiss')"
           @click="showExpiredModal = false"
         >
           <Icon icon="mdi:close" class="w-4 h-4" />
@@ -63,6 +71,11 @@ function login() {
   <!-- Login card -->
   <div class="min-h-screen flex items-center justify-center relative z-10 px-4">
     <div class="login-card">
+      <!-- Language switcher -->
+      <div class="absolute top-4 right-4">
+        <LanguageSwitcher />
+      </div>
+
       <!-- Robot logo -->
       <div class="logo-wrap" aria-hidden="true">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" class="logo-svg">
@@ -79,28 +92,24 @@ function login() {
       <!-- Title -->
       <div class="text-center">
         <h1 class="login-title">NerpyBot</h1>
-        <p class="login-subtitle">Dashboard</p>
+        <p class="login-subtitle">{{ t("login.subtitle") }}</p>
       </div>
 
       <!-- Premium required notice -->
       <div v-if="isPremiumRequired" class="w-full bg-yellow-400/10 border border-yellow-400/30 rounded-lg px-4 py-3 flex items-start gap-3">
         <Icon icon="mdi:crown-outline" class="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
         <div>
-          <p class="text-sm font-medium text-yellow-300">Premium required</p>
-          <p class="text-xs text-yellow-400/70 mt-0.5">
-            Dashboard access is a premium feature. Contact a bot operator to request access.
-          </p>
+          <p class="text-sm font-medium text-yellow-300">{{ t("login.premium_required") }}</p>
+          <p class="text-xs text-yellow-400/70 mt-0.5">{{ t("login.premium_required_desc") }}</p>
         </div>
       </div>
 
-      <p v-else class="login-tagline">
-        Sign in with your Discord account to manage your servers.
-      </p>
+      <p v-else class="login-tagline">{{ t("login.tagline") }}</p>
 
       <!-- Discord login button -->
       <button class="discord-btn" @click="login">
         <Icon icon="simple-icons:discord" class="w-5 h-5" aria-hidden="true" />
-        Login with Discord
+        {{ t("login.login_btn") }}
       </button>
     </div>
   </div>

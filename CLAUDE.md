@@ -38,6 +38,9 @@ uv run ruff format --check           # Check formatting only
 uv run python -m pytest              # Run tests
 uv run python -m pytest --cov        # With coverage
 
+# Frontend — run before committing any web/ changes
+npm run build --prefix web/frontend  # vue-tsc type-check + vite build
+
 # Database migrations (alembic is now part of the bot dependency group)
 uv run alembic upgrade head                              # Apply migrations manually
 uv run alembic revision --autogenerate -m "description"  # Create a new migration

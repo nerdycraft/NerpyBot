@@ -4,8 +4,11 @@ import { Icon } from "@iconify/vue";
 import { api } from "@/api/client";
 import type { ApplicationTemplateSchema } from "@/api/types";
 import InfoTooltip from "@/components/InfoTooltip.vue";
+import { useI18n } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
+
+const { t } = useI18n();
 
 const templates = ref<ApplicationTemplateSchema[]>([]);
 const loading = ref(true);
@@ -28,7 +31,7 @@ async function load() {
   try {
     templates.value = await api.get<ApplicationTemplateSchema[]>(`/guilds/${props.guildId}/application-templates`);
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to load";
+    error.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
     loading.value = false;
   }
@@ -60,20 +63,20 @@ async function saveTemplate() {
       showCreateTemplate.value = false;
     }
   } catch (e: unknown) {
-    opError.value = e instanceof Error ? e.message : "Save failed";
+    opError.value = e instanceof Error ? e.message : t("common.save_failed");
   } finally {
     saving.value = false;
   }
 }
 
 async function deleteTemplate(templateId: number) {
-  if (!confirm("Delete this template?")) return;
+  if (!confirm(t("tabs.application_templates.delete_confirm"))) return;
   opError.value = null;
   try {
     await api.delete(`/guilds/${props.guildId}/application-templates/${templateId}`);
     templates.value = templates.value.filter((t) => t.id !== templateId);
   } catch (e: unknown) {
-    opError.value = e instanceof Error ? e.message : "Delete failed";
+    opError.value = e instanceof Error ? e.message : t("common.delete_failed");
   }
 }
 
@@ -87,7 +90,7 @@ async function addTemplateQuestion(templateId: number) {
     if (tpl) tpl.questions.push(q as never);
     newTemplateQuestionText.value[templateId] = "";
   } catch (e: unknown) {
-    opError.value = e instanceof Error ? e.message : "Failed to add question";
+    opError.value = e instanceof Error ? e.message : t("common.save_failed");
   }
 }
 
@@ -98,7 +101,7 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
     const tpl = templates.value.find((t) => t.id === templateId);
     if (tpl) tpl.questions = tpl.questions.filter((q) => q.id !== questionId);
   } catch (e: unknown) {
-    opError.value = e instanceof Error ? e.message : "Failed to delete question";
+    opError.value = e instanceof Error ? e.message : t("common.delete_failed");
   }
 }
 </script>
@@ -107,60 +110,60 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
   <div class="space-y-6">
     <div class="flex items-start justify-between">
       <div>
-        <h2 class="text-lg font-semibold">Templates</h2>
-        <p class="text-muted-foreground text-sm">Templates are reusable question sets that can be shared across multiple application forms, letting you define common question banks once and apply them wherever needed. Built-in templates are provided by the bot and cannot be modified or deleted.</p>
+        <h2 class="text-lg font-semibold">{{ t("tabs.application_templates.title") }}</h2>
+        <p class="text-muted-foreground text-sm">{{ t("tabs.application_templates.desc") }}</p>
       </div>
       <button
         class="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap flex-shrink-0"
         @click="showCreateTemplate = true; templateDraft = { name: '', approval_message: '', denial_message: '', question_texts: [''] }"
       >
         <Icon icon="mdi:plus" class="w-4 h-4" />
-        New Template
+        {{ t("tabs.application_templates.new") }}
       </button>
     </div>
 
     <p v-if="opError" class="text-destructive text-sm">{{ opError }}</p>
-    <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
+    <div v-if="loading" class="text-muted-foreground text-sm">{{ t("common.loading") }}</div>
     <p v-else-if="error" class="text-destructive text-sm">{{ error }}</p>
 
     <!-- Create Template Panel -->
     <div v-if="showCreateTemplate" class="bg-card border border-primary rounded p-4 space-y-3">
-      <p class="text-sm font-semibold">New Template</p>
+      <p class="text-sm font-semibold">{{ t("tabs.application_templates.new_panel") }}</p>
       <div class="flex flex-col gap-1">
         <label class="text-sm font-medium flex items-center gap-1.5">
-          Name
-          <InfoTooltip text="A unique name identifying this template. Used when selecting a template to base a new form on." />
+          {{ t("tabs.application_templates.name_label") }}
+          <InfoTooltip :text="t('tabs.application_templates.name_tooltip')" />
         </label>
         <input v-model="templateDraft.name" class="bg-input border border-border rounded px-3 py-2 text-sm w-64" />
       </div>
       <div class="space-y-1">
         <label class="text-sm font-medium flex items-center gap-1.5">
-          Questions
-          <InfoTooltip text="The questions members will be asked when filling out a form that uses this template. Questions are presented in order via DM." />
+          {{ t("tabs.application_templates.questions_label") }}
+          <InfoTooltip :text="t('tabs.application_templates.questions_tooltip')" />
         </label>
         <div v-for="(_, i) in templateDraft.question_texts" :key="i" class="flex gap-2">
           <input
             v-model="templateDraft.question_texts[i]"
-            :placeholder="`Question ${i + 1}…`"
+            :placeholder="t('tabs.application_templates.question_placeholder', { num: i + 1 })"
             class="bg-input border border-border rounded px-3 py-1.5 text-sm flex-1"
           />
           <button class="text-destructive text-sm" @click="templateDraft.question_texts.splice(i, 1)">✕</button>
         </div>
-        <button class="text-xs text-primary hover:text-primary/80 transition-colors" @click="templateDraft.question_texts.push('')">+ Add question</button>
+        <button class="text-xs text-primary hover:text-primary/80 transition-colors" @click="templateDraft.question_texts.push('')">{{ t("tabs.application_templates.add_question") }}</button>
       </div>
       <div class="flex gap-2">
         <button
           class="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50 transition-colors"
           :disabled="saving || !templateDraft.name.trim()"
           @click="saveTemplate"
-        >{{ saving ? "Saving…" : "Create" }}</button>
-        <button class="text-muted-foreground hover:text-foreground text-sm transition-colors" @click="showCreateTemplate = false">Cancel</button>
+        >{{ saving ? t("tabs.application_templates.saving") : t("common.create") }}</button>
+        <button class="text-muted-foreground hover:text-foreground text-sm transition-colors" @click="showCreateTemplate = false">{{ t("common.cancel") }}</button>
       </div>
     </div>
 
     <!-- Template list -->
     <div v-if="!loading && !error" class="space-y-2">
-      <p v-if="templates.length === 0" class="text-muted-foreground text-sm">No templates.</p>
+      <p v-if="templates.length === 0" class="text-muted-foreground text-sm">{{ t("tabs.application_templates.empty") }}</p>
 
       <div
         v-for="tpl in templates"
@@ -172,15 +175,15 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
           <button class="flex-1 flex items-center gap-2 text-left" @click="expandedTemplateId = expandedTemplateId === tpl.id ? null : tpl.id">
             <Icon :icon="expandedTemplateId === tpl.id ? 'mdi:chevron-down' : 'mdi:chevron-right'" class="w-4 h-4 text-muted-foreground flex-shrink-0" />
             <span class="text-sm font-medium">{{ tpl.name }}</span>
-            <span class="text-xs text-muted-foreground">{{ tpl.questions.length }} questions</span>
-            <span v-if="tpl.is_built_in" class="text-xs text-muted-foreground italic">built-in</span>
+            <span class="text-xs text-muted-foreground">{{ tpl.questions.length === 1 ? t("tabs.application_templates.questions_count.one") : t("tabs.application_templates.questions_count.other", { count: tpl.questions.length }) }}</span>
+            <span v-if="tpl.is_built_in" class="text-xs text-muted-foreground italic">{{ t("tabs.application_templates.built_in") }}</span>
           </button>
           <template v-if="!tpl.is_built_in">
             <button
               class="text-xs text-muted-foreground hover:text-foreground transition-colors"
               @click="editingTemplateId = tpl.id; templateDraft = { name: tpl.name, approval_message: tpl.approval_message ?? '', denial_message: tpl.denial_message ?? '', question_texts: [] }; expandedTemplateId = tpl.id"
-            >Edit</button>
-            <button class="text-xs text-destructive hover:text-destructive/80 transition-colors" @click="deleteTemplate(tpl.id)">Delete</button>
+            >{{ t("common.edit") }}</button>
+            <button class="text-xs text-destructive hover:text-destructive/80 transition-colors" @click="deleteTemplate(tpl.id)">{{ t("common.delete") }}</button>
           </template>
         </div>
 
@@ -189,8 +192,8 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
           <div v-if="editingTemplateId === tpl.id && !tpl.is_built_in" class="space-y-2 pb-3 border-b border-border">
             <div class="flex flex-col gap-1">
               <label class="text-sm font-medium flex items-center gap-1.5">
-                Name
-                <InfoTooltip text="A unique name identifying this template. Used when selecting a template to base a new form on." />
+                {{ t("tabs.application_templates.name_label") }}
+                <InfoTooltip :text="t('tabs.application_templates.name_tooltip')" />
               </label>
               <input v-model="templateDraft.name" class="bg-input border border-border rounded px-3 py-2 text-sm w-64" />
             </div>
@@ -199,8 +202,8 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
                 class="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50 transition-colors"
                 :disabled="saving"
                 @click="saveTemplate"
-              >{{ saving ? "Saving…" : "Save" }}</button>
-              <button class="text-muted-foreground hover:text-foreground text-sm transition-colors" @click="editingTemplateId = null">Cancel</button>
+              >{{ saving ? t("tabs.application_templates.saving") : t("common.save") }}</button>
+              <button class="text-muted-foreground hover:text-foreground text-sm transition-colors" @click="editingTemplateId = null">{{ t("common.cancel") }}</button>
             </div>
           </div>
 
@@ -224,7 +227,7 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
           <div v-if="!tpl.is_built_in" class="flex gap-2">
             <input
               v-model="newTemplateQuestionText[tpl.id]"
-              placeholder="New question…"
+              :placeholder="t('tabs.application_templates.new_question_placeholder')"
               class="bg-input border border-border rounded px-3 py-1.5 text-sm flex-1"
               @keyup.enter="addTemplateQuestion(tpl.id)"
             />
@@ -232,7 +235,7 @@ async function deleteTemplateQuestion(templateId: number, questionId: number) {
               class="bg-muted hover:bg-muted/80 px-3 py-1.5 rounded text-sm transition-colors disabled:opacity-50"
               :disabled="!(newTemplateQuestionText[tpl.id] ?? '').trim()"
               @click="addTemplateQuestion(tpl.id)"
-            >Add</button>
+            >{{ t("common.add") }}</button>
           </div>
         </div>
       </div>

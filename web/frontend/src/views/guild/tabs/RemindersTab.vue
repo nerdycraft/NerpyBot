@@ -5,8 +5,23 @@ import { api } from "@/api/client";
 import type { ReminderSchema, ReminderCreate, ReminderUpdate } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
 import InfoTooltip from "@/components/InfoTooltip.vue";
+import { useI18n } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
+
+const { t, locale } = useI18n();
+
+const nextFireFormatter = computed(
+  () => new Intl.DateTimeFormat(locale.current, { dateStyle: "medium", timeStyle: "short" }),
+);
+
+function formatNextFire(isoStr: string): string {
+  try {
+    return nextFireFormatter.value.format(new Date(isoStr));
+  } catch {
+    return isoStr.slice(0, 16).replace("T", " ");
+  }
+}
 
 const reminders = ref<ReminderSchema[]>([]);
 const loading = ref(true);
@@ -16,7 +31,15 @@ const showCreate = ref(false);
 const saving = ref(false);
 const opError = ref<string | null>(null);
 
-const DOW_LABELS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DOW_LABELS = computed(() => [
+  t("tabs.reminders.days.monday"),
+  t("tabs.reminders.days.tuesday"),
+  t("tabs.reminders.days.wednesday"),
+  t("tabs.reminders.days.thursday"),
+  t("tabs.reminders.days.friday"),
+  t("tabs.reminders.days.saturday"),
+  t("tabs.reminders.days.sunday"),
+]);
 
 // ── Interval picker state (separate from the draft's interval_seconds) ──
 type IntervalUnit = "minutes" | "hours" | "days";
@@ -64,7 +87,7 @@ onMounted(async () => {
   try {
     reminders.value = await api.get<ReminderSchema[]>(`/guilds/${props.guildId}/reminders`);
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to load";
+    error.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
     loading.value = false;
   }
@@ -79,13 +102,13 @@ function formatInterval(seconds: number | null): string {
 }
 
 function scheduleLabel(r: ReminderSchema): string {
-  if (r.schedule_type === "interval") return `Every ${formatInterval(r.interval_seconds)}`;
-  if (r.schedule_type === "daily") return `Daily at ${r.schedule_time ?? "?"}`;
+  if (r.schedule_type === "interval") return t("tabs.reminders.schedule.interval", { interval: formatInterval(r.interval_seconds) });
+  if (r.schedule_type === "daily") return t("tabs.reminders.schedule.daily", { time: r.schedule_time ?? "?" });
   if (r.schedule_type === "weekly") {
-    const dow = r.schedule_day_of_week != null ? DOW_LABELS[r.schedule_day_of_week] : "?";
-    return `Weekly · ${dow} at ${r.schedule_time ?? "?"}`;
+    const dow = r.schedule_day_of_week != null ? (DOW_LABELS.value[r.schedule_day_of_week] ?? "?") : "?";
+    return t("tabs.reminders.schedule.weekly", { dow, time: r.schedule_time ?? "?" });
   }
-  if (r.schedule_type === "monthly") return `Monthly · day ${r.schedule_day_of_month} at ${r.schedule_time ?? "?"}`;
+  if (r.schedule_type === "monthly") return t("tabs.reminders.schedule.monthly", { dom: r.schedule_day_of_month ?? "?", time: r.schedule_time ?? "?" });
   return r.schedule_type;
 }
 
@@ -98,7 +121,7 @@ async function toggleReminder(r: ReminderSchema) {
     const idx = reminders.value.findIndex((x) => x.id === r.id);
     if (idx !== -1) reminders.value[idx] = updated;
   } catch (e: unknown) {
-    opError.value = e instanceof Error ? e.message : "Toggle failed";
+    opError.value = e instanceof Error ? e.message : t("common.save_failed");
   }
 }
 
@@ -107,7 +130,7 @@ async function deleteReminder(id: number) {
     await api.delete(`/guilds/${props.guildId}/reminders/${id}`);
     reminders.value = reminders.value.filter((r) => r.id !== id);
   } catch (e: unknown) {
-    opError.value = e instanceof Error ? e.message : "Delete failed";
+    opError.value = e instanceof Error ? e.message : t("common.delete_failed");
   }
 }
 
@@ -136,7 +159,7 @@ async function createReminder() {
     intervalUnit.value = "hours";
     tzQuery.value = "UTC";
   } catch (e: unknown) {
-    opError.value = e instanceof Error ? e.message : "Create failed";
+    opError.value = e instanceof Error ? e.message : t("common.save_failed");
   } finally {
     saving.value = false;
   }
@@ -147,18 +170,15 @@ async function createReminder() {
   <div class="space-y-6">
     <div class="flex items-start justify-between">
       <div>
-        <h2 class="text-lg font-semibold">Reminders</h2>
-        <p class="text-muted-foreground text-sm">
-          Reminders post a message to a Discord channel on a recurring schedule — every N minutes/hours/days, daily, weekly, or monthly.
-          Each reminder can be individually enabled or disabled; the bot tracks how many times each one has fired and when the next fire is due.
-        </p>
+        <h2 class="text-lg font-semibold">{{ t("tabs.reminders.title") }}</h2>
+        <p class="text-muted-foreground text-sm">{{ t("tabs.reminders.desc") }}</p>
       </div>
       <button
         class="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0"
         @click="showCreate = !showCreate"
       >
         <Icon icon="mdi:plus" class="w-4 h-4" />
-        New Reminder
+        {{ t("tabs.reminders.new") }}
       </button>
     </div>
 
@@ -166,15 +186,15 @@ async function createReminder() {
 
     <!-- Create Panel -->
     <div v-if="showCreate" class="bg-card border border-primary rounded p-4 space-y-4">
-      <p class="text-sm font-semibold">New Reminder</p>
+      <p class="text-sm font-semibold">{{ t("tabs.reminders.new_panel") }}</p>
 
       <!-- Inline controls: wrap onto next line on small screens -->
       <div class="flex flex-wrap gap-3 items-end">
         <!-- Channel -->
         <div class="flex flex-col gap-1 flex-1 min-w-[160px]">
           <label class="text-sm font-medium flex items-center gap-1.5">
-            Channel
-            <InfoTooltip text="The Discord channel where the reminder message will be posted." />
+            {{ t("tabs.reminders.channel_label") }}
+            <InfoTooltip :text="t('tabs.reminders.channel_tooltip')" />
           </label>
           <DiscordPicker v-model="draft.channel_id" :guild-id="guildId" kind="channel" />
         </div>
@@ -182,22 +202,22 @@ async function createReminder() {
         <!-- Schedule type -->
         <div class="flex flex-col gap-1 flex-1 min-w-[160px]">
           <label class="text-sm font-medium flex items-center gap-1.5">
-            Schedule Type
-            <InfoTooltip text="How often the reminder fires: a repeating interval, or a fixed time each day, week, or month." />
+            {{ t("tabs.reminders.schedule_type_label") }}
+            <InfoTooltip :text="t('tabs.reminders.schedule_type_tooltip')" />
           </label>
           <select v-model="draft.schedule_type" class="bg-input border border-border rounded px-3 py-2 text-sm">
-            <option value="interval">Repeat every…</option>
-            <option value="daily">Daily at a fixed time</option>
-            <option value="weekly">Weekly (day + time)</option>
-            <option value="monthly">Monthly (day + time)</option>
+            <option value="interval">{{ t("tabs.reminders.type.interval") }}</option>
+            <option value="daily">{{ t("tabs.reminders.type.daily") }}</option>
+            <option value="weekly">{{ t("tabs.reminders.type.weekly") }}</option>
+            <option value="monthly">{{ t("tabs.reminders.type.monthly") }}</option>
           </select>
         </div>
 
         <!-- Interval: amount + unit (grouped as one flex item) -->
         <div v-show="draft.schedule_type === 'interval'" class="flex flex-col gap-1 flex-1 min-w-[180px]">
           <label class="text-sm font-medium flex items-center gap-1.5">
-            Repeat every
-            <InfoTooltip text="The interval between fires. Enter a number and choose minutes, hours, or days." />
+            {{ t("tabs.reminders.repeat_label") }}
+            <InfoTooltip :text="t('tabs.reminders.repeat_tooltip')" />
           </label>
           <div class="flex gap-2">
             <input
@@ -207,9 +227,9 @@ async function createReminder() {
               class="bg-input border border-border rounded px-3 py-2 text-sm w-20 shrink-0"
             />
             <select v-model="intervalUnit" class="bg-input border border-border rounded px-3 py-2 text-sm flex-1">
-              <option value="minutes">Minutes</option>
-              <option value="hours">Hours</option>
-              <option value="days">Days</option>
+              <option value="minutes">{{ t("tabs.reminders.unit.minutes") }}</option>
+              <option value="hours">{{ t("tabs.reminders.unit.hours") }}</option>
+              <option value="days">{{ t("tabs.reminders.unit.days") }}</option>
             </select>
           </div>
         </div>
@@ -217,8 +237,8 @@ async function createReminder() {
         <!-- Time (daily / weekly / monthly) -->
         <div v-show="draft.schedule_type !== 'interval'" class="flex flex-col gap-1">
           <label class="text-sm font-medium flex items-center gap-1.5">
-            Time
-            <InfoTooltip text="The time of day the reminder fires, interpreted in the selected timezone." />
+            {{ t("tabs.reminders.time_label") }}
+            <InfoTooltip :text="t('tabs.reminders.time_tooltip')" />
           </label>
           <input
             v-model="draft.schedule_time"
@@ -230,8 +250,8 @@ async function createReminder() {
         <!-- Day of week (weekly) -->
         <div v-show="draft.schedule_type === 'weekly'" class="flex flex-col gap-1 flex-1 min-w-[140px]">
           <label class="text-sm font-medium flex items-center gap-1.5">
-            Day of Week
-            <InfoTooltip text="Which day of the week the reminder fires for weekly schedules." />
+            {{ t("tabs.reminders.dow_label") }}
+            <InfoTooltip :text="t('tabs.reminders.dow_tooltip')" />
           </label>
           <select v-model.number="draft.schedule_day_of_week" class="bg-input border border-border rounded px-3 py-2 text-sm">
             <option v-for="(label, i) in DOW_LABELS" :key="i" :value="i">{{ label }}</option>
@@ -241,8 +261,8 @@ async function createReminder() {
         <!-- Day of month (monthly) -->
         <div v-show="draft.schedule_type === 'monthly'" class="flex flex-col gap-1">
           <label class="text-sm font-medium flex items-center gap-1.5">
-            Day of Month (1–28)
-            <InfoTooltip text="Which day of the month the reminder fires. Capped at 28 to ensure it fires every month." />
+            {{ t("tabs.reminders.dom_label") }}
+            <InfoTooltip :text="t('tabs.reminders.dom_tooltip')" />
           </label>
           <input
             v-model.number="draft.schedule_day_of_month"
@@ -256,13 +276,13 @@ async function createReminder() {
         <!-- Timezone autocomplete -->
         <div class="flex flex-col gap-1 relative flex-1 min-w-[180px]">
           <label class="text-sm font-medium flex items-center gap-1.5">
-            Timezone
-            <InfoTooltip text="The timezone used to interpret the schedule time. Defaults to UTC if left blank." />
+            {{ t("tabs.reminders.tz_label") }}
+            <InfoTooltip :text="t('tabs.reminders.tz_tooltip')" />
           </label>
           <input
             v-model="tzQuery"
             type="text"
-            placeholder="Search timezone…"
+            :placeholder="t('tabs.reminders.tz_placeholder')"
             class="bg-input border border-border rounded px-3 py-2 text-sm"
             @focus="tzOpen = true"
             @blur="closeTzDropdown"
@@ -287,13 +307,13 @@ async function createReminder() {
       <!-- Message: always full width -->
       <div class="flex flex-col gap-1">
         <label class="text-sm font-medium flex items-center gap-1.5">
-          Message
-          <InfoTooltip text="The text content that will be posted to the channel each time the reminder fires." />
+          {{ t("tabs.reminders.message_label") }}
+          <InfoTooltip :text="t('tabs.reminders.message_tooltip')" />
         </label>
         <textarea
           v-model="draft.message"
           rows="3"
-          placeholder="Message to post in the channel…"
+          :placeholder="t('tabs.reminders.message_placeholder')"
           class="bg-input border border-border rounded px-3 py-2 text-sm resize-y"
         />
       </div>
@@ -303,18 +323,18 @@ async function createReminder() {
           class="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50 transition-colors"
           :disabled="saving || !draft.channel_id || !draft.message.trim()"
           @click="createReminder"
-        >{{ saving ? "Saving…" : "Create" }}</button>
+        >{{ saving ? t("tabs.reminders.saving") : t("common.create") }}</button>
         <button
           class="text-muted-foreground hover:text-foreground text-sm transition-colors"
           @click="showCreate = false; draft = blankDraft(); intervalAmount = 1; intervalUnit = 'hours'; tzQuery = 'UTC'"
-        >Cancel</button>
+        >{{ t("common.cancel") }}</button>
       </div>
     </div>
 
     <!-- List -->
-    <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
+    <div v-if="loading" class="text-muted-foreground text-sm">{{ t("common.loading") }}</div>
     <p v-else-if="error" class="text-destructive text-sm">{{ error }}</p>
-    <p v-else-if="reminders.length === 0 && !showCreate" class="text-muted-foreground text-sm">No reminders configured.</p>
+    <p v-else-if="reminders.length === 0 && !showCreate" class="text-muted-foreground text-sm">{{ t("tabs.reminders.empty") }}</p>
 
     <div v-else class="space-y-2">
       <div
@@ -326,27 +346,27 @@ async function createReminder() {
         <button
           :class="r.enabled ? 'text-green-400 hover:text-green-300' : 'text-muted-foreground hover:text-foreground'"
           class="flex-shrink-0 mt-0.5 transition-colors"
-          :title="r.enabled ? 'Disable' : 'Enable'"
+          :title="r.enabled ? t('tabs.reminders.disable') : t('tabs.reminders.enable')"
           @click="toggleReminder(r)"
         >
           <Icon :icon="r.enabled ? 'mdi:bell' : 'mdi:bell-off-outline'" class="w-4 h-4" />
         </button>
 
         <div class="flex-1 min-w-0 space-y-0.5">
-          <div class="font-medium text-sm truncate">{{ r.message ?? "(no message)" }}</div>
+          <div class="font-medium text-sm truncate">{{ r.message ?? t("tabs.reminders.no_message") }}</div>
           <div class="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5">
             <span>{{ r.channel_name ?? r.channel_id }}</span>
             <span>{{ scheduleLabel(r) }}</span>
             <span v-if="r.timezone">{{ r.timezone }}</span>
-            <span>Next: {{ r.next_fire.slice(0, 16).replace("T", " ") }}</span>
-            <span>Fired {{ r.count }}×</span>
+            <span>{{ t("tabs.reminders.next_fire", { datetime: formatNextFire(r.next_fire) }) }}</span>
+            <span>{{ t("tabs.reminders.fired_count", { count: r.count }) }}</span>
           </div>
         </div>
 
         <!-- Delete -->
         <button
           class="flex-shrink-0 text-muted-foreground hover:text-destructive transition-colors"
-          title="Delete"
+          :title="t('common.delete')"
           @click="deleteReminder(r.id)"
         >
           <Icon icon="mdi:delete-outline" class="w-4 h-4" />

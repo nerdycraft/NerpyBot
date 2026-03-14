@@ -13,9 +13,11 @@ import DiscordPicker from "@/components/DiscordPicker.vue";
 import RealmPicker from "@/components/RealmPicker.vue";
 import { useGuildEntities } from "@/composables/useGuildEntities";
 import InfoTooltip from "@/components/InfoTooltip.vue";
+import { useI18n } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
 
+const { t } = useI18n();
 const { fetchChannels, channelName } = useGuildEntities(props.guildId);
 
 const trackers = ref<WowGuildNewsSchema[]>([]);
@@ -57,7 +59,7 @@ async function load() {
     const data = await api.get<{ guild_news: WowGuildNewsSchema[] }>(`/guilds/${props.guildId}/wow`);
     trackers.value = data.guild_news;
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : "Failed to load";
+    error.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
     loading.value = false;
   }
@@ -107,7 +109,7 @@ async function saveEdit(tracker: WowGuildNewsSchema) {
     if (idx !== -1) trackers.value[idx] = updated;
     editingId.value = null;
   } catch (e: unknown) {
-    opError.value = e instanceof Error ? e.message : "Failed to save";
+    opError.value = e instanceof Error ? e.message : t("common.save_failed");
   }
 }
 
@@ -120,7 +122,7 @@ async function confirmDelete(id: number) {
     trackers.value = trackers.value.filter((t) => t.id !== id);
     confirmDeleteId.value = null;
   } catch (e: unknown) {
-    opError.value = e instanceof Error ? e.message : "Failed to delete";
+    opError.value = e instanceof Error ? e.message : t("common.delete_failed");
   }
 }
 
@@ -165,7 +167,7 @@ async function submitAdd() {
   addError.value = null;
   validateWarning.value = null;
   if (!newConfig.value.channel_id || !newConfig.value.wow_realm_slug || !newConfig.value.wow_guild_name_input) {
-    addError.value = "Region, guild name, realm, and channel are required.";
+    addError.value = t("tabs.wow_guild_news.required_fields");
     return;
   }
 
@@ -177,22 +179,22 @@ async function submitAdd() {
         `/wow/guilds/validate?region=${newConfig.value.region}&realm=${newConfig.value.wow_realm_slug}&name=${encodeURIComponent(newConfig.value.wow_guild_name_input)}`,
       );
       if (!validation.valid) {
-        addError.value = "Guild not found on this realm. Check the guild name and realm.";
+        addError.value = t("tabs.wow_guild_news.guild_not_found");
         return;
       }
     } catch (e: unknown) {
       const status = (e as { status?: number })?.status;
       if (status === 503) {
-        validateWarning.value = "Cannot verify guild (bot offline). Save anyway?";
+        validateWarning.value = t("tabs.wow_guild_news.verify_warning");
       } else {
-        addError.value = e instanceof Error ? e.message : "Validation failed";
+        addError.value = e instanceof Error ? e.message : t("tabs.wow_guild_news.validation_failed");
       }
       return;
     }
 
     await doCreate();
   } catch (e: unknown) {
-    addError.value = e instanceof Error ? e.message : "Failed to create tracker";
+    addError.value = e instanceof Error ? e.message : t("common.save_failed");
   } finally {
     addSaving.value = false;
   }
@@ -204,7 +206,7 @@ async function saveAnyway() {
   try {
     await doCreate();
   } catch (e: unknown) {
-    addError.value = e instanceof Error ? e.message : "Failed to create tracker";
+    addError.value = e instanceof Error ? e.message : t("common.save_failed");
   } finally {
     addSaving.value = false;
   }
@@ -227,12 +229,12 @@ async function doCreate() {
 // ── Helpers ──
 
 function relativeTime(iso: string | null): string {
-  if (!iso) return "Never";
+  if (!iso) return t("common.relative_never");
   const diff = Date.now() - new Date(iso).getTime();
   const days = Math.floor(diff / 86_400_000);
-  if (days === 0) return "today";
-  if (days === 1) return "1 day ago";
-  return `${days} days ago`;
+  if (days === 0) return t("common.relative_today");
+  if (days === 1) return t("common.relative_one_day_ago");
+  return t("common.relative_days_ago", { days });
 }
 </script>
 
@@ -240,29 +242,29 @@ function relativeTime(iso: string | null): string {
   <div class="space-y-6">
     <div class="flex items-start justify-between">
       <div>
-        <h2 class="text-lg font-semibold">Guild News</h2>
-        <p class="text-muted-foreground text-sm">Track a World of Warcraft guild's activity — boss kills, member joins and leaves, and achievements — and automatically post updates to a Discord channel. Each tracker targets one guild on a specific realm and only processes characters who have been active within the configured window.</p>
+        <h2 class="text-lg font-semibold">{{ t("tabs.wow_guild_news.title") }}</h2>
+        <p class="text-muted-foreground text-sm">{{ t("tabs.wow_guild_news.desc") }}</p>
       </div>
       <button
         class="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0"
         @click="showAdd = !showAdd; if (!showAdd) resetAddForm()"
       >
-        {{ showAdd ? "Cancel" : "Add tracker" }}
+        {{ showAdd ? t("tabs.wow_guild_news.cancel_add") : t("tabs.wow_guild_news.add") }}
       </button>
     </div>
 
     <p v-if="error" class="text-destructive text-sm">{{ error }}</p>
     <p v-if="opError" class="text-destructive text-sm">{{ opError }}</p>
-    <div v-if="loading" class="text-muted-foreground text-sm">Loading…</div>
+    <div v-if="loading" class="text-muted-foreground text-sm">{{ t("common.loading") }}</div>
 
     <!-- Add tracker form -->
     <div v-if="showAdd" class="bg-card border border-border rounded p-4 space-y-3">
-      <p class="text-sm font-medium">New tracker</p>
+      <p class="text-sm font-medium">{{ t("tabs.wow_guild_news.new_tracker") }}</p>
       <div class="grid grid-cols-2 gap-3">
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground flex items-center gap-1">
-            Region
-            <InfoTooltip text="The WoW region your guild is on (EU or US). This determines which Blizzard API endpoint is queried." />
+            {{ t("tabs.wow_guild_news.region_label") }}
+            <InfoTooltip :text="t('tabs.wow_guild_news.region_tooltip')" />
           </label>
           <select
             v-model="newConfig.region"
@@ -274,34 +276,34 @@ function relativeTime(iso: string | null): string {
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground flex items-center gap-1">
-            WoW Guild Name
-            <InfoTooltip text="The exact in-game name of the WoW guild to track. The bot will verify this guild exists on the chosen realm before saving." />
+            {{ t("tabs.wow_guild_news.guild_name_label") }}
+            <InfoTooltip :text="t('tabs.wow_guild_news.guild_name_tooltip')" />
           </label>
           <input
             v-model="newConfig.wow_guild_name_input"
             type="text"
-            placeholder="Thunderfury"
+            :placeholder="t('tabs.wow_guild_news.guild_name_placeholder')"
             class="bg-input border border-border rounded px-3 py-2 text-sm"
           />
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground flex items-center gap-1">
-            Realm
-            <InfoTooltip text="The WoW realm (server) the guild is on. Must match the region selected above." />
+            {{ t("tabs.wow_guild_news.realm_label") }}
+            <InfoTooltip :text="t('tabs.wow_guild_news.realm_tooltip')" />
           </label>
           <RealmPicker v-model="newConfig.wow_realm_slug" :region="newConfig.region" />
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground flex items-center gap-1">
-            Channel
-            <InfoTooltip text="The Discord channel where guild news updates will be posted. The bot must have permission to send messages there." />
+            {{ t("tabs.wow_guild_news.channel_label") }}
+            <InfoTooltip :text="t('tabs.wow_guild_news.channel_tooltip')" />
           </label>
           <DiscordPicker v-model="newConfig.channel_id" :guild-id="guildId" kind="channel" />
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground flex items-center gap-1">
-            Active days
-            <InfoTooltip text="Only characters who have been seen in-game within this many days are considered active and included in news tracking." />
+            {{ t("tabs.wow_guild_news.active_days_label") }}
+            <InfoTooltip :text="t('tabs.wow_guild_news.active_days_tooltip')" />
           </label>
           <input
             v-model.number="newConfig.active_days"
@@ -312,8 +314,8 @@ function relativeTime(iso: string | null): string {
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-xs text-muted-foreground flex items-center gap-1">
-            Min level
-            <InfoTooltip text="Characters below this level are ignored. Useful for filtering out low-level alts from news posts." />
+            {{ t("tabs.wow_guild_news.min_level_label") }}
+            <InfoTooltip :text="t('tabs.wow_guild_news.min_level_tooltip')" />
           </label>
           <input
             v-model.number="newConfig.min_level"
@@ -333,7 +335,7 @@ function relativeTime(iso: string | null): string {
           :disabled="addSaving"
           @click="saveAnyway"
         >
-          Save anyway
+          {{ t("tabs.wow_guild_news.save_anyway") }}
         </button>
       </div>
 
@@ -342,14 +344,14 @@ function relativeTime(iso: string | null): string {
         :disabled="addSaving"
         @click="submitAdd"
       >
-        {{ addSaving ? "Saving…" : "Add tracker" }}
+        {{ addSaving ? t("tabs.wow_guild_news.saving") : t("tabs.wow_guild_news.add") }}
       </button>
     </div>
 
     <!-- Tracker cards -->
     <div v-if="!loading" class="space-y-3">
       <p v-if="trackers.length === 0 && !showAdd" class="text-muted-foreground text-sm">
-        No guild news trackers configured.
+        {{ t("tabs.wow_guild_news.empty") }}
       </p>
 
       <div
@@ -367,16 +369,16 @@ function relativeTime(iso: string | null): string {
               :class="tracker.enabled ? 'bg-green-500/20 text-green-400' : 'bg-muted text-muted-foreground'"
               class="text-xs px-1.5 py-0.5 rounded-full flex-shrink-0"
             >
-              {{ tracker.enabled ? "Active" : "Disabled" }}
+              {{ tracker.enabled ? t("tabs.wow_guild_news.status.active") : t("tabs.wow_guild_news.status.disabled") }}
             </span>
           </div>
           <div class="flex items-center gap-2 flex-shrink-0">
             <button
               :class="tracker.enabled ? 'text-green-400 hover:text-green-300' : 'text-muted-foreground hover:text-foreground'"
               class="text-xs transition-colors"
-              :aria-label="tracker.enabled ? 'Disable tracker' : 'Enable tracker'"
+              :aria-label="tracker.enabled ? t('common.disabled') : t('common.enabled')"
               :aria-pressed="tracker.enabled"
-              :title="tracker.enabled ? 'Disable' : 'Enable'"
+              :title="tracker.enabled ? t('common.disabled') : t('common.enabled')"
               @click="toggleEnabled(tracker)"
             >
               <Icon :icon="tracker.enabled ? 'mdi:toggle-switch' : 'mdi:toggle-switch-off'" class="w-5 h-5" />
@@ -385,30 +387,30 @@ function relativeTime(iso: string | null): string {
               class="text-xs text-muted-foreground hover:text-foreground transition-colors"
               @click="editingId === tracker.id ? cancelEdit() : startEdit(tracker)"
             >
-              {{ editingId === tracker.id ? "Cancel" : "Edit" }}
+              {{ editingId === tracker.id ? t("common.cancel") : t("common.edit") }}
             </button>
             <button
               class="text-xs text-destructive hover:text-destructive/80 transition-colors"
               @click="confirmDeleteId = confirmDeleteId === tracker.id ? null : tracker.id"
             >
-              Delete
+              {{ t("common.delete") }}
             </button>
           </div>
         </div>
 
         <!-- Confirm delete -->
         <div v-if="confirmDeleteId === tracker.id" class="flex items-center gap-3 text-sm text-destructive">
-          <span>Delete this tracker?</span>
-          <button class="underline hover:no-underline" @click="confirmDelete(tracker.id)">Confirm</button>
-          <button class="text-muted-foreground hover:text-foreground underline hover:no-underline" @click="confirmDeleteId = null">Cancel</button>
+          <span>{{ t("tabs.wow_guild_news.delete_confirm") }}</span>
+          <button class="underline hover:no-underline" @click="confirmDelete(tracker.id)">{{ t("common.confirm") }}</button>
+          <button class="text-muted-foreground hover:text-foreground underline hover:no-underline" @click="confirmDeleteId = null">{{ t("common.cancel") }}</button>
         </div>
 
         <!-- Edit form -->
         <div v-else-if="editingId === tracker.id" class="flex flex-wrap gap-2 items-end pt-1">
           <div class="flex flex-col gap-1">
             <label class="text-xs text-muted-foreground flex items-center gap-1">
-              Channel
-              <InfoTooltip text="The Discord channel where guild news updates will be posted." />
+              {{ t("tabs.wow_guild_news.channel_label") }}
+              <InfoTooltip :text="t('tabs.wow_guild_news.channel_tooltip')" />
             </label>
             <div class="w-48">
               <DiscordPicker v-model="editDraft.channel_id!" :guild-id="guildId" kind="channel" />
@@ -416,8 +418,8 @@ function relativeTime(iso: string | null): string {
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-xs text-muted-foreground flex items-center gap-1">
-              Active days
-              <InfoTooltip text="Only characters who have been seen in-game within this many days are considered active and included in news tracking." />
+              {{ t("tabs.wow_guild_news.active_days_label") }}
+              <InfoTooltip :text="t('tabs.wow_guild_news.active_days_tooltip')" />
             </label>
             <input
               v-model.number="editDraft.active_days"
@@ -428,8 +430,8 @@ function relativeTime(iso: string | null): string {
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-xs text-muted-foreground flex items-center gap-1">
-              Min level
-              <InfoTooltip text="Characters below this level are ignored. Useful for filtering out low-level alts from news posts." />
+              {{ t("tabs.wow_guild_news.min_level_label") }}
+              <InfoTooltip :text="t('tabs.wow_guild_news.min_level_tooltip')" />
             </label>
             <input
               v-model.number="editDraft.min_level"
@@ -442,17 +444,17 @@ function relativeTime(iso: string | null): string {
             class="bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-2 rounded text-sm font-medium transition-colors"
             @click="saveEdit(tracker)"
           >
-            Save
+            {{ t("common.save") }}
           </button>
         </div>
 
         <!-- Stats row -->
         <div v-else class="text-muted-foreground text-xs flex flex-wrap gap-3">
           <span>#{{ channelName(tracker.channel_id) }}</span>
-          <span>Last news: {{ relativeTime(tracker.last_activity) }}</span>
-          <span>{{ tracker.tracked_characters }} tracked characters</span>
-          <span>Active days: {{ tracker.active_days }}</span>
-          <span>Min level: {{ tracker.min_level }}</span>
+          <span>{{ t("tabs.wow_guild_news.last_news", { time: relativeTime(tracker.last_activity) }) }}</span>
+          <span>{{ t("tabs.wow_guild_news.tracked_chars", { count: tracker.tracked_characters }) }}</span>
+          <span>{{ t("tabs.wow_guild_news.active_days_display", { days: tracker.active_days }) }}</span>
+          <span>{{ t("tabs.wow_guild_news.min_level_display", { level: tracker.min_level }) }}</span>
         </div>
 
         <!-- Roster toggle -->
@@ -465,19 +467,19 @@ function relativeTime(iso: string | null): string {
               :icon="rosterExpanded[tracker.id] ? 'mdi:chevron-down' : 'mdi:chevron-right'"
               class="w-3.5 h-3.5"
             />
-            {{ rosterExpanded[tracker.id] ? "Hide roster" : "Show roster" }}
+            {{ rosterExpanded[tracker.id] ? t("tabs.wow_guild_news.hide_roster") : t("tabs.wow_guild_news.show_roster") }}
           </button>
 
           <div v-if="rosterExpanded[tracker.id]" class="mt-2">
-            <div v-if="rosterLoading[tracker.id]" class="text-xs text-muted-foreground">Loading roster…</div>
-            <p v-else-if="!rosterData[tracker.id]?.length" class="text-xs text-muted-foreground">No character data yet.</p>
+            <div v-if="rosterLoading[tracker.id]" class="text-xs text-muted-foreground">{{ t("tabs.wow_guild_news.loading_roster") }}</div>
+            <p v-else-if="!rosterData[tracker.id]?.length" class="text-xs text-muted-foreground">{{ t("tabs.wow_guild_news.no_roster") }}</p>
             <table v-else class="w-full text-xs border-collapse">
               <thead>
                 <tr class="text-muted-foreground border-b border-border">
-                  <th class="text-left py-1.5 pr-4 font-medium">Character</th>
-                  <th class="text-left py-1.5 pr-4 font-medium">Realm</th>
-                  <th class="text-left py-1.5 pr-4 font-medium">Mounts</th>
-                  <th class="text-left py-1.5 font-medium">Last checked</th>
+                  <th class="text-left py-1.5 pr-4 font-medium">{{ t("tabs.wow_guild_news.col_character") }}</th>
+                  <th class="text-left py-1.5 pr-4 font-medium">{{ t("tabs.wow_guild_news.col_realm") }}</th>
+                  <th class="text-left py-1.5 pr-4 font-medium">{{ t("tabs.wow_guild_news.col_mounts") }}</th>
+                  <th class="text-left py-1.5 font-medium">{{ t("tabs.wow_guild_news.col_last_checked") }}</th>
                 </tr>
               </thead>
               <tbody>
