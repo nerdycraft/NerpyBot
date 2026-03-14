@@ -14,7 +14,7 @@ Always use `v<major>.<minor>.<patch>` for release tags (e.g. `v0.7.0`). Pre-rele
 
 ## What CI Does Automatically
 
-When a `v*` tag is pushed, two workflows fire:
+For a properly formatted semver tag (e.g. `v1.2.3`), two workflows fire. Note that `docker.yml` triggers on any `v*` tag (including `v1` or future pre-release tags), while `release-badge.yml` requires the full `v*.*.*` format to trigger:
 
 | Workflow            | Trigger       | What it does                                                                                                                      |
 | ------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -28,7 +28,7 @@ Docker image tags produced per release (both `nerpybot` and `nerpybot-web`):
 - `1` — major alias
 - `<sha>` — commit SHA (7 chars)
 
-The `latest` tag is only published on `main` branch pushes, not on tag pushes.
+The `latest` tag is only published on `main` branch pushes, not on tag pushes — `docker.yml` also triggers on pushes to `main`, and those runs are what keep `latest` up to date.
 
 ## Simple Release Flow (tag `main` directly)
 
