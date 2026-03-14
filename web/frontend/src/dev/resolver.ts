@@ -562,6 +562,67 @@ const routes: Route[] = [
   },
 ];
 
+// ── Support-mode redaction — mirrors backend _redact() in web/routes/guilds.py ─
+
+const REDACTED = "[redacted]";
+
+/** Replace a string field with [redacted] exactly as the Python backend does. */
+function ni(v: string | null | undefined): string | null | undefined {
+  return v == null ? v : REDACTED;
+}
+
+/**
+ * Apply the same PII redaction the backend applies for support-mode requests.
+ * Only the fields that _redact() covers in guilds.py are touched.
+ */
+function applyRedaction(data: unknown, pathOnly: string): unknown {
+  if (!Array.isArray(data)) return data;
+
+  if (/\/reminders$/.test(pathOnly)) {
+    return (data as { author: string | null }[]).map((r) => ({ ...r, author: ni(r.author) }));
+  }
+
+  if (/\/application-submissions$/.test(pathOnly)) {
+    return (
+      data as {
+        user_id: string;
+        user_name: string;
+        decision_reason: string | null;
+        answers: { answer_text: string | null }[];
+        votes: { voter_id: string; voter_name: string }[];
+      }[]
+    ).map((s) => ({
+      ...s,
+      user_id: ni(s.user_id),
+      user_name: ni(s.user_name),
+      decision_reason: ni(s.decision_reason),
+      answers: s.answers.map((a) => ({ ...a, answer_text: ni(a.answer_text) })),
+      votes: s.votes.map((v) => ({ ...v, voter_id: ni(v.voter_id), voter_name: ni(v.voter_name) })),
+    }));
+  }
+
+  if (/\/wow\/crafting-orders$/.test(pathOnly)) {
+    return (
+      data as {
+        notes: string | null;
+        creator_id: string;
+        creator_name: string | null;
+        crafter_id: string | null;
+        crafter_name: string | null;
+      }[]
+    ).map((o) => ({
+      ...o,
+      notes: ni(o.notes),
+      creator_id: ni(o.creator_id),
+      creator_name: ni(o.creator_name),
+      crafter_id: o.crafter_id != null ? ni(o.crafter_id) : null,
+      crafter_name: ni(o.crafter_name),
+    }));
+  }
+
+  return data;
+}
+
 // ── Public resolver ───────────────────────────────────────────────────────────
 
 const SUPPORT_GUILD_ID = "999000000000000003";
@@ -584,8 +645,10 @@ export async function resolveTestRequest(
     const match = pathOnly.match(route.pattern);
     if (match) {
       const result = route.handler(method, match as unknown as Caps, body);
-      // Elevate supportMode flag for every response from the support guild
-      return isSupport ? { ...result, supportMode: true } : result;
+      if (isSupport) {
+        return { data: applyRedaction(result.data, pathOnly), supportMode: true };
+      }
+      return result;
     }
   }
   // Unmatched path: return empty success
