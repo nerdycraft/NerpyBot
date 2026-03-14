@@ -54,7 +54,12 @@ def create_app(
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
 
     if valkey_client is None:
-        valkey_client = ValkeyClient.create(config.valkey_url)
+        import os
+
+        if os.environ.get("NERPYBOT_TEST_MODE"):
+            valkey_client = ValkeyClient.create_fake()
+        else:
+            valkey_client = ValkeyClient.create(config.valkey_url)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

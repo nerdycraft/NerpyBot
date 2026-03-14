@@ -12,6 +12,8 @@ const router = useRouter();
 const auth = useAuthStore();
 const { t } = useI18n();
 
+const isTestMode = import.meta.env.VITE_TEST_MODE === "true";
+
 const errorParam = computed(() => toQueryScalar(route.query.error));
 const isPremiumRequired = computed(() => errorParam.value === "premium_required");
 const isSessionExpired = computed(() => errorParam.value === "session_expired");
@@ -26,6 +28,10 @@ function login() {
   } else {
     window.location.href = "/api/auth/login";
   }
+}
+
+function testLogin() {
+  window.location.href = "/api/auth/test-login";
 }
 </script>
 
@@ -110,6 +116,16 @@ function login() {
       <button class="discord-btn" @click="login">
         <Icon icon="simple-icons:discord" class="w-5 h-5" aria-hidden="true" />
         {{ t("login.login_btn") }}
+      </button>
+
+      <!-- Test login button (only in test mode builds) -->
+      <button
+        v-if="isTestMode"
+        class="test-btn"
+        @click="testLogin"
+      >
+        <Icon icon="mdi:flask-outline" class="w-5 h-5" aria-hidden="true" />
+        Test Login
       </button>
     </div>
   </div>
@@ -282,6 +298,30 @@ function login() {
 .discord-btn:active {
   transform: translateY(0);
   box-shadow: 0 2px 8px rgba(88, 101, 242, 0.4);
+}
+
+/* ── Test login button ── */
+.test-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  background: transparent;
+  color: hsl(38, 92%, 50%);
+  font-family: 'Figtree', sans-serif;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.625rem 1.5rem;
+  border-radius: 10px;
+  border: 1px solid hsla(38, 92%, 50%, 0.35);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.test-btn:hover {
+  background: hsla(38, 92%, 50%, 0.1);
+  border-color: hsla(38, 92%, 50%, 0.6);
 }
 
 /* ── Toast modal ── */

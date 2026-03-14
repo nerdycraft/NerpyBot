@@ -16,6 +16,13 @@ async function requestWithHeaders<T>(
   path: string,
   body?: unknown,
 ): Promise<{ data: T; supportMode: boolean }> {
+  if (import.meta.env.VITE_TEST_MODE === "true") {
+    const { isTestRequest, resolveTestRequest } = await import("@/dev");
+    if (isTestRequest(path)) {
+      return resolveTestRequest(method, path, body) as Promise<{ data: T; supportMode: boolean }>;
+    }
+  }
+
   const auth = useAuthStore();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

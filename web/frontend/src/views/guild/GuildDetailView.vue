@@ -26,6 +26,12 @@ import SupportTab from "./tabs/SupportTab.vue";
 import MockupToolbar from "@/components/MockupToolbar.vue";
 import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
 import { api } from "@/api/client";
+import { defineAsyncComponent } from "vue";
+
+const TestModeIndicator =
+  import.meta.env.VITE_TEST_MODE === "true"
+    ? defineAsyncComponent(() => import("@/dev/TestModeIndicator.vue"))
+    : null;
 import { useMockup } from "@/composables/useMockup";
 import { useI18n, type I18nKey } from "@/i18n";
 import { toQueryScalar } from "@/utils/route";
@@ -387,6 +393,7 @@ function guildIconUrl(): string | null {
         <span v-show="sidebarOpen" class="text-sm text-muted-foreground truncate flex-1">
           {{ auth.user?.username }}
         </span>
+        <component :is="TestModeIndicator" v-if="TestModeIndicator && sidebarOpen" />
         <LanguageSwitcher v-show="sidebarOpen" />
         <button
           :class="[
