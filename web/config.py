@@ -51,6 +51,12 @@ class WebConfig:
     cors_origins: list[str] = field(default_factory=lambda: ["*"])
     frontend_url: str = "/"
     log_level: str = "info"
+    legal_name: str = ""
+    legal_street: str = ""
+    legal_zip_city: str = ""
+    legal_country_en: str = ""
+    legal_country_de: str = ""
+    legal_email: str = ""
 
     @classmethod
     def load(cls, config_path: Path | str | None = None) -> WebConfig:
@@ -89,6 +95,12 @@ class WebConfig:
         cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()] if cors_origins_raw else ["*"]
         frontend_url = _get(sources, "web", "frontend_url", default="/")
         log_level = _get(sources, "web", "log_level", default="info")
+        legal_name = _get(sources, "web", "legal_name")
+        legal_street = _get(sources, "web", "legal_street")
+        legal_zip_city = _get(sources, "web", "legal_zip_city")
+        legal_country_en = _get(sources, "web", "legal_country_en")
+        legal_country_de = _get(sources, "web", "legal_country_de")
+        legal_email = _get(sources, "web", "legal_email")
 
         return cls(
             client_id=client_id,
@@ -102,6 +114,12 @@ class WebConfig:
             cors_origins=cors_origins,
             frontend_url=frontend_url,
             log_level=log_level,
+            legal_name=legal_name,
+            legal_street=legal_street,
+            legal_zip_city=legal_zip_city,
+            legal_country_en=legal_country_en,
+            legal_country_de=legal_country_de,
+            legal_email=legal_email,
         )
 
 
@@ -152,6 +170,12 @@ def _env_to_dict() -> dict:
         (("NERPYBOT_WEB_CORS_ORIGINS",), ("web", "cors_origins")),
         (("NERPYBOT_WEB_FRONTEND_URL",), ("web", "frontend_url")),
         (("NERPYBOT_WEB_LOG_LEVEL",), ("web", "log_level")),
+        (("NERPYBOT_WEB_LEGAL_NAME",), ("web", "legal_name")),
+        (("NERPYBOT_WEB_LEGAL_STREET",), ("web", "legal_street")),
+        (("NERPYBOT_WEB_LEGAL_ZIP_CITY",), ("web", "legal_zip_city")),
+        (("NERPYBOT_WEB_LEGAL_COUNTRY_EN",), ("web", "legal_country_en")),
+        (("NERPYBOT_WEB_LEGAL_COUNTRY_DE",), ("web", "legal_country_de")),
+        (("NERPYBOT_WEB_LEGAL_EMAIL",), ("web", "legal_email")),
         (("NERPYBOT_WEB_DB_TYPE", "NERPYBOT_DB_TYPE"), ("database", "db_type")),
         (("NERPYBOT_WEB_DB_NAME", "NERPYBOT_DB_NAME"), ("database", "db_name")),
         (("NERPYBOT_WEB_DB_USERNAME", "NERPYBOT_DB_USERNAME"), ("database", "db_username")),

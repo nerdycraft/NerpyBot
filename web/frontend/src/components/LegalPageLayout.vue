@@ -4,12 +4,14 @@ import { Icon } from "@iconify/vue";
 import { useI18n } from "@/i18n";
 import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
 
-defineProps<{
+withDefaults(defineProps<{
   title: string;
   backText: string;
-  footerLinkTo: string;
-  footerLinkText: string;
-}>();
+  footerLinks: Array<{ to: string; text: string }>;
+  showMeta?: boolean;
+}>(), {
+  showMeta: true,
+});
 
 const { t } = useI18n();
 </script>
@@ -29,12 +31,17 @@ const { t } = useI18n();
       </RouterLink>
 
       <h1 class="legal-title">{{ title }}</h1>
-      <p class="legal-meta">{{ t("legal.last_updated") }}</p>
+      <p v-if="showMeta" class="legal-meta">{{ t("legal.last_updated") }}</p>
 
       <slot />
 
       <div class="legal-footer">
-        <RouterLink :to="footerLinkTo" class="legal-link">{{ footerLinkText }}</RouterLink>
+        <RouterLink
+          v-for="link in footerLinks"
+          :key="link.to"
+          :to="link.to"
+          class="legal-link"
+        >{{ link.text }}</RouterLink>
       </div>
     </div>
   </div>

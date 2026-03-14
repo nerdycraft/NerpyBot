@@ -24,6 +24,11 @@ const router = createRouter({
       meta: { public: true },
     },
     {
+      path: "/impressum",
+      component: () => import("@/views/ImpressumView.vue"),
+      meta: { public: true },
+    },
+    {
       path: "/guilds",
       component: () => import("@/views/guild/GuildDetailView.vue"),
     },

@@ -133,6 +133,8 @@ function testLogin() {
         <RouterLink to="/terms" class="legal-link">{{ t("legal.terms") }}</RouterLink>
         <span class="legal-sep">·</span>
         <RouterLink to="/privacy" class="legal-link">{{ t("legal.privacy") }}</RouterLink>
+        <span class="legal-sep">·</span>
+        <RouterLink to="/impressum" class="legal-link">{{ t("legal.impressum") }}</RouterLink>
       </p>
     </div>
   </div>

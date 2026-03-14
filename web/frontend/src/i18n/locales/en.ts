@@ -94,8 +94,120 @@ export const en = {
   legal: {
     terms: "Terms of Service",
     privacy: "Privacy Policy",
+    impressum: "Legal Notice",
     back: "Back",
     last_updated: "Last updated: March 2026",
+
+    impressum_page: {
+      legal_info_title: "Information pursuant to § 5 DDG (German Digital Services Act)",
+      contact_title: "Contact",
+      contact_email_prefix: "Email: ",
+      responsible_title: "Responsible for content under § 18 (2) MStV",
+      disclaimer_title: "Disclaimer",
+      disclaimer_body:
+        "The content of these pages was created with the greatest care. However, we cannot guarantee the accuracy, completeness, or timeliness of the content. As a service provider, we are responsible for our own content on these pages in accordance with general laws pursuant to § 7 (1) DDG.",
+    },
+
+    terms_page: {
+      acceptance_title: "1. Acceptance of Terms",
+      acceptance_body:
+        "By adding NerpyBot to your Discord server or using the NerpyBot dashboard, you agree to these Terms of Service. If you do not agree, do not use the service.",
+      description_title: "2. Description of Service",
+      description_body:
+        "NerpyBot is a Discord bot that provides server management, moderation, gaming integrations (World of Warcraft, League of Legends), application forms, role management, and related features. A web dashboard is available to server administrators with premium access.",
+      acceptable_use_title: "3. Acceptable Use",
+      acceptable_use_intro: "You agree not to use NerpyBot to:",
+      acceptable_use_item_discord: "Violate Discord\u2019s Terms of Service or Community Guidelines",
+      acceptable_use_item_harass: "Harass, threaten, or harm other users",
+      acceptable_use_item_exploit: "Attempt to exploit, hack, or disrupt the service",
+      acceptable_use_item_unlawful: "Use the service for any unlawful purpose",
+      access_title: "4. Access and Availability",
+      access_body:
+        "We reserve the right to remove NerpyBot from any server or revoke dashboard access, particularly in cases of abuse or violation of these terms. Except in cases of serious violations or abuse, we will provide reasonable advance notice. We do not guarantee continuous, uninterrupted availability of the service.",
+      warranty_title: "5. Disclaimer of Warranties",
+      warranty_body:
+        "NerpyBot is provided \u201cas is\u201d without warranties of any kind, express or implied. We make no guarantees about the reliability, accuracy, or fitness for a particular purpose of the service.",
+      liability_title: "6. Limitation of Liability",
+      liability_body:
+        "To the fullest extent permitted by law, we are not liable for any indirect, incidental, or consequential damages arising from your use of NerpyBot.",
+      changes_title: "7. Changes to Terms",
+      changes_body:
+        "We may update these terms from time to time. For material changes, we will provide advance notice through our Discord community or the dashboard. Continued use of the service after the notice period constitutes acceptance of the updated terms.",
+      contact_title: "8. Contact",
+      contact_body_before: "For questions about these terms, contact a bot operator through Discord or by email as listed in our ",
+      contact_body_link: "Legal Notice",
+      contact_body_after: ".",
+      governing_law_title: "9. Governing Law and Jurisdiction",
+      governing_law_body:
+        "These Terms of Service are governed by the laws of the Federal Republic of Germany, excluding the UN Convention on the International Sale of Goods (CISG). The exclusive place of jurisdiction for all disputes arising from or in connection with these Terms is Hamburg, Germany, to the extent permitted by applicable law.",
+      dispute_title: "10. Online Dispute Resolution",
+      dispute_body_before: "The European Commission provides an online dispute resolution (ODR) platform at ",
+      dispute_body_after:
+        ". We are neither obligated nor willing to participate in dispute resolution proceedings before a consumer arbitration board.",
+    },
+
+    privacy_page: {
+      controller_label: "Data Controller (Art. 13(1)(a) GDPR)",
+      data_collection_title: "1. What Data We Collect",
+      data_collection_intro:
+        "NerpyBot collects and stores the minimum data necessary to provide its features. The legal basis for processing is Art. 6(1)(b) GDPR (performance of a contract/service) unless stated otherwise:",
+      data_collection_item_guild_ids:
+        "<strong>Guild (server) IDs</strong> \u2014 to associate configuration with your server",
+      data_collection_item_user_ids:
+        "<strong>Discord User IDs and usernames</strong> \u2014 for dashboard access, reminders, and moderation actions",
+      data_collection_item_channel_role_ids:
+        "<strong>Channel and role IDs</strong> \u2014 to deliver messages and apply role assignments per your configuration",
+      data_collection_item_application:
+        "<strong>Application form answers</strong> \u2014 submitted by members via the bot\u2019s application system, stored for moderator review",
+      data_collection_item_config:
+        "<strong>Configuration data</strong> \u2014 settings you choose to configure through the dashboard or bot commands (e.g. leave messages, reminder schedules)",
+      data_collection_outro:
+        "We do not collect general message content, voice audio, or any data beyond what is required for configured features.",
+      data_use_title: "2. How We Use Your Data",
+      data_use_body:
+        "All collected data is used solely to provide NerpyBot\u2019s functionality within your server. We do not use your data for advertising, analytics, or any purpose beyond operating the bot.",
+      data_retention_title: "3. Data Retention",
+      data_retention_body1:
+        "Data associated with your server is retained while NerpyBot is active in it. If you remove NerpyBot from your server, you may request deletion of all associated data by contacting a bot operator through Discord.",
+      data_retention_body2:
+        "Dashboard user data (Discord User ID, username, premium status) is retained until access is revoked by an operator. All other data is not retained beyond what is necessary for the stated purpose.",
+      data_sharing_title: "4. Data Sharing",
+      data_sharing_body1: "We do not sell, rent, or share your data with third parties. Data may be disclosed if required by law.",
+      data_sharing_body2:
+        "NerpyBot integrates with third-party APIs (Blizzard Entertainment, Riot Games) to fetch public game data on request. We do not share your personal Discord data with these services.",
+      international_title: "5. International Data Transfers",
+      international_body:
+        "When using gaming integrations, NerpyBot queries public APIs from Blizzard Entertainment (USA) and Riot Games (USA) on your request. This does not involve transferring your personal Discord data to these providers. The service is hosted by Hetzner, Germany \u2014 any transfers of data outside the European Economic Area (EEA) are based on appropriate safeguards (e.g. standard contractual clauses under Art. 46 GDPR).",
+      security_title: "6. Data Security",
+      security_body:
+        "We take reasonable technical and organisational measures to protect stored data. However, no system is completely secure and we cannot guarantee absolute security.",
+      your_rights_title: "7. Your Rights",
+      your_rights_intro: "You have the following rights regarding your personal data:",
+      your_rights_item_access:
+        "<strong>Right of access</strong> (Art. 15 GDPR) \u2014 to obtain a copy of the data we hold about you",
+      your_rights_item_rectification:
+        "<strong>Right to rectification</strong> (Art. 16 GDPR) \u2014 to have inaccurate data corrected",
+      your_rights_item_erasure:
+        "<strong>Right to erasure</strong> (Art. 17 GDPR) \u2014 to have your data deleted, subject to legal retention obligations",
+      your_rights_item_restriction:
+        "<strong>Right to restriction of processing</strong> (Art. 18 GDPR) \u2014 to restrict how we process your data under certain conditions",
+      your_rights_item_portability:
+        "<strong>Right to data portability</strong> (Art. 20 GDPR) \u2014 to receive your data in a commonly used, machine-readable format where technically feasible",
+      your_rights_item_objection:
+        "<strong>Right to object</strong> (Art. 21 GDPR) \u2014 to object to processing where it is based on legitimate interests",
+      your_rights_contact_before: "To exercise these rights, contact us at the address listed in our ",
+      your_rights_contact_link: "Legal Notice",
+      your_rights_contact_after: ".",
+      your_rights_supervisory:
+        "You also have the right to lodge a complaint with a supervisory authority (Art. 77 GDPR). The competent authority is the data protection authority for the German federal state in which we are based: Der Hamburgische Beauftragte f\u00fcr Datenschutz und Informationsfreiheit (HmbBfDI), Ludwig-Erhard-Stra\u00dfe 22, 20459 Hamburg.",
+      changes_title: "8. Changes to This Policy",
+      changes_body:
+        "We may update this Privacy Policy from time to time. The current version is always available at this address. We will provide advance notice of material changes.",
+      contact_title: "9. Contact",
+      contact_body_before: "For privacy-related requests, contact us at the address listed in our ",
+      contact_body_link: "Legal Notice",
+      contact_body_after: ".",
+    },
   },
 
   login: {

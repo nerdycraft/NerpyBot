@@ -96,8 +96,121 @@ export const de: typeof en = {
   legal: {
     terms: "Nutzungsbedingungen",
     privacy: "Datenschutzerklärung",
+    impressum: "Impressum",
     back: "Zurück",
     last_updated: "Zuletzt aktualisiert: März 2026",
+
+    impressum_page: {
+      legal_info_title: "Angaben gemäß § 5 DDG",
+      contact_title: "Kontakt",
+      contact_email_prefix: "E-Mail: ",
+      responsible_title: "Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV",
+      disclaimer_title: "Haftungsausschluss",
+      disclaimer_body:
+        "Die Inhalte dieser Seiten wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte können wir jedoch keine Gewähr übernehmen. Als Diensteanbieter sind wir gemäß § 7 Abs. 1 DDG für eigene Inhalte auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich.",
+    },
+
+    terms_page: {
+      acceptance_title: "1. Annahme der Nutzungsbedingungen",
+      acceptance_body:
+        "Durch das Hinzufügen von NerpyBot zu deinem Discord-Server oder die Nutzung des NerpyBot-Dashboards stimmst du diesen Nutzungsbedingungen zu. Wenn du nicht einverstanden bist, nutze den Dienst nicht.",
+      description_title: "2. Beschreibung des Dienstes",
+      description_body:
+        "NerpyBot ist ein Discord-Bot, der Serververwaltung, Moderation, Gaming-Integrationen (World of Warcraft, League of Legends), Bewerbungsformulare, Rollenverwaltung und weitere Funktionen bereitstellt. Ein Web-Dashboard steht Serveradministratoren mit Premium-Zugang zur Verfügung.",
+      acceptable_use_title: "3. Zulässige Nutzung",
+      acceptable_use_intro: "Du stimmst zu, NerpyBot nicht zu verwenden, um:",
+      acceptable_use_item_discord: "Discords Nutzungsbedingungen oder Community-Richtlinien zu verletzen",
+      acceptable_use_item_harass: "Andere Nutzer zu belästigen, zu bedrohen oder zu schädigen",
+      acceptable_use_item_exploit: "Den Dienst zu missbrauchen, zu hacken oder zu stören",
+      acceptable_use_item_unlawful: "Den Dienst für gesetzwidrige Zwecke zu nutzen",
+      access_title: "4. Zugang und Verfügbarkeit",
+      access_body:
+        "Wir behalten uns das Recht vor, NerpyBot von jedem Server zu entfernen oder den Dashboard-Zugang zu widerrufen, insbesondere bei Missbrauch oder Verstoß gegen diese Bedingungen. Außer bei schwerwiegenden Verstößen oder Missbrauch werden wir eine angemessene Vorankündigung geben. Wir garantieren keine kontinuierliche, ununterbrochene Verfügbarkeit des Dienstes.",
+      warranty_title: "5. Gewährleistungsausschluss",
+      warranty_body:
+        "NerpyBot wird ohne jegliche ausdrückliche oder stillschweigende Gewährleistung bereitgestellt. Wir übernehmen keine Garantie für die Zuverlässigkeit, Genauigkeit oder Eignung für einen bestimmten Zweck des Dienstes.",
+      liability_title: "6. Haftungsbeschränkung",
+      liability_body:
+        "Im gesetzlich zulässigen Umfang haften wir nicht für mittelbare, zufällige oder Folgeschäden, die aus der Nutzung von NerpyBot entstehen.",
+      changes_title: "7. Änderungen der Nutzungsbedingungen",
+      changes_body:
+        "Wir können diese Bedingungen von Zeit zu Zeit aktualisieren. Bei wesentlichen Änderungen werden wir im Voraus über unsere Discord-Community oder das Dashboard informieren. Die weitere Nutzung des Dienstes nach Ablauf der Ankündigungsfrist gilt als Zustimmung zu den aktualisierten Bedingungen.",
+      contact_title: "8. Kontakt",
+      contact_body_before: "Bei Fragen zu diesen Bedingungen wende dich über Discord an einen Bot-Operator oder per E-Mail gemäß unserem ",
+      contact_body_link: "Impressum",
+      contact_body_after: ".",
+      governing_law_title: "9. Anwendbares Recht und Gerichtsstand",
+      governing_law_body:
+        "Diese Nutzungsbedingungen unterliegen dem Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts (CISG). Ausschließlicher Gerichtsstand für alle Streitigkeiten aus oder im Zusammenhang mit diesen Bedingungen ist Hamburg, Deutschland, soweit gesetzlich zulässig.",
+      dispute_title: "10. Online-Streitbeilegung",
+      dispute_body_before: "Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung bereit, die unter ",
+      dispute_body_after:
+        " erreichbar ist. Wir sind weder bereit noch verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.",
+    },
+
+    privacy_page: {
+      controller_label: "Verantwortlicher (Art. 13 Abs. 1 lit. a DSGVO)",
+      data_collection_title: "1. Welche Daten wir erheben",
+      data_collection_intro:
+        "NerpyBot erhebt und speichert die minimal notwendigen Daten, um seine Funktionen bereitzustellen. Rechtsgrundlage für die Verarbeitung ist Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung), sofern nicht anders angegeben:",
+      data_collection_item_guild_ids:
+        "<strong>Server-IDs</strong> — zur Zuordnung der Konfiguration zu deinem Server",
+      data_collection_item_user_ids:
+        "<strong>Discord-Nutzer-IDs und Benutzernamen</strong> — für Dashboard-Zugang, Erinnerungen und Moderationsaktionen",
+      data_collection_item_channel_role_ids:
+        "<strong>Kanal- und Rollen-IDs</strong> — zur Zustellung von Nachrichten und Anwendung von Rollenzuweisungen gemäß deiner Konfiguration",
+      data_collection_item_application:
+        "<strong>Antworten auf Bewerbungsformulare</strong> — von Mitgliedern über das Bewerbungssystem des Bots eingereicht, zur Überprüfung durch Moderatoren gespeichert",
+      data_collection_item_config:
+        "<strong>Konfigurationsdaten</strong> — Einstellungen, die du über das Dashboard oder Bot-Befehle konfigurierst (z. B. Abschiedsnachrichten, Erinnerungspläne)",
+      data_collection_outro:
+        "Wir erheben keine allgemeinen Nachrichteninhalte, Sprachaudio oder sonstige Daten über das für konfigurierte Funktionen Erforderliche hinaus.",
+      data_use_title: "2. Wie wir deine Daten verwenden",
+      data_use_body:
+        "Alle erhobenen Daten werden ausschließlich zur Bereitstellung der NerpyBot-Funktionalität auf deinem Server verwendet. Wir nutzen deine Daten nicht für Werbung, Analysen oder andere Zwecke als den Betrieb des Bots.",
+      data_retention_title: "3. Datenspeicherung und Aufbewahrungsfristen",
+      data_retention_body1:
+        "Mit deinem Server verbundene Daten werden gespeichert, solange NerpyBot aktiv ist. Wenn du NerpyBot von deinem Server entfernst, kannst du die Löschung aller zugehörigen Daten durch Kontaktaufnahme mit einem Bot-Operator über Discord anfordern.",
+      data_retention_body2:
+        "Dashboard-Nutzerdaten (Discord-Nutzer-ID, Benutzername, Premium-Status) werden gespeichert, bis der Zugang durch einen Operator widerrufen wird. Für alle anderen Daten gilt: Sie werden nicht länger gespeichert, als es für den jeweiligen Verwendungszweck erforderlich ist.",
+      data_sharing_title: "4. Datenweitergabe",
+      data_sharing_body1:
+        "Wir verkaufen, vermieten oder teilen deine Daten nicht mit Dritten. Daten können offengelegt werden, wenn dies gesetzlich vorgeschrieben ist.",
+      data_sharing_body2:
+        "NerpyBot integriert Drittanbieter-APIs (Blizzard Entertainment, Riot Games), um auf Anfrage öffentliche Spieldaten abzurufen. Wir teilen deine Discord-Daten nicht mit diesen Diensten.",
+      international_title: "5. Übermittlung in Drittländer",
+      international_body:
+        "Bei der Nutzung von Gaming-Integrationen fragt NerpyBot öffentliche APIs von Blizzard Entertainment (USA) und Riot Games (USA) ab. Diese Aufrufe erfolgen auf deine Anfrage hin und beinhalten keine Übermittlung deiner persönlichen Discord-Daten an diese Anbieter. Der Hosting-Dienst ist unter Hetzner, Deutschland betrieben — etwaige Datenübermittlungen in Drittländer erfolgen auf Grundlage geeigneter Garantien (z. B. Standardvertragsklauseln gemäß Art. 46 DSGVO).",
+      security_title: "6. Datensicherheit",
+      security_body:
+        "Wir treffen angemessene technische und organisatorische Maßnahmen zum Schutz gespeicherter Daten. Kein System ist jedoch vollständig sicher, und wir können keine absolute Sicherheit garantieren.",
+      your_rights_title: "7. Deine Rechte",
+      your_rights_intro: "Du hast gegenüber uns folgende Rechte hinsichtlich deiner personenbezogenen Daten:",
+      your_rights_item_access:
+        "<strong>Auskunft</strong> (Art. 15 DSGVO) — Recht auf Auskunft über die zu deiner Person gespeicherten Daten",
+      your_rights_item_rectification:
+        "<strong>Berichtigung</strong> (Art. 16 DSGVO) — Recht auf Berichtigung unrichtiger Daten",
+      your_rights_item_erasure:
+        "<strong>Löschung</strong> (Art. 17 DSGVO) — Recht auf Löschung deiner Daten, sofern keine gesetzlichen Aufbewahrungspflichten entgegenstehen",
+      your_rights_item_restriction:
+        "<strong>Einschränkung der Verarbeitung</strong> (Art. 18 DSGVO) — Recht auf Einschränkung der Verarbeitung deiner Daten unter bestimmten Voraussetzungen",
+      your_rights_item_portability:
+        "<strong>Datenübertragbarkeit</strong> (Art. 20 DSGVO) — Recht, deine Daten in einem gängigen maschinenlesbaren Format zu erhalten, soweit technisch machbar",
+      your_rights_item_objection:
+        "<strong>Widerspruch</strong> (Art. 21 DSGVO) — Recht, der Verarbeitung deiner Daten zu widersprechen, sofern die Verarbeitung auf berechtigten Interessen beruht",
+      your_rights_contact_before: "Zur Ausübung dieser Rechte wende dich an die im ",
+      your_rights_contact_link: "Impressum",
+      your_rights_contact_after: " genannte Kontaktadresse.",
+      your_rights_supervisory:
+        "Du hast außerdem das Recht, dich bei der zuständigen Datenschutz-Aufsichtsbehörde zu beschweren (Art. 77 DSGVO). Zuständig ist der Landesdatenschutzbeauftragte des Bundeslandes, in dem wir unseren Sitz haben: Der Hamburgische Beauftragte für Datenschutz und Informationsfreiheit (HmbBfDI), Ludwig-Erhard-Straße 22, 20459 Hamburg.",
+      changes_title: "8. Änderungen dieser Richtlinie",
+      changes_body:
+        "Wir können diese Datenschutzerklärung von Zeit zu Zeit aktualisieren. Die aktuelle Version ist stets unter dieser Adresse abrufbar. Bei wesentlichen Änderungen werden wir im Voraus informieren.",
+      contact_title: "9. Kontakt",
+      contact_body_before: "Für datenschutzbezogene Anfragen wende dich an die im ",
+      contact_body_link: "Impressum",
+      contact_body_after: " genannte Adresse.",
+    },
   },
 
   login: {

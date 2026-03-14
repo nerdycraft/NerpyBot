@@ -442,6 +442,18 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+# ── Legal ──
+
+
+class LegalContactResponse(BaseModel):
+    name: str
+    street: str
+    zip_city: str
+    country_en: str
+    country_de: str
+    email: str
+
+
 # ── Support ──
 
 
