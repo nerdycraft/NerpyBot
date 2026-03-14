@@ -595,7 +595,7 @@ function applyRedaction(data: unknown, pathOnly: string): unknown {
       ...s,
       user_id: ni(s.user_id),
       user_name: ni(s.user_name),
-      decision_reason: s.decision_reason,
+      decision_reason: ni(s.decision_reason),
       answers: s.answers.map((a) => ({ ...a, answer_text: ni(a.answer_text) })),
       votes: s.votes.map((v) => ({ ...v, voter_id: ni(v.voter_id), voter_name: ni(v.voter_name) })),
     }));
