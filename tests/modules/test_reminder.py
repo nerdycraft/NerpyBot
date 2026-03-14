@@ -9,6 +9,13 @@ import pytest
 
 from models.reminder import ReminderMessage
 from modules.reminder import Reminder, _format_relative
+from utils.strings import load_strings
+
+
+@pytest.fixture(autouse=True)
+def _load_locale_strings():
+    """Load locale YAML files before each test."""
+    load_strings()
 
 
 @pytest.fixture
@@ -72,7 +79,7 @@ class TestFormatRelative:
 
     def test_no_timezone_defaults_to_utc(self):
         """With no timezone, should use UTC for calendar day calculation."""
-        next_fire = datetime.now(UTC) + timedelta(days=3, hours=1)
+        next_fire = datetime.now(UTC) + timedelta(days=3)
         result = _format_relative(next_fire)
         assert result == "3 days from now"
 

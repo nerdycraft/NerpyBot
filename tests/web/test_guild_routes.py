@@ -1,5 +1,6 @@
 import pytest
 
+from tests.web.conftest import make_auth_header
 
 GUILD_ID = 987654321
 
@@ -499,3 +500,193 @@ class TestWowNewsConfigCRUD:
         assert len(data) == 1
         assert data[0]["character_name"] == "Testchar"
         assert data[0]["mount_count"] == 3
+
+
+class TestSupportModeGuildAccess:
+    """Tests for operator support_mode logic in require_guild_access."""
+
+    def test_operator_with_real_guild_perms_gets_normal_access(self, client, fake_valkey):
+        """Operator with admin/mod perms on the guild → no support_mode, normal 200."""
+        # Seed admin perms for the operator (user_id=111222333) on this guild
+        fake_valkey.set_permissions("111222333", {str(GUILD_ID): {"level": "admin", "name": "Test Guild"}}, ttl=300)
+        header = make_auth_header(user_id="111222333", username="Operator")
+        response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=header)
+        assert response.status_code == 200
+        # No support_mode key in the language response body (it's a user-dict concern, not response body)
+        data = response.json()
+        assert "language" in data
+
+    def test_operator_without_guild_perms_gets_support_mode(self, client, fake_valkey):
+        """Operator with no guild permissions → still 200 (access granted), but support_mode=True on user dict.
+
+        We verify the endpoint still returns 200 — the support_mode flag is on the internal user dict
+        and will be used in Step 5. For now, 200 confirms the operator bypassed the 403 gate.
+        """
+        # Empty perms for operator — no entry for this guild
+        fake_valkey.set_permissions("111222333", {}, ttl=300)
+        header = make_auth_header(user_id="111222333", username="Operator")
+        response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=header)
+        assert response.status_code == 200
+
+    def test_operator_without_any_cached_perms_gets_support_mode(self, client, fake_valkey):
+        """Operator with no cached permission entry at all → still 200, support_mode path."""
+        # No permissions seeded for operator at all (get_permissions returns None)
+        header = make_auth_header(user_id="111222333", username="Operator")
+        response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=header)
+        assert response.status_code == 200
+
+    def test_non_operator_without_guild_perms_is_rejected(self, client, fake_valkey, web_db_session):
+        """Non-operator with no guild permissions → 403 from require_guild_access (not require_premium)."""
+        from models.admin import PremiumUser
+
+        # Grant premium so the request passes require_premium and reaches require_guild_access
+        PremiumUser.grant(999888777, 111222333, web_db_session)
+        web_db_session.commit()
+        # Seed perms with no entry for this guild for the regular user
+        fake_valkey.set_permissions("999888777", {}, ttl=300)
+        header = make_auth_header(user_id="999888777", username="RandomUser")
+        response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=header)
+        assert response.status_code == 403
+        assert "guild" in response.json()["detail"].lower()
+
+
+class TestSupportModeRedactionAndWriteBlocking:
+    """Tests for support_mode PII redaction on GET and write-blocking on POST/PUT/DELETE."""
+
+    @pytest.fixture
+    def support_header(self, fake_valkey):
+        """Auth header for an operator in support mode (no guild permissions cached)."""
+        # Operator (111222333) with empty perms → no entry for GUILD_ID → support_mode=True
+        fake_valkey.set_permissions("111222333", {}, ttl=300)
+        return make_auth_header(user_id="111222333", username="Operator")
+
+    @pytest.fixture
+    def admin_header(self, fake_valkey):
+        """Auth header for an operator WITH real guild admin perms (no redaction, writes allowed)."""
+        fake_valkey.set_permissions("111222333", {str(GUILD_ID): {"level": "admin", "name": "Test Guild"}}, ttl=300)
+        return make_auth_header(user_id="111222333", username="Operator")
+
+    def test_get_reminders_in_support_mode_redacts_author(self, client, support_header, web_db_session):
+        """GET reminders in support mode → author is [redacted], message is NOT redacted."""
+        from datetime import UTC, datetime
+
+        from models.reminder import ReminderMessage
+
+        reminder = ReminderMessage(
+            GuildId=GUILD_ID,
+            ChannelId=111,
+            ChannelName="general",
+            CreateDate=datetime.now(UTC),
+            Author="RealUserName",
+            Message="Hello, world!",
+            Enabled=True,
+            NextFire=datetime.now(UTC),
+            ScheduleType="daily",
+        )
+        web_db_session.add(reminder)
+        web_db_session.commit()
+
+        response = client.get(f"/api/guilds/{GUILD_ID}/reminders", headers=support_header)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["author"] == "[redacted]"
+        # message is bot-authored config, NOT PII — must not be redacted
+        assert data[0]["message"] == "Hello, world!"
+
+    def test_get_reminders_in_support_mode_sets_header(self, client, support_header):
+        """GET reminders in support mode → X-Support-Mode: true response header."""
+        response = client.get(f"/api/guilds/{GUILD_ID}/reminders", headers=support_header)
+        assert response.status_code == 200
+        assert response.headers.get("x-support-mode") == "true"
+
+    def test_get_language_in_support_mode_sets_header(self, client, support_header):
+        """GET language in support mode → X-Support-Mode: true response header."""
+        response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=support_header)
+        assert response.status_code == 200
+        assert response.headers.get("x-support-mode") == "true"
+
+    def test_put_language_in_support_mode_is_blocked(self, client, support_header):
+        """PUT language in support mode → 403 Read-only in support mode."""
+        response = client.put(
+            f"/api/guilds/{GUILD_ID}/language",
+            json={"language": "de"},
+            headers=support_header,
+        )
+        assert response.status_code == 403
+        assert "Read-only in support mode" in response.json()["detail"]
+
+    def test_post_reminder_in_support_mode_is_blocked(self, client, support_header):
+        """POST reminder in support mode → 403."""
+        response = client.post(
+            f"/api/guilds/{GUILD_ID}/reminders",
+            json={
+                "channel_id": "111",
+                "message": "Test",
+                "schedule_type": "interval",
+                "interval_seconds": 3600,
+                "timezone": "UTC",
+            },
+            headers=support_header,
+        )
+        assert response.status_code == 403
+        assert "Read-only in support mode" in response.json()["detail"]
+
+    def test_delete_reminder_in_support_mode_is_blocked(self, client, support_header, web_db_session):
+        """DELETE reminder in support mode → 403."""
+        from datetime import UTC, datetime
+
+        from models.reminder import ReminderMessage
+
+        reminder = ReminderMessage(
+            GuildId=GUILD_ID,
+            ChannelId=111,
+            CreateDate=datetime.now(UTC),
+            Message="Test",
+            Enabled=True,
+            NextFire=datetime.now(UTC),
+            ScheduleType="daily",
+        )
+        web_db_session.add(reminder)
+        web_db_session.commit()
+
+        response = client.delete(f"/api/guilds/{GUILD_ID}/reminders/{reminder.Id}", headers=support_header)
+        assert response.status_code == 403
+        assert "Read-only in support mode" in response.json()["detail"]
+
+    def test_operator_with_real_perms_reads_without_redaction(self, client, admin_header, web_db_session):
+        """Operator with real admin perms → author is NOT redacted, no support-mode header."""
+        from datetime import UTC, datetime
+
+        from models.reminder import ReminderMessage
+
+        reminder = ReminderMessage(
+            GuildId=GUILD_ID,
+            ChannelId=111,
+            ChannelName="general",
+            CreateDate=datetime.now(UTC),
+            Author="RealUserName",
+            Message="Hello, world!",
+            Enabled=True,
+            NextFire=datetime.now(UTC),
+            ScheduleType="daily",
+        )
+        web_db_session.add(reminder)
+        web_db_session.commit()
+
+        response = client.get(f"/api/guilds/{GUILD_ID}/reminders", headers=admin_header)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["author"] == "RealUserName"
+        assert "x-support-mode" not in response.headers
+
+    def test_operator_with_real_perms_can_write(self, client, admin_header):
+        """Operator with real admin perms → PUT language succeeds (no 403)."""
+        response = client.put(
+            f"/api/guilds/{GUILD_ID}/language",
+            json={"language": "de"},
+            headers=admin_header,
+        )
+        assert response.status_code == 200
+        assert response.json()["language"] == "de"

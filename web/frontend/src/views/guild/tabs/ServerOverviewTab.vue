@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
 import { useGuildStore } from "@/stores/guild";
-import type { GuildSummary } from "@/api/types";
+import { api } from "@/api/client";
+import type { BotGuildInfo } from "@/api/types";
 
 const auth = useAuthStore();
 const guildStore = useGuildStore();
@@ -13,7 +14,18 @@ const router = useRouter();
 const managedGuilds = computed(() => auth.guilds.filter((g) => g.bot_present));
 const invitableGuilds = computed(() => auth.guilds.filter((g) => !g.bot_present));
 
-function iconUrl(guild: GuildSummary): string | null {
+const botGuilds = ref<BotGuildInfo[]>([]);
+
+onMounted(async () => {
+  if (!auth.user?.is_operator) return;
+  try {
+    botGuilds.value = (await api.get<{ guilds: BotGuildInfo[] }>("/operator/guilds")).guilds;
+  } catch {
+    // non-critical
+  }
+});
+
+function iconUrl(guild: { id: string; icon: string | null }): string | null {
   if (!guild.icon) return null;
   return `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`;
 }
@@ -108,6 +120,40 @@ function iconUrl(guild: GuildSummary): string | null {
             Invite
           </a>
         </div>
+      </div>
+    </template>
+
+    <!-- All Bot Guilds — operator only -->
+    <template v-if="auth.user?.is_operator && botGuilds.length > 0">
+      <h2 class="text-xl font-bold mb-1 mt-10">All Bot Guilds</h2>
+      <p class="text-muted-foreground text-sm mb-6">
+        All servers NerpyBot is currently in. Click any card to open that server's settings (support mode).
+      </p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <button
+          v-for="g in botGuilds"
+          :key="g.id"
+          class="rounded-lg p-4 flex items-center gap-3 text-left border bg-card hover:bg-muted border-border hover:border-primary transition-colors"
+          @click="router.push(`/guilds/${g.id}`)"
+        >
+          <img
+            v-if="iconUrl(g)"
+            :src="iconUrl(g)!"
+            :alt="g.name"
+            class="w-10 h-10 rounded-full object-cover flex-shrink-0"
+          />
+          <div
+            v-else
+            class="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-base font-bold flex-shrink-0"
+            aria-hidden="true"
+          >
+            {{ g.name.charAt(0).toUpperCase() }}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="font-semibold text-sm truncate">{{ g.name }}</div>
+            <div class="text-xs text-muted-foreground">{{ g.member_count?.toLocaleString() ?? "?" }} members</div>
+          </div>
+        </button>
       </div>
     </template>
   </div>

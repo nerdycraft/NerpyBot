@@ -11,11 +11,11 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(
+async function requestWithHeaders<T>(
   method: string,
   path: string,
   body?: unknown,
-): Promise<T> {
+): Promise<{ data: T; supportMode: boolean }> {
   const auth = useAuthStore();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -57,8 +57,14 @@ async function request<T>(
     throw new ApiError(res.status, detail);
   }
 
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  const supportMode = res.headers.get("X-Support-Mode") === "true";
+  if (res.status === 204) return { data: undefined as T, supportMode };
+  const data = (await res.json()) as T;
+  return { data, supportMode };
+}
+
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  return (await requestWithHeaders<T>(method, path, body)).data;
 }
 
 export const api = {
@@ -67,4 +73,5 @@ export const api = {
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, body),
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body),
   delete: <T>(path: string) => request<T>("DELETE", path),
+  getWithHeaders: <T>(path: string) => requestWithHeaders<T>("GET", path),
 };

@@ -79,6 +79,33 @@ def require_premium(
     return user
 
 
+async def _refresh_guild_perms(vk, user_sub: str, discord_token: str) -> dict:
+    """Fetch fresh guild permissions from Discord and write them to the cache.
+
+    Raises HTTPException on network or auth errors so callers can decide
+    whether to surface the error or fall back to a degraded mode.
+    """
+    import httpx
+
+    from web.auth.oauth2 import fetch_user_guilds
+    from web.auth.permissions import resolve_guild_permissions
+    from web.cache import PERM_CACHE_TTL
+
+    try:
+        guilds = await fetch_user_guilds(discord_token)
+        perms = resolve_guild_permissions(guilds)
+        vk.set_permissions(user_sub, perms, ttl=PERM_CACHE_TTL)
+        return perms
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in (401, 403):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Could not verify guild permissions — please re-login"
+            )
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Discord API error")
+    except httpx.RequestError:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not reach Discord")
+
+
 async def require_guild_access(
     guild_id: int,
     user: dict = Depends(get_current_user),
@@ -93,8 +120,27 @@ async def require_guild_access(
     token is also expired the user must re-authenticate to get fresh permissions.
     """
     user_id = int(user["sub"])
+    guild_str = str(guild_id)
+
+    def _has_real_perms(p) -> bool:
+        if not p or guild_str not in p:
+            return False
+        entry = p[guild_str]
+        return isinstance(entry, dict) and entry.get("level") in ("admin", "mod")
+
     if user_id in config.ops:
-        return user
+        perms = vk.get_permissions(user["sub"])
+        if not _has_real_perms(perms):
+            # Try to refresh from Discord before degrading to support mode
+            discord_token = vk.get_discord_token(user["sub"])
+            if discord_token is not None:
+                try:
+                    perms = await _refresh_guild_perms(vk, user["sub"], discord_token)
+                except HTTPException:
+                    pass  # network/API failure → degrade to support_mode
+        if _has_real_perms(perms):
+            return user  # real guild permissions — normal access
+        return {**user, "support_mode": True}
 
     perms = vk.get_permissions(user["sub"])
     if perms is None:
@@ -102,29 +148,9 @@ async def require_guild_access(
         discord_token = vk.get_discord_token(user["sub"])
         if discord_token is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Session expired — please re-login")
-        try:
-            import httpx
+        perms = await _refresh_guild_perms(vk, user["sub"], discord_token)
 
-            from web.auth.oauth2 import fetch_user_guilds
-            from web.auth.permissions import resolve_guild_permissions
-            from web.cache import PERM_CACHE_TTL
-
-            guilds = await fetch_user_guilds(discord_token)
-            perms = resolve_guild_permissions(guilds)
-            vk.set_permissions(user["sub"], perms, ttl=PERM_CACHE_TTL)
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code in (401, 403):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail="Could not verify guild permissions — please re-login"
-                )
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Discord API error")
-        except httpx.RequestError:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not reach Discord")
-
-    guild_str = str(guild_id)
-    entry = perms.get(guild_str)
-    level = entry["level"] if isinstance(entry, dict) else None
-    if level not in ("admin", "mod"):
+    if not _has_real_perms(perms):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient guild permissions")
 
     return user

@@ -2,14 +2,43 @@
 
 from __future__ import annotations
 
+import logging
+
+from pydantic import ValidationError
+
 from fastapi import APIRouter, Depends
 
 from fastapi import HTTPException, status as http_status
 from sqlalchemy.orm import Session
 
 from web.dependencies import get_db_session, get_valkey, require_operator
-from web.schemas import HealthResponse, ModuleActionResponse, ModuleListResponse, PremiumUserGrant, PremiumUserSchema
+from web.schemas import (
+    BotGuildInfo,
+    BotGuildListResponse,
+    HealthResponse,
+    ModuleActionResponse,
+    ModuleListResponse,
+    PremiumUserGrant,
+    PremiumUserSchema,
+    VoiceConnectionDetail,
+)
 from web.cache import ValkeyClient
+
+log = logging.getLogger("nerpybot")
+
+
+def _parse_voice_details(raw: list) -> list[VoiceConnectionDetail]:
+    result = []
+    for d in raw:
+        if not isinstance(d, dict):
+            log.warning("health: unexpected voice_details entry type %s, skipping", type(d).__name__)
+            continue
+        try:
+            result.append(VoiceConnectionDetail(**d))
+        except (ValidationError, TypeError) as exc:
+            log.warning("health: malformed voice_details entry %r: %s", d, exc)
+    return result
+
 
 router = APIRouter(prefix="/operator", tags=["operator"])
 
@@ -86,9 +115,14 @@ async def health(
         latency_ms=result.get("latency_ms"),
         guild_count=result.get("guild_count"),
         voice_connections=result.get("voice_connections"),
+        active_reminders=result.get("active_reminders"),
+        error_count_24h=result.get("error_count_24h"),
+        memory_mb=result.get("memory_mb"),
+        cpu_percent=result.get("cpu_percent"),
         python_version=result.get("python_version"),
         discord_py_version=result.get("discord_py_version"),
         bot_version=result.get("bot_version"),
+        voice_details=_parse_voice_details(result.get("voice_details", [])),
     )
 
 
@@ -101,7 +135,7 @@ async def list_modules(
     result = await vk.send_bot_command("list_modules", {})
     if result is None:
         return ModuleListResponse(modules=[], status="bot unreachable")
-    return ModuleListResponse(modules=result.get("modules", []))
+    return ModuleListResponse(modules=result.get("modules", []), available=result.get("available", []))
 
 
 @router.post("/modules/{name}/load", response_model=ModuleActionResponse)
@@ -128,3 +162,15 @@ async def unload_module(
     if result is None:
         return ModuleActionResponse(module=name, action="unload", success=False, error="Bot unreachable")
     return ModuleActionResponse(module=name, action="unload", **result)
+
+
+@router.get("/guilds", response_model=BotGuildListResponse)
+async def list_bot_guilds(
+    user: dict = Depends(require_operator),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """List all guilds the bot is currently in."""
+    result = await vk.send_bot_command("list_guilds", {})
+    if result is None:
+        raise HTTPException(status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE, detail="Bot unreachable")
+    return BotGuildListResponse(guilds=[BotGuildInfo(**g) for g in result.get("guilds", [])])

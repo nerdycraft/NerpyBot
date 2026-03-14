@@ -8,14 +8,29 @@ The listener loop runs as an asyncio background task. It subscribes to the
 """
 
 import json
-from asyncio import CancelledError, ensure_future, sleep, to_thread
+from asyncio import CancelledError, ensure_future, gather, sleep, to_thread
 from datetime import UTC, datetime
 from importlib.metadata import version as pkg_version
+from pathlib import Path
+
+import psutil
+
+from utils.constants import PROTECTED_MODULES
+
+_proc = psutil.Process()
+_proc.cpu_percent(interval=None)  # prime the baseline; first call always returns 0.0
 
 
 def _is_valid_module_name(module: str) -> bool:
     """Return True if module is a valid loadable module name (lowercase alpha + underscores)."""
     return bool(module and module.replace("_", "").isalpha() and module.islower())
+
+
+def _discover_available_modules(loaded_names: set[str]) -> list[str]:
+    """Return module names present on disk but not currently loaded (and not protected)."""
+    modules_dir = Path(__file__).parent.parent / "modules"
+    discovered = {p.stem for p in modules_dir.glob("*.py") if p.stem != "__init__"}
+    return sorted(discovered - loaded_names - PROTECTED_MODULES)
 
 
 def _get_guild(bot, payload: dict):
@@ -35,8 +50,9 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
 
     Returns:
         dict: A command-specific response. Examples include:
-            - health: {"guild_count", "voice_connections", "latency_ms", "uptime_seconds", "python_version", "discord_py_version", "bot_version"}
+            - health: {"guild_count", "voice_connections", "latency_ms", "uptime_seconds", "python_version", "discord_py_version", "bot_version", "memory_mb", "cpu_percent", "error_count_24h", "active_reminders", "voice_details"}
             - list_modules: {"modules": [{"name", "loaded"}, ...]}
+            - list_guilds: {"guilds": [{"id", "name", "icon", "member_count"}, ...]}
             - module_load/module_unload: {"success": True} or {"success": False, "error": "..."}
             - get_channels: {"channels": [{"id", "name", "type"}, ...]}
             - get_roles: {"roles": [{"id", "name"}, ...]}
@@ -52,21 +68,49 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         import discord
 
         uptime_seconds = (datetime.now(UTC) - bot.uptime).total_seconds()
+        active_vcs = [vc for vc in bot.voice_clients if vc.guild and vc.channel]
+        voice_details = [
+            {
+                "guild_id": str(vc.guild.id),
+                "guild_name": vc.guild.name,
+                "channel_id": str(vc.channel.id),
+                "channel_name": vc.channel.name,
+            }
+            for vc in active_vcs
+        ]
+        active_reminders: int | None = None
+        try:
+            from models.reminder import ReminderMessage
+
+            def _count_reminders():
+                with bot.session_scope() as session:
+                    return session.query(ReminderMessage).filter(ReminderMessage.Enabled == True).count()  # noqa: E712
+
+            active_reminders = await to_thread(_count_reminders)
+        except Exception as e:
+            bot.log.warning("Failed to count active reminders for health response: %s", e)
         return {
             "guild_count": len(bot.guilds),
-            "voice_connections": len(bot.voice_clients),
+            "voice_connections": len(active_vcs),
             "latency_ms": round(bot.latency * 1000, 2),
             "uptime_seconds": round(uptime_seconds, 2),
             "python_version": sys.version.split()[0],
             "discord_py_version": discord.__version__,
             "bot_version": pkg_version("NerpyBot"),
+            "memory_mb": round(_proc.memory_info().rss / (1024 * 1024), 2),
+            "cpu_percent": round(_proc.cpu_percent(interval=None), 2),
+            "error_count_24h": bot.error_counter.count(),
+            "active_reminders": active_reminders,
+            "voice_details": voice_details,
         }
     elif command == "list_modules":
+        loaded_names: set[str] = set()
         modules = []
         for ext_name in bot.extensions:
             name = ext_name.replace("modules.", "")
-            modules.append({"name": name, "loaded": True})
-        return {"modules": modules}
+            loaded_names.add(name)
+            modules.append({"name": name, "loaded": True, "protected": name in PROTECTED_MODULES})
+        return {"modules": modules, "available": _discover_available_modules(loaded_names)}
     elif command == "module_load":
         module = payload.get("module", "")
         if not _is_valid_module_name(module):
@@ -80,6 +124,8 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         module = payload.get("module", "")
         if not _is_valid_module_name(module):
             return {"success": False, "error": "Invalid module name"}
+        if module in PROTECTED_MODULES:
+            return {"success": False, "error": f"Module '{module}' is protected and cannot be unloaded"}
         try:
             await bot.unload_extension(f"modules.{module}")
             return {"success": True}
@@ -175,6 +221,56 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         except Exception as e:
             bot.log.warning("validate_wow_guild failed: %s", e)
             return {"valid": False, "display_name": None, "error": str(e)}
+    elif command == "list_guilds":
+        return {
+            "guilds": [
+                {
+                    "id": str(g.id),
+                    "name": g.name,
+                    "icon": g.icon.key if g.icon else None,
+                    "member_count": g.member_count,
+                }
+                for g in bot.guilds
+            ]
+        }
+    elif command == "support_message":
+        import discord
+
+        user_id = payload.get("user_id", "unknown")
+        username = payload.get("username", "unknown")
+        category = payload.get("category", "general")
+        message_text = payload.get("message", "")
+
+        category_labels = {"bug": "Bug Report", "feature": "Feature Request", "feedback": "Feedback", "other": "Other"}
+        embed = discord.Embed(
+            title=f"Dashboard: {category_labels.get(category, category)}",
+            description=message_text,
+            color=discord.Color.blue(),
+            timestamp=datetime.now(UTC),
+        )
+        embed.set_footer(text=f"From: {username} (ID: {user_id})")
+
+        async def _send_to(uid: int) -> bool:
+            try:
+                dm_user = await bot.fetch_user(uid)
+                await dm_user.send(embed=embed)
+                return True
+            except (discord.Forbidden, discord.NotFound) as e:
+                bot.log.warning("support_message: cannot DM uid=%s: %s", uid, e)
+                return False
+            except discord.HTTPException as e:
+                bot.log.warning("support_message: send failed for uid=%s: %s", uid, e)
+                return False
+
+        recipients = bot.config.get("notifications", {}).get("error_recipients", [])
+        valid_ids: list[int] = []
+        for uid in recipients:
+            try:
+                valid_ids.append(int(uid))
+            except (TypeError, ValueError):
+                bot.log.warning("support_message: skipping invalid recipient %r", uid)
+        results = await gather(*(_send_to(uid) for uid in valid_ids))
+        return {"success": True, "sent_to": sum(results)}
     else:
         return {"error": f"Unknown command: {command}"}
 

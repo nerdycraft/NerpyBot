@@ -328,9 +328,14 @@ class TestOnReady:
         delattr(mock_self, "_valkey_task")
         _mock_session_scope(mock_self)
 
+        def _fake_create_task(coro):
+            if hasattr(coro, "close"):
+                coro.close()  # prevent unawaited-coroutine warning
+            return MagicMock()
+
         with (
             patch("NerdyPy.bot.SENTINEL_PATH", sentinel),
-            patch("NerdyPy.bot.create_task") as mock_create_task,
+            patch("NerdyPy.bot.create_task", side_effect=_fake_create_task) as mock_create_task,
         ):
             from NerdyPy.bot import NerpyBot
 

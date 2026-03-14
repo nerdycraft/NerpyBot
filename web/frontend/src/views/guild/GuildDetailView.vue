@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/auth";
@@ -19,6 +19,13 @@ import ReactionRolesTab from "./tabs/ReactionRolesTab.vue";
 import WowGuildNewsTab from "./tabs/WowGuildNewsTab.vue";
 import WowCraftingTab from "./tabs/WowCraftingTab.vue";
 import OperatorUserManagementTab from "./tabs/OperatorUserManagementTab.vue";
+import OperatorDashboardTab from "./tabs/OperatorDashboardTab.vue";
+import OperatorModulesTab from "./tabs/OperatorModulesTab.vue";
+import OperatorGuildsTab from "./tabs/OperatorGuildsTab.vue";
+import SupportTab from "./tabs/SupportTab.vue";
+import MockupToolbar from "@/components/MockupToolbar.vue";
+import { api } from "@/api/client";
+import { useMockup } from "@/composables/useMockup";
 
 const route = useRoute();
 const router = useRouter();
@@ -37,10 +44,36 @@ onMounted(() => {
   if (window.innerWidth < LG_BREAKPOINT) sidebarOpen.value = false;
 });
 
-// Reset to overview when switching guilds
-watch(guildId, () => {
+// Support mode: set by server via X-Support-Mode header on the first guild API call.
+const supportMode = ref(false);
+
+async function probeGuildAccess(id: string | undefined) {
+  if (!id || !auth.user?.is_operator) {
+    supportMode.value = false;
+    return;
+  }
+  const probeId = id;
+  let newMode = false;
+  try {
+    const { supportMode: serverMode } = await api.getWithHeaders<unknown>(`/guilds/${id}/language`);
+    newMode = serverMode;
+  } catch {
+    // network error → treat as non-support access
+  }
+  if (guildId.value === probeId) supportMode.value = newMode;
+}
+
+// Reset to overview when switching guilds, clear mockup, and probe support mode
+watch(guildId, (id) => {
   router.replace({ query: {} });
+  clearMockup();
+  probeGuildAccess(id);
 });
+
+onMounted(() => probeGuildAccess(guildId.value));
+onUnmounted(() => clearMockup());
+
+const { mockupLevel, clearMockup } = useMockup();
 
 const otherManagedGuilds = computed(() =>
   auth.guilds.filter((g) => g.bot_present && g.id !== guildId.value),
@@ -59,6 +92,9 @@ function navigateTo(tabId: string) {
   if (window.innerWidth < LG_BREAKPOINT) sidebarOpen.value = false;
 }
 
+// Permission hierarchy: member < mod < admin < operator
+const LEVEL_RANK: Record<string, number> = { member: 0, mod: 1, admin: 2, operator: 3 };
+
 type SectionItem = {
   id: string;
   label: string;
@@ -70,12 +106,15 @@ type SectionItem = {
 type SectionGroup = {
   label: string;
   operatorOnly?: boolean;
+  /** Minimum permission level required to see this group. Defaults to "mod" if omitted. */
+  minLevel?: "member" | "mod" | "admin";
   items: SectionItem[];
 };
 
 const allSectionGroups: SectionGroup[] = [
   {
     label: "General",
+    minLevel: "member",
     items: [
       { id: "server-overview", label: "Server Overview", icon: "mdi:view-grid-outline", component: ServerOverviewTab },
       { id: "language", label: "Language", icon: "mdi:translate", component: LanguageTab, guildOnly: true },
@@ -114,20 +153,34 @@ const allSectionGroups: SectionGroup[] = [
     ],
   },
   {
+    label: "Support",
+    minLevel: "member",
+    items: [
+      { id: "support", label: "Contact & Feedback", icon: "mdi:message-text-outline", component: SupportTab },
+    ],
+  },
+  {
     label: "Operator",
     operatorOnly: true,
     items: [
+      { id: "operator-dashboard", label: "Bot Health", icon: "mdi:heart-pulse", component: OperatorDashboardTab },
+      { id: "operator-guilds", label: "All Guilds", icon: "mdi:server-network-outline", component: OperatorGuildsTab },
+      { id: "operator-modules", label: "Modules", icon: "mdi:puzzle-outline", component: OperatorModulesTab },
       { id: "operator-user-management", label: "User Management", icon: "mdi:crown-outline", component: OperatorUserManagementTab },
     ],
   },
 ];
 
-const sectionGroups = computed(() =>
-  allSectionGroups
+const sectionGroups = computed(() => {
+  const effectiveIsOperator = mockupLevel.value === null && auth.user?.is_operator;
+  const effectiveLevel = mockupLevel.value ?? guild.current?.permission_level ?? "member";
+
+  return allSectionGroups
     .map((g) => ({ ...g, items: g.items.filter((item) => !item.guildOnly || !!guildId.value) }))
     .filter((g) => g.items.length > 0)
-    .filter((g) => !g.operatorOnly || auth.user?.is_operator),
-);
+    .filter((g) => !g.operatorOnly || effectiveIsOperator)
+    .filter((g) => (LEVEL_RANK[effectiveLevel] ?? 0) >= (LEVEL_RANK[g.minLevel ?? "mod"] ?? 0));
+});
 
 const allSections = computed(() => sectionGroups.value.flatMap((g) => g.items));
 const activeComponent = computed(() => {
@@ -140,12 +193,14 @@ const activeComponent = computed(() => {
   return found?.component;
 });
 
+
 const GROUP_ACCENTS: Record<string, string> = {
   General:      "text-blue-400",
   Moderation:   "text-amber-400",
   Roles:        "text-violet-400",
   Applications: "text-emerald-400",
   WoW:          "text-yellow-400",
+  Support:      "text-cyan-400",
   Operator:     "text-rose-400",
 };
 
@@ -339,6 +394,18 @@ function guildIconUrl(): string | null {
 
       <!-- Content area -->
       <main class="flex-1 overflow-y-auto p-8">
+        <!-- Support mode banner -->
+        <div
+          v-if="supportMode"
+          class="mb-6 flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded px-4 py-3 text-amber-400 text-sm"
+        >
+          <Icon icon="mdi:eye-outline" class="w-4 h-4 flex-shrink-0" />
+          <span>
+            <strong>Support Mode</strong> — Viewing as operator. Sensitive content is redacted. Write operations are disabled.
+          </span>
+        </div>
+        <!-- Mockup toolbar (operator only) -->
+        <MockupToolbar />
         <div class="max-w-4xl">
           <component :is="activeComponent" :guild-id="guildId" />
         </div>

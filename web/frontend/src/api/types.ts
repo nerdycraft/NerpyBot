@@ -331,6 +331,13 @@ export interface DiscordRole {
 
 // ── Operator ──
 
+export interface VoiceConnectionDetail {
+  guild_id: string;
+  guild_name: string;
+  channel_id: string;
+  channel_name: string;
+}
+
 export interface HealthResponse {
   status: string;
   uptime_seconds: number | null;
@@ -339,18 +346,23 @@ export interface HealthResponse {
   voice_connections: number | null;
   active_reminders: number | null;
   error_count_24h: number | null;
+  memory_mb: number | null;
+  cpu_percent: number | null;
   python_version: string | null;
   discord_py_version: string | null;
   bot_version: string | null;
+  voice_details: VoiceConnectionDetail[];
 }
 
 export interface ModuleInfo {
   name: string;
   loaded: boolean;
+  protected: boolean;
 }
 
 export interface ModuleListResponse {
-  modules: Record<string, unknown>[];
+  modules: ModuleInfo[];
+  available: string[];
   status: string;
 }
 
@@ -361,7 +373,26 @@ export interface ModuleActionResponse {
   error: string | null;
 }
 
+export interface BotGuildInfo {
+  id: string;
+  name: string;
+  icon: string | null;
+  member_count: number | null;
+}
+
 export interface TokenResponse {
   access_token: string;
   token_type: string;
+}
+
+// ── Support ──
+
+export interface SupportMessageRequest {
+  category: "bug" | "feature" | "feedback" | "other";
+  message: string;
+}
+
+export interface SupportMessageResponse {
+  success: boolean;
+  sent_to: number;
 }
