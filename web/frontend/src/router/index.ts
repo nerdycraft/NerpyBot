@@ -49,7 +49,9 @@ router.beforeEach(async (to) => {
 
   // Extract JWT handed off by /api/auth/callback redirect (#token=<jwt>).
   // Fragment is used instead of query param so the token never appears in server logs.
-  if (to.hash.startsWith("#token=")) {
+  // Restrict to root path — the only legitimate OAuth callback target — to prevent
+  // session fixation via crafted URLs on other routes (e.g. /login#token=ATTACKER_JWT).
+  if (to.path === "/" && to.hash.startsWith("#token=")) {
     auth.setToken(to.hash.slice("#token=".length));
     return { path: to.path, hash: "", replace: true };
   }
