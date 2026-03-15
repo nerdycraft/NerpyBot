@@ -9,7 +9,7 @@ import discord
 from discord import Interaction, ui
 from sqlalchemy import update as sa_update
 
-from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRoleMapping
+from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRecipeCache, CraftingRoleMapping
 from utils.blizzard import CRAFTING_PROFESSIONS
 from utils.strings import get_guild_language, get_localized_string, get_string
 
@@ -95,23 +95,32 @@ def build_order_view(order_id: int, status: str, lang: str = "en") -> ui.View:
 
 
 class CraftingBoardView(ui.View):
-    """Persistent view on the board embed with a single 'Create Order' button.
+    """Persistent view on the board embed with 'Create Order' and 'Request Housing' buttons.
 
-    The button label can be localized at board creation time by passing ``label``.
-    At bot restart (``setup_hook``), the label defaults to English — Discord shows
-    the label stored in the original message, so it stays localized.
+    Button labels can be localized at board creation time. At bot restart
+    (``setup_hook``), labels default to English — Discord shows the label stored
+    in the original message, so it stays localized.
     """
 
-    def __init__(self, bot, label: str | None = None):
+    def __init__(self, bot, label: str | None = None, housing_label: str | None = None):
         super().__init__(timeout=None)
         self.bot = bot
-        button = ui.Button(
+
+        order_button = ui.Button(
             label=label or "Create Crafting Order",
             style=discord.ButtonStyle.primary,
             custom_id="crafting_create_order",
         )
-        button.callback = self._on_create_order
-        self.add_item(button)
+        order_button.callback = self._on_create_order
+        self.add_item(order_button)
+
+        housing_button = ui.Button(
+            label=housing_label or "Request Housing Item",
+            style=discord.ButtonStyle.secondary,
+            custom_id="crafting_create_housing",
+        )
+        housing_button.callback = self._on_create_housing
+        self.add_item(housing_button)
 
     async def _on_create_order(self, interaction: Interaction):
         with self.bot.session_scope() as session:
@@ -121,6 +130,8 @@ class CraftingBoardView(ui.View):
                 return
             mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
             lang = get_guild_language(interaction.guild_id, session)
+            # Check if cache has crafted recipes for type-driven flow
+            item_classes = CraftingRecipeCache.get_item_classes("crafted", session)
 
         roles = []
         for m in mappings:
@@ -131,8 +142,41 @@ class CraftingBoardView(ui.View):
             await interaction.response.send_message(_ls(interaction, "create.no_roles"), ephemeral=True)
             return
 
-        view = ProfessionSelectView(self.bot, roles, interaction.guild_id, lang)
-        await interaction.response.send_message(_ls(interaction, "profession_select"), view=view, ephemeral=True)
+        if item_classes:
+            view = ItemTypeSelectView(self.bot, roles, interaction.guild_id, lang, item_classes)
+            await interaction.response.send_message(_ls(interaction, "item_type_select"), view=view, ephemeral=True)
+        else:
+            view = ProfessionSelectView(self.bot, roles, interaction.guild_id, lang)
+            await interaction.response.send_message(_ls(interaction, "profession_select"), view=view, ephemeral=True)
+
+    async def _on_create_housing(self, interaction: Interaction):
+        with self.bot.session_scope() as session:
+            config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+            if config is None:
+                await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+                return
+            lang = get_guild_language(interaction.guild_id, session)
+            mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
+            housing_professions = CraftingRecipeCache.get_professions_with_recipes("housing", session)
+
+        if not housing_professions:
+            # Fall back to profession select (free-text flow)
+            roles = []
+            for m in mappings:
+                role = interaction.guild.get_role(m.RoleId)
+                if role:
+                    roles.append(role)
+            if not roles:
+                await interaction.response.send_message(_ls(interaction, "create.no_roles"), ephemeral=True)
+                return
+            view = ProfessionSelectView(self.bot, roles, interaction.guild_id, lang)
+            await interaction.response.send_message(_ls(interaction, "profession_select"), view=view, ephemeral=True)
+            return
+
+        view = HousingProfessionSelectView(self.bot, interaction.guild_id, lang, housing_professions)
+        await interaction.response.send_message(
+            _ls(interaction, "housing_profession_select"), view=view, ephemeral=True
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -163,12 +207,304 @@ class ProfessionSelectView(ui.View):
 
 
 # ---------------------------------------------------------------------------
+# Cache-driven flows: ItemTypeSelectView, ItemSubTypeSelectView, ItemSelectView,
+# HousingProfessionSelectView, ExpansionSelectView
+# ---------------------------------------------------------------------------
+
+
+class ItemTypeSelectView(ui.View):
+    """Equippable order flow step 1: select item class (Armor, Weapon, Consumable, …)."""
+
+    def __init__(
+        self,
+        bot,
+        roles: list[discord.Role],
+        guild_id: int,
+        lang: str,
+        item_classes: list[tuple[int, str]],
+    ):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.roles = roles
+        self.guild_id = guild_id
+        self.lang = lang
+
+        options = [
+            discord.SelectOption(label=name or "Unknown", value=str(class_id)) for class_id, name in item_classes[:25]
+        ]
+        select = ui.Select(
+            placeholder=get_string(lang, "wow.craftingorder.item_type_select"),
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+    async def _on_select(self, interaction: Interaction):
+        item_class_id = int(interaction.data["values"][0])
+        with self.bot.session_scope() as session:
+            subclasses = CraftingRecipeCache.get_item_subclasses("crafted", item_class_id, session)
+
+        if not subclasses:
+            # No subclasses — go straight to item select
+            with self.bot.session_scope() as session:
+                recipes = CraftingRecipeCache.get_by_type_and_subclass("crafted", item_class_id, None, session)
+            view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
+            await interaction.response.edit_message(
+                content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
+            )
+            return
+
+        view = ItemSubTypeSelectView(self.bot, self.roles, self.guild_id, self.lang, item_class_id, subclasses)
+        await interaction.response.edit_message(
+            content=get_string(self.lang, "wow.craftingorder.item_subtype_select"), view=view
+        )
+
+
+class ItemSubTypeSelectView(ui.View):
+    """Equippable order flow step 2: select item subclass (Plate, Cloth, Sword, …)."""
+
+    def __init__(
+        self,
+        bot,
+        roles: list[discord.Role],
+        guild_id: int,
+        lang: str,
+        item_class_id: int,
+        subclasses: list[tuple[int, str]],
+    ):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.roles = roles
+        self.guild_id = guild_id
+        self.lang = lang
+        self.item_class_id = item_class_id
+
+        options = [discord.SelectOption(label=name or "Unknown", value=str(sub_id)) for sub_id, name in subclasses[:25]]
+        select = ui.Select(
+            placeholder=get_string(lang, "wow.craftingorder.item_subtype_select"),
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+    async def _on_select(self, interaction: Interaction):
+        item_subclass_id = int(interaction.data["values"][0])
+        with self.bot.session_scope() as session:
+            recipes = CraftingRecipeCache.get_by_type_and_subclass(
+                "crafted", self.item_class_id, item_subclass_id, session
+            )
+
+        view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
+        await interaction.response.edit_message(
+            content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
+        )
+
+
+class ItemSelectView(ui.View):
+    """Shared item selection step: shows up to 24 cached recipes + 'Other' option."""
+
+    _OTHER_VALUE = "__other__"
+
+    def __init__(
+        self,
+        bot,
+        recipes: list,
+        roles: list[discord.Role],
+        guild_id: int,
+        lang: str,
+    ):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.roles = roles
+        self.guild_id = guild_id
+        self.lang = lang
+        self._recipes_by_id = {str(r.RecipeId): r for r in recipes}
+
+        display = recipes[:24]
+        options = [
+            discord.SelectOption(
+                label=r.ItemName[:100],
+                value=str(r.RecipeId),
+                description=f"wowhead.com/item={r.ItemId}" if r.ItemId else None,
+            )
+            for r in display
+        ]
+        if len(recipes) > 24 or not recipes:
+            options.append(
+                discord.SelectOption(
+                    label=get_string(lang, "wow.craftingorder.item_select_other"),
+                    value=self._OTHER_VALUE,
+                )
+            )
+
+        if not options:
+            options.append(discord.SelectOption(label="—", value=self._OTHER_VALUE))
+
+        select = ui.Select(
+            placeholder=get_string(lang, "wow.craftingorder.item_select"),
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+    async def _on_select(self, interaction: Interaction):
+        value = interaction.data["values"][0]
+
+        if value == self._OTHER_VALUE:
+            # Fall back to profession select (free-text)
+            with self.bot.session_scope() as session:
+                mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
+                lang = get_guild_language(interaction.guild_id, session)
+            roles_found = [r for m in mappings if (r := interaction.guild.get_role(m.RoleId))]
+            view = ProfessionSelectView(self.bot, roles_found, interaction.guild_id, lang)
+            await interaction.response.edit_message(
+                content=get_string(self.lang, "wow.craftingorder.profession_select"), view=view
+            )
+            return
+
+        recipe = self._recipes_by_id.get(value)
+        if not recipe:
+            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            return
+
+        # Resolve role from profession ID via CraftingRoleMapping
+        role_id = None
+        role = None
+        with self.bot.session_scope() as session:
+            mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
+            for m in mappings:
+                if m.ProfessionId == recipe.ProfessionId:
+                    role_id = m.RoleId
+                    break
+
+        if role_id:
+            role = interaction.guild.get_role(role_id)
+
+        if not role_id or not role:
+            # No mapped role for this profession — let user pick
+            with self.bot.session_scope() as session:
+                mappings2 = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
+                lang = get_guild_language(interaction.guild_id, session)
+            roles_found = [r for m in mappings2 if (r := interaction.guild.get_role(m.RoleId))]
+            view = ProfessionSelectView(self.bot, roles_found, interaction.guild_id, lang)
+            await interaction.response.edit_message(
+                content=get_string(self.lang, "wow.craftingorder.profession_select"), view=view
+            )
+            return
+
+        # Build Wowhead URL
+        wowhead_url = None
+        if recipe.ItemId:
+            wowhead_url = f"https://www.wowhead.com/item={recipe.ItemId}"
+        elif recipe.RecipeType == "housing":
+            wowhead_url = f"https://www.wowhead.com/spell={recipe.RecipeId}"
+
+        modal = CraftingOrderModal(
+            self.bot,
+            role_id,
+            role,
+            interaction.guild_id,
+            self.lang,
+            item_name=recipe.ItemName,
+            icon_url=recipe.IconUrl,
+            wowhead_url=wowhead_url,
+        )
+        await interaction.response.send_modal(modal)
+
+
+class HousingProfessionSelectView(ui.View):
+    """Housing order flow step 1: select profession."""
+
+    def __init__(
+        self,
+        bot,
+        guild_id: int,
+        lang: str,
+        housing_professions: list[tuple[int, str]],
+    ):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.guild_id = guild_id
+        self.lang = lang
+
+        options = [discord.SelectOption(label=name, value=str(prof_id)) for prof_id, name in housing_professions[:25]]
+        select = ui.Select(
+            placeholder=get_string(lang, "wow.craftingorder.housing_profession_select"),
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+    async def _on_select(self, interaction: Interaction):
+        prof_id = int(interaction.data["values"][0])
+        with self.bot.session_scope() as session:
+            expansions = CraftingRecipeCache.get_expansions_for_profession(prof_id, "housing", session)
+
+        if not expansions:
+            # No expansion data — go straight to items
+            with self.bot.session_scope() as session:
+                recipes = CraftingRecipeCache.get_by_profession(prof_id, "housing", session)
+            view = ItemSelectView(self.bot, recipes, [], self.guild_id, self.lang)
+            await interaction.response.edit_message(
+                content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
+            )
+            return
+
+        view = ExpansionSelectView(self.bot, prof_id, self.guild_id, self.lang, expansions)
+        await interaction.response.edit_message(
+            content=get_string(self.lang, "wow.craftingorder.expansion_select"), view=view
+        )
+
+
+class ExpansionSelectView(ui.View):
+    """Housing order flow step 2: select expansion."""
+
+    def __init__(
+        self,
+        bot,
+        prof_id: int,
+        guild_id: int,
+        lang: str,
+        expansions: list[str],
+    ):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.prof_id = prof_id
+        self.guild_id = guild_id
+        self.lang = lang
+
+        options = [discord.SelectOption(label=exp, value=exp) for exp in expansions[:25]]
+        select = ui.Select(
+            placeholder=get_string(lang, "wow.craftingorder.expansion_select"),
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+    async def _on_select(self, interaction: Interaction):
+        expansion = interaction.data["values"][0]
+        with self.bot.session_scope() as session:
+            recipes = CraftingRecipeCache.get_by_profession_and_expansion(self.prof_id, "housing", expansion, session)
+
+        view = ItemSelectView(self.bot, recipes, [], self.guild_id, self.lang)
+        await interaction.response.edit_message(
+            content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
+        )
+
+
+# ---------------------------------------------------------------------------
 # Order Creation Modal
 # ---------------------------------------------------------------------------
 
 
 class CraftingOrderModal(ui.Modal):
-    """Order creation modal (Step 2)."""
+    """Order creation modal (Step 2).
+
+    Accepts optional pre-filled values from the cache-driven flows:
+        item_name   — pre-fill the item name field
+        icon_url    — store on the order for embed thumbnail
+        wowhead_url — store on the order for Wowhead link
+    """
 
     def __init__(
         self,
@@ -177,13 +513,20 @@ class CraftingOrderModal(ui.Modal):
         role: discord.Role,
         guild_id: int,
         lang: str = "en",
+        item_name: str | None = None,
+        icon_url: str | None = None,
+        wowhead_url: str | None = None,
     ):
         super().__init__(title=get_string(lang, "wow.craftingorder.modal_title"))
         self.bot = bot
         self.role_id = role_id
         self.role = role
         self.guild_id = guild_id
+        self._icon_url = icon_url
+        self._wowhead_url = wowhead_url
         self.item_name_input = ui.TextInput(label=get_string(lang, "wow.craftingorder.modal_item_name"), max_length=200)
+        if item_name:
+            self.item_name_input.default = item_name
         self.notes_input = ui.TextInput(
             label=get_string(lang, "wow.craftingorder.modal_notes"),
             style=discord.TextStyle.paragraph,
@@ -220,6 +563,8 @@ class CraftingOrderModal(ui.Modal):
                     CreatorName=interaction.user.display_name,
                     ProfessionRoleId=self.role_id,
                     ItemName=item_name,
+                    IconUrl=self._icon_url,
+                    WowheadUrl=self._wowhead_url,
                     Notes=notes,
                     Status="open",
                 )

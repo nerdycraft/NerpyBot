@@ -1360,7 +1360,11 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             )
             embed.set_footer(text=get_string(lang, "wow.craftingorder.board_footer"))
 
-            view = CraftingBoardView(self.bot, label=get_string(lang, "wow.craftingorder.create_button"))
+            view = CraftingBoardView(
+                self.bot,
+                label=get_string(lang, "wow.craftingorder.create_button"),
+                housing_label=get_string(lang, "wow.craftingorder.housing_button"),
+            )
             msg = await channel.send(embed=embed, view=view)
             config.BoardMessageId = msg.id
 
@@ -1443,14 +1447,21 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             channel_id = config.ChannelId
             message_id = config.BoardMessageId
 
-        # Edit the board embed in-place
+        # Edit the board embed in-place and refresh the view with the housing button
         try:
             channel = interaction.guild.get_channel(channel_id)
             if channel and message_id:
+                from modules.views.crafting_order import CraftingBoardView
+
                 msg = await channel.fetch_message(message_id)
                 embed = msg.embeds[0] if msg.embeds else discord.Embed(color=discord.Color.gold())
                 embed.description = new_description
-                await msg.edit(embed=embed)
+                new_view = CraftingBoardView(
+                    self.bot,
+                    label=get_string(lang, "wow.craftingorder.create_button"),
+                    housing_label=get_string(lang, "wow.craftingorder.housing_button"),
+                )
+                await msg.edit(embed=embed, view=new_view)
         except discord.HTTPException:
             self.bot.log.debug("Failed to edit board embed (channel=%s, msg=%s)", channel_id, message_id)
 

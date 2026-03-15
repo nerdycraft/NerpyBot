@@ -474,3 +474,15 @@ class SupportMessageResponse(BaseModel):
 class BrandingResponse(BaseModel):
     bot_name: str
     bot_description: str
+
+
+# ── Recipe sync ──
+
+
+class RecipeSyncResponse(BaseModel):
+    queued: bool
+    error: str | None = None
+
+
+class RecipeSyncStatusResponse(BaseModel):
+    counts: dict[str, int]

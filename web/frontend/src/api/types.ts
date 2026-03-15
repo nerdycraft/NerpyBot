@@ -396,3 +396,14 @@ export interface SupportMessageResponse {
   success: boolean;
   sent_to: number;
 }
+
+// ── Recipe sync ──
+
+export interface RecipeSyncResponse {
+  queued: boolean;
+  error: string | null;
+}
+
+export interface RecipeSyncStatusResponse {
+  counts: Record<string, number>;
+}

@@ -271,6 +271,33 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                 bot.log.warning("support_message: skipping invalid recipient %r", uid)
         results = await gather(*(_send_to(uid) for uid in valid_ids))
         return {"success": True, "sent_to": sum(results)}
+    elif command == "recipe_sync":
+        if "wow" not in bot.modules:
+            return {"queued": False, "error": "WoW module not loaded"}
+        from utils.blizzard import sync_crafting_recipes
+
+        task = ensure_future(sync_crafting_recipes(bot))
+
+        def _log_exc(t):
+            exc = t.exception()
+            if exc:
+                bot.log.error("recipe_sync failed: %s", exc)
+
+        task.add_done_callback(_log_exc)
+        return {"queued": True}
+    elif command == "recipe_sync_status":
+        try:
+            from models.wow import CraftingRecipeCache
+
+            def _count():
+                with bot.session_scope() as session:
+                    return CraftingRecipeCache.count_by_type(session)
+
+            counts = await to_thread(_count)
+            return {"counts": counts}
+        except Exception as exc:
+            bot.log.warning("recipe_sync_status failed: %s", exc)
+            return {"counts": {}}
     else:
         return {"error": f"Unknown command: {command}"}
 

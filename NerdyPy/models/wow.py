@@ -231,6 +231,7 @@ class CraftingOrder(db.BASE):
     ProfessionRoleId = Column(BigInteger)
     ItemName = Column(Unicode(200))
     IconUrl = Column(Unicode(500), nullable=True)
+    WowheadUrl = Column(Unicode(500), nullable=True)
     Notes = Column(UnicodeText, nullable=True)
     Status = Column(String(20), default="open")
     MessageDeleteAt = Column(DateTime, nullable=True)
@@ -250,3 +251,142 @@ class CraftingOrder(db.BASE):
         return (
             session.query(cls).filter(cls.MessageDeleteAt.isnot(None), cls.MessageDeleteAt <= datetime.now(UTC)).all()
         )
+
+
+class CraftingRecipeCache(db.BASE):
+    """Cache of WoW crafting recipes for the crafting order board UI.
+
+    RecipeType values:
+        "crafted" — recipes from profession skill tiers (gear, consumables, gems, enchants, etc.)
+        "housing" — housing/decoration recipes from the Blizzard decor API
+    """
+
+    __tablename__ = "CraftingRecipeCache"
+    __table_args__ = (
+        Index("CraftingRecipeCache_ProfessionId", "ProfessionId"),
+        Index("CraftingRecipeCache_RecipeType", "RecipeType"),
+        Index("CraftingRecipeCache_Prof_Type", "ProfessionId", "RecipeType"),
+        Index("CraftingRecipeCache_Type_Class", "RecipeType", "ItemClassId", "ItemSubClassId"),
+    )
+
+    RecipeId = Column(Integer, primary_key=True)
+    ProfessionId = Column(Integer)
+    ProfessionName = Column(Unicode(100))
+    ItemId = Column(Integer, nullable=True)
+    ItemName = Column(Unicode(200))
+    IconUrl = Column(Unicode(500), nullable=True)
+    RecipeType = Column(String(20))
+    ItemClassName = Column(Unicode(100), nullable=True)
+    ItemClassId = Column(Integer, nullable=True)
+    ItemSubClassName = Column(Unicode(100), nullable=True)
+    ItemSubClassId = Column(Integer, nullable=True)
+    ExpansionName = Column(Unicode(100), nullable=True)
+    CategoryName = Column(Unicode(200), nullable=True)
+    LastSynced = Column(DateTime, default=lambda: datetime.now(UTC))
+
+    @classmethod
+    def get_by_profession(cls, prof_id, recipe_type, session):
+        return (
+            session.query(cls)
+            .filter(cls.ProfessionId == prof_id, cls.RecipeType == recipe_type)
+            .order_by(asc(cls.ItemName))
+            .all()
+        )
+
+    @classmethod
+    def get_by_profession_and_expansion(cls, prof_id, recipe_type, expansion, session):
+        return (
+            session.query(cls)
+            .filter(cls.ProfessionId == prof_id, cls.RecipeType == recipe_type, cls.ExpansionName == expansion)
+            .order_by(asc(cls.ItemName))
+            .all()
+        )
+
+    @classmethod
+    def get_by_type_and_subclass(cls, recipe_type, item_class_id, item_subclass_id, session):
+        return (
+            session.query(cls)
+            .filter(
+                cls.RecipeType == recipe_type,
+                cls.ItemClassId == item_class_id,
+                cls.ItemSubClassId == item_subclass_id,
+            )
+            .order_by(asc(cls.ItemName))
+            .all()
+        )
+
+    @classmethod
+    def get_expansions_for_profession(cls, prof_id, recipe_type, session):
+        """Return distinct non-null expansion names for a profession, ordered alphabetically."""
+        rows = (
+            session.query(cls.ExpansionName)
+            .filter(cls.ProfessionId == prof_id, cls.RecipeType == recipe_type, cls.ExpansionName.isnot(None))
+            .distinct()
+            .order_by(asc(cls.ExpansionName))
+            .all()
+        )
+        return [r[0] for r in rows]
+
+    @classmethod
+    def get_item_classes(cls, recipe_type, session):
+        """Return distinct (ItemClassId, ItemClassName) pairs for a recipe type."""
+        rows = (
+            session.query(cls.ItemClassId, cls.ItemClassName)
+            .filter(cls.RecipeType == recipe_type, cls.ItemClassId.isnot(None))
+            .distinct()
+            .order_by(asc(cls.ItemClassName))
+            .all()
+        )
+        return [(r[0], r[1]) for r in rows]
+
+    @classmethod
+    def get_item_subclasses(cls, recipe_type, item_class_id, session):
+        """Return distinct (ItemSubClassId, ItemSubClassName) pairs for a class."""
+        rows = (
+            session.query(cls.ItemSubClassId, cls.ItemSubClassName)
+            .filter(cls.RecipeType == recipe_type, cls.ItemClassId == item_class_id, cls.ItemSubClassId.isnot(None))
+            .distinct()
+            .order_by(asc(cls.ItemSubClassName))
+            .all()
+        )
+        return [(r[0], r[1]) for r in rows]
+
+    @classmethod
+    def get_professions_with_recipes(cls, recipe_type, session):
+        """Return distinct (ProfessionId, ProfessionName) pairs that have cached recipes of the given type."""
+        rows = (
+            session.query(cls.ProfessionId, cls.ProfessionName)
+            .filter(cls.RecipeType == recipe_type)
+            .distinct()
+            .order_by(asc(cls.ProfessionName))
+            .all()
+        )
+        return [(r[0], r[1]) for r in rows]
+
+    @classmethod
+    def count_by_type(cls, session):
+        """Return {recipe_type: count} mapping."""
+        from sqlalchemy import func
+
+        rows = session.query(cls.RecipeType, func.count(cls.RecipeId)).group_by(cls.RecipeType).all()
+        return {r[0]: r[1] for r in rows}
+
+    @classmethod
+    def count_by_class(cls, session):
+        """Return {ItemClassName: count} for 'crafted', plus 'housing' count."""
+        from sqlalchemy import func
+
+        crafted = (
+            session.query(cls.ItemClassName, func.count(cls.RecipeId))
+            .filter(cls.RecipeType == "crafted", cls.ItemClassName.isnot(None))
+            .group_by(cls.ItemClassName)
+            .all()
+        )
+        housing_count = session.query(func.count(cls.RecipeId)).filter(cls.RecipeType == "housing").scalar()
+        result = {r[0]: r[1] for r in crafted}
+        result["housing"] = housing_count or 0
+        return result
+
+    @classmethod
+    def delete_all(cls, session):
+        session.query(cls).delete()

@@ -20,6 +20,8 @@ from web.schemas import (
     ModuleListResponse,
     PremiumUserGrant,
     PremiumUserSchema,
+    RecipeSyncResponse,
+    RecipeSyncStatusResponse,
     VoiceConnectionDetail,
 )
 from web.cache import ValkeyClient
@@ -191,3 +193,30 @@ async def get_bot_guild(
         if g.get("id") == guild_id:
             return BotGuildInfo(**g)
     raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Guild not found")
+
+
+# ── Recipe sync ──
+
+
+@router.post("/recipe-sync", response_model=RecipeSyncResponse)
+async def trigger_recipe_sync(
+    user: dict = Depends(require_operator),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """Fire-and-forget recipe sync via the bot's Blizzard API connection."""
+    result = await vk.send_bot_command("recipe_sync", {})
+    if result is None:
+        return RecipeSyncResponse(queued=False, error="Bot unreachable")
+    return RecipeSyncResponse(**result)
+
+
+@router.get("/recipe-sync/status", response_model=RecipeSyncStatusResponse)
+async def get_recipe_sync_status(
+    user: dict = Depends(require_operator),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """Return current recipe cache counts per type."""
+    result = await vk.send_bot_command("recipe_sync_status", {})
+    if result is None:
+        return RecipeSyncStatusResponse(counts={})
+    return RecipeSyncStatusResponse(counts=result.get("counts", {}))

@@ -61,6 +61,301 @@ CRAFTING_PROFESSIONS = {
     "Cooking": 185,
 }
 
+# Number of expansion skill tiers to sync per profession (most recent N tiers).
+PROFESSION_TIER_COUNT = 2
+
+# Blizzard API base URIs per region (mirrors blizzapi internal constant).
+_BLIZZ_API_BASE = {
+    "eu": "https://eu.api.blizzard.com",
+    "us": "https://us.api.blizzard.com",
+    "kr": "https://kr.api.blizzard.com",
+    "tw": "https://tw.api.blizzard.com",
+}
+
+# Locale strings used in API calls per (region, language) combination.
+_BLIZZ_LOCALE = {
+    ("eu", "de"): "de_DE",
+    ("eu", "en"): "en_GB",
+    ("us", "en"): "en_US",
+    ("us", "de"): "en_US",
+    ("kr", "en"): "ko_KR",
+    ("tw", "en"): "zh_TW",
+}
+
+# Housing keyword patterns: profession skill tier category names that indicate
+# housing/decoration recipes. Used as a fallback when the decor API is unavailable.
+_HOUSING_KEYWORDS = {"housing", "decor", "decoration", "furniture", "fixture"}
+
+
+async def sync_crafting_recipes(
+    bot,
+    region: str = "eu",
+    language: str = "en",
+    progress_callback=None,
+) -> dict:
+    """Sync WoW crafting recipes into CraftingRecipeCache.
+
+    Phase A — Profession tier walk (RecipeType="crafted"):
+        Walk top PROFESSION_TIER_COUNT skill tiers for every CRAFTING_PROFESSIONS
+        entry, then recipe() → item() → cache all recipes with item_class metadata.
+
+    Phase B — Housing decor API (RecipeType="housing"):
+        Try GET /data/wow/decor/index.  Fall back to filtering "crafted" tiers by
+        housing-keyword category names if the decor API is unavailable.
+
+    Returns {"crafted": N, "housing": N, "errors": N, "duration_seconds": float}.
+    """
+    import asyncio
+    import logging
+    import time
+
+    from blizzapi import Language, Region, RetailClient
+
+    from models.wow import CraftingRecipeCache
+
+    log = logging.getLogger("nerpybot")
+    start = time.monotonic()
+
+    client_id = bot.config.get("wow", {}).get("wow_id")
+    client_secret = bot.config.get("wow", {}).get("wow_secret")
+    if not client_id or not client_secret:
+        raise ValueError("WoW API credentials (wow_id / wow_secret) not configured")
+
+    locale = _BLIZZ_LOCALE.get((region, language), "en_GB")
+    blizz_lang = Language.DE if language == "de" else (Language.EN_GB if region == "eu" else Language.EN)
+    api = RetailClient(
+        client_id=client_id,
+        client_secret=client_secret,
+        region=Region(region),
+        language=blizz_lang,
+    )
+
+    sem = asyncio.Semaphore(15)
+    errors = 0
+    import datetime as _dt
+
+    now = _dt.datetime.now(_dt.timezone.utc)
+
+    async def _call(fn, *args, **kwargs):
+        nonlocal errors
+        async with sem:
+            try:
+                result = await asyncio.to_thread(fn, *args, **kwargs)
+                check_rate_limit(result)
+                await asyncio.sleep(0.05)
+                return result
+            except RateLimited:
+                log.warning("sync_crafting_recipes: rate limited")
+                errors += 1
+                return None
+            except Exception as exc:
+                log.debug("sync_crafting_recipes: API call failed: %s", exc)
+                errors += 1
+                return None
+
+    # ── Phase A: profession tier walk ────────────────────────────────────
+    phase_a_rows: list[dict] = []
+
+    async def _sync_profession(prof_name: str, prof_id: int):
+        prof_data = await _call(api.profession, professionId=prof_id)
+        if not isinstance(prof_data, dict):
+            return
+        skill_tiers = prof_data.get("skill_tiers", [])
+        tiers = skill_tiers[-PROFESSION_TIER_COUNT:] if len(skill_tiers) >= PROFESSION_TIER_COUNT else skill_tiers
+        await asyncio.gather(*[_sync_tier(prof_name, prof_id, tier) for tier in tiers])
+
+    async def _sync_tier(prof_name: str, prof_id: int, tier: dict):
+        tier_id = tier.get("id")
+        tier_name = tier.get("name", "")
+        if not tier_id:
+            return
+        tier_data = await _call(api.profession_skill_tier, professionId=prof_id, skillTierId=tier_id)
+        if not isinstance(tier_data, dict):
+            return
+        tasks = []
+        for cat in tier_data.get("categories", []):
+            cat_name = cat.get("name", "")
+            for recipe_stub in cat.get("recipes", []):
+                recipe_id = recipe_stub.get("id")
+                if recipe_id:
+                    tasks.append(_sync_recipe(prof_name, prof_id, recipe_id, tier_name, cat_name))
+        await asyncio.gather(*tasks)
+
+    async def _sync_recipe(prof_name: str, prof_id: int, recipe_id: int, expansion_name: str, category_name: str):
+        recipe_data = await _call(api.recipe, recipeId=recipe_id)
+        if not isinstance(recipe_data, dict):
+            return
+
+        crafted_item = recipe_data.get("crafted_item") or recipe_data.get("alliance_crafted_item") or {}
+        item_id = crafted_item.get("id") if isinstance(crafted_item, dict) else None
+        item_name = crafted_item.get("name") if isinstance(crafted_item, dict) else None
+        if not item_name:
+            item_name = recipe_data.get("name", f"Recipe #{recipe_id}")
+
+        item_class_id = item_class_name = item_subclass_id = item_subclass_name = None
+        icon_url = None
+
+        if item_id:
+            item_data = await _call(api.item, itemId=item_id)
+            if isinstance(item_data, dict):
+                ic = item_data.get("item_class") or {}
+                isc = item_data.get("item_subclass") or {}
+                item_class_id = ic.get("id")
+                item_class_name = ic.get("name")
+                item_subclass_id = isc.get("id")
+                item_subclass_name = isc.get("name")
+            media = await _call(api.item_media, itemId=item_id)
+            icon_url = get_asset_url(media, "icon")
+
+        if not icon_url:
+            media = await _call(api.recipe_media, recipeId=recipe_id)
+            icon_url = get_asset_url(media, "icon")
+
+        phase_a_rows.append(
+            {
+                "RecipeId": recipe_id,
+                "ProfessionId": prof_id,
+                "ProfessionName": prof_name,
+                "ItemId": item_id,
+                "ItemName": item_name,
+                "IconUrl": icon_url,
+                "RecipeType": "crafted",
+                "ItemClassName": item_class_name,
+                "ItemClassId": item_class_id,
+                "ItemSubClassName": item_subclass_name,
+                "ItemSubClassId": item_subclass_id,
+                "ExpansionName": expansion_name,
+                "CategoryName": category_name,
+                "LastSynced": now,
+            }
+        )
+
+    if progress_callback:
+        await progress_callback("Starting profession tier walk…")
+
+    await asyncio.gather(*[_sync_profession(name, pid) for name, pid in CRAFTING_PROFESSIONS.items()])
+
+    # ── Phase B: housing decor API ────────────────────────────────────────
+    phase_b_rows: list[dict] = []
+    base_url = _BLIZZ_API_BASE.get(region, _BLIZZ_API_BASE["eu"])
+    namespace = f"static-{region}"
+
+    if progress_callback:
+        await progress_callback(f"Fetching housing decor index… ({len(phase_a_rows)} crafted recipes buffered)")
+
+    async def _fetch_decor_index():
+        url = f"{base_url}/data/wow/decor/index?namespace={namespace}&locale={locale}"
+        try:
+            async with sem:
+                result = await asyncio.to_thread(api.get, url)
+                check_rate_limit(result)
+                await asyncio.sleep(0.05)
+                return result
+        except (RateLimited, Exception) as exc:
+            log.debug("sync_crafting_recipes: decor/index unavailable: %s", exc)
+            return None
+
+    decor_data = await _fetch_decor_index()
+    decor_items = decor_data.get("decors", []) if isinstance(decor_data, dict) else []
+
+    if decor_items:
+
+        async def _parse_decor(decor_stub: dict):
+            decor_id = decor_stub.get("id")
+            if not decor_id:
+                return
+            url = f"{base_url}/data/wow/decor/{decor_id}?namespace={namespace}&locale={locale}"
+            try:
+                async with sem:
+                    detail = await asyncio.to_thread(api.get, url)
+                    check_rate_limit(detail)
+                    await asyncio.sleep(0.05)
+            except (RateLimited, Exception):
+                return
+            if not isinstance(detail, dict):
+                return
+
+            source = detail.get("source") or {}
+            prof_info = source.get("profession") if isinstance(source, dict) else None
+            recipe_id = (source.get("recipe") or {}).get("id") if isinstance(source, dict) else None
+            if not recipe_id:
+                recipe_id = decor_id
+
+            if not prof_info:
+                return
+            prof_id = prof_info.get("id")
+            prof_name = prof_info.get("name", "Unknown")
+            if not prof_id:
+                return
+
+            expansion_name = (detail.get("expansion") or {}).get("name")
+            item_name = detail.get("name", f"Decor #{decor_id}")
+            item_id = (detail.get("item") or {}).get("id")
+            icon_url = None
+            if item_id:
+                media = await _call(api.item_media, itemId=item_id)
+                icon_url = get_asset_url(media, "icon")
+
+            phase_b_rows.append(
+                {
+                    "RecipeId": recipe_id,
+                    "ProfessionId": prof_id,
+                    "ProfessionName": prof_name,
+                    "ItemId": item_id,
+                    "ItemName": item_name,
+                    "IconUrl": icon_url,
+                    "RecipeType": "housing",
+                    "ItemClassName": None,
+                    "ItemClassId": None,
+                    "ItemSubClassName": None,
+                    "ItemSubClassId": None,
+                    "ExpansionName": expansion_name,
+                    "CategoryName": "Housing",
+                    "LastSynced": now,
+                }
+            )
+
+        await asyncio.gather(*[_parse_decor(d) for d in decor_items])
+    else:
+        # Fallback: scan the crafted tier rows for housing-keyword categories.
+        seen_recipe_ids: set[int] = set()
+        for row in phase_a_rows:
+            cat = (row.get("CategoryName") or "").lower()
+            rid = row["RecipeId"]
+            if rid not in seen_recipe_ids and any(kw in cat for kw in _HOUSING_KEYWORDS):
+                seen_recipe_ids.add(rid)
+                phase_b_rows.append({**row, "RecipeType": "housing"})
+
+    # ── Upsert into database ──────────────────────────────────────────────
+    all_rows = phase_a_rows + phase_b_rows
+
+    def _upsert():
+        with bot.session_scope() as session:
+            CraftingRecipeCache.delete_all(session)
+            for row in all_rows:
+                session.add(CraftingRecipeCache(**row))
+
+    await asyncio.to_thread(_upsert)
+
+    crafted_count = sum(1 for r in all_rows if r["RecipeType"] == "crafted")
+    housing_count = sum(1 for r in all_rows if r["RecipeType"] == "housing")
+    duration = round(time.monotonic() - start, 1)
+
+    log.info(
+        "sync_crafting_recipes: done — crafted=%d housing=%d errors=%d duration=%.1fs",
+        crafted_count,
+        housing_count,
+        errors,
+        duration,
+    )
+
+    return {
+        "crafted": crafted_count,
+        "housing": housing_count,
+        "errors": errors,
+        "duration_seconds": duration,
+    }
+
 
 # ── Mount set comparison ─────────────────────────────────────────────
 

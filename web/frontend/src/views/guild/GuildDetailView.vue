@@ -20,6 +20,7 @@ import ModeratorRolesTab from "./tabs/ModeratorRolesTab.vue";
 import OperatorDashboardTab from "./tabs/OperatorDashboardTab.vue";
 import OperatorGuildsTab from "./tabs/OperatorGuildsTab.vue";
 import OperatorModulesTab from "./tabs/OperatorModulesTab.vue";
+import OperatorRecipeSyncTab from "./tabs/OperatorRecipeSyncTab.vue";
 import OperatorUserManagementTab from "./tabs/OperatorUserManagementTab.vue";
 import ReactionRolesTab from "./tabs/ReactionRolesTab.vue";
 import RemindersTab from "./tabs/RemindersTab.vue";
@@ -329,6 +330,12 @@ const allSectionGroups: SectionGroup[] = [
         icon: "mdi:crown-outline",
         component: OperatorUserManagementTab,
       },
+      {
+        id: "operator-recipe-sync",
+        labelKey: "nav.items.operator_recipe_sync",
+        icon: "mdi:book-sync-outline",
+        component: OperatorRecipeSyncTab,
+      },
     ],
   },
 ];
@@ -353,8 +360,8 @@ const activeComponent = computed(() => {
   const found = allSections.value.find((s) => s.id === activeSection.value);
   if (!found && allSections.value.length > 0) {
     // Requested tab is no longer available (filtered out) — fall back silently.
-    router.replace({ query: { tab: allSections.value[0]!.id } });
-    return allSections.value[0]!.component;
+    router.replace({ query: { tab: allSections.value[0]?.id } });
+    return allSections.value[0]?.component;
   }
   return found?.component;
 });

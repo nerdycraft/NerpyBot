@@ -61,6 +61,7 @@ export const de: typeof en = {
       operator_guilds: "Alle Server",
       operator_modules: "Module",
       operator_user_management: "Benutzerverwaltung",
+      operator_recipe_sync: "Rezept-Cache",
     },
     sidebar: {
       all_servers: "Alle Server",
@@ -369,6 +370,20 @@ export const de: typeof en = {
       all_loaded: "Alle verfügbaren Module sind bereits geladen.",
       select: "Modul auswählen…",
       load: "Laden",
+    },
+
+    operator_recipe_sync: {
+      title: "Rezept-Cache",
+      desc: "WoW-Handwerksrezepte von der Blizzard-API in den lokalen Cache synchronisieren. Erforderlich für die typbasierte Handwerksbestellungs-Erstellung.",
+      cache_stats: "Cache-Statistiken",
+      cache_empty: "Noch keine Rezepte gecacht. Starte eine Synchronisierung.",
+      sync_title: "Rezepte synchronisieren",
+      sync_desc:
+        "Ruft Berufs-Stufen und Einrichtungsrezepte von der Blizzard-API ab. Dies läuft asynchron im Hintergrund und kann einige Minuten dauern.",
+      sync_button: "Sync starten",
+      syncing: "Einreihen…",
+      sync_queued: "Sync wurde eingereiht. Statistiken werden in Kürze aktualisiert.",
+      sync_failed: "Sync konnte nicht eingereiht werden.",
     },
 
     operator_user_management: {
