@@ -816,6 +816,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
             item_name = _display_item_name(order)
             creator_id = order.CreatorId
             crafter_id = order.CrafterId
+            thread_id = order.ThreadId
 
         crafter_mention = f"<@{crafter_id}>" if crafter_id else interaction.user.mention
         # DM the creator; fall back to thread if DM fails
@@ -839,8 +840,14 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
                 order.MessageDeleteAt = datetime.now(UTC) + timedelta(hours=delay)
 
         await interaction.response.edit_message(content=_ls(interaction, "complete.done"), embed=None, view=None)
-        # Only delete the order message if no thread is anchored to it
         if not used_thread:
+            # Delete the Ask thread before the parent message (deleting message first archives the thread)
+            if thread_id:
+                try:
+                    thread = interaction.guild.get_thread(thread_id) or await interaction.guild.fetch_channel(thread_id)
+                    await thread.delete()
+                except discord.HTTPException:
+                    log.debug("Failed to delete thread %s for order %s", thread_id, self.order_id)
             try:
                 await interaction.message.delete()
             except discord.HTTPException:
@@ -881,6 +888,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
             item_name = _display_item_name(order)
             creator_id = order.CreatorId
             cancelled_by_creator = interaction.user.id == creator_id
+            thread_id = order.ThreadId
 
         # DM only if cancelled by admin (not by creator); fall back to thread if DM fails
         used_thread = False
@@ -901,8 +909,14 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
                 order.MessageDeleteAt = datetime.now(UTC) + timedelta(hours=delay)
 
         await interaction.response.edit_message(content=_ls(interaction, "cancel.done"), embed=None, view=None)
-        # Only delete the order message if no thread is anchored to it
         if not used_thread:
+            # Delete the Ask thread before the parent message (deleting message first archives the thread)
+            if thread_id:
+                try:
+                    thread = interaction.guild.get_thread(thread_id) or await interaction.guild.fetch_channel(thread_id)
+                    await thread.delete()
+                except discord.HTTPException:
+                    log.debug("Failed to delete thread %s for order %s", thread_id, self.order_id)
             try:
                 await interaction.message.delete()
             except discord.HTTPException:
