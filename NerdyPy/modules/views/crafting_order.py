@@ -163,24 +163,31 @@ class CraftingBoardView(ui.View):
         housing_button.callback = self._on_create_housing
         self.add_item(housing_button)
 
+    def _load_board_context(self, guild_id: int, session) -> tuple[str, set[int], list[int]] | None:
+        """Load board lang + role maps from DB. Returns None if no board is configured for the guild."""
+        if CraftingBoardConfig.get_by_guild(guild_id, session) is None:
+            return None
+        lang = get_guild_language(guild_id, session)
+        mapped_prof_ids: set[int] = set()
+        mapping_role_ids: list[int] = []
+        for m in CraftingRoleMapping.get_by_guild(guild_id, session):
+            mapped_prof_ids.add(m.ProfessionId)
+            mapping_role_ids.append(m.RoleId)
+        return lang, mapped_prof_ids, mapping_role_ids
+
     async def _on_create_order(self, interaction: Interaction):
-        not_found_msg = None
+        lang = mapped_prof_ids = mapping_role_ids = item_classes = None
         with self.bot.session_scope() as session:
-            config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
-            if config is None:
-                not_found_msg = _ls(interaction, "not_found")
-            else:
-                mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
-                lang = get_guild_language(interaction.guild_id, session)
-                mapped_prof_ids = {m.ProfessionId for m in mappings}
-                mapping_role_ids = [m.RoleId for m in mappings]
+            board_ctx = self._load_board_context(interaction.guild_id, session)
+            if board_ctx is not None:
+                lang, mapped_prof_ids, mapping_role_ids = board_ctx
                 # Check if cache has crafted recipes for type-driven flow, filtered to mapped professions
                 item_classes = CraftingRecipeCache.get_item_classes(
                     RECIPE_TYPE_CRAFTED, session, profession_ids=mapped_prof_ids
                 )
 
-        if not_found_msg:
-            await interaction.response.send_message(not_found_msg, ephemeral=True)
+        if board_ctx is None:
+            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
             return
 
         roles = [r for rid in mapping_role_ids if (r := interaction.guild.get_role(rid))]
@@ -198,22 +205,17 @@ class CraftingBoardView(ui.View):
             await interaction.response.send_message(_ls(interaction, "profession_select"), view=view, ephemeral=True)
 
     async def _on_create_housing(self, interaction: Interaction):
-        not_found_msg = None
+        lang = mapped_prof_ids = mapping_role_ids = housing_professions = None
         with self.bot.session_scope() as session:
-            config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
-            if config is None:
-                not_found_msg = _ls(interaction, "not_found")
-            else:
-                lang = get_guild_language(interaction.guild_id, session)
-                mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
-                mapped_prof_ids = {m.ProfessionId for m in mappings}
-                mapping_role_ids = [m.RoleId for m in mappings]
+            board_ctx = self._load_board_context(interaction.guild_id, session)
+            if board_ctx is not None:
+                lang, mapped_prof_ids, mapping_role_ids = board_ctx
                 housing_professions = CraftingRecipeCache.get_professions_with_recipes(
                     RECIPE_TYPE_HOUSING, session, profession_ids=mapped_prof_ids
                 )
 
-        if not_found_msg:
-            await interaction.response.send_message(not_found_msg, ephemeral=True)
+        if board_ctx is None:
+            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
             return
 
         if not housing_professions:
