@@ -1,15 +1,10 @@
 <script setup lang="ts">
-import { computed } from "vue";
 import LegalPageLayout from "@/components/LegalPageLayout.vue";
 import { useLegalContact } from "@/composables/useLegalContact";
 import { useI18n } from "@/i18n";
 
 const { t, locale } = useI18n();
-const { contact } = useLegalContact();
-
-const isContactAvailable = computed(
-  () => contact.enabled && !!contact.name && !!contact.street && !!contact.zip_city && !!contact.email,
-);
+const { contact, isContactAvailable } = useLegalContact();
 </script>
 
 <template>

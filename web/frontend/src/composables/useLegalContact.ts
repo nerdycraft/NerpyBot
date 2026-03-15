@@ -6,7 +6,7 @@
  * Leaves all fields as empty strings and enabled as false on fetch failure
  * (graceful degradation); clears fetchPromise so the next call retries.
  */
-import { reactive } from "vue";
+import { computed, reactive } from "vue";
 
 interface LegalContact {
   enabled: boolean;
@@ -27,6 +27,10 @@ const contact = reactive<LegalContact>({
   country_de: "",
   email: "",
 });
+
+const isContactAvailable = computed(
+  () => contact.enabled && !!contact.name && !!contact.street && !!contact.zip_city && !!contact.email,
+);
 
 let fetchPromise: Promise<void> | null = null;
 
@@ -52,5 +56,5 @@ export function useLegalContact() {
         fetchPromise = null; // allow retry on next call
       });
   }
-  return { contact };
+  return { contact, isContactAvailable };
 }
