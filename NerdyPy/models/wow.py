@@ -338,6 +338,16 @@ class CraftingRecipeCache(db.BASE):
         )
         return [r[0] for r in rows]
 
+    @staticmethod
+    def _dedup_rows(q, order_col) -> list[tuple]:
+        """Deduplicate (id, name, locales) rows by id, preserving sort order.
+
+        SQL DISTINCT cannot be used when a JSON column is projected — PostgreSQL has no
+        equality operator for json.  Instead, collect all rows ordered by name and pick
+        the first row per id using dict insertion order (Python 3.7+).
+        """
+        return list({r[0]: (r[0], r[1], r[2]) for r in q.order_by(asc(order_col)).all()}.values())
+
     @classmethod
     def get_item_classes(cls, recipe_type, session, profession_ids: set[int] | None = None):
         """Return distinct (ItemClassId, ItemClassName, ItemClassNameLocales) tuples for a recipe type.
@@ -349,8 +359,7 @@ class CraftingRecipeCache(db.BASE):
         )
         if profession_ids:
             q = q.filter(cls.ProfessionId.in_(profession_ids))
-        rows = q.distinct().order_by(asc(cls.ItemClassName)).all()
-        return [(r[0], r[1], r[2]) for r in rows]
+        return cls._dedup_rows(q, cls.ItemClassName)
 
     @classmethod
     def get_item_subclasses(cls, recipe_type, item_class_id, session, profession_ids: set[int] | None = None):
@@ -363,8 +372,7 @@ class CraftingRecipeCache(db.BASE):
         )
         if profession_ids:
             q = q.filter(cls.ProfessionId.in_(profession_ids))
-        rows = q.distinct().order_by(asc(cls.ItemSubClassName)).all()
-        return [(r[0], r[1], r[2]) for r in rows]
+        return cls._dedup_rows(q, cls.ItemSubClassName)
 
     @classmethod
     def get_professions_with_recipes(cls, recipe_type, session):
