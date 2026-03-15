@@ -158,7 +158,6 @@ async def sync_crafting_recipes(
 
     # ── Phase A: profession tier walk ────────────────────────────────────
     phase_a_rows: list[dict] = []
-    phase_b_rows: list[dict] = []  # populated here for housing-keyword categories; may be replaced by decor API
 
     async def _sync_profession(prof_name: str, prof_id: int):
         prof_data = await _call(api.profession, professionId=prof_id)
@@ -215,122 +214,87 @@ async def sync_crafting_recipes(
             media = await _call(api.recipe_media, recipeId=recipe_id, required=False)
             icon_url = get_asset_url(media, "icon")
 
-        is_housing = any(kw in category_name.lower() for kw in _HOUSING_KEYWORDS)
-        row = {
-            "RecipeId": recipe_id,
-            "ProfessionId": prof_id,
-            "ProfessionName": prof_name,
-            "ItemId": item_id,
-            "ItemName": item_name,
-            "IconUrl": icon_url,
-            "RecipeType": RECIPE_TYPE_HOUSING if is_housing else RECIPE_TYPE_CRAFTED,
-            "ItemClassName": None if is_housing else item_class_name,
-            "ItemClassId": None if is_housing else item_class_id,
-            "ItemSubClassName": None if is_housing else item_subclass_name,
-            "ItemSubClassId": None if is_housing else item_subclass_id,
-            "ExpansionName": expansion_name,
-            "CategoryName": category_name,
-            "LastSynced": now,
-        }
-        if is_housing:
-            phase_b_rows.append(row)
-        else:
-            phase_a_rows.append(row)
+        phase_a_rows.append(
+            {
+                "RecipeId": recipe_id,
+                "ProfessionId": prof_id,
+                "ProfessionName": prof_name,
+                "ItemId": item_id,
+                "ItemName": item_name,
+                "IconUrl": icon_url,
+                "RecipeType": RECIPE_TYPE_CRAFTED,
+                "ItemClassName": item_class_name,
+                "ItemClassId": item_class_id,
+                "ItemSubClassName": item_subclass_name,
+                "ItemSubClassId": item_subclass_id,
+                "ExpansionName": expansion_name,
+                "CategoryName": category_name,
+                "LastSynced": now,
+            }
+        )
 
     if progress_callback:
         await progress_callback("Starting profession tier walk…")
 
     await asyncio.gather(*[_sync_profession(name, pid) for name, pid in CRAFTING_PROFESSIONS.items()])
 
-    # ── Phase B: housing decor API ────────────────────────────────────────
-    # phase_b_rows already has housing-keyword recipes from Phase A as a fallback.
-    # If the decor API is available, replace those with the authoritative API data.
+    # ── Phase B: classify housing items via decor API ─────────────────────
+    # The decor index lists all housing decor item IDs. Any Phase A recipe
+    # whose crafted ItemId appears in that set is reclassified as housing.
+    # Fallback: if the decor API is unavailable, use category keyword matching.
     base_url = _BLIZZ_API_BASE.get(region, _BLIZZ_API_BASE["eu"])
     namespace = f"static-{region}"
 
     if progress_callback:
         await progress_callback(f"Fetching housing decor index… ({len(phase_a_rows)} crafted recipes buffered)")
 
-    async def _fetch_decor_index():
-        url = f"{base_url}/data/wow/decor/index?namespace={namespace}&locale={locale}"
-        try:
-            async with sem:
-                result = await asyncio.to_thread(api.get, url)
-                check_rate_limit(result)
-                await asyncio.sleep(0.05)
-                return result
-        except (RateLimited, Exception) as exc:
-            log.debug("sync_crafting_recipes: decor/index unavailable: %s", exc)
-            return None
+    phase_b_rows: list[dict] = []
+    decor_item_ids: set[int] = set()
 
-    decor_data = await _fetch_decor_index()
-    decor_items = decor_data.get("decors", []) if isinstance(decor_data, dict) else []
+    try:
+        async with sem:
+            decor_data = await asyncio.to_thread(
+                api.get,
+                f"{base_url}/data/wow/decor/index?namespace={namespace}&locale={locale}",
+            )
+            check_rate_limit(decor_data)
+        if isinstance(decor_data, dict):
+            for entry in decor_data.get("decor_items", []):
+                item_info = entry.get("items")
+                if isinstance(item_info, dict) and item_info.get("id"):
+                    decor_item_ids.add(item_info["id"])
+    except Exception as exc:
+        log.debug("sync_crafting_recipes: decor/index unavailable: %s", exc)
 
-    if decor_items:
-        # Decor API is available — it is the authoritative source. Replace the
-        # keyword-based housing rows collected during Phase A with API data.
-        phase_b_rows.clear()
-
-        async def _parse_decor(decor_stub: dict):
-            decor_id = decor_stub.get("id")
-            if not decor_id:
-                return
-            url = f"{base_url}/data/wow/decor/{decor_id}?namespace={namespace}&locale={locale}"
-            try:
-                async with sem:
-                    detail = await asyncio.to_thread(api.get, url)
-                    check_rate_limit(detail)
-                    await asyncio.sleep(0.05)
-            except (RateLimited, Exception):
-                return
-            if not isinstance(detail, dict):
-                return
-
-            source = detail.get("source") or {}
-            prof_info = source.get("profession") if isinstance(source, dict) else None
-            recipe_id = (source.get("recipe") or {}).get("id") if isinstance(source, dict) else None
-            if not recipe_id:
-                recipe_id = decor_id
-
-            if not prof_info:
-                return
-            prof_id = prof_info.get("id")
-            prof_name = prof_info.get("name", "Unknown")
-            if not prof_id:
-                return
-
-            expansion_name = (detail.get("expansion") or {}).get("name")
-            item_name = detail.get("name", f"Decor #{decor_id}")
-            item_id = (detail.get("item") or {}).get("id")
-            icon_url = None
-            if item_id:
-                media = await _call(api.item_media, itemId=item_id, required=False)
-                icon_url = get_asset_url(media, "icon")
-
+    crafted_rows: list[dict] = []
+    for row in phase_a_rows:
+        item_id = row["ItemId"]
+        if item_id and item_id in decor_item_ids:
+            # Authoritative: this item is a housing decor — reclassify.
             phase_b_rows.append(
                 {
-                    "RecipeId": recipe_id,
-                    "ProfessionId": prof_id,
-                    "ProfessionName": prof_name,
-                    "ItemId": item_id,
-                    "ItemName": item_name,
-                    "IconUrl": icon_url,
+                    **row,
                     "RecipeType": RECIPE_TYPE_HOUSING,
                     "ItemClassName": None,
                     "ItemClassId": None,
                     "ItemSubClassName": None,
                     "ItemSubClassId": None,
-                    "ExpansionName": expansion_name,
-                    "CategoryName": "Housing",
-                    "LastSynced": now,
                 }
             )
+        elif not decor_item_ids and any(kw in (row["CategoryName"] or "").lower() for kw in _HOUSING_KEYWORDS):
+            # Fallback (decor API unavailable): use category keyword heuristic.
+            phase_b_rows.append({**row, "RecipeType": RECIPE_TYPE_HOUSING})
+        else:
+            crafted_rows.append(row)
 
-        await asyncio.gather(*[_parse_decor(d) for d in decor_items])
+    if decor_item_ids:
+        log.debug("sync_crafting_recipes: decor API reclassified %d recipes as housing", len(phase_b_rows))
     else:
         log.debug(
-            "sync_crafting_recipes: decor API unavailable, using %d keyword-matched housing recipes", len(phase_b_rows)
+            "sync_crafting_recipes: decor API unavailable, keyword fallback found %d housing recipes", len(phase_b_rows)
         )
+
+    phase_a_rows = crafted_rows
 
     # ── Upsert into database ──────────────────────────────────────────────
     all_rows = phase_a_rows + phase_b_rows
