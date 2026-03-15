@@ -384,6 +384,8 @@ export const en = {
     operator_recipe_sync: {
       title: "Recipe Cache",
       desc: "Sync WoW crafting recipes from the Blizzard API into the local cache. Required for type-driven crafting order creation.",
+      tab_sync: "Sync",
+      tab_browse: "Browse",
       cache_stats: "Cache Statistics",
       cache_empty: "No recipes cached yet. Run a sync to populate.",
       sync_title: "Sync Recipes",
@@ -393,6 +395,13 @@ export const en = {
       syncing: "Queuing…",
       sync_queued: "Sync queued. Stats will refresh in a few seconds.",
       sync_failed: "Failed to queue sync.",
+      browse_type_all: "All types",
+      browse_type_crafted: "Crafted",
+      browse_type_housing: "Housing",
+      browse_profession_all: "All professions",
+      browse_expansion_all: "All expansions",
+      browse_empty: "No recipes match the current filters.",
+      browse_showing: "Showing {from}–{to} of {total}",
     },
 
     operator_dashboard: {

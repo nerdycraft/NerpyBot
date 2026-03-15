@@ -375,6 +375,8 @@ export const de: typeof en = {
     operator_recipe_sync: {
       title: "Rezept-Cache",
       desc: "WoW-Handwerksrezepte von der Blizzard-API in den lokalen Cache synchronisieren. Erforderlich für die typbasierte Handwerksbestellungs-Erstellung.",
+      tab_sync: "Sync",
+      tab_browse: "Durchsuchen",
       cache_stats: "Cache-Statistiken",
       cache_empty: "Noch keine Rezepte gecacht. Starte eine Synchronisierung.",
       sync_title: "Rezepte synchronisieren",
@@ -384,6 +386,13 @@ export const de: typeof en = {
       syncing: "Einreihen…",
       sync_queued: "Sync wurde eingereiht. Statistiken werden in Kürze aktualisiert.",
       sync_failed: "Sync konnte nicht eingereiht werden.",
+      browse_type_all: "Alle Typen",
+      browse_type_crafted: "Hergestellt",
+      browse_type_housing: "Einrichtung",
+      browse_profession_all: "Alle Berufe",
+      browse_expansion_all: "Alle Erweiterungen",
+      browse_empty: "Keine Rezepte entsprechen den aktuellen Filtern.",
+      browse_showing: "{from}–{to} von {total} angezeigt",
     },
 
     operator_user_management: {

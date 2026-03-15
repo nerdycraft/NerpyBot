@@ -20,6 +20,9 @@ from web.schemas import (
     ModuleListResponse,
     PremiumUserGrant,
     PremiumUserSchema,
+    RecipeCacheBrowseResponse,
+    RecipeCacheEntry,
+    RecipeCacheProfession,
     RecipeSyncResponse,
     RecipeSyncStatusResponse,
     VoiceConnectionDetail,
@@ -220,3 +223,69 @@ async def get_recipe_sync_status(
     if result is None:
         return RecipeSyncStatusResponse(counts={})
     return RecipeSyncStatusResponse(counts=result.get("counts", {}))
+
+
+@router.get("/recipe-cache", response_model=RecipeCacheBrowseResponse)
+async def browse_recipe_cache(
+    recipe_type: str | None = None,
+    profession_id: int | None = None,
+    expansion: str | None = None,
+    offset: int = 0,
+    limit: int = 50,
+    user: dict = Depends(require_operator),
+    session: Session = Depends(get_db_session),
+):
+    """Browse cached recipes with optional filters. Returns up to `limit` rows."""
+    from models.wow import CraftingRecipeCache
+    from sqlalchemy import asc, func
+
+    q = session.query(CraftingRecipeCache)
+    if recipe_type:
+        q = q.filter(CraftingRecipeCache.RecipeType == recipe_type)
+    if profession_id is not None:
+        q = q.filter(CraftingRecipeCache.ProfessionId == profession_id)
+    if expansion:
+        q = q.filter(CraftingRecipeCache.ExpansionName == expansion)
+
+    total = q.with_entities(func.count(CraftingRecipeCache.RecipeId)).scalar() or 0
+    rows = q.order_by(asc(CraftingRecipeCache.ItemName)).offset(offset).limit(limit).all()
+
+    # Profession list (for filter dropdown) — always unfiltered
+    prof_rows = (
+        session.query(CraftingRecipeCache.ProfessionId, CraftingRecipeCache.ProfessionName)
+        .filter(CraftingRecipeCache.RecipeType == recipe_type if recipe_type else True)
+        .distinct()
+        .order_by(asc(CraftingRecipeCache.ProfessionName))
+        .all()
+    )
+
+    # Expansion list (for filter dropdown)
+    exp_rows = (
+        session.query(CraftingRecipeCache.ExpansionName)
+        .filter(CraftingRecipeCache.RecipeType == recipe_type if recipe_type else True)
+        .filter(CraftingRecipeCache.ExpansionName.isnot(None))
+        .distinct()
+        .order_by(asc(CraftingRecipeCache.ExpansionName))
+        .all()
+    )
+
+    return RecipeCacheBrowseResponse(
+        recipes=[
+            RecipeCacheEntry(
+                recipe_id=r.RecipeId,
+                item_name=r.ItemName,
+                profession_id=r.ProfessionId,
+                profession_name=r.ProfessionName,
+                recipe_type=r.RecipeType,
+                item_class_name=r.ItemClassName,
+                item_subclass_name=r.ItemSubClassName,
+                expansion_name=r.ExpansionName,
+                category_name=r.CategoryName,
+                wowhead_url=r.wowhead_url,
+            )
+            for r in rows
+        ],
+        professions=[RecipeCacheProfession(id=p[0], name=p[1]) for p in prof_rows],
+        expansions=[e[0] for e in exp_rows],
+        total=total,
+    )

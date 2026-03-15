@@ -82,3 +82,88 @@ class TestGuildListEndpoint:
 
         response = client.get("/api/operator/guilds", headers=operator_header)
         assert response.status_code == 503
+
+
+class TestRecipeCacheBrowse:
+    def test_browse_requires_operator(self, client, auth_header):
+        response = client.get("/api/operator/recipe-cache", headers=auth_header)
+        assert response.status_code == 403
+
+    def test_browse_empty_cache(self, client, operator_header):
+        response = client.get("/api/operator/recipe-cache", headers=operator_header)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["recipes"] == []
+        assert data["professions"] == []
+        assert data["expansions"] == []
+        assert data["total"] == 0
+
+    def test_browse_returns_cached_recipes(self, client, operator_header, web_db_session):
+        from datetime import UTC, datetime
+        from models.wow import CraftingRecipeCache
+
+        r = CraftingRecipeCache(
+            RecipeId=100,
+            ProfessionId=164,
+            ProfessionName="Blacksmithing",
+            ItemId=200,
+            ItemName="Tempered Helm",
+            RecipeType="crafted",
+            ItemClassName="Armor",
+            ItemClassId=4,
+            ItemSubClassName="Plate",
+            ItemSubClassId=6,
+            ExpansionName="Midnight",
+            CategoryName="Helms",
+            LastSynced=datetime.now(UTC),
+        )
+        web_db_session.add(r)
+        web_db_session.commit()
+
+        response = client.get("/api/operator/recipe-cache", headers=operator_header)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert len(data["recipes"]) == 1
+        recipe = data["recipes"][0]
+        assert recipe["recipe_id"] == 100
+        assert recipe["item_name"] == "Tempered Helm"
+        assert recipe["profession_name"] == "Blacksmithing"
+        assert recipe["recipe_type"] == "crafted"
+        assert recipe["wowhead_url"] == "https://www.wowhead.com/item=200"
+        assert data["professions"] == [{"id": 164, "name": "Blacksmithing"}]
+        assert data["expansions"] == ["Midnight"]
+
+    def test_browse_filter_by_type(self, client, operator_header, web_db_session):
+        from datetime import UTC, datetime
+        from models.wow import CraftingRecipeCache
+
+        web_db_session.add_all(
+            [
+                CraftingRecipeCache(
+                    RecipeId=1,
+                    ProfessionId=171,
+                    ProfessionName="Alchemy",
+                    ItemId=10,
+                    ItemName="Flask",
+                    RecipeType="crafted",
+                    LastSynced=datetime.now(UTC),
+                ),
+                CraftingRecipeCache(
+                    RecipeId=2,
+                    ProfessionId=185,
+                    ProfessionName="Cooking",
+                    ItemId=20,
+                    ItemName="Fancy Chair",
+                    RecipeType="housing",
+                    LastSynced=datetime.now(UTC),
+                ),
+            ]
+        )
+        web_db_session.commit()
+
+        response = client.get("/api/operator/recipe-cache?recipe_type=housing", headers=operator_header)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["recipes"][0]["item_name"] == "Fancy Chair"
