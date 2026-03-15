@@ -1,4 +1,13 @@
 name: "NerpyBot CodeQL Config"
 
+paths:
+  - NerdyPy/
+  - web/
+
 paths-ignore:
   - database-migrations/*/versions
+  - web/frontend/dist
+  - web/frontend/node_modules
+  - .worktrees/
+  - "**/__pycache__/**"
+  - "**/*.min.js"
