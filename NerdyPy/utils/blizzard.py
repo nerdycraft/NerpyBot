@@ -122,7 +122,9 @@ async def sync_crafting_recipes(
         raise ValueError("WoW API credentials (wow_id / wow_secret) not configured")
 
     locale = _BLIZZ_LOCALE.get((region, language), "en_GB")
-    blizz_lang = Language.DE if language == "de" else (Language.EN_GB if region == "eu" else Language.EN)
+    blizz_lang = (
+        Language.German if language == "de" else (Language.English_GreatBritian if region == "eu" else Language.English)
+    )
     api = RetailClient(
         client_id=client_id,
         client_secret=client_secret,
