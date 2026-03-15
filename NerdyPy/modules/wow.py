@@ -194,8 +194,8 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                             guild=guild.name,
                         )
                     )
-            except Exception:
-                pass
+            except discord.HTTPException as exc:
+                self.bot.log.debug("Board migration: could not notify channel %d: %s", channel_id, exc)
 
         # Bump version regardless of outcome to avoid retrying on every restart.
         with self.bot.session_scope() as session:

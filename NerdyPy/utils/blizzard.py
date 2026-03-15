@@ -194,16 +194,17 @@ async def sync_crafting_recipes(
 
     async def _call(fn, *args, required: bool = True, **kwargs):
         nonlocal errors
+        result = None
         async with sem:
             for attempt in range(3):
                 try:
                     result = await asyncio.to_thread(fn, *args, **kwargs)
                     check_rate_limit(result)
-                    return result
+                    break
                 except RateLimited:
                     log.warning("sync_crafting_recipes: rate limited")
                     errors += 1
-                    return None
+                    break
                 except json.JSONDecodeError as exc:
                     if attempt < 2:
                         await asyncio.sleep(0.5 * (attempt + 1))
@@ -211,13 +212,13 @@ async def sync_crafting_recipes(
                     if required:
                         log.debug("sync_crafting_recipes: API call failed: %s", exc)
                         errors += 1
-                    return None
                 except Exception as exc:
                     if required:
                         log.debug("sync_crafting_recipes: API call failed: %s", exc)
                         errors += 1
-                    return None
-        await asyncio.sleep(0.05)  # throttle outside semaphore — releases slot immediately
+                    break
+        await asyncio.sleep(0.05)  # throttle outside semaphore — releases slot before sleeping
+        return result
 
     all_rows: list[dict] = []
 
