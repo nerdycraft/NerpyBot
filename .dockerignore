@@ -5,12 +5,20 @@ CHANGELOG
 .github
 .gitignore
 .git
-config/
+.idea
+.run
 docker-compose*.yml
 NerdyPy/config.yaml.template
 NerdyPy/config*.yaml
-NerdyPy/db.db
-NerdyPy/weather_cache.sqlite
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.db-journal
+**/*.sqlite
+**/*.sqlite-wal
+**/*.sqlite-shm
+**/*.sqlite-journal
+web/frontend/node_modules/
 
 # Non-build files
 docs/
