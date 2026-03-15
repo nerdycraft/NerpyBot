@@ -376,16 +376,12 @@ class CraftingRecipeCache(db.BASE):
         return cls._dedup_rows(q, cls.ItemSubClassName)
 
     @classmethod
-    def get_professions_with_recipes(cls, recipe_type, session):
+    def get_professions_with_recipes(cls, recipe_type, session, profession_ids: set[int] | None = None):
         """Return distinct (ProfessionId, ProfessionName) pairs that have cached recipes of the given type."""
-        rows = (
-            session.query(cls.ProfessionId, cls.ProfessionName)
-            .filter(cls.RecipeType == recipe_type)
-            .distinct()
-            .order_by(asc(cls.ProfessionName))
-            .all()
-        )
-        return [(r[0], r[1]) for r in rows]
+        q = session.query(cls.ProfessionId, cls.ProfessionName).filter(cls.RecipeType == recipe_type)
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        return [(r[0], r[1]) for r in q.distinct().order_by(asc(cls.ProfessionName)).all()]
 
     @classmethod
     def count_by_type(cls, session):

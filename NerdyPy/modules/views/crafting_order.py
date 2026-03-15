@@ -200,15 +200,15 @@ class CraftingBoardView(ui.View):
                 return
             lang = get_guild_language(interaction.guild_id, session)
             mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
-            housing_professions = CraftingRecipeCache.get_professions_with_recipes(RECIPE_TYPE_HOUSING, session)
+            mapped_prof_ids = {m.ProfessionId for m in mappings}
+            mapping_role_ids = [m.RoleId for m in mappings]
+            housing_professions = CraftingRecipeCache.get_professions_with_recipes(
+                RECIPE_TYPE_HOUSING, session, profession_ids=mapped_prof_ids
+            )
 
         if not housing_professions:
             # Fall back to profession select (free-text flow)
-            roles = []
-            for m in mappings:
-                role = interaction.guild.get_role(m.RoleId)
-                if role:
-                    roles.append(role)
+            roles = [r for rid in mapping_role_ids if (r := interaction.guild.get_role(rid))]
             if not roles:
                 await interaction.response.send_message(_ls(interaction, "create.no_roles"), ephemeral=True)
                 return
