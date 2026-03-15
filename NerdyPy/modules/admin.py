@@ -259,7 +259,8 @@ class Admin(NerpyBotCog, Cog):
             try:
                 from utils.blizzard import sync_crafting_recipes
 
-                stats = await sync_crafting_recipes(self.bot)
+                expansion = self.bot.config.get("wow", {}).get("expansion")
+                stats = await sync_crafting_recipes(self.bot, expansion=expansion)
                 await ctx.send(
                     f"Recipe sync complete: **{stats['crafted']}** crafted · "
                     f"**{stats['housing']}** housing · "

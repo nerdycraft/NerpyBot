@@ -396,9 +396,7 @@ class CraftingRecipeCache(db.BASE):
         """Return the Wowhead URL for this recipe's crafted item or spell."""
         if self.ItemId:
             return f"https://www.wowhead.com/item={self.ItemId}"
-        if self.RecipeType == RECIPE_TYPE_HOUSING:
-            return f"https://www.wowhead.com/spell={self.RecipeId}"
-        return None
+        return f"https://www.wowhead.com/spell={self.RecipeId}"
 
     @classmethod
     def delete_all(cls, session):

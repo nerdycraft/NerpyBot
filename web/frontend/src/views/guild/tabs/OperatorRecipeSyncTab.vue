@@ -218,7 +218,6 @@ onMounted(fetchStatus);
               <th>Item</th>
               <th>Profession</th>
               <th>Type</th>
-              <th>Class</th>
               <th>Expansion</th>
             </tr>
           </thead>
@@ -232,7 +231,6 @@ onMounted(fetchStatus);
               </td>
               <td>{{ r.profession_name }}</td>
               <td><span :class="['type-badge', `type-${r.recipe_type}`]">{{ r.recipe_type }}</span></td>
-              <td class="muted">{{ [r.item_class_name, r.item_subclass_name].filter(Boolean).join(" / ") || "—" }}</td>
               <td class="muted">{{ r.expansion_name ?? "—" }}</td>
             </tr>
           </tbody>

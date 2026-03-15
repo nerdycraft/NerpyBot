@@ -543,6 +543,12 @@ class CraftingOrderModal(ui.Modal):
         item_name = self.item_name_input.value.strip()
         notes = self.notes_input.value.strip() or None
 
+        # Auto-generate a Wowhead search URL for free-text "Other" items.
+        if not self._wowhead_url and item_name:
+            from urllib.parse import quote
+
+            self._wowhead_url = f"https://www.wowhead.com/search?q={quote(item_name)}"
+
         # Phase 1: persist the order and resolve all data needed for Discord.
         # Exit the session before any Discord HTTP calls to avoid holding a DB
         # connection open across network I/O.

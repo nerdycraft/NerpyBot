@@ -285,7 +285,8 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         async def _run_sync():
             global _recipe_sync_running
             try:
-                await sync_crafting_recipes(bot)
+                expansion = bot.config.get("wow", {}).get("expansion")
+                await sync_crafting_recipes(bot, expansion=expansion)
             except Exception as exc:
                 bot.log.error("recipe_sync failed: %s", exc)
             finally:

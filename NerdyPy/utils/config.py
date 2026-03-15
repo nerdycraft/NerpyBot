@@ -48,6 +48,7 @@ def parse_env_config() -> dict:
         ("NERPYBOT_RIOT_KEY", ["league", "riot"], str),
         ("NERPYBOT_WOW_CLIENT_ID", ["wow", "wow_id"], str),
         ("NERPYBOT_WOW_CLIENT_SECRET", ["wow", "wow_secret"], str),
+        ("NERPYBOT_WOW_EXPANSION", ["wow", "expansion"], str),
         ("NERPYBOT_WOW_POLL_INTERVAL_MINUTES", ["wow", "guild_news", "poll_interval_minutes"], int),
         ("NERPYBOT_WOW_MOUNT_BATCH_SIZE", ["wow", "guild_news", "mount_batch_size"], int),
         ("NERPYBOT_WOW_TRACK_MOUNTS", ["wow", "guild_news", "track_mounts"], _to_bool),

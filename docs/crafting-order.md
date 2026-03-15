@@ -10,14 +10,14 @@ Guild administrators can set up a crafting order board where members post reques
 
 **Recipe Cache** (`CraftingRecipeCache`) is a bot-global table populated by `!sync recipes` (or the dashboard operator tab). It covers two recipe types:
 
-- `"crafted"` — recipes from the top 2 expansion skill tiers for all crafting professions (Blacksmithing, Leatherworking, Tailoring, Jewelcrafting, Engineering, Inscription, Alchemy, Enchanting, Cooking). Categorized by Blizzard `item_class`/`item_subclass` (e.g. Armor/Plate, Weapon/Sword, Consumable/Flask).
-- `"housing"` — housing decor recipes sourced from the Blizzard Housing Decor API (`/data/wow/decor/index`), spanning all expansions. These use spell IDs on Wowhead (`/spell=…`) rather than item IDs.
+- `"crafted"` — recipes from profession skill tiers for all crafting professions (Blacksmithing, Leatherworking, Tailoring, Jewelcrafting, Engineering, Inscription, Alchemy, Enchanting, Cooking). Categorized by Blizzard `item_class`/`item_subclass` (e.g. Armor/Plate, Weapon/Sword, Consumable/Flask). Scope is controlled by the `wow.expansion` config key — if set (e.g. `"Midnight"`), only that expansion's gear recipes are cached; if omitted, all expansion tiers are synced.
+- `"housing"` — housing decor recipes detected by category name (`"House Decor"` in the skill tier data), spanning all expansions regardless of the `expansion` filter. Wowhead links use `/item={ItemId}` when the item ID is resolved, otherwise fall back to `/spell={RecipeId}`.
 
 **Role Mapping** (`CraftingRoleMapping`) maps Discord role IDs to Blizzard profession IDs per guild. Auto-populated during board creation by matching role names against the crafting professions. Unmapped roles are excluded from the profession dropdown.
 
 **Orders** are individual crafting requests. Each order tracks who posted it, which profession is needed, the item name, icon URL, Wowhead URL, status, and optionally a discussion thread.
 
-**Wowhead Links** are stored on each order at creation time and surfaced in the order embed. Equippable/consumable items link to `wowhead.com/item={ItemId}`; housing items link to `wowhead.com/spell={RecipeId}`.
+**Wowhead Links** are stored on each order at creation time and surfaced in the order embed. Items with a resolved `ItemId` link to `wowhead.com/item={ItemId}`; recipes without one fall back to `wowhead.com/spell={RecipeId}`. Free-text "Other" items get a Wowhead search URL (`wowhead.com/search?q={name}`).
 
 ## Flows
 
@@ -45,20 +45,23 @@ Two triggers:
 - **CLI (operator-only)**: `!sync recipes`
 - **Dashboard**: Operator tab → "Recipe Cache" → Sync button
 
-Both invoke `sync_crafting_recipes()` which runs two phases:
+Both invoke `sync_crafting_recipes()` which walks all expansion skill tiers for every crafting profession:
 
-**Phase A — Crafted items (profession tier walk):**
+**Tier walk (all expansions):**
 
-1. For each of the 9 crafting professions (including Cooking), walk the top 2 expansion skill tiers
-2. For each recipe, fetch `recipe()` → `item()` → `item_media()` to resolve item class, subclass, name, and icon
-3. Cache ALL recipes as `RecipeType="crafted"`, storing `ItemClassId/Name` and `ItemSubClassId/Name`
+1. For each of the 9 crafting professions, walk all expansion skill tiers
+2. Expansion scoping: if `wow.expansion` is configured, skip gear recipes from non-matching tiers; housing categories (`"House Decor"`) are always synced from all tiers
+3. Skip non-item categories: `"Recrafting"`, `"Appendix I - Terms"`, `"Appendix II - Stats"`, `"Smelting"`
 
-**Phase B — Housing decor:**
+**Per-recipe resolution:**
 
-1. Call `GET /data/wow/decor/index` via raw API client (this endpoint isn't wrapped by blizzapi yet)
-2. Map decor items to professions and expansion names
-3. Fallback: if the decor endpoint is unavailable, scan Phase A results for housing-keyword categories
-4. Cache as `RecipeType="housing"`, `ExpansionName` set to the WoW expansion name
+- **Strategy 1 (Shadowlands and older):** recipe response includes `crafted_item`; fetch item details via `item()` for class/subclass metadata
+- **Strategy 2 (Dragonflight+):** no `crafted_item` in response; search by recipe name via `item_search()` to resolve `ItemId`, `item_class`, and `item_subclass`
+- Recipes where neither strategy yields an identifiable item are skipped
+
+**Housing detection:** any category named `"House Decor"` (case-insensitive) is treated as `RecipeType="housing"`. No decor API calls are made.
+
+**Expansion names** are resolved from tier names via a static map (e.g. `"Midnight Blacksmithing"` → `"Midnight"`).
 
 Returns `{"crafted": N, "housing": N, "errors": N, "duration_seconds": float}`.
 
@@ -186,7 +189,7 @@ The `WowheadUrl` column was added in migration `012`.
 | `NerdyPy/modules/wow.py`                                             | `craftingorder` command group (create, edit, remove)                             |
 | `NerdyPy/modules/views/crafting_order.py`                            | Board view, select views (type/subtype/item/expansion/housing profession), modal |
 | `NerdyPy/models/wow.py`                                              | CraftingBoardConfig, CraftingRoleMapping, CraftingRecipeCache, CraftingOrder     |
-| `NerdyPy/utils/blizzard.py`                                          | `sync_crafting_recipes()`, housing decor API calls                               |
+| `NerdyPy/utils/blizzard.py`                                          | `sync_crafting_recipes()`, `_resolve_expansion()`, expansion map                 |
 | `NerdyPy/utils/valkey.py`                                            | `recipe_sync` + `recipe_sync_status` Valkey IPC handlers                         |
 | `NerdyPy/modules/admin.py`                                           | `!sync recipes` CLI command                                                      |
 | `web/routes/operator.py`                                             | `/operator/recipe-sync` POST + GET endpoints                                     |
