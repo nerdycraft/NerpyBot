@@ -1468,23 +1468,28 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             # Auto-match roles to Blizzard professions
             mapped, unmapped = self._auto_match_roles(interaction.guild, role_ids, session)
 
-            # Post board embed
-            from modules.views.crafting_order import CraftingBoardView
+        # Build embed and view then send to Discord outside the session so the DB
+        # connection is not held open during the HTTP call.
+        from modules.views.crafting_order import CraftingBoardView
 
-            embed = discord.Embed(
-                title=get_string(lang, "wow.craftingorder.board_title"),
-                description=description,
-                color=discord.Color.gold(),
-            )
-            embed.set_footer(text=get_string(lang, "wow.craftingorder.board_footer"))
+        embed = discord.Embed(
+            title=get_string(lang, "wow.craftingorder.board_title"),
+            description=description,
+            color=discord.Color.gold(),
+        )
+        embed.set_footer(text=get_string(lang, "wow.craftingorder.board_footer"))
 
-            view = CraftingBoardView(
-                self.bot,
-                label=get_string(lang, "wow.craftingorder.create_button"),
-                housing_label=get_string(lang, "wow.craftingorder.housing_button"),
-            )
-            msg = await channel.send(embed=embed, view=view)
-            config.BoardMessageId = msg.id
+        view = CraftingBoardView(
+            self.bot,
+            label=get_string(lang, "wow.craftingorder.create_button"),
+            housing_label=get_string(lang, "wow.craftingorder.housing_button"),
+        )
+        msg = await channel.send(embed=embed, view=view)
+
+        with self.bot.session_scope() as session:
+            config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+            if config is not None:
+                config.BoardMessageId = msg.id
 
         await interaction.followup.send(
             get_string(lang, "wow.craftingorder.create.success", channel=channel.mention), ephemeral=True
@@ -1583,7 +1588,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 )
                 await msg.edit(embed=embed, view=new_view)
                 embed_updated = True
-            except (discord.NotFound, discord.Forbidden) as exc:
+            except discord.HTTPException as exc:
                 self.bot.log.warning("Failed to edit board embed (channel=%s, msg=%s): %s", channel_id, message_id, exc)
 
         if embed_updated:

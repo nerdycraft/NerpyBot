@@ -210,9 +210,12 @@ class CraftingBoardView(ui.View):
             board_ctx = self._load_board_context(interaction.guild_id, session)
             if board_ctx is not None:
                 lang, mapped_prof_ids, mapping_role_ids = board_ctx
-                housing_professions = CraftingRecipeCache.get_professions_with_recipes(
-                    RECIPE_TYPE_HOUSING, session, profession_ids=mapped_prof_ids
-                )
+                if mapped_prof_ids:
+                    housing_professions = CraftingRecipeCache.get_professions_with_recipes(
+                        RECIPE_TYPE_HOUSING, session, profession_ids=mapped_prof_ids
+                    )
+                else:
+                    housing_professions = []
 
         if board_ctx is None:
             await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
@@ -257,6 +260,14 @@ class ProfessionSelectView(ui.View):
     async def _on_select(self, interaction: Interaction):
         role_id = int(interaction.data["values"][0])
         role = interaction.guild.get_role(role_id)
+        if role is None:
+            try:
+                role = await interaction.guild.fetch_role(role_id)
+            except discord.HTTPException:
+                role = None
+        if role is None:
+            await interaction.response.send_message(_ls(interaction, "no_profession_mapped"), ephemeral=True)
+            return
         modal = CraftingOrderModal(self.bot, role_id, role, self.guild_id, self.lang)
         await interaction.response.send_modal(modal)
 
@@ -452,8 +463,18 @@ class ItemSelectView(ui.View):
             )
             return
 
-        # get_role() is cache-only — may return None on reconnect; embed handles None gracefully.
         role = interaction.guild.get_role(role_id)
+        if role is None:
+            try:
+                role = await interaction.guild.fetch_role(role_id)
+            except discord.HTTPException:
+                role = None
+        if role is None:
+            await interaction.response.edit_message(
+                content=get_string(self.lang, "wow.craftingorder.no_profession_mapped"),
+                view=None,
+            )
+            return
 
         localized_name = _get_locale(recipe.ItemNameLocales, self.lang)
         modal = CraftingOrderModal(
