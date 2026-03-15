@@ -138,7 +138,7 @@ async def sync_crafting_recipes(
 
     now = _dt.datetime.now(_dt.timezone.utc)
 
-    async def _call(fn, *args, **kwargs):
+    async def _call(fn, *args, required: bool = True, **kwargs):
         nonlocal errors
         async with sem:
             try:
@@ -151,8 +151,9 @@ async def sync_crafting_recipes(
                 errors += 1
                 return None
             except Exception as exc:
-                log.debug("sync_crafting_recipes: API call failed: %s", exc)
-                errors += 1
+                if required:
+                    log.debug("sync_crafting_recipes: API call failed: %s", exc)
+                    errors += 1
                 return None
 
     # ── Phase A: profession tier walk ────────────────────────────────────
@@ -206,11 +207,11 @@ async def sync_crafting_recipes(
                 item_class_name = ic.get("name")
                 item_subclass_id = isc.get("id")
                 item_subclass_name = isc.get("name")
-            media = await _call(api.item_media, itemId=item_id)
+            media = await _call(api.item_media, itemId=item_id, required=False)
             icon_url = get_asset_url(media, "icon")
 
         if not icon_url:
-            media = await _call(api.recipe_media, recipeId=recipe_id)
+            media = await _call(api.recipe_media, recipeId=recipe_id, required=False)
             icon_url = get_asset_url(media, "icon")
 
         phase_a_rows.append(
@@ -295,7 +296,7 @@ async def sync_crafting_recipes(
             item_id = (detail.get("item") or {}).get("id")
             icon_url = None
             if item_id:
-                media = await _call(api.item_media, itemId=item_id)
+                media = await _call(api.item_media, itemId=item_id, required=False)
                 icon_url = get_asset_url(media, "icon")
 
             phase_b_rows.append(
