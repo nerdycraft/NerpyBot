@@ -250,24 +250,29 @@ async def browse_recipe_cache(
     total = q.with_entities(func.count(CraftingRecipeCache.RecipeId)).scalar() or 0
     rows = q.order_by(asc(CraftingRecipeCache.ItemName)).offset(offset).limit(limit).all()
 
-    # Profession list (for filter dropdown) — always unfiltered
-    prof_rows = (
-        session.query(CraftingRecipeCache.ProfessionId, CraftingRecipeCache.ProfessionName)
-        .filter(CraftingRecipeCache.RecipeType == recipe_type if recipe_type else True)
-        .distinct()
-        .order_by(asc(CraftingRecipeCache.ProfessionName))
-        .all()
-    )
-
-    # Expansion list (for filter dropdown)
-    exp_rows = (
-        session.query(CraftingRecipeCache.ExpansionName)
-        .filter(CraftingRecipeCache.RecipeType == recipe_type if recipe_type else True)
-        .filter(CraftingRecipeCache.ExpansionName.isnot(None))
-        .distinct()
-        .order_by(asc(CraftingRecipeCache.ExpansionName))
-        .all()
-    )
+    # Dropdown option lists are only needed on the first page (filter change / initial load).
+    # On subsequent pages the frontend keeps the cached values from the first response.
+    professions: list[RecipeCacheProfession] = []
+    expansions: list[str] = []
+    if offset == 0:
+        type_filter = CraftingRecipeCache.RecipeType == recipe_type if recipe_type else True
+        prof_rows = (
+            session.query(CraftingRecipeCache.ProfessionId, CraftingRecipeCache.ProfessionName)
+            .filter(type_filter)
+            .distinct()
+            .order_by(asc(CraftingRecipeCache.ProfessionName))
+            .all()
+        )
+        exp_rows = (
+            session.query(CraftingRecipeCache.ExpansionName)
+            .filter(type_filter)
+            .filter(CraftingRecipeCache.ExpansionName.isnot(None))
+            .distinct()
+            .order_by(asc(CraftingRecipeCache.ExpansionName))
+            .all()
+        )
+        professions = [RecipeCacheProfession(id=p[0], name=p[1]) for p in prof_rows]
+        expansions = [e[0] for e in exp_rows]
 
     return RecipeCacheBrowseResponse(
         recipes=[
@@ -285,7 +290,7 @@ async def browse_recipe_cache(
             )
             for r in rows
         ],
-        professions=[RecipeCacheProfession(id=p[0], name=p[1]) for p in prof_rows],
-        expansions=[e[0] for e in exp_rows],
+        professions=professions,
+        expansions=expansions,
         total=total,
     )

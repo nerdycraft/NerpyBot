@@ -144,7 +144,6 @@ async def sync_crafting_recipes(
             try:
                 result = await asyncio.to_thread(fn, *args, **kwargs)
                 check_rate_limit(result)
-                await asyncio.sleep(0.05)
                 return result
             except RateLimited:
                 log.warning("sync_crafting_recipes: rate limited")
@@ -155,6 +154,7 @@ async def sync_crafting_recipes(
                     log.debug("sync_crafting_recipes: API call failed: %s", exc)
                     errors += 1
                 return None
+        await asyncio.sleep(0.05)  # throttle outside semaphore — releases slot immediately
 
     # ── Phase A: profession tier walk ────────────────────────────────────
     phase_a_rows: list[dict] = []

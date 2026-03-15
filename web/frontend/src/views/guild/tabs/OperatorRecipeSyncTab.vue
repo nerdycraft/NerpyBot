@@ -90,8 +90,10 @@ async function fetchBrowse() {
     const qs = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString();
     const res = await api.get<RecipeCacheBrowseResponse>(`/operator/recipe-cache?${qs}`);
     browseRecipes.value = res.recipes;
-    browseProfessions.value = res.professions;
-    browseExpansions.value = res.expansions;
+    // Dropdown lists are only returned on offset=0 (filter change / first load).
+    // On subsequent pages the server returns empty arrays — keep existing values.
+    if (res.professions.length) browseProfessions.value = res.professions;
+    if (res.expansions.length) browseExpansions.value = res.expansions;
     browseTotal.value = res.total;
   } catch (e: unknown) {
     browseError.value = e instanceof Error ? e.message : t("common.load_failed");
