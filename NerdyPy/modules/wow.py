@@ -1629,7 +1629,11 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 color=discord.Color.gold(),
             )
             embed.set_footer(text=get_string(new_lang, "wow.craftingorder.board_footer"))
-            view = CraftingBoardView(self.bot, label=get_string(new_lang, "wow.craftingorder.create_button"))
+            view = CraftingBoardView(
+                self.bot,
+                label=get_string(new_lang, "wow.craftingorder.create_button"),
+                housing_label=get_string(new_lang, "wow.craftingorder.housing_button"),
+            )
             await msg.edit(embed=embed, view=view)
             self.bot.log.info("wow: refreshed crafting board embed for guild %d (lang=%s)", guild_id, new_lang)
         except (discord.NotFound, discord.Forbidden):
