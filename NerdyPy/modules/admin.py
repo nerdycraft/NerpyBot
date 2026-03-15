@@ -179,6 +179,7 @@ class Admin(NerpyBotCog, Cog):
                 language=language,
             )
         await interaction.response.send_message(msg, ephemeral=True)
+        self.bot.dispatch("guild_language_changed", interaction.guild.id, language)
 
     @language.command(name="get")
     async def _language_get(self, interaction: Interaction):

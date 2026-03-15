@@ -9,14 +9,16 @@ from typing import Optional
 import discord
 from discord import Embed, Interaction, Role, TextChannel, app_commands
 from discord.app_commands import checks
-from discord.ext.commands import GroupCog
+from discord.ext.commands import Cog, GroupCog
 from models.application import (
     TEMPLATE_KEY_MAP,
     ApplicationForm,
     ApplicationGuildRole,
     ApplicationQuestion,
+    ApplicationSubmission,
     ApplicationTemplate,
     ApplicationTemplateQuestion,
+    SubmissionStatus,
     seed_built_in_templates,
 )
 from modules.conversations.application import (
@@ -1286,6 +1288,64 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             color=0x5865F2,
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    # -- Language refresh listener -------------------------------------------
+
+    @Cog.listener("on_guild_language_changed")
+    async def _on_guild_language_changed(self, guild_id: int, new_lang: str) -> None:
+        """Refresh persistent application embeds when a guild's language preference changes."""
+        await self._refresh_apply_embeds(guild_id)
+        await self._refresh_review_embeds(guild_id)
+
+    async def _refresh_apply_embeds(self, guild_id: int) -> None:
+        """Re-post or edit the Apply button embed for each configured form in the guild."""
+        from modules.views.application import edit_apply_button_message
+
+        with self.bot.session_scope() as session:
+            forms = ApplicationForm.get_all_by_guild(guild_id, session)
+            form_ids = [f.Id for f in forms if f.ApplyMessageId and f.ApplyChannelId]
+
+        for form_id in form_ids:
+            try:
+                await edit_apply_button_message(self.bot, form_id)
+                self.bot.log.info("application: refreshed apply embed for form %d (guild %d)", form_id, guild_id)
+            except discord.HTTPException as exc:
+                self.bot.log.warning(
+                    "application: failed to refresh apply embed for form %d (guild %d): %s", form_id, guild_id, exc
+                )
+
+    async def _refresh_review_embeds(self, guild_id: int) -> None:
+        """Re-render each pending review embed in the guild with the new language."""
+        from modules.views.application import _update_review_embed
+
+        with self.bot.session_scope() as session:
+            submissions = ApplicationSubmission.get_by_guild(guild_id, session)
+            pending = [
+                (s.ReviewMessageId, ApplicationForm.get_by_id(s.FormId, session).ReviewChannelId)
+                for s in submissions
+                if s.Status == SubmissionStatus.PENDING and s.ReviewMessageId
+            ]
+            # Filter out any where the form has no review channel configured
+            pending = [(msg_id, ch_id) for msg_id, ch_id in pending if ch_id]
+
+        for i, (review_message_id, review_channel_id) in enumerate(pending):
+            try:
+                await _update_review_embed(
+                    self.bot,
+                    review_channel_id=review_channel_id,
+                    review_message_id=review_message_id,
+                )
+                self.bot.log.info("application: refreshed review embed %d (guild %d)", review_message_id, guild_id)
+            except (discord.NotFound, discord.Forbidden):
+                self.bot.log.warning(
+                    "application: review message %d not accessible (guild %d) — skipping", review_message_id, guild_id
+                )
+            except discord.HTTPException as exc:
+                self.bot.log.warning(
+                    "application: failed to refresh review embed %d (guild %d): %s", review_message_id, guild_id, exc
+                )
+            if i < len(pending) - 1:
+                await asyncio.sleep(1)
 
 
 class _TemplateMessagesModal(discord.ui.Modal):

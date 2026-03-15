@@ -12,7 +12,7 @@ from blizzapi import Language, Region, RetailClient
 from discord import Color, Embed, HTTPException, Interaction, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext import tasks
-from discord.ext.commands import GroupCog
+from discord.ext.commands import Cog, GroupCog
 from models.wow import (
     CURRENT_BOARD_VERSION,
     CraftingBoardConfig,
@@ -1593,6 +1593,101 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
 
         if unmapped:
             await self._send_manual_mapping_view(interaction, unmapped, lang)
+
+    @Cog.listener("on_guild_language_changed")
+    async def _on_guild_language_changed(self, guild_id: int, new_lang: str) -> None:
+        """Refresh persistent WoW embeds when a guild's language preference changes."""
+        await self._refresh_crafting_board(guild_id, new_lang)
+        await self._refresh_active_orders(guild_id, new_lang)
+
+    async def _refresh_crafting_board(self, guild_id: int, new_lang: str) -> None:
+        """Edit the crafting board embed and view in-place with the new language."""
+        from modules.views.crafting_order import CraftingBoardView
+
+        with self.bot.session_scope() as session:
+            config = CraftingBoardConfig.get_by_guild(guild_id, session)
+            if config is None or not config.BoardMessageId or not config.ChannelId:
+                return
+            channel_id = config.ChannelId
+            message_id = config.BoardMessageId
+            description = config.Description
+
+        try:
+            guild = self.bot.get_guild(guild_id)
+            channel = guild.get_channel(channel_id) if guild else None
+            if channel is None:
+                channel = await self.bot.fetch_channel(channel_id)
+            msg = await channel.fetch_message(message_id)
+            embed = discord.Embed(
+                title=get_string(new_lang, "wow.craftingorder.board_title"),
+                description=description,
+                color=discord.Color.gold(),
+            )
+            embed.set_footer(text=get_string(new_lang, "wow.craftingorder.board_footer"))
+            view = CraftingBoardView(self.bot, label=get_string(new_lang, "wow.craftingorder.create_button"))
+            await msg.edit(embed=embed, view=view)
+            self.bot.log.info("wow: refreshed crafting board embed for guild %d (lang=%s)", guild_id, new_lang)
+        except (discord.NotFound, discord.Forbidden):
+            self.bot.log.warning("wow: crafting board message not accessible for guild %d — skipping refresh", guild_id)
+        except discord.HTTPException as exc:
+            self.bot.log.warning("wow: failed to refresh crafting board for guild %d: %s", guild_id, exc)
+
+    async def _refresh_active_orders(self, guild_id: int, new_lang: str) -> None:
+        """Edit each active crafting order card embed and view with the new language."""
+        from modules.views.crafting_order import build_order_embed, build_order_view
+
+        with self.bot.session_scope() as session:
+            orders = CraftingOrder.get_active_by_guild(guild_id, session)
+            order_data = [
+                (
+                    order.Id,
+                    order.ChannelId,
+                    order.OrderMessageId,
+                    order.Status,
+                    order.ItemName,
+                    order.Notes,
+                    order.IconUrl,
+                    order.ProfessionRoleId,
+                    order.CreatorId,
+                    order.CrafterId,
+                )
+                for order in orders
+                if order.OrderMessageId and order.ChannelId
+            ]
+
+        guild = self.bot.get_guild(guild_id)
+        for (
+            order_id,
+            channel_id,
+            message_id,
+            status,
+            item_name,
+            notes,
+            icon_url,
+            profession_role_id,
+            creator_id,
+            crafter_id,
+        ) in order_data:
+            try:
+                channel = guild.get_channel(channel_id) if guild else None
+                if channel is None:
+                    channel = await self.bot.fetch_channel(channel_id)
+                msg = await channel.fetch_message(message_id)
+                with self.bot.session_scope() as session:
+                    order = CraftingOrder.get_by_id(order_id, session)
+                    if order is None:
+                        continue
+                    embed = build_order_embed(order, guild, new_lang)
+                    view = build_order_view(order.Id, order.Status, new_lang)
+                await msg.edit(embed=embed, view=view)
+                self.bot.log.info("wow: refreshed order #%d embed for guild %d (lang=%s)", order_id, guild_id, new_lang)
+            except (discord.NotFound, discord.Forbidden):
+                self.bot.log.warning(
+                    "wow: order #%d message not accessible for guild %d — skipping refresh", order_id, guild_id
+                )
+            except discord.HTTPException as exc:
+                self.bot.log.warning("wow: failed to refresh order #%d for guild %d: %s", order_id, guild_id, exc)
+            await asyncio.sleep(1)
 
     async def _send_manual_mapping_view(self, interaction: Interaction, unmapped: list[int], lang: str):
         """Send an ephemeral followup with Select dropdowns for manual profession mapping."""
