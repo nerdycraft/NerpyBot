@@ -49,6 +49,17 @@ def _build_localized_options(items: list[tuple[int, str | None, dict | None]], l
     return options
 
 
+def _display_item_name(order: CraftingOrder) -> str:
+    """Return item name for user-facing messages.
+
+    If a localized name is stored, returns 'Localized (English)' so the
+    recipient can identify the item regardless of their own language.
+    """
+    if order.ItemNameLocalized:
+        return f"{order.ItemNameLocalized} ({order.ItemName})"
+    return order.ItemName
+
+
 def build_order_embed(order: CraftingOrder, guild: discord.Guild, lang: str = "en") -> discord.Embed:
     """Build the embed for a crafting order."""
     role = guild.get_role(order.ProfessionRoleId)
@@ -60,7 +71,10 @@ def build_order_embed(order: CraftingOrder, guild: discord.Guild, lang: str = "e
     else:
         status_text = get_string(lang, status_key)
 
-    embed = discord.Embed(title=order.ItemName, color=discord.Color.blue())
+    display_name = order.ItemNameLocalized or order.ItemName
+    embed = discord.Embed(title=display_name, url=order.WowheadUrl, color=discord.Color.blue())
+    if order.ItemNameLocalized:
+        embed.description = f"-# {order.ItemName}"
     embed.add_field(name=get_string(lang, "wow.craftingorder.order.profession"), value=role_display, inline=True)
     embed.add_field(name=get_string(lang, "wow.craftingorder.order.status"), value=status_text, inline=True)
     embed.add_field(
@@ -425,13 +439,15 @@ class ItemSelectView(ui.View):
             )
             return
 
+        localized_name = _get_locale(recipe.ItemNameLocales, self.lang)
         modal = CraftingOrderModal(
             self.bot,
             role_id,
             role,
             interaction.guild_id,
             self.lang,
-            item_name=recipe.ItemName,
+            item_name=localized_name or recipe.ItemName,
+            item_name_english=recipe.ItemName if localized_name else None,
             icon_url=recipe.IconUrl,
             wowhead_url=recipe.wowhead_url,
         )
@@ -542,6 +558,7 @@ class CraftingOrderModal(ui.Modal):
         guild_id: int,
         lang: str = "en",
         item_name: str | None = None,
+        item_name_english: str | None = None,
         icon_url: str | None = None,
         wowhead_url: str | None = None,
     ):
@@ -550,6 +567,7 @@ class CraftingOrderModal(ui.Modal):
         self.role_id = role_id
         self.role = role
         self.guild_id = guild_id
+        self._item_name_english = item_name_english
         self._icon_url = icon_url
         self._wowhead_url = wowhead_url
         self.item_name_input = ui.TextInput(label=get_string(lang, "wow.craftingorder.modal_item_name"), max_length=200)
@@ -567,8 +585,13 @@ class CraftingOrderModal(ui.Modal):
     async def on_submit(self, interaction: Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        item_name = self.item_name_input.value.strip()
+        item_name_input = self.item_name_input.value.strip()
         notes = self.notes_input.value.strip() or None
+
+        # For cache-driven flow: keep English canonical in ItemName; store user-confirmed
+        # (localized) name in ItemNameLocalized for display. For free-text flow: only ItemName.
+        item_name = self._item_name_english if self._item_name_english is not None else item_name_input
+        item_name_localized = item_name_input if self._item_name_english is not None else None
 
         # Auto-generate a Wowhead search URL for free-text "Other" items.
         if not self._wowhead_url and item_name:
@@ -597,6 +620,7 @@ class CraftingOrderModal(ui.Modal):
                     CreatorName=interaction.user.display_name,
                     ProfessionRoleId=self.role_id,
                     ItemName=item_name,
+                    ItemNameLocalized=item_name_localized,
                     IconUrl=self._icon_url,
                     WowheadUrl=self._wowhead_url,
                     Notes=notes,
@@ -641,7 +665,7 @@ class CraftingOrderModal(ui.Modal):
                 order.OrderMessageId = msg.id
 
         await interaction.followup.send(
-            _ls(interaction, "order_created", item=item_name),
+            _ls(interaction, "order_created", item=item_name_localized or item_name),
             ephemeral=True,
         )
 
@@ -778,7 +802,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             order.Status = "completed"
-            item_name = order.ItemName
+            item_name = _display_item_name(order)
             creator_id = order.CreatorId
             crafter_id = order.CrafterId
 
@@ -843,7 +867,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             order.Status = "cancelled"
-            item_name = order.ItemName
+            item_name = _display_item_name(order)
             creator_id = order.CreatorId
             cancelled_by_creator = interaction.user.id == creator_id
 

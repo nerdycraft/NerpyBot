@@ -232,6 +232,7 @@ class CraftingOrder(db.BASE):
     CrafterName = Column(UnicodeText, nullable=True)
     ProfessionRoleId = Column(BigInteger)
     ItemName = Column(Unicode(200))
+    ItemNameLocalized = Column(Unicode(200), nullable=True)
     IconUrl = Column(Unicode(500), nullable=True)
     WowheadUrl = Column(Unicode(500), nullable=True)
     Notes = Column(UnicodeText, nullable=True)
