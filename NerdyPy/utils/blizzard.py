@@ -280,9 +280,17 @@ async def sync_crafting_recipes(
             item_name = crafted_item.get("name")
 
         if item_id:
-            item_data, media = await asyncio.gather(
+            # Run item(), item_media(), and an item_search() in parallel.
+            # item_search returns multi-locale name dicts; item() only returns the requested locale.
+            locale_search_coro = (
+                _call(api.item_search, fields={"name.en_GB": quote(item_name, safe=""), "_pageSize": 5}, required=False)
+                if item_name
+                else asyncio.sleep(0)
+            )
+            item_data, media, locale_search = await asyncio.gather(
                 _call(api.item, itemId=item_id),
                 _call(api.item_media, itemId=item_id, required=False),
+                locale_search_coro,
             )
             if isinstance(item_data, dict):
                 ic = item_data.get("item_class") or {}
@@ -294,6 +302,18 @@ async def sync_crafting_recipes(
                 bind_type = (item_data.get("preview_item") or {}).get("binding", {}).get("type")
                 item_quality = (item_data.get("quality") or {}).get("type")
             icon_url = get_asset_url(media, "icon")
+            # Populate locale dicts from item_search (same item_id match).
+            if isinstance(locale_search, dict):
+                for hit in locale_search.get("results", []):
+                    data = hit.get("data", {})
+                    if data.get("id") == item_id:
+                        name_val = data.get("name", {})
+                        ic_name_raw = (data.get("item_class") or {}).get("name")
+                        isc_name_raw = (data.get("item_subclass") or {}).get("name")
+                        item_name_locales = _extract_locale_dict(name_val) or None
+                        item_class_name_locales = _extract_locale_dict(ic_name_raw) or None
+                        item_subclass_name_locales = _extract_locale_dict(isc_name_raw) or None
+                        break
         else:
             # Strategy 2: item_search by recipe name (Dragonflight+).
             # item_search returns localized name dicts: {"en_GB": "name", ...}
