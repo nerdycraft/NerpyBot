@@ -340,6 +340,7 @@ wow:
     edit:
       not_found: "No crafting order board found for this server."
       success: "Crafting order board updated."
+      embed_failed: "⚠️ Description saved, but the board embed could not be updated (the message may have been deleted). Use `/wow craftingorder remove` and `/wow craftingorder create` to recreate it."
     housing_button: "Request Housing Item"
     profession_select: "Select a profession"
     housing_profession_select: "Select a profession for housing items"
