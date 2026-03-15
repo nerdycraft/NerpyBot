@@ -1565,8 +1565,9 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             channel_id = config.ChannelId
             message_id = config.BoardMessageId
 
-        # Edit the board embed in-place and refresh the view with the housing button
-        embed_updated = False
+        # Edit the board embed in-place and refresh the view with the housing button.
+        # Pre-set True when there is no message to update — description was saved, nothing to fail.
+        embed_updated = not message_id
         if message_id:
             try:
                 from modules.views.crafting_order import CraftingBoardView
@@ -1582,7 +1583,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 )
                 await msg.edit(embed=embed, view=new_view)
                 embed_updated = True
-            except (discord.NotFound, discord.Forbidden, discord.HTTPException) as exc:
+            except (discord.NotFound, discord.Forbidden) as exc:
                 self.bot.log.warning("Failed to edit board embed (channel=%s, msg=%s): %s", channel_id, message_id, exc)
 
         if embed_updated:
