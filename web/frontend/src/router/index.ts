@@ -51,9 +51,10 @@ router.beforeEach(async (to) => {
 
   // Extract JWT handed off by /api/auth/callback redirect (#token=<jwt>).
   // Fragment is used instead of query param so the token never appears in server logs.
-  // Restrict to root path — the only legitimate OAuth callback target — to prevent
-  // session fixation via crafted URLs on other routes (e.g. /login#token=ATTACKER_JWT).
-  if (to.path === "/" && to.hash.startsWith(TOKEN_HASH_PREFIX)) {
+  // Restrict to /guilds — the actual path beforeEach sees, because Vue Router resolves the
+  // "/" → "/guilds" declarative redirect before firing navigation guards. Restricting to this
+  // path prevents session fixation via crafted URLs on public routes (e.g. /login#token=ATTACKER_JWT).
+  if (to.path === "/guilds" && to.hash.startsWith(TOKEN_HASH_PREFIX)) {
     auth.setToken(to.hash.slice(TOKEN_HASH_PREFIX.length));
     return { path: to.path, hash: "", replace: true };
   }

@@ -170,6 +170,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **`route.query` TypeScript types** — Vue Router types query values as `LocationQueryValue | LocationQueryValue[]` where `LocationQueryValue = string | null`. Any helper that normalizes a query param must accept `(string | null)[]`, not `string[]`.
 - **Support mode GET endpoints need the `X-Support-Mode` header** — Add `response: Response = None` to the function signature and call `_set_support_mode_header(user, response)` at the top. Also guard any lazy ORM mutations (e.g. name backfill loops) with `if not user.get("support_mode")` — SQLAlchemy auto-commits ORM changes at request end, so mutations inside GET handlers persist even for support-mode reads.
 - **Tests for `require_guild_access` must first grant premium** — The guild router has `dependencies=[Depends(require_premium)]` at router level. A test user without premium hits `require_premium` (not `require_guild_access`) and gets 403 for the wrong reason. Call `PremiumUser.grant(user_id, operator_id, session)` before asserting access behavior.
+- **Vue Router `beforeEach` never sees the source of a declarative redirect** — `{ path: "/", redirect: "/guilds" }` is resolved before guards fire; `to.path` will be `"/guilds"`, never `"/"`. Guard conditions using the pre-redirect path silently never match.
 
 ## Configuration
 
