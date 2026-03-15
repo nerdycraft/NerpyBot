@@ -99,20 +99,22 @@ _EXPANSION_MAP: dict[str, str] = {
 # Category names that produce no cacheable item recipes.
 _SKIP_CATEGORIES: frozenset[str] = frozenset({"Recrafting", "Appendix I - Terms", "Appendix II - Stats", "Smelting"})
 
+# Pre-sorted expansion keys (longest first) for prefix matching in _resolve_expansion.
+_EXPANSION_KEYS: tuple[str, ...] = tuple(sorted(_EXPANSION_MAP, key=len, reverse=True))
 
-def _resolve_expansion(tier_name: str, prof_name: str) -> str:
+
+def _resolve_expansion(tier_name: str) -> str:
     """Map a skill tier name to a canonical WoW expansion name.
 
-    Strips the profession suffix, then looks up in _EXPANSION_MAP.
-    Falls back to the trimmed prefix if not found.
+    Scans _EXPANSION_KEYS from longest key to shortest and returns the first
+    match where the tier name starts with that key.  Falls back to the raw
+    tier name if nothing matches.
     """
-    prefix = tier_name
-    if tier_name.lower().endswith(prof_name.lower()):
-        prefix = tier_name[: -len(prof_name)].strip()
-    # BfA has dual-faction tiers: "Kul Tiran ... / Zandalari ..."
-    if " / " in prefix:
-        prefix = prefix.split(" / ")[0].strip()
-    return _EXPANSION_MAP.get(prefix.lower(), prefix)
+    tier_lower = tier_name.lower()
+    for key in _EXPANSION_KEYS:
+        if tier_lower.startswith(key):
+            return _EXPANSION_MAP[key]
+    return tier_name
 
 
 def _extract_locale_dict(source: dict | None) -> dict[str, str]:
@@ -193,19 +195,28 @@ async def sync_crafting_recipes(
     async def _call(fn, *args, required: bool = True, **kwargs):
         nonlocal errors
         async with sem:
-            try:
-                result = await asyncio.to_thread(fn, *args, **kwargs)
-                check_rate_limit(result)
-                return result
-            except RateLimited:
-                log.warning("sync_crafting_recipes: rate limited")
-                errors += 1
-                return None
-            except Exception as exc:
-                if required:
-                    log.debug("sync_crafting_recipes: API call failed: %s", exc)
+            for attempt in range(3):
+                try:
+                    result = await asyncio.to_thread(fn, *args, **kwargs)
+                    check_rate_limit(result)
+                    return result
+                except RateLimited:
+                    log.warning("sync_crafting_recipes: rate limited")
                     errors += 1
-                return None
+                    return None
+                except json.JSONDecodeError as exc:
+                    if attempt < 2:
+                        await asyncio.sleep(0.5 * (attempt + 1))
+                        continue
+                    if required:
+                        log.debug("sync_crafting_recipes: API call failed: %s", exc)
+                        errors += 1
+                    return None
+                except Exception as exc:
+                    if required:
+                        log.debug("sync_crafting_recipes: API call failed: %s", exc)
+                        errors += 1
+                    return None
         await asyncio.sleep(0.05)  # throttle outside semaphore — releases slot immediately
 
     all_rows: list[dict] = []
@@ -222,7 +233,7 @@ async def sync_crafting_recipes(
         tier_name = tier.get("name", "")
         if not tier_id:
             return
-        expansion_name = _resolve_expansion(tier_name, prof_name)
+        expansion_name = _resolve_expansion(tier_name)
         tier_data = await _call(api.profession_skill_tier, professionId=prof_id, skillTierId=tier_id)
         if not isinstance(tier_data, dict):
             return
