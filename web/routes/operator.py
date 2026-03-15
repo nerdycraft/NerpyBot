@@ -221,7 +221,7 @@ async def get_recipe_sync_status(
     """Return current recipe cache counts per type."""
     result = await vk.send_bot_command("recipe_sync_status", {})
     if result is None:
-        return RecipeSyncStatusResponse(counts={})
+        raise HTTPException(status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE, detail="Bot unreachable")
     return RecipeSyncStatusResponse(counts=result.get("counts", {}))
 
 

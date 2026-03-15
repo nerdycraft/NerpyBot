@@ -74,31 +74,35 @@ const browseRecipes = ref<RecipeCacheEntry[]>([]);
 const browseProfessions = ref<RecipeCacheProfession[]>([]);
 const browseExpansions = ref<string[]>([]);
 const browseTotal = ref(0);
+let browseRequestId = 0;
 
 async function fetchBrowse() {
+  const requestId = ++browseRequestId;
   browseLoading.value = true;
   browseError.value = null;
+  const offset = browsePage.value * PAGE_SIZE;
   try {
-    const params: Record<string, string | number> = {
-      offset: browsePage.value * PAGE_SIZE,
-      limit: PAGE_SIZE,
-    };
+    const params: Record<string, string | number> = { offset, limit: PAGE_SIZE };
     if (browseType.value) params.recipe_type = browseType.value;
     if (browseProfession.value !== "") params.profession_id = browseProfession.value;
     if (browseExpansion.value) params.expansion = browseExpansion.value;
 
     const qs = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString();
     const res = await api.get<RecipeCacheBrowseResponse>(`/operator/recipe-cache?${qs}`);
+    if (requestId !== browseRequestId) return; // stale response — a newer request is in flight
     browseRecipes.value = res.recipes;
-    // Dropdown lists are only returned on offset=0 (filter change / first load).
-    // On subsequent pages the server returns empty arrays — keep existing values.
-    if (res.professions.length) browseProfessions.value = res.professions;
-    if (res.expansions.length) browseExpansions.value = res.expansions;
+    // Dropdown lists are returned on offset=0 (filter change / first load); assign even if
+    // empty so a filter returning no results clears the previous profession/expansion lists.
+    if (offset === 0) {
+      browseProfessions.value = res.professions;
+      browseExpansions.value = res.expansions;
+    }
     browseTotal.value = res.total;
   } catch (e: unknown) {
+    if (requestId !== browseRequestId) return;
     browseError.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
-    browseLoading.value = false;
+    if (requestId === browseRequestId) browseLoading.value = false;
   }
 }
 

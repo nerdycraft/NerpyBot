@@ -1549,11 +1549,11 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             message_id = config.BoardMessageId
 
         # Edit the board embed in-place and refresh the view with the housing button
-        try:
-            channel = interaction.guild.get_channel(channel_id)
-            if channel and message_id:
+        if message_id:
+            try:
                 from modules.views.crafting_order import CraftingBoardView
 
+                channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
                 msg = await channel.fetch_message(message_id)
                 embed = msg.embeds[0] if msg.embeds else discord.Embed(color=discord.Color.gold())
                 embed.description = new_description
@@ -1563,8 +1563,8 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                     housing_label=get_string(lang, "wow.craftingorder.housing_button"),
                 )
                 await msg.edit(embed=embed, view=new_view)
-        except discord.HTTPException:
-            self.bot.log.debug("Failed to edit board embed (channel=%s, msg=%s)", channel_id, message_id)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException) as exc:
+                self.bot.log.warning("Failed to edit board embed (channel=%s, msg=%s): %s", channel_id, message_id, exc)
 
         await interaction.followup.send(get_string(lang, "wow.craftingorder.edit.success"), ephemeral=True)
 

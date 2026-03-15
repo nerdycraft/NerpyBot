@@ -379,13 +379,12 @@ class ItemSelectView(ui.View):
             # Show English name as description only when displaying a localized label
             description = r.ItemName[:100] if localized_name else None
             options.append(discord.SelectOption(label=label, value=str(r.RecipeId), description=description))
-        if len(recipes) > 24 or not recipes:
-            options.append(
-                discord.SelectOption(
-                    label=get_string(lang, "wow.craftingorder.item_select_other"),
-                    value=self._OTHER_VALUE,
-                )
+        options.append(
+            discord.SelectOption(
+                label=get_string(lang, "wow.craftingorder.item_select_other"),
+                value=self._OTHER_VALUE,
             )
+        )
 
         if not options:
             options.append(discord.SelectOption(label="—", value=self._OTHER_VALUE))
@@ -568,6 +567,7 @@ class CraftingOrderModal(ui.Modal):
         self.role = role
         self.guild_id = guild_id
         self._item_name_english = item_name_english
+        self._item_name_prefill = item_name  # original pre-fill for edit-detection
         self._icon_url = icon_url
         self._wowhead_url = wowhead_url
         self.item_name_input = ui.TextInput(label=get_string(lang, "wow.craftingorder.modal_item_name"), max_length=200)
@@ -590,8 +590,18 @@ class CraftingOrderModal(ui.Modal):
 
         # For cache-driven flow: keep English canonical in ItemName; store user-confirmed
         # (localized) name in ItemNameLocalized for display. For free-text flow: only ItemName.
-        item_name = self._item_name_english if self._item_name_english is not None else item_name_input
-        item_name_localized = item_name_input if self._item_name_english is not None else None
+        # If the user changed the pre-filled name, treat as free-text and drop cached metadata.
+        if self._item_name_english is not None and item_name_input != self._item_name_prefill:
+            item_name = item_name_input
+            item_name_localized = None
+            self._icon_url = None
+            self._wowhead_url = None
+        elif self._item_name_english is not None:
+            item_name = self._item_name_english
+            item_name_localized = item_name_input
+        else:
+            item_name = item_name_input
+            item_name_localized = None
 
         # Auto-generate a Wowhead search URL for free-text "Other" items.
         if not self._wowhead_url and item_name:
@@ -649,7 +659,8 @@ class CraftingOrderModal(ui.Modal):
             await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
             return
         try:
-            msg = await channel.send(content=self.role.mention, embed=embed, view=view)
+            role_mention = self.role.mention if self.role else f"<@&{self.role_id}>"
+            msg = await channel.send(content=role_mention, embed=embed, view=view)
         except discord.HTTPException:
             with self.bot.session_scope() as session:
                 order = CraftingOrder.get_by_id(order_id, session)
