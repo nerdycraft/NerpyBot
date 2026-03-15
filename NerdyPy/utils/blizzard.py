@@ -266,6 +266,7 @@ async def sync_crafting_recipes(
 
         item_id = item_name = item_class_id = item_class_name = item_subclass_id = item_subclass_name = None
         icon_url = None
+        bind_type = item_quality = None
         item_name_locales: dict | None = None
         item_class_name_locales: dict | None = None
         item_subclass_name_locales: dict | None = None
@@ -277,7 +278,10 @@ async def sync_crafting_recipes(
             item_name = crafted_item.get("name")
 
         if item_id:
-            item_data = await _call(api.item, itemId=item_id)
+            item_data, media = await asyncio.gather(
+                _call(api.item, itemId=item_id),
+                _call(api.item_media, itemId=item_id, required=False),
+            )
             if isinstance(item_data, dict):
                 ic = item_data.get("item_class") or {}
                 isc = item_data.get("item_subclass") or {}
@@ -285,7 +289,8 @@ async def sync_crafting_recipes(
                 item_class_name = ic.get("name")
                 item_subclass_id = isc.get("id")
                 item_subclass_name = isc.get("name")
-            media = await _call(api.item_media, itemId=item_id, required=False)
+                bind_type = (item_data.get("preview_item") or {}).get("binding", {}).get("type")
+                item_quality = (item_data.get("quality") or {}).get("type")
             icon_url = get_asset_url(media, "icon")
         else:
             # Strategy 2: item_search by recipe name (Dragonflight+).
@@ -324,7 +329,13 @@ async def sync_crafting_recipes(
                             item_class_name_locales = _extract_locale_dict(ic_name_raw) or None
                             item_subclass_name_locales = _extract_locale_dict(isc_name_raw) or None
 
-                            media = await _call(api.item_media, itemId=item_id, required=False)
+                            item_quality = (data.get("quality") or {}).get("type")
+                            item_detail, media = await asyncio.gather(
+                                _call(api.item, itemId=item_id, required=False),
+                                _call(api.item_media, itemId=item_id, required=False),
+                            )
+                            if isinstance(item_detail, dict):
+                                bind_type = (item_detail.get("preview_item") or {}).get("binding", {}).get("type")
                             icon_url = get_asset_url(media, "icon")
                             break
 
@@ -357,6 +368,8 @@ async def sync_crafting_recipes(
                 "ItemSubClassId": item_subclass_id,
                 "ExpansionName": expansion_name,
                 "CategoryName": category_name,
+                "BindType": bind_type,
+                "ItemQuality": item_quality,
                 "LastSynced": now,
             }
         )

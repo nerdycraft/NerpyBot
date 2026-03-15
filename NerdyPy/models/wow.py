@@ -16,7 +16,10 @@ from sqlalchemy import (
     Text,
     Unicode,
     UnicodeText,
+    and_,
     asc,
+    func,
+    or_,
 )
 from utils import database as db
 
@@ -261,6 +264,18 @@ RECIPE_TYPE_HOUSING = "housing"
 
 CURRENT_BOARD_VERSION = 2  # v2: adds housing button
 
+# Blizzard API binding type values (preview_item.binding.type).
+BIND_ON_ACQUIRE = "ON_ACQUIRE"  # BoP — bind on pickup
+BIND_TO_ACCOUNT = "TO_ACCOUNT"  # BoA/Warband — bind to account
+BIND_ON_EQUIP = "ON_EQUIP"  # BoE — bind on equip
+
+# Profession IDs used for orderable-item filtering.
+_PROF_COOKING = 185
+_PROF_ALCHEMY = 171
+_GEAR_PROFESSIONS = frozenset({164, 165, 197, 202, 333, 755, 773})
+_COOKING_CATEGORY_KEYWORDS = ("feast", "hearty", "cooking for")
+_ALCHEMY_CATEGORY_KEYWORDS = ("cauldron",)
+
 
 class CraftingRecipeCache(db.BASE):
     """Cache of WoW crafting recipes for the crafting order board UI.
@@ -294,7 +309,42 @@ class CraftingRecipeCache(db.BASE):
     ItemSubClassId = Column(Integer, nullable=True)
     ExpansionName = Column(Unicode(100), nullable=True)
     CategoryName = Column(Unicode(200), nullable=True)
+    BindType = Column(String(20), nullable=True)  # ON_ACQUIRE, TO_ACCOUNT, ON_EQUIP, or None
+    ItemQuality = Column(String(20), nullable=True)  # EPIC, RARE, COMMON, etc.
     LastSynced = Column(DateTime, default=lambda: datetime.now(UTC))
+
+    @classmethod
+    def _apply_orderable_filter(cls, q, profession_ids: set[int] | None):
+        """Narrow *q* to items that require a crafting order (BoP/BoA gear, feasts, cauldrons).
+
+        Each profession group gets its own condition; a row passes if it matches any applicable rule.
+        Returns the query unchanged when *profession_ids* is empty/None (no professions selected yet).
+        """
+        if not profession_ids:
+            return q
+
+        conditions = []
+
+        gear_ids = _GEAR_PROFESSIONS & profession_ids
+        if gear_ids:
+            conditions.append(
+                and_(
+                    cls.ProfessionId.in_(gear_ids),
+                    cls.BindType.in_((BIND_ON_ACQUIRE, BIND_TO_ACCOUNT)),
+                )
+            )
+
+        if _PROF_COOKING in profession_ids:
+            cooking_cond = or_(*[func.lower(cls.CategoryName).contains(kw) for kw in _COOKING_CATEGORY_KEYWORDS])
+            conditions.append(and_(cls.ProfessionId == _PROF_COOKING, cooking_cond))
+
+        if _PROF_ALCHEMY in profession_ids:
+            alchemy_cond = or_(*[func.lower(cls.CategoryName).contains(kw) for kw in _ALCHEMY_CATEGORY_KEYWORDS])
+            conditions.append(and_(cls.ProfessionId == _PROF_ALCHEMY, alchemy_cond))
+
+        if conditions:
+            q = q.filter(or_(*conditions))
+        return q
 
     @classmethod
     def get_by_profession(cls, prof_id, recipe_type, session):
@@ -316,7 +366,13 @@ class CraftingRecipeCache(db.BASE):
 
     @classmethod
     def get_by_type_and_subclass(
-        cls, recipe_type, item_class_id, item_subclass_id, session, profession_ids: set[int] | None = None
+        cls,
+        recipe_type,
+        item_class_id,
+        item_subclass_id,
+        session,
+        profession_ids: set[int] | None = None,
+        orderable_only: bool = False,
     ):
         q = session.query(cls).filter(
             cls.RecipeType == recipe_type,
@@ -325,6 +381,8 @@ class CraftingRecipeCache(db.BASE):
         )
         if profession_ids:
             q = q.filter(cls.ProfessionId.in_(profession_ids))
+        if orderable_only:
+            q = cls._apply_orderable_filter(q, profession_ids)
         return q.order_by(asc(cls.ItemName)).all()
 
     @classmethod
@@ -350,29 +408,39 @@ class CraftingRecipeCache(db.BASE):
         return list({r[0]: (r[0], r[1], r[2]) for r in q.order_by(asc(order_col)).all()}.values())
 
     @classmethod
-    def get_item_classes(cls, recipe_type, session, profession_ids: set[int] | None = None):
+    def get_item_classes(
+        cls, recipe_type, session, profession_ids: set[int] | None = None, orderable_only: bool = False
+    ):
         """Return distinct (ItemClassId, ItemClassName, ItemClassNameLocales) tuples for a recipe type.
 
         If profession_ids is provided, only return classes that have recipes for those professions.
+        If orderable_only is True, only return classes that contain orderable items.
         """
         q = session.query(cls.ItemClassId, cls.ItemClassName, cls.ItemClassNameLocales).filter(
             cls.RecipeType == recipe_type, cls.ItemClassId.isnot(None)
         )
         if profession_ids:
             q = q.filter(cls.ProfessionId.in_(profession_ids))
+        if orderable_only:
+            q = cls._apply_orderable_filter(q, profession_ids)
         return cls._dedup_rows(q, cls.ItemClassName)
 
     @classmethod
-    def get_item_subclasses(cls, recipe_type, item_class_id, session, profession_ids: set[int] | None = None):
+    def get_item_subclasses(
+        cls, recipe_type, item_class_id, session, profession_ids: set[int] | None = None, orderable_only: bool = False
+    ):
         """Return distinct (ItemSubClassId, ItemSubClassName, ItemSubClassNameLocales) tuples for a class.
 
         If profession_ids is provided, only return subclasses that have recipes for those professions.
+        If orderable_only is True, only return subclasses that contain orderable items.
         """
         q = session.query(cls.ItemSubClassId, cls.ItemSubClassName, cls.ItemSubClassNameLocales).filter(
             cls.RecipeType == recipe_type, cls.ItemClassId == item_class_id, cls.ItemSubClassId.isnot(None)
         )
         if profession_ids:
             q = q.filter(cls.ProfessionId.in_(profession_ids))
+        if orderable_only:
+            q = cls._apply_orderable_filter(q, profession_ids)
         return cls._dedup_rows(q, cls.ItemSubClassName)
 
     @classmethod
@@ -386,16 +454,12 @@ class CraftingRecipeCache(db.BASE):
     @classmethod
     def count_by_type(cls, session):
         """Return {recipe_type: count} mapping."""
-        from sqlalchemy import func
-
         rows = session.query(cls.RecipeType, func.count(cls.RecipeId)).group_by(cls.RecipeType).all()
         return {r[0]: r[1] for r in rows}
 
     @classmethod
     def count_by_class(cls, session):
         """Return {ItemClassName: count} for 'crafted', plus 'housing' count."""
-        from sqlalchemy import func
-
         crafted = (
             session.query(cls.ItemClassName, func.count(cls.RecipeId))
             .filter(cls.RecipeType == RECIPE_TYPE_CRAFTED, cls.ItemClassName.isnot(None))

@@ -183,7 +183,7 @@ class CraftingBoardView(ui.View):
                 lang, mapped_prof_ids, mapping_role_ids = board_ctx
                 # Check if cache has crafted recipes for type-driven flow, filtered to mapped professions
                 item_classes = CraftingRecipeCache.get_item_classes(
-                    RECIPE_TYPE_CRAFTED, session, profession_ids=mapped_prof_ids
+                    RECIPE_TYPE_CRAFTED, session, profession_ids=mapped_prof_ids, orderable_only=True
                 )
 
         if board_ctx is None:
@@ -197,7 +197,13 @@ class CraftingBoardView(ui.View):
 
         if item_classes:
             view = ItemTypeSelectView(
-                self.bot, roles, interaction.guild_id, lang, item_classes, mapped_prof_ids=mapped_prof_ids
+                self.bot,
+                roles,
+                interaction.guild_id,
+                lang,
+                item_classes,
+                mapped_prof_ids=mapped_prof_ids,
+                orderable_only=True,
             )
             await interaction.response.send_message(_ls(interaction, "item_type_select"), view=view, ephemeral=True)
         else:
@@ -289,6 +295,7 @@ class ItemTypeSelectView(ui.View):
         lang: str,
         item_classes: list[tuple[int, str, dict | None]],
         mapped_prof_ids: set[int] | None = None,
+        orderable_only: bool = False,
     ):
         super().__init__(timeout=180)
         self.bot = bot
@@ -296,6 +303,7 @@ class ItemTypeSelectView(ui.View):
         self.guild_id = guild_id
         self.lang = lang
         self.mapped_prof_ids = mapped_prof_ids
+        self.orderable_only = orderable_only
 
         options = _build_localized_options(item_classes, lang)
         select = ui.Select(
@@ -309,14 +317,23 @@ class ItemTypeSelectView(ui.View):
         item_class_id = int(interaction.data["values"][0])
         with self.bot.session_scope() as session:
             subclasses = CraftingRecipeCache.get_item_subclasses(
-                RECIPE_TYPE_CRAFTED, item_class_id, session, profession_ids=self.mapped_prof_ids
+                RECIPE_TYPE_CRAFTED,
+                item_class_id,
+                session,
+                profession_ids=self.mapped_prof_ids,
+                orderable_only=self.orderable_only,
             )
 
         if not subclasses:
             # No subclasses — go straight to item select
             with self.bot.session_scope() as session:
                 recipes = CraftingRecipeCache.get_by_type_and_subclass(
-                    RECIPE_TYPE_CRAFTED, item_class_id, None, session, profession_ids=self.mapped_prof_ids
+                    RECIPE_TYPE_CRAFTED,
+                    item_class_id,
+                    None,
+                    session,
+                    profession_ids=self.mapped_prof_ids,
+                    orderable_only=self.orderable_only,
                 )
             view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
             await interaction.response.edit_message(
@@ -325,7 +342,14 @@ class ItemTypeSelectView(ui.View):
             return
 
         view = ItemSubTypeSelectView(
-            self.bot, self.roles, self.guild_id, self.lang, item_class_id, subclasses, self.mapped_prof_ids
+            self.bot,
+            self.roles,
+            self.guild_id,
+            self.lang,
+            item_class_id,
+            subclasses,
+            self.mapped_prof_ids,
+            self.orderable_only,
         )
         await interaction.response.edit_message(
             content=get_string(self.lang, "wow.craftingorder.item_subtype_select"), view=view
@@ -344,6 +368,7 @@ class ItemSubTypeSelectView(ui.View):
         item_class_id: int,
         subclasses: list[tuple[int, str, dict | None]],
         mapped_prof_ids: set[int] | None = None,
+        orderable_only: bool = False,
     ):
         super().__init__(timeout=180)
         self.bot = bot
@@ -352,6 +377,7 @@ class ItemSubTypeSelectView(ui.View):
         self.lang = lang
         self.item_class_id = item_class_id
         self.mapped_prof_ids = mapped_prof_ids
+        self.orderable_only = orderable_only
 
         options = _build_localized_options(subclasses, lang)
         select = ui.Select(
@@ -365,7 +391,12 @@ class ItemSubTypeSelectView(ui.View):
         item_subclass_id = int(interaction.data["values"][0])
         with self.bot.session_scope() as session:
             recipes = CraftingRecipeCache.get_by_type_and_subclass(
-                RECIPE_TYPE_CRAFTED, self.item_class_id, item_subclass_id, session, profession_ids=self.mapped_prof_ids
+                RECIPE_TYPE_CRAFTED,
+                self.item_class_id,
+                item_subclass_id,
+                session,
+                profession_ids=self.mapped_prof_ids,
+                orderable_only=self.orderable_only,
             )
 
         view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
