@@ -384,6 +384,8 @@ wow:
       sent: "Deine Frage wurde gepostet."
       thread_failed: "Fehler beim Erstellen eines Diskussionsthreads."
     not_found: "Auftrag nicht gefunden."
+    no_profession_mapped: "Für diesen Gegenstand ist keine Berufsrolle konfiguriert. Ein Admin muss den Beruf über `/wow craftingorder edit` zuordnen."
+    board_migration_failed: "⚠️ **Crafting-Board — Aktion erforderlich**\n\nDas Crafting-Board in {channel} auf **{guild}** konnte nicht automatisch auf die neueste Version aktualisiert werden.\n\nBitte verwende `/wow craftingorder remove` und anschließend `/wow craftingorder create`, um es neu zu erstellen."
     manual_map:
       description: "Einige Rollen konnten nicht automatisch zugeordnet werden. Wähle für jede den WoW-Beruf aus und klicke dann auf **Zuordnungen speichern**."
       select_placeholder: "{role}"

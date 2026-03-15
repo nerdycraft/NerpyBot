@@ -11,6 +11,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
     String,
     Text,
     Unicode,
@@ -168,6 +169,7 @@ class CraftingBoardConfig(db.BASE):
     BoardMessageId = Column(BigInteger, nullable=True)
     Description = Column(UnicodeText)
     ThreadCleanupDelayHours = Column(Integer, default=24, server_default="24")
+    BoardVersion = Column(Integer, default=1, server_default="1")
     CreateDate = Column(DateTime, default=lambda: datetime.now(UTC))
 
     @classmethod
@@ -256,6 +258,8 @@ class CraftingOrder(db.BASE):
 RECIPE_TYPE_CRAFTED = "crafted"
 RECIPE_TYPE_HOUSING = "housing"
 
+CURRENT_BOARD_VERSION = 2  # v2: adds housing button
+
 
 class CraftingRecipeCache(db.BASE):
     """Cache of WoW crafting recipes for the crafting order board UI.
@@ -278,11 +282,14 @@ class CraftingRecipeCache(db.BASE):
     ProfessionName = Column(Unicode(100))
     ItemId = Column(Integer, nullable=True)
     ItemName = Column(Unicode(200))
+    ItemNameLocales = Column(JSON, nullable=True)
     IconUrl = Column(Unicode(500), nullable=True)
     RecipeType = Column(String(20))
     ItemClassName = Column(Unicode(100), nullable=True)
+    ItemClassNameLocales = Column(JSON, nullable=True)
     ItemClassId = Column(Integer, nullable=True)
     ItemSubClassName = Column(Unicode(100), nullable=True)
+    ItemSubClassNameLocales = Column(JSON, nullable=True)
     ItemSubClassId = Column(Integer, nullable=True)
     ExpansionName = Column(Unicode(100), nullable=True)
     CategoryName = Column(Unicode(200), nullable=True)
@@ -307,17 +314,17 @@ class CraftingRecipeCache(db.BASE):
         )
 
     @classmethod
-    def get_by_type_and_subclass(cls, recipe_type, item_class_id, item_subclass_id, session):
-        return (
-            session.query(cls)
-            .filter(
-                cls.RecipeType == recipe_type,
-                cls.ItemClassId == item_class_id,
-                cls.ItemSubClassId == item_subclass_id,
-            )
-            .order_by(asc(cls.ItemName))
-            .all()
+    def get_by_type_and_subclass(
+        cls, recipe_type, item_class_id, item_subclass_id, session, profession_ids: set[int] | None = None
+    ):
+        q = session.query(cls).filter(
+            cls.RecipeType == recipe_type,
+            cls.ItemClassId == item_class_id,
+            cls.ItemSubClassId == item_subclass_id,
         )
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        return q.order_by(asc(cls.ItemName)).all()
 
     @classmethod
     def get_expansions_for_profession(cls, prof_id, recipe_type, session):
@@ -332,28 +339,32 @@ class CraftingRecipeCache(db.BASE):
         return [r[0] for r in rows]
 
     @classmethod
-    def get_item_classes(cls, recipe_type, session):
-        """Return distinct (ItemClassId, ItemClassName) pairs for a recipe type."""
-        rows = (
-            session.query(cls.ItemClassId, cls.ItemClassName)
-            .filter(cls.RecipeType == recipe_type, cls.ItemClassId.isnot(None))
-            .distinct()
-            .order_by(asc(cls.ItemClassName))
-            .all()
+    def get_item_classes(cls, recipe_type, session, profession_ids: set[int] | None = None):
+        """Return distinct (ItemClassId, ItemClassName, ItemClassNameLocales) tuples for a recipe type.
+
+        If profession_ids is provided, only return classes that have recipes for those professions.
+        """
+        q = session.query(cls.ItemClassId, cls.ItemClassName, cls.ItemClassNameLocales).filter(
+            cls.RecipeType == recipe_type, cls.ItemClassId.isnot(None)
         )
-        return [(r[0], r[1]) for r in rows]
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        rows = q.distinct().order_by(asc(cls.ItemClassName)).all()
+        return [(r[0], r[1], r[2]) for r in rows]
 
     @classmethod
-    def get_item_subclasses(cls, recipe_type, item_class_id, session):
-        """Return distinct (ItemSubClassId, ItemSubClassName) pairs for a class."""
-        rows = (
-            session.query(cls.ItemSubClassId, cls.ItemSubClassName)
-            .filter(cls.RecipeType == recipe_type, cls.ItemClassId == item_class_id, cls.ItemSubClassId.isnot(None))
-            .distinct()
-            .order_by(asc(cls.ItemSubClassName))
-            .all()
+    def get_item_subclasses(cls, recipe_type, item_class_id, session, profession_ids: set[int] | None = None):
+        """Return distinct (ItemSubClassId, ItemSubClassName, ItemSubClassNameLocales) tuples for a class.
+
+        If profession_ids is provided, only return subclasses that have recipes for those professions.
+        """
+        q = session.query(cls.ItemSubClassId, cls.ItemSubClassName, cls.ItemSubClassNameLocales).filter(
+            cls.RecipeType == recipe_type, cls.ItemClassId == item_class_id, cls.ItemSubClassId.isnot(None)
         )
-        return [(r[0], r[1]) for r in rows]
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        rows = q.distinct().order_by(asc(cls.ItemSubClassName)).all()
+        return [(r[0], r[1], r[2]) for r in rows]
 
     @classmethod
     def get_professions_with_recipes(cls, recipe_type, session):

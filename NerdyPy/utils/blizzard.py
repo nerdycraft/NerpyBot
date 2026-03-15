@@ -72,6 +72,13 @@ _BLIZZ_LOCALE = {
     ("tw", "en"): "zh_TW",
 }
 
+# Maps bot language codes to Blizzard API locale strings for multi-locale extraction.
+# item_search returns all locales in the response dict — we use this to build locale caches.
+_BOT_LANG_TO_BLIZZ: dict[str, str] = {
+    "en": "en_GB",
+    "de": "de_DE",
+}
+
 # Expansion prefix → canonical WoW expansion name.
 _EXPANSION_MAP: dict[str, str] = {
     "classic": "Classic",
@@ -106,6 +113,22 @@ def _resolve_expansion(tier_name: str, prof_name: str) -> str:
     if " / " in prefix:
         prefix = prefix.split(" / ")[0].strip()
     return _EXPANSION_MAP.get(prefix.lower(), prefix)
+
+
+def _extract_locale_dict(source: dict | None) -> dict[str, str]:
+    """Extract non-English bot locale strings from a Blizzard multi-locale name dict.
+
+    Returns a dict of {bot_lang: localized_name} for every non-English language in
+    _BOT_LANG_TO_BLIZZ whose Blizzard locale key is present in ``source``.
+    Returns an empty dict (falsy) when ``source`` is not a dict or has no matches.
+    """
+    if not isinstance(source, dict):
+        return {}
+    return {
+        bot_lang: source[blizz_loc]
+        for bot_lang, blizz_loc in _BOT_LANG_TO_BLIZZ.items()
+        if bot_lang != "en" and blizz_loc in source
+    }
 
 
 async def sync_crafting_recipes(
@@ -229,6 +252,9 @@ async def sync_crafting_recipes(
 
         item_id = item_name = item_class_id = item_class_name = item_subclass_id = item_subclass_name = None
         icon_url = None
+        item_name_locales: dict | None = None
+        item_class_name_locales: dict | None = None
+        item_subclass_name_locales: dict | None = None
 
         # Strategy 1: crafted_item present (Shadowlands and older).
         crafted_item = recipe_data.get("crafted_item") or recipe_data.get("alliance_crafted_item") or {}
@@ -263,17 +289,27 @@ async def sync_crafting_recipes(
                         hit_name = name_val.get(locale, "") if isinstance(name_val, dict) else name_val
                         if hit_name == recipe_name:
                             item_id = data.get("id")
-                            item_name = recipe_name
                             ic = data.get("item_class") or {}
                             isc = data.get("item_subclass") or {}
                             ic_name_raw = ic.get("name") if isinstance(ic, dict) else None
                             isc_name_raw = isc.get("name") if isinstance(isc, dict) else None
                             item_class_id = ic.get("id") if isinstance(ic, dict) else None
-                            item_class_name = ic_name_raw.get(locale) if isinstance(ic_name_raw, dict) else ic_name_raw
                             item_subclass_id = isc.get("id") if isinstance(isc, dict) else None
-                            item_subclass_name = (
-                                isc_name_raw.get(locale) if isinstance(isc_name_raw, dict) else isc_name_raw
+
+                            # Always use en_GB for canonical columns; fall back to recipe_name if absent.
+                            item_name = (
+                                name_val.get("en_GB", recipe_name) if isinstance(name_val, dict) else recipe_name
                             )
+                            item_class_name = ic_name_raw.get("en_GB") if isinstance(ic_name_raw, dict) else ic_name_raw
+                            item_subclass_name = (
+                                isc_name_raw.get("en_GB") if isinstance(isc_name_raw, dict) else isc_name_raw
+                            )
+
+                            # Build locale dicts for non-English bot languages from the multi-locale dicts.
+                            item_name_locales = _extract_locale_dict(name_val) or None
+                            item_class_name_locales = _extract_locale_dict(ic_name_raw) or None
+                            item_subclass_name_locales = _extract_locale_dict(isc_name_raw) or None
+
                             media = await _call(api.item_media, itemId=item_id, required=False)
                             icon_url = get_asset_url(media, "icon")
                             break
@@ -296,11 +332,14 @@ async def sync_crafting_recipes(
                 "ProfessionName": prof_name,
                 "ItemId": item_id,
                 "ItemName": item_name,
+                "ItemNameLocales": item_name_locales,
                 "IconUrl": icon_url,
                 "RecipeType": RECIPE_TYPE_HOUSING if is_housing else RECIPE_TYPE_CRAFTED,
                 "ItemClassName": item_class_name,
+                "ItemClassNameLocales": item_class_name_locales,
                 "ItemClassId": item_class_id,
                 "ItemSubClassName": item_subclass_name,
+                "ItemSubClassNameLocales": item_subclass_name_locales,
                 "ItemSubClassId": item_subclass_id,
                 "ExpansionName": expansion_name,
                 "CategoryName": category_name,

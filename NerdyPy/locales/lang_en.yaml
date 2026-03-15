@@ -389,6 +389,8 @@ wow:
       sent: "Your question has been posted."
       thread_failed: "Failed to create a discussion thread."
     not_found: "Order not found."
+    no_profession_mapped: "No profession role is configured for this item. An admin needs to map the profession via `/wow craftingorder edit`."
+    board_migration_failed: "⚠️ **Crafting Order Board — Action Required**\n\nThe crafting order board in {channel} on **{guild}** could not be automatically updated to the latest version.\n\nPlease use `/wow craftingorder remove` followed by `/wow craftingorder create` to recreate it."
     manual_map:
       description: "Some roles couldn't be matched automatically. Select the WoW profession for each one, then click **Save Mappings**."
       select_placeholder: "{role}"

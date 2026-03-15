@@ -13,7 +13,14 @@ from discord import Color, Embed, HTTPException, Interaction, TextChannel, app_c
 from discord.app_commands import checks
 from discord.ext import tasks
 from discord.ext.commands import GroupCog
-from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRoleMapping, WowCharacterMounts, WowGuildNewsConfig
+from models.wow import (
+    CURRENT_BOARD_VERSION,
+    CraftingBoardConfig,
+    CraftingOrder,
+    CraftingRoleMapping,
+    WowCharacterMounts,
+    WowGuildNewsConfig,
+)
 from utils.blizzard import (
     CRAFTING_PROFESSIONS,
     RateLimited,
@@ -98,9 +105,103 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         register_before_loop(bot, self._crafting_cleanup_loop, "Crafting Cleanup")
         self._crafting_cleanup_loop.start()
 
+    async def cog_load(self):
+        # Ensure tables exist on existing databases before running migration checks.
+        self.bot.create_all()
+        self.bot.loop.create_task(self._run_board_migrations())
+
     def cog_unload(self):
         self._guild_news_loop.cancel()
         self._crafting_cleanup_loop.cancel()
+
+    async def _run_board_migrations(self):
+        """Wait for bot ready then migrate any stale crafting boards."""
+        await self.bot.wait_until_ready()
+        await self._migrate_boards()
+
+    async def _migrate_boards(self):
+        """Upgrade crafting boards that are behind CURRENT_BOARD_VERSION."""
+        with self.bot.session_scope() as session:
+            stale = (
+                session.query(CraftingBoardConfig)
+                .filter(CraftingBoardConfig.BoardVersion < CURRENT_BOARD_VERSION)
+                .all()
+            )
+            boards = [(c.Id, c.GuildId, c.ChannelId, c.BoardMessageId, c.BoardVersion) for c in stale]
+
+        await asyncio.gather(
+            *[
+                self._migrate_single_board(config_id, guild_id, channel_id, message_id, version)
+                for config_id, guild_id, channel_id, message_id, version in boards
+            ]
+        )
+
+    async def _migrate_single_board(
+        self, config_id: int, guild_id: int, channel_id: int, message_id: int | None, version: int
+    ):
+        """Migrate a single crafting board to CURRENT_BOARD_VERSION.
+
+        If migration fails (channel/message unreachable), bumps the version anyway and
+        logs a warning so the board isn't retried on every restart.
+        """
+        from modules.views.crafting_order import CraftingBoardView
+
+        lang = self._lang(guild_id)
+
+        try:
+            guild = self.bot.get_guild(guild_id)
+            if not guild:
+                raise LookupError(f"guild {guild_id} not in cache")
+
+            try:
+                channel = guild.get_channel(channel_id) or await guild.fetch_channel(channel_id)
+            except (discord.NotFound, discord.Forbidden) as exc:
+                raise LookupError(f"channel {channel_id} inaccessible") from exc
+
+            if not message_id:
+                raise LookupError("no board message id")
+
+            msg = await channel.fetch_message(message_id)
+            if msg.author.id != self.bot.user.id:
+                raise LookupError("board message not authored by bot")
+
+            # v1 → v2: add housing button
+            embed = msg.embeds[0] if msg.embeds else discord.Embed(color=discord.Color.gold())
+            new_view = CraftingBoardView(
+                self.bot,
+                label=get_string(lang, "wow.craftingorder.create_button"),
+                housing_label=get_string(lang, "wow.craftingorder.housing_button"),
+            )
+            await msg.edit(embed=embed, view=new_view)
+            self.bot.log.info(
+                "Board migration v%d→v%d: guild=%d config=%d", version, CURRENT_BOARD_VERSION, guild_id, config_id
+            )
+
+        except (LookupError, discord.HTTPException) as exc:
+            self.bot.log.warning(
+                "Board migration failed for config=%d guild=%d: %s — bumping version anyway", config_id, guild_id, exc
+            )
+            # Try to notify the channel if it's reachable
+            try:
+                guild = self.bot.get_guild(guild_id)
+                if guild:
+                    channel = guild.get_channel(channel_id) or await guild.fetch_channel(channel_id)
+                    await channel.send(
+                        get_string(
+                            lang,
+                            "wow.craftingorder.board_migration_failed",
+                            channel=channel.mention,
+                            guild=guild.name,
+                        )
+                    )
+            except Exception:
+                pass
+
+        # Bump version regardless of outcome to avoid retrying on every restart.
+        with self.bot.session_scope() as session:
+            config = session.get(CraftingBoardConfig, config_id)
+            if config:
+                config.BoardVersion = CURRENT_BOARD_VERSION
 
     async def _call_api(self, api_method, config_id, label, *args, rate_limited_event=None, stats=None, **kwargs):
         """Call a Blizzard API method with standard rate-limit and error handling.

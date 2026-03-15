@@ -29,6 +29,26 @@ def _ls(interaction: Interaction, key: str, **kwargs) -> str:
         return get_localized_string(interaction.guild_id, f"wow.craftingorder.{key}", session, **kwargs)
 
 
+def _get_locale(locales: dict | None, lang: str) -> str | None:
+    """Return the localized string for ``lang`` from a locale dict, or None for English / missing."""
+    return (locales or {}).get(lang) if lang != "en" else None
+
+
+def _build_localized_options(items: list[tuple[int, str | None, dict | None]], lang: str) -> list[discord.SelectOption]:
+    """Build SelectOptions from (id, english_name, locales) tuples.
+
+    Label is the localized name when available, falling back to the English name.
+    Description shows the English name only when a different localized label is shown.
+    """
+    options = []
+    for item_id, name, locales in items[:25]:
+        localized = _get_locale(locales, lang)
+        label = localized or name or "Unknown"
+        description = name if localized else None
+        options.append(discord.SelectOption(label=label[:100], description=description, value=str(item_id)))
+    return options
+
+
 def build_order_embed(order: CraftingOrder, guild: discord.Guild, lang: str = "en") -> discord.Embed:
     """Build the embed for a crafting order."""
     role = guild.get_role(order.ProfessionRoleId)
@@ -137,20 +157,22 @@ class CraftingBoardView(ui.View):
                 return
             mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
             lang = get_guild_language(interaction.guild_id, session)
-            # Check if cache has crafted recipes for type-driven flow
-            item_classes = CraftingRecipeCache.get_item_classes(RECIPE_TYPE_CRAFTED, session)
+            mapped_prof_ids = {m.ProfessionId for m in mappings}
+            mapping_role_ids = [m.RoleId for m in mappings]
+            # Check if cache has crafted recipes for type-driven flow, filtered to mapped professions
+            item_classes = CraftingRecipeCache.get_item_classes(
+                RECIPE_TYPE_CRAFTED, session, profession_ids=mapped_prof_ids
+            )
 
-        roles = []
-        for m in mappings:
-            role = interaction.guild.get_role(m.RoleId)
-            if role:
-                roles.append(role)
+        roles = [r for rid in mapping_role_ids if (r := interaction.guild.get_role(rid))]
         if not roles:
             await interaction.response.send_message(_ls(interaction, "create.no_roles"), ephemeral=True)
             return
 
         if item_classes:
-            view = ItemTypeSelectView(self.bot, roles, interaction.guild_id, lang, item_classes)
+            view = ItemTypeSelectView(
+                self.bot, roles, interaction.guild_id, lang, item_classes, mapped_prof_ids=mapped_prof_ids
+            )
             await interaction.response.send_message(_ls(interaction, "item_type_select"), view=view, ephemeral=True)
         else:
             view = ProfessionSelectView(self.bot, roles, interaction.guild_id, lang)
@@ -228,17 +250,17 @@ class ItemTypeSelectView(ui.View):
         roles: list[discord.Role],
         guild_id: int,
         lang: str,
-        item_classes: list[tuple[int, str]],
+        item_classes: list[tuple[int, str, dict | None]],
+        mapped_prof_ids: set[int] | None = None,
     ):
         super().__init__(timeout=180)
         self.bot = bot
         self.roles = roles
         self.guild_id = guild_id
         self.lang = lang
+        self.mapped_prof_ids = mapped_prof_ids
 
-        options = [
-            discord.SelectOption(label=name or "Unknown", value=str(class_id)) for class_id, name in item_classes[:25]
-        ]
+        options = _build_localized_options(item_classes, lang)
         select = ui.Select(
             placeholder=get_string(lang, "wow.craftingorder.item_type_select"),
             options=options,
@@ -249,13 +271,15 @@ class ItemTypeSelectView(ui.View):
     async def _on_select(self, interaction: Interaction):
         item_class_id = int(interaction.data["values"][0])
         with self.bot.session_scope() as session:
-            subclasses = CraftingRecipeCache.get_item_subclasses(RECIPE_TYPE_CRAFTED, item_class_id, session)
+            subclasses = CraftingRecipeCache.get_item_subclasses(
+                RECIPE_TYPE_CRAFTED, item_class_id, session, profession_ids=self.mapped_prof_ids
+            )
 
         if not subclasses:
             # No subclasses — go straight to item select
             with self.bot.session_scope() as session:
                 recipes = CraftingRecipeCache.get_by_type_and_subclass(
-                    RECIPE_TYPE_CRAFTED, item_class_id, None, session
+                    RECIPE_TYPE_CRAFTED, item_class_id, None, session, profession_ids=self.mapped_prof_ids
                 )
             view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
             await interaction.response.edit_message(
@@ -263,7 +287,9 @@ class ItemTypeSelectView(ui.View):
             )
             return
 
-        view = ItemSubTypeSelectView(self.bot, self.roles, self.guild_id, self.lang, item_class_id, subclasses)
+        view = ItemSubTypeSelectView(
+            self.bot, self.roles, self.guild_id, self.lang, item_class_id, subclasses, self.mapped_prof_ids
+        )
         await interaction.response.edit_message(
             content=get_string(self.lang, "wow.craftingorder.item_subtype_select"), view=view
         )
@@ -279,7 +305,8 @@ class ItemSubTypeSelectView(ui.View):
         guild_id: int,
         lang: str,
         item_class_id: int,
-        subclasses: list[tuple[int, str]],
+        subclasses: list[tuple[int, str, dict | None]],
+        mapped_prof_ids: set[int] | None = None,
     ):
         super().__init__(timeout=180)
         self.bot = bot
@@ -287,8 +314,9 @@ class ItemSubTypeSelectView(ui.View):
         self.guild_id = guild_id
         self.lang = lang
         self.item_class_id = item_class_id
+        self.mapped_prof_ids = mapped_prof_ids
 
-        options = [discord.SelectOption(label=name or "Unknown", value=str(sub_id)) for sub_id, name in subclasses[:25]]
+        options = _build_localized_options(subclasses, lang)
         select = ui.Select(
             placeholder=get_string(lang, "wow.craftingorder.item_subtype_select"),
             options=options,
@@ -300,7 +328,7 @@ class ItemSubTypeSelectView(ui.View):
         item_subclass_id = int(interaction.data["values"][0])
         with self.bot.session_scope() as session:
             recipes = CraftingRecipeCache.get_by_type_and_subclass(
-                RECIPE_TYPE_CRAFTED, self.item_class_id, item_subclass_id, session
+                RECIPE_TYPE_CRAFTED, self.item_class_id, item_subclass_id, session, profession_ids=self.mapped_prof_ids
             )
 
         view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
@@ -330,14 +358,13 @@ class ItemSelectView(ui.View):
         self._recipes_by_id = {str(r.RecipeId): r for r in recipes}
 
         display = recipes[:24]
-        options = [
-            discord.SelectOption(
-                label=r.ItemName[:100],
-                value=str(r.RecipeId),
-                description=f"wowhead.com/item={r.ItemId}" if r.ItemId else None,
-            )
-            for r in display
-        ]
+        options = []
+        for r in display:
+            localized_name = _get_locale(r.ItemNameLocales, lang)
+            label = (localized_name or r.ItemName or "Unknown")[:100]
+            # Show English name as description only when displaying a localized label
+            description = r.ItemName[:100] if localized_name else None
+            options.append(discord.SelectOption(label=label, value=str(r.RecipeId), description=description))
         if len(recipes) > 24 or not recipes:
             options.append(
                 discord.SelectOption(
@@ -390,11 +417,11 @@ class ItemSelectView(ui.View):
             role = interaction.guild.get_role(role_id)
 
         if not role_id or not role:
-            # No mapped role for this profession — let user pick. Reuse mappings from above.
-            roles_found = [r for m in mappings if (r := interaction.guild.get_role(m.RoleId))]
-            view = ProfessionSelectView(self.bot, roles_found, interaction.guild_id, self.lang)
+            # Safety net: upstream profession_ids filter should prevent this, but if a profession
+            # in the cache has no role mapping, surface a clear error rather than silently falling back.
             await interaction.response.edit_message(
-                content=get_string(self.lang, "wow.craftingorder.profession_select"), view=view
+                content=get_string(self.lang, "wow.craftingorder.no_profession_mapped"),
+                view=None,
             )
             return
 
