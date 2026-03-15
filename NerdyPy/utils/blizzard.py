@@ -165,6 +165,8 @@ async def sync_crafting_recipes(
 
     from blizzapi import Language, Region, RetailClient
 
+    from sqlalchemy import insert
+
     from models.wow import RECIPE_TYPE_CRAFTED, RECIPE_TYPE_HOUSING, CraftingRecipeCache
 
     log = logging.getLogger("nerpybot")
@@ -383,8 +385,8 @@ async def sync_crafting_recipes(
     def _upsert():
         with bot.session_scope() as session:
             CraftingRecipeCache.delete_all(session)
-            for row in all_rows:
-                session.add(CraftingRecipeCache(**row))
+            if all_rows:
+                session.execute(insert(CraftingRecipeCache), all_rows)
 
     await asyncio.to_thread(_upsert)
 

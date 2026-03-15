@@ -334,6 +334,7 @@ wow:
       modal_title: "Board Description"
       modal_description: "Enter the description for the crafting order board (supports markdown and emojis)"
       success: "Crafting order board created in {channel}."
+      send_failed: "⚠️ Failed to post the crafting order board to {channel}. Check my permissions and try again."
     remove:
       not_found: "No crafting order board found for this server."
       success: "Crafting order board removed."
@@ -351,6 +352,7 @@ wow:
     expansion_select: "Select an expansion"
     modal_title: "Create Crafting Order"
     modal_item_name: "Item Name"
+    modal_item_name_empty: "Item name cannot be empty."
     modal_notes: "Additional Notes (optional)"
     order_created: "Crafting order for **{item}** created."
     order:

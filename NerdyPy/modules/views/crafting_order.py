@@ -45,7 +45,7 @@ def _build_localized_options(items: list[tuple[int, str | None, dict | None]], l
     for item_id, name, locales in items:
         localized = _get_locale(locales, lang)
         label = localized or name or "Unknown"
-        description = name if localized else None
+        description = name[:100] if localized else None
         options.append(discord.SelectOption(label=label[:100], description=description, value=str(item_id)))
     options.sort(key=lambda o: o.label.casefold())
     return options[:25]
@@ -427,23 +427,14 @@ class ItemSelectView(ui.View):
         self.lang = lang
         self._recipes_by_id = {str(r.RecipeId): r for r in recipes}
 
-        display = recipes[:24]
-        options = []
-        for r in display:
-            localized_name = _get_locale(r.ItemNameLocales, lang)
-            label = (localized_name or r.ItemName or "Unknown")[:100]
-            # Show English name as description only when displaying a localized label
-            description = r.ItemName[:100] if localized_name else None
-            options.append(discord.SelectOption(label=label, value=str(r.RecipeId), description=description))
+        items = [(r.RecipeId, r.ItemName, r.ItemNameLocales) for r in recipes]
+        options = _build_localized_options(items, lang)[:24]  # leave room for "Other"
         options.append(
             discord.SelectOption(
                 label=get_string(lang, "wow.craftingorder.item_select_other"),
                 value=self._OTHER_VALUE,
             )
         )
-
-        if not options:
-            options.append(discord.SelectOption(label="—", value=self._OTHER_VALUE))
 
         select = ui.Select(
             placeholder=get_string(lang, "wow.craftingorder.item_select"),
@@ -657,6 +648,9 @@ class CraftingOrderModal(ui.Modal):
         await interaction.response.defer(ephemeral=True)
 
         item_name_input = self.item_name_input.value.strip()
+        if not item_name_input:
+            await interaction.followup.send(_ls(interaction, "modal_item_name_empty"), ephemeral=True)
+            return
         notes = self.notes_input.value.strip() or None
 
         # For cache-driven flow: keep English canonical in ItemName; store user-confirmed

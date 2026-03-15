@@ -253,6 +253,9 @@ class Admin(NerpyBotCog, Cog):
           `!sync clear`          — Clear commands from current guild
           `!sync recipes`        — Sync WoW crafting recipe cache from Blizzard API"""
         if not guilds and spec == "recipes":
+            if ctx.author.id not in self.bot.ops:
+                await ctx.send("Recipe sync is restricted to bot operators.")
+                return
             if "wow" not in self.bot.modules:
                 await ctx.send("WoW module is not loaded — cannot sync recipes.")
                 return

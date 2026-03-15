@@ -122,9 +122,16 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     async def _migrate_boards(self):
         """Upgrade crafting boards that are behind CURRENT_BOARD_VERSION."""
         with self.bot.session_scope() as session:
+            from sqlalchemy import or_
+
             stale = (
                 session.query(CraftingBoardConfig)
-                .filter(CraftingBoardConfig.BoardVersion < CURRENT_BOARD_VERSION)
+                .filter(
+                    or_(
+                        CraftingBoardConfig.BoardVersion.is_(None),
+                        CraftingBoardConfig.BoardVersion < CURRENT_BOARD_VERSION,
+                    )
+                )
                 .all()
             )
             boards = [(c.Id, c.GuildId, c.ChannelId, c.BoardMessageId, c.BoardVersion) for c in stale]
@@ -1484,7 +1491,20 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             label=get_string(lang, "wow.craftingorder.create_button"),
             housing_label=get_string(lang, "wow.craftingorder.housing_button"),
         )
-        msg = await channel.send(embed=embed, view=view)
+        try:
+            msg = await channel.send(embed=embed, view=view)
+        except discord.HTTPException as exc:
+            # Board config was committed above; clean it up so the guild can retry.
+            with self.bot.session_scope() as session:
+                orphaned = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+                if orphaned is not None:
+                    session.delete(orphaned)
+                CraftingRoleMapping.delete_by_guild(interaction.guild_id, session)
+            self.bot.log.error("Failed to post crafting board embed (guild=%d): %s", interaction.guild_id, exc)
+            await interaction.followup.send(
+                get_string(lang, "wow.craftingorder.create.send_failed", channel=channel.mention), ephemeral=True
+            )
+            return
 
         with self.bot.session_scope() as session:
             config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)

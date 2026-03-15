@@ -160,6 +160,9 @@ class WowCharacterMounts(db.BASE):
         return deleted
 
 
+CURRENT_BOARD_VERSION = 2  # v2: adds housing button
+
+
 class CraftingBoardConfig(db.BASE):
     """Guild-level crafting order board configuration."""
 
@@ -172,7 +175,7 @@ class CraftingBoardConfig(db.BASE):
     BoardMessageId = Column(BigInteger, nullable=True)
     Description = Column(UnicodeText)
     ThreadCleanupDelayHours = Column(Integer, default=24, server_default="24")
-    BoardVersion = Column(Integer, default=1, server_default="1")
+    BoardVersion = Column(Integer, default=CURRENT_BOARD_VERSION, server_default=str(CURRENT_BOARD_VERSION))
     CreateDate = Column(DateTime, default=lambda: datetime.now(UTC))
 
     @classmethod
@@ -261,8 +264,6 @@ class CraftingOrder(db.BASE):
 
 RECIPE_TYPE_CRAFTED = "crafted"
 RECIPE_TYPE_HOUSING = "housing"
-
-CURRENT_BOARD_VERSION = 2  # v2: adds housing button
 
 # Blizzard API binding type values (preview_item.binding.type).
 BIND_ON_ACQUIRE = "ON_ACQUIRE"  # BoP — bind on pickup
