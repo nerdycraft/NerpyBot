@@ -59,7 +59,7 @@ Both invoke `sync_crafting_recipes()` which walks all expansion skill tiers for 
 - **Strategy 2 (Dragonflight+):** no `crafted_item` in response; search by recipe name via `item_search()` to resolve `ItemId`, `item_class`, and `item_subclass`
 - Recipes where neither strategy yields an identifiable item are skipped
 
-**Housing detection:** any category named `"House Decor"` (case-insensitive) is treated as `RecipeType="housing"`. No decor API calls are made.
+**Housing detection:** any category whose name contains `"House Decor"` (case-insensitive substring match) is treated as `RecipeType="housing"`. No decor API calls are made.
 
 **Expansion names** are resolved from tier names via a static map (e.g. `"Midnight Blacksmithing"` → `"Midnight"`).
 
@@ -133,13 +133,15 @@ The **Recipe Cache** tab in the operator section of the guild dashboard provides
 - Cache stats: count of `"crafted"` and `"housing"` recipes currently stored
 - **Sync** button: triggers `!sync recipes` asynchronously via Valkey IPC
 - Status auto-refreshes 5 seconds after triggering a sync
+- **Browse** tab: paginated recipe table with filters for type, profession, and expansion
 
 API endpoints:
 
-| Method | Path                           | Description                      |
-| ------ | ------------------------------ | -------------------------------- |
-| POST   | `/operator/recipe-sync`        | Trigger async recipe sync        |
-| GET    | `/operator/recipe-sync/status` | Return current cache type counts |
+| Method | Path                           | Description                                                                |
+| ------ | ------------------------------ | -------------------------------------------------------------------------- |
+| POST   | `/operator/recipe-sync`        | Trigger async recipe sync                                                  |
+| GET    | `/operator/recipe-sync/status` | Return current cache type counts                                           |
+| GET    | `/operator/recipe-cache`       | Browse cached recipes (paginated, filterable by type/profession/expansion) |
 
 ## Database Models
 

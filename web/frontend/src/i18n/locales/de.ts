@@ -393,6 +393,10 @@ export const de: typeof en = {
       browse_expansion_all: "Alle Erweiterungen",
       browse_empty: "Keine Rezepte entsprechen den aktuellen Filtern.",
       browse_showing: "{from}–{to} von {total} angezeigt",
+      browse_col_item: "Gegenstand",
+      browse_col_profession: "Beruf",
+      browse_col_type: "Typ",
+      browse_col_expansion: "Erweiterung",
     },
 
     operator_user_management: {

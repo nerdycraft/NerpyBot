@@ -163,7 +163,10 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             if not message_id:
                 raise LookupError("no board message id")
 
-            msg = await channel.fetch_message(message_id)
+            try:
+                msg = await channel.fetch_message(message_id)
+            except (discord.NotFound, discord.Forbidden) as exc:
+                raise LookupError(f"board message {message_id} inaccessible") from exc
             if msg.author.id != self.bot.user.id:
                 raise LookupError("board message not authored by bot")
 
@@ -174,7 +177,10 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 label=get_string(lang, "wow.craftingorder.create_button"),
                 housing_label=get_string(lang, "wow.craftingorder.housing_button"),
             )
-            await msg.edit(embed=embed, view=new_view)
+            try:
+                await msg.edit(embed=embed, view=new_view)
+            except (discord.NotFound, discord.Forbidden) as exc:
+                raise LookupError(f"board message {message_id} edit failed") from exc
             self.bot.log.info(
                 "Board migration v%d→v%d: guild=%d config=%d", version, CURRENT_BOARD_VERSION, guild_id, config_id
             )
@@ -1454,6 +1460,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 GuildId=interaction.guild_id,
                 ChannelId=channel.id,
                 Description=description,
+                BoardVersion=CURRENT_BOARD_VERSION,
             )
             session.add(config)
             session.flush()

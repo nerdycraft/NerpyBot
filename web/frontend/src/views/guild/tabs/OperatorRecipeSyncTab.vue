@@ -101,6 +101,8 @@ async function fetchBrowse() {
   } catch (e: unknown) {
     if (requestId !== browseRequestId) return;
     browseError.value = e instanceof Error ? e.message : t("common.load_failed");
+    browseRecipes.value = [];
+    browseTotal.value = 0;
   } finally {
     if (requestId === browseRequestId) browseLoading.value = false;
   }
@@ -219,10 +221,10 @@ onMounted(fetchStatus);
         <table class="recipe-table">
           <thead>
             <tr>
-              <th>Item</th>
-              <th>Profession</th>
-              <th>Type</th>
-              <th>Expansion</th>
+              <th>{{ t("tabs.operator_recipe_sync.browse_col_item") }}</th>
+              <th>{{ t("tabs.operator_recipe_sync.browse_col_profession") }}</th>
+              <th>{{ t("tabs.operator_recipe_sync.browse_col_type") }}</th>
+              <th>{{ t("tabs.operator_recipe_sync.browse_col_expansion") }}</th>
             </tr>
           </thead>
           <tbody>

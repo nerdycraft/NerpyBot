@@ -402,6 +402,10 @@ export const en = {
       browse_expansion_all: "All expansions",
       browse_empty: "No recipes match the current filters.",
       browse_showing: "Showing {from}–{to} of {total}",
+      browse_col_item: "Item",
+      browse_col_profession: "Profession",
+      browse_col_type: "Type",
+      browse_col_expansion: "Expansion",
     },
 
     operator_dashboard: {

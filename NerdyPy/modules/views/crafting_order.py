@@ -164,19 +164,24 @@ class CraftingBoardView(ui.View):
         self.add_item(housing_button)
 
     async def _on_create_order(self, interaction: Interaction):
+        not_found_msg = None
         with self.bot.session_scope() as session:
             config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
             if config is None:
-                await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
-                return
-            mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
-            lang = get_guild_language(interaction.guild_id, session)
-            mapped_prof_ids = {m.ProfessionId for m in mappings}
-            mapping_role_ids = [m.RoleId for m in mappings]
-            # Check if cache has crafted recipes for type-driven flow, filtered to mapped professions
-            item_classes = CraftingRecipeCache.get_item_classes(
-                RECIPE_TYPE_CRAFTED, session, profession_ids=mapped_prof_ids
-            )
+                not_found_msg = _ls(interaction, "not_found")
+            else:
+                mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
+                lang = get_guild_language(interaction.guild_id, session)
+                mapped_prof_ids = {m.ProfessionId for m in mappings}
+                mapping_role_ids = [m.RoleId for m in mappings]
+                # Check if cache has crafted recipes for type-driven flow, filtered to mapped professions
+                item_classes = CraftingRecipeCache.get_item_classes(
+                    RECIPE_TYPE_CRAFTED, session, profession_ids=mapped_prof_ids
+                )
+
+        if not_found_msg:
+            await interaction.response.send_message(not_found_msg, ephemeral=True)
+            return
 
         roles = [r for rid in mapping_role_ids if (r := interaction.guild.get_role(rid))]
         if not roles:
@@ -193,18 +198,23 @@ class CraftingBoardView(ui.View):
             await interaction.response.send_message(_ls(interaction, "profession_select"), view=view, ephemeral=True)
 
     async def _on_create_housing(self, interaction: Interaction):
+        not_found_msg = None
         with self.bot.session_scope() as session:
             config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
             if config is None:
-                await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
-                return
-            lang = get_guild_language(interaction.guild_id, session)
-            mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
-            mapped_prof_ids = {m.ProfessionId for m in mappings}
-            mapping_role_ids = [m.RoleId for m in mappings]
-            housing_professions = CraftingRecipeCache.get_professions_with_recipes(
-                RECIPE_TYPE_HOUSING, session, profession_ids=mapped_prof_ids
-            )
+                not_found_msg = _ls(interaction, "not_found")
+            else:
+                lang = get_guild_language(interaction.guild_id, session)
+                mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
+                mapped_prof_ids = {m.ProfessionId for m in mappings}
+                mapping_role_ids = [m.RoleId for m in mappings]
+                housing_professions = CraftingRecipeCache.get_professions_with_recipes(
+                    RECIPE_TYPE_HOUSING, session, profession_ids=mapped_prof_ids
+                )
+
+        if not_found_msg:
+            await interaction.response.send_message(not_found_msg, ephemeral=True)
+            return
 
         if not housing_professions:
             # Fall back to profession select (free-text flow)
@@ -405,6 +415,11 @@ class ItemSelectView(ui.View):
                 mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
                 lang = get_guild_language(interaction.guild_id, session)
             roles_found = [r for m in mappings if (r := interaction.guild.get_role(m.RoleId))]
+            if not roles_found:
+                await interaction.response.edit_message(
+                    content=get_string(self.lang, "wow.craftingorder.create.no_roles"), view=None
+                )
+                return
             view = ProfessionSelectView(self.bot, roles_found, interaction.guild_id, lang)
             await interaction.response.edit_message(
                 content=get_string(self.lang, "wow.craftingorder.profession_select"), view=view
