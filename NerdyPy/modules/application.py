@@ -1321,12 +1321,10 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         with self.bot.session_scope() as session:
             submissions = ApplicationSubmission.get_by_guild(guild_id, session)
             pending = [
-                (s.ReviewMessageId, ApplicationForm.get_by_id(s.FormId, session).ReviewChannelId)
+                (s.ReviewMessageId, s.form.ReviewChannelId)
                 for s in submissions
-                if s.Status == SubmissionStatus.PENDING and s.ReviewMessageId
+                if s.Status == SubmissionStatus.PENDING and s.ReviewMessageId and s.form and s.form.ReviewChannelId
             ]
-            # Filter out any where the form has no review channel configured
-            pending = [(msg_id, ch_id) for msg_id, ch_id in pending if ch_id]
 
         for i, (review_message_id, review_channel_id) in enumerate(pending):
             try:

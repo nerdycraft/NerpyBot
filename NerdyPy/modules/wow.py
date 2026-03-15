@@ -1639,35 +1639,13 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         with self.bot.session_scope() as session:
             orders = CraftingOrder.get_active_by_guild(guild_id, session)
             order_data = [
-                (
-                    order.Id,
-                    order.ChannelId,
-                    order.OrderMessageId,
-                    order.Status,
-                    order.ItemName,
-                    order.Notes,
-                    order.IconUrl,
-                    order.ProfessionRoleId,
-                    order.CreatorId,
-                    order.CrafterId,
-                )
+                (order.Id, order.ChannelId, order.OrderMessageId)
                 for order in orders
                 if order.OrderMessageId and order.ChannelId
             ]
 
         guild = self.bot.get_guild(guild_id)
-        for (
-            order_id,
-            channel_id,
-            message_id,
-            status,
-            item_name,
-            notes,
-            icon_url,
-            profession_role_id,
-            creator_id,
-            crafter_id,
-        ) in order_data:
+        for i, (order_id, channel_id, message_id) in enumerate(order_data):
             try:
                 channel = guild.get_channel(channel_id) if guild else None
                 if channel is None:
@@ -1687,7 +1665,8 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 )
             except discord.HTTPException as exc:
                 self.bot.log.warning("wow: failed to refresh order #%d for guild %d: %s", order_id, guild_id, exc)
-            await asyncio.sleep(1)
+            if i < len(order_data) - 1:
+                await asyncio.sleep(1)
 
     async def _send_manual_mapping_view(self, interaction: Interaction, unmapped: list[int], lang: str):
         """Send an ephemeral followup with Select dropdowns for manual profession mapping."""
