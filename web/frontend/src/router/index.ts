@@ -43,6 +43,8 @@ const router = createRouter({
   ],
 });
 
+const TOKEN_HASH_PREFIX = "#token=";
+
 router.beforeEach(async (to) => {
   const auth = useAuthStore();
   const guild = useGuildStore();
@@ -51,8 +53,8 @@ router.beforeEach(async (to) => {
   // Fragment is used instead of query param so the token never appears in server logs.
   // Restrict to root path — the only legitimate OAuth callback target — to prevent
   // session fixation via crafted URLs on other routes (e.g. /login#token=ATTACKER_JWT).
-  if (to.path === "/" && to.hash.startsWith("#token=")) {
-    auth.setToken(to.hash.slice("#token=".length));
+  if (to.path === "/" && to.hash.startsWith(TOKEN_HASH_PREFIX)) {
+    auth.setToken(to.hash.slice(TOKEN_HASH_PREFIX.length));
     return { path: to.path, hash: "", replace: true };
   }
 
