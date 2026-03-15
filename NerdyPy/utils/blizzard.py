@@ -246,6 +246,8 @@ async def sync_crafting_recipes(
             if cat_name in _SKIP_CATEGORIES:
                 continue
             # Skip non-housing recipes from non-matching expansions (if filter is set).
+            # Substring match is intentional: config value is expected to be a full expansion
+            # name (e.g. "Midnight") that is always contained in the resolved tier name.
             if expansion and not is_housing_cat:
                 if expansion.lower() not in expansion_name.lower():
                     continue

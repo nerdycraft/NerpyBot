@@ -141,8 +141,10 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     ):
         """Migrate a single crafting board to CURRENT_BOARD_VERSION.
 
-        If migration fails (channel/message unreachable), bumps the version anyway and
-        logs a warning so the board isn't retried on every restart.
+        On success or terminal LookupError (guild/channel/message permanently gone),
+        bumps BoardVersion so the board isn't retried on every restart. Transient
+        discord.HTTPException (429, 5xx) does NOT bump the version so the migration
+        is retried on the next startup.
         """
         from modules.views.crafting_order import CraftingBoardView
 
@@ -177,11 +179,12 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 "Board migration v%d→v%d: guild=%d config=%d", version, CURRENT_BOARD_VERSION, guild_id, config_id
             )
 
-        except (LookupError, discord.HTTPException) as exc:
+        except LookupError as exc:
+            # Terminal failure (guild/channel/message gone permanently) — bump version so
+            # we don't retry on every restart. Notify the channel if it's still reachable.
             self.bot.log.warning(
-                "Board migration failed for config=%d guild=%d: %s — bumping version anyway", config_id, guild_id, exc
+                "Board migration failed (terminal) for config=%d guild=%d: %s", config_id, guild_id, exc
             )
-            # Try to notify the channel if it's reachable
             try:
                 guild = self.bot.get_guild(guild_id)
                 if guild:
@@ -194,10 +197,17 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                             guild=guild.name,
                         )
                     )
-            except discord.HTTPException as exc:
-                self.bot.log.debug("Board migration: could not notify channel %d: %s", channel_id, exc)
+            except discord.HTTPException as notify_exc:
+                self.bot.log.debug("Board migration: could not notify channel %d: %s", channel_id, notify_exc)
 
-        # Bump version regardless of outcome to avoid retrying on every restart.
+        except discord.HTTPException as exc:
+            # Transient failure (429, 5xx) — log and skip version bump so migration retries next startup.
+            self.bot.log.warning(
+                "Board migration failed (transient) for config=%d guild=%d: %s — will retry", config_id, guild_id, exc
+            )
+            return
+
+        # Bump version on success or terminal LookupError.
         with self.bot.session_scope() as session:
             config = session.get(CraftingBoardConfig, config_id)
             if config:

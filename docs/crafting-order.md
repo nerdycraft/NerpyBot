@@ -81,7 +81,7 @@ Returns `{"crafted": N, "housing": N, "errors": N, "duration_seconds": float}`.
 2. If cache has `"housing"` recipes: **Profession Select** — only professions that have housing recipes
 3. **Expansion Select** — expansion names (Classic through Midnight) for the chosen profession
 4. **Item Select** — up to 24 housing recipes for that profession + expansion, + "Other"
-5. On item selection: modal opens pre-filled; Wowhead link uses `/spell=` URL format
+5. On item selection: modal opens pre-filled; Wowhead link uses `/item={ItemId}` when resolved, otherwise `/spell={RecipeId}`
 6. If cache is empty: graceful fallback to free-text **Profession Select** → modal
 
 ### Order Lifecycle (State Machine)
