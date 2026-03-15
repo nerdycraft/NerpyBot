@@ -253,12 +253,16 @@ class CraftingOrder(db.BASE):
         )
 
 
+RECIPE_TYPE_CRAFTED = "crafted"
+RECIPE_TYPE_HOUSING = "housing"
+
+
 class CraftingRecipeCache(db.BASE):
     """Cache of WoW crafting recipes for the crafting order board UI.
 
     RecipeType values:
-        "crafted" — recipes from profession skill tiers (gear, consumables, gems, enchants, etc.)
-        "housing" — housing/decoration recipes from the Blizzard decor API
+        RECIPE_TYPE_CRAFTED — recipes from profession skill tiers (gear, consumables, gems, enchants, etc.)
+        RECIPE_TYPE_HOUSING — housing/decoration recipes from the Blizzard decor API
     """
 
     __tablename__ = "CraftingRecipeCache"
@@ -378,14 +382,23 @@ class CraftingRecipeCache(db.BASE):
 
         crafted = (
             session.query(cls.ItemClassName, func.count(cls.RecipeId))
-            .filter(cls.RecipeType == "crafted", cls.ItemClassName.isnot(None))
+            .filter(cls.RecipeType == RECIPE_TYPE_CRAFTED, cls.ItemClassName.isnot(None))
             .group_by(cls.ItemClassName)
             .all()
         )
-        housing_count = session.query(func.count(cls.RecipeId)).filter(cls.RecipeType == "housing").scalar()
+        housing_count = session.query(func.count(cls.RecipeId)).filter(cls.RecipeType == RECIPE_TYPE_HOUSING).scalar()
         result = {r[0]: r[1] for r in crafted}
         result["housing"] = housing_count or 0
         return result
+
+    @property
+    def wowhead_url(self) -> str | None:
+        """Return the Wowhead URL for this recipe's crafted item or spell."""
+        if self.ItemId:
+            return f"https://www.wowhead.com/item={self.ItemId}"
+        if self.RecipeType == RECIPE_TYPE_HOUSING:
+            return f"https://www.wowhead.com/spell={self.RecipeId}"
+        return None
 
     @classmethod
     def delete_all(cls, session):

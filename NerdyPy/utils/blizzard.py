@@ -111,7 +111,7 @@ async def sync_crafting_recipes(
 
     from blizzapi import Language, Region, RetailClient
 
-    from models.wow import CraftingRecipeCache
+    from models.wow import RECIPE_TYPE_CRAFTED, RECIPE_TYPE_HOUSING, CraftingRecipeCache
 
     log = logging.getLogger("nerpybot")
     start = time.monotonic()
@@ -221,7 +221,7 @@ async def sync_crafting_recipes(
                 "ItemId": item_id,
                 "ItemName": item_name,
                 "IconUrl": icon_url,
-                "RecipeType": "crafted",
+                "RecipeType": RECIPE_TYPE_CRAFTED,
                 "ItemClassName": item_class_name,
                 "ItemClassId": item_class_id,
                 "ItemSubClassName": item_subclass_name,
@@ -306,7 +306,7 @@ async def sync_crafting_recipes(
                     "ItemId": item_id,
                     "ItemName": item_name,
                     "IconUrl": icon_url,
-                    "RecipeType": "housing",
+                    "RecipeType": RECIPE_TYPE_HOUSING,
                     "ItemClassName": None,
                     "ItemClassId": None,
                     "ItemSubClassName": None,
@@ -326,7 +326,7 @@ async def sync_crafting_recipes(
             rid = row["RecipeId"]
             if rid not in seen_recipe_ids and any(kw in cat for kw in _HOUSING_KEYWORDS):
                 seen_recipe_ids.add(rid)
-                phase_b_rows.append({**row, "RecipeType": "housing"})
+                phase_b_rows.append({**row, "RecipeType": RECIPE_TYPE_HOUSING})
 
     # ── Upsert into database ──────────────────────────────────────────────
     all_rows = phase_a_rows + phase_b_rows
@@ -339,8 +339,8 @@ async def sync_crafting_recipes(
 
     await asyncio.to_thread(_upsert)
 
-    crafted_count = sum(1 for r in all_rows if r["RecipeType"] == "crafted")
-    housing_count = sum(1 for r in all_rows if r["RecipeType"] == "housing")
+    crafted_count = sum(1 for r in all_rows if r["RecipeType"] == RECIPE_TYPE_CRAFTED)
+    housing_count = sum(1 for r in all_rows if r["RecipeType"] == RECIPE_TYPE_HOUSING)
     duration = round(time.monotonic() - start, 1)
 
     log.info(

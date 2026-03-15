@@ -9,7 +9,14 @@ import discord
 from discord import Interaction, ui
 from sqlalchemy import update as sa_update
 
-from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRecipeCache, CraftingRoleMapping
+from models.wow import (
+    RECIPE_TYPE_CRAFTED,
+    RECIPE_TYPE_HOUSING,
+    CraftingBoardConfig,
+    CraftingOrder,
+    CraftingRecipeCache,
+    CraftingRoleMapping,
+)
 from utils.blizzard import CRAFTING_PROFESSIONS
 from utils.strings import get_guild_language, get_localized_string, get_string
 
@@ -131,7 +138,7 @@ class CraftingBoardView(ui.View):
             mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
             lang = get_guild_language(interaction.guild_id, session)
             # Check if cache has crafted recipes for type-driven flow
-            item_classes = CraftingRecipeCache.get_item_classes("crafted", session)
+            item_classes = CraftingRecipeCache.get_item_classes(RECIPE_TYPE_CRAFTED, session)
 
         roles = []
         for m in mappings:
@@ -157,7 +164,7 @@ class CraftingBoardView(ui.View):
                 return
             lang = get_guild_language(interaction.guild_id, session)
             mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
-            housing_professions = CraftingRecipeCache.get_professions_with_recipes("housing", session)
+            housing_professions = CraftingRecipeCache.get_professions_with_recipes(RECIPE_TYPE_HOUSING, session)
 
         if not housing_professions:
             # Fall back to profession select (free-text flow)
@@ -242,12 +249,14 @@ class ItemTypeSelectView(ui.View):
     async def _on_select(self, interaction: Interaction):
         item_class_id = int(interaction.data["values"][0])
         with self.bot.session_scope() as session:
-            subclasses = CraftingRecipeCache.get_item_subclasses("crafted", item_class_id, session)
+            subclasses = CraftingRecipeCache.get_item_subclasses(RECIPE_TYPE_CRAFTED, item_class_id, session)
 
         if not subclasses:
             # No subclasses — go straight to item select
             with self.bot.session_scope() as session:
-                recipes = CraftingRecipeCache.get_by_type_and_subclass("crafted", item_class_id, None, session)
+                recipes = CraftingRecipeCache.get_by_type_and_subclass(
+                    RECIPE_TYPE_CRAFTED, item_class_id, None, session
+                )
             view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
             await interaction.response.edit_message(
                 content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
@@ -291,7 +300,7 @@ class ItemSubTypeSelectView(ui.View):
         item_subclass_id = int(interaction.data["values"][0])
         with self.bot.session_scope() as session:
             recipes = CraftingRecipeCache.get_by_type_and_subclass(
-                "crafted", self.item_class_id, item_subclass_id, session
+                RECIPE_TYPE_CRAFTED, self.item_class_id, item_subclass_id, session
             )
 
         view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
@@ -381,23 +390,13 @@ class ItemSelectView(ui.View):
             role = interaction.guild.get_role(role_id)
 
         if not role_id or not role:
-            # No mapped role for this profession — let user pick
-            with self.bot.session_scope() as session:
-                mappings2 = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
-                lang = get_guild_language(interaction.guild_id, session)
-            roles_found = [r for m in mappings2 if (r := interaction.guild.get_role(m.RoleId))]
-            view = ProfessionSelectView(self.bot, roles_found, interaction.guild_id, lang)
+            # No mapped role for this profession — let user pick. Reuse mappings from above.
+            roles_found = [r for m in mappings if (r := interaction.guild.get_role(m.RoleId))]
+            view = ProfessionSelectView(self.bot, roles_found, interaction.guild_id, self.lang)
             await interaction.response.edit_message(
                 content=get_string(self.lang, "wow.craftingorder.profession_select"), view=view
             )
             return
-
-        # Build Wowhead URL
-        wowhead_url = None
-        if recipe.ItemId:
-            wowhead_url = f"https://www.wowhead.com/item={recipe.ItemId}"
-        elif recipe.RecipeType == "housing":
-            wowhead_url = f"https://www.wowhead.com/spell={recipe.RecipeId}"
 
         modal = CraftingOrderModal(
             self.bot,
@@ -407,7 +406,7 @@ class ItemSelectView(ui.View):
             self.lang,
             item_name=recipe.ItemName,
             icon_url=recipe.IconUrl,
-            wowhead_url=wowhead_url,
+            wowhead_url=recipe.wowhead_url,
         )
         await interaction.response.send_modal(modal)
 
@@ -438,12 +437,12 @@ class HousingProfessionSelectView(ui.View):
     async def _on_select(self, interaction: Interaction):
         prof_id = int(interaction.data["values"][0])
         with self.bot.session_scope() as session:
-            expansions = CraftingRecipeCache.get_expansions_for_profession(prof_id, "housing", session)
+            expansions = CraftingRecipeCache.get_expansions_for_profession(prof_id, RECIPE_TYPE_HOUSING, session)
 
         if not expansions:
             # No expansion data — go straight to items
             with self.bot.session_scope() as session:
-                recipes = CraftingRecipeCache.get_by_profession(prof_id, "housing", session)
+                recipes = CraftingRecipeCache.get_by_profession(prof_id, RECIPE_TYPE_HOUSING, session)
             view = ItemSelectView(self.bot, recipes, [], self.guild_id, self.lang)
             await interaction.response.edit_message(
                 content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
@@ -484,7 +483,9 @@ class ExpansionSelectView(ui.View):
     async def _on_select(self, interaction: Interaction):
         expansion = interaction.data["values"][0]
         with self.bot.session_scope() as session:
-            recipes = CraftingRecipeCache.get_by_profession_and_expansion(self.prof_id, "housing", expansion, session)
+            recipes = CraftingRecipeCache.get_by_profession_and_expansion(
+                self.prof_id, RECIPE_TYPE_HOUSING, expansion, session
+            )
 
         view = ItemSelectView(self.bot, recipes, [], self.guild_id, self.lang)
         await interaction.response.edit_message(

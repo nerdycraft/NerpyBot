@@ -18,6 +18,7 @@ import psutil
 from utils.constants import PROTECTED_MODULES
 
 _proc = psutil.Process()
+_recipe_sync_running = False
 _proc.cpu_percent(interval=None)  # prime the baseline; first call always returns 0.0
 
 
@@ -272,18 +273,25 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         results = await gather(*(_send_to(uid) for uid in valid_ids))
         return {"success": True, "sent_to": sum(results)}
     elif command == "recipe_sync":
+        global _recipe_sync_running
         if "wow" not in bot.modules:
             return {"queued": False, "error": "WoW module not loaded"}
+        if _recipe_sync_running:
+            return {"queued": False, "error": "Recipe sync already in progress"}
         from utils.blizzard import sync_crafting_recipes
 
-        task = ensure_future(sync_crafting_recipes(bot))
+        _recipe_sync_running = True
 
-        def _log_exc(t):
-            exc = t.exception()
-            if exc:
+        async def _run_sync():
+            global _recipe_sync_running
+            try:
+                await sync_crafting_recipes(bot)
+            except Exception as exc:
                 bot.log.error("recipe_sync failed: %s", exc)
+            finally:
+                _recipe_sync_running = False
 
-        task.add_done_callback(_log_exc)
+        ensure_future(_run_sync())
         return {"queued": True}
     elif command == "recipe_sync_status":
         try:
