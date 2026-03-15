@@ -1,3 +1,4 @@
+import { useBrandingStore } from "@/stores/branding";
 import { type SupportedLocale, useLocaleStore } from "@/stores/locale";
 import { de } from "./locales/de";
 import { en } from "./locales/en";
@@ -36,6 +37,7 @@ function interpolate(str: string, params?: Record<string, string | number>): str
 
 export function useI18n() {
   const locale = useLocaleStore();
+  const branding = useBrandingStore();
 
   function t(key: I18nKey, params?: Record<string, string | number>): string {
     const translations = locales[locale.current] ?? en;
@@ -44,7 +46,8 @@ export function useI18n() {
       warnedMissingKeys.add(key);
       console.warn(`[i18n] Missing key: ${key}`);
     }
-    return interpolate(raw, params);
+    const merged = raw.includes("{botName}") ? { ...params, botName: branding.botName } : params;
+    return interpolate(raw, merged);
   }
 
   return { t, locale };

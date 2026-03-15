@@ -110,25 +110,25 @@ export const en = {
     terms_page: {
       acceptance_title: "1. Acceptance of Terms",
       acceptance_body:
-        "By adding NerpyBot to your Discord server or using the NerpyBot dashboard, you agree to these Terms of Service. If you do not agree, do not use the service.",
+        "By adding {botName} to your Discord server or using the {botName} dashboard, you agree to these Terms of Service. If you do not agree, do not use the service.",
       description_title: "2. Description of Service",
       description_body:
-        "NerpyBot is a Discord bot that provides server management, moderation, gaming integrations (World of Warcraft, League of Legends), application forms, role management, and related features. A web dashboard is available to server administrators with premium access.",
+        "{botName} is a Discord bot that provides server management, moderation, gaming integrations (World of Warcraft, League of Legends), application forms, role management, and related features. A web dashboard is available to server administrators with premium access.",
       acceptable_use_title: "3. Acceptable Use",
-      acceptable_use_intro: "You agree not to use NerpyBot to:",
+      acceptable_use_intro: "You agree not to use {botName} to:",
       acceptable_use_item_discord: "Violate Discord\u2019s Terms of Service or Community Guidelines",
       acceptable_use_item_harass: "Harass, threaten, or harm other users",
       acceptable_use_item_exploit: "Attempt to exploit, hack, or disrupt the service",
       acceptable_use_item_unlawful: "Use the service for any unlawful purpose",
       access_title: "4. Access and Availability",
       access_body:
-        "We reserve the right to remove NerpyBot from any server or revoke dashboard access, particularly in cases of abuse or violation of these terms. Except in cases of serious violations or abuse, we will provide reasonable advance notice. We do not guarantee continuous, uninterrupted availability of the service.",
+        "We reserve the right to remove {botName} from any server or revoke dashboard access, particularly in cases of abuse or violation of these terms. Except in cases of serious violations or abuse, we will provide reasonable advance notice. We do not guarantee continuous, uninterrupted availability of the service.",
       warranty_title: "5. Disclaimer of Warranties",
       warranty_body:
-        "NerpyBot is provided \u201cas is\u201d without warranties of any kind, express or implied. We make no guarantees about the reliability, accuracy, or fitness for a particular purpose of the service.",
+        "{botName} is provided \u201cas is\u201d without warranties of any kind, express or implied. We make no guarantees about the reliability, accuracy, or fitness for a particular purpose of the service.",
       liability_title: "6. Limitation of Liability",
       liability_body:
-        "To the fullest extent permitted by law, we are not liable for any indirect, incidental, or consequential damages arising from your use of NerpyBot.",
+        "To the fullest extent permitted by law, we are not liable for any indirect, incidental, or consequential damages arising from your use of {botName}.",
       changes_title: "7. Changes to Terms",
       changes_body:
         "We may update these terms from time to time. For material changes, we will provide advance notice through our Discord community or the dashboard. Continued use of the service after the notice period constitutes acceptance of the updated terms.",
@@ -150,7 +150,7 @@ export const en = {
       controller_label: "Data Controller (Art. 13(1)(a) GDPR)",
       data_collection_title: "1. What Data We Collect",
       data_collection_intro:
-        "NerpyBot collects and stores the minimum data necessary to provide its features. The legal basis for processing is Art. 6(1)(b) GDPR (performance of a contract/service) unless stated otherwise:",
+        "{botName} collects and stores the minimum data necessary to provide its features. The legal basis for processing is Art. 6(1)(b) GDPR (performance of a contract/service) unless stated otherwise:",
       data_collection_item_guild_ids:
         "<strong>Guild (server) IDs</strong> \u2014 to associate configuration with your server",
       data_collection_item_user_ids:
@@ -165,20 +165,20 @@ export const en = {
         "We do not collect general message content, voice audio, or any data beyond what is required for configured features.",
       data_use_title: "2. How We Use Your Data",
       data_use_body:
-        "All collected data is used solely to provide NerpyBot\u2019s functionality within your server. We do not use your data for advertising, analytics, or any purpose beyond operating the bot.",
+        "All collected data is used solely to provide {botName}\u2019s functionality within your server. We do not use your data for advertising, analytics, or any purpose beyond operating the bot.",
       data_retention_title: "3. Data Retention",
       data_retention_body1:
-        "Data associated with your server is retained while NerpyBot is active in it. If you remove NerpyBot from your server, you may request deletion of all associated data by contacting a bot operator through Discord.",
+        "Data associated with your server is retained while {botName} is active in it. If you remove {botName} from your server, you may request deletion of all associated data by contacting a bot operator through Discord.",
       data_retention_body2:
         "Dashboard user data (Discord User ID, username, premium status) is retained until access is revoked by an operator. All other data is not retained beyond what is necessary for the stated purpose.",
       data_sharing_title: "4. Data Sharing",
       data_sharing_body1:
         "We do not sell, rent, or share your data with third parties. Data may be disclosed if required by law.",
       data_sharing_body2:
-        "NerpyBot integrates with third-party APIs (Blizzard Entertainment, Riot Games) to fetch public game data on request. We do not share your personal Discord data with these services.",
+        "{botName} integrates with third-party APIs (Blizzard Entertainment, Riot Games) to fetch public game data on request. We do not share your personal Discord data with these services.",
       international_title: "5. International Data Transfers",
       international_body:
-        "When using gaming integrations, NerpyBot queries public APIs from Blizzard Entertainment (USA) and Riot Games (USA) on your request. This does not involve transferring your personal Discord data to these providers. The service is hosted by Hetzner, Germany \u2014 any transfers of data outside the European Economic Area (EEA) are based on appropriate safeguards (e.g. standard contractual clauses under Art. 46 GDPR).",
+        "When using gaming integrations, {botName} queries public APIs from Blizzard Entertainment (USA) and Riot Games (USA) on your request. This does not involve transferring your personal Discord data to these providers. The service is hosted by Hetzner, Germany \u2014 any transfers of data outside the European Economic Area (EEA) are based on appropriate safeguards (e.g. standard contractual clauses under Art. 46 GDPR).",
       security_title: "6. Data Security",
       security_body:
         "We take reasonable technical and organisational measures to protect stored data. However, no system is completely secure and we cannot guarantee absolute security.",
@@ -226,9 +226,9 @@ export const en = {
   tabs: {
     language: {
       title: "Language",
-      desc: "Controls the language NerpyBot uses for all its responses in this server, including command replies, embeds, and automated messages. Changes are applied immediately and auto-save as soon as you make a selection.",
+      desc: "Controls the language {botName} uses for all its responses in this server, including command replies, embeds, and automated messages. Changes are applied immediately and auto-save as soon as you make a selection.",
       label: "Language",
-      tooltip: "The locale NerpyBot will use when replying in this server (e.g. English, Deutsch).",
+      tooltip: "The locale {botName} will use when replying in this server (e.g. English, Deutsch).",
       en: "English",
       de: "Deutsch",
     },
@@ -242,7 +242,7 @@ export const en = {
 
     moderator_roles: {
       title: "Moderator Roles",
-      desc: "Assign Discord roles as NerpyBot moderators — members with any listed role can use moderation commands such as kick, ban, and message cleanup. You can add as many roles as needed; changes take effect immediately.",
+      desc: "Assign Discord roles as {botName} moderators — members with any listed role can use moderation commands such as kick, ban, and message cleanup. You can add as many roles as needed; changes take effect immediately.",
       empty: "No moderator roles configured.",
       role_label: "Role",
       role_tooltip:
@@ -294,7 +294,7 @@ export const en = {
       kick_after_validation: "Kick-after must be at least 1 day.",
       reminder_label: "Reminder message (optional)",
       reminder_tooltip:
-        "If set, NerpyBot will DM this message to the member before kicking them. Leave blank to kick silently.",
+        "If set, {botName} will DM this message to the member before kicking them. Leave blank to kick silently.",
       placeholder: "You will be kicked soon due to inactivity…",
     },
 
@@ -333,11 +333,11 @@ export const en = {
 
     server_overview: {
       title: "Your Servers",
-      desc: 'All servers where NerpyBot is active and you have access to the dashboard. Click any card to jump to that server\'s settings — the currently selected server is highlighted with a "Current" badge.',
-      empty: "NerpyBot is not in any of your servers yet.",
+      desc: 'All servers where {botName} is active and you have access to the dashboard. Click any card to jump to that server\'s settings — the currently selected server is highlighted with a "Current" badge.',
+      empty: "{botName} is not in any of your servers yet.",
       current: "Current",
       add_title: "Add to a Server",
-      add_desc: "You have sufficient permissions to invite NerpyBot to these servers.",
+      add_desc: "You have sufficient permissions to invite {botName} to these servers.",
       invite: "Invite",
     },
 

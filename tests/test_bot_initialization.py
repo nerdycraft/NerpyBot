@@ -46,6 +46,60 @@ class TestNerpyBotInitialization:
         assert bot.debug is False
         assert bot.restart is True
 
+    def test_init_defaults(self):
+        """bot_name and description should fall back to NerpyBot defaults when not configured."""
+        config = {
+            "bot": {
+                "client_id": "123",
+                "token": "token",
+                "ops": [],
+                "modules": [],
+            }
+        }
+        intents = Intents.default()
+
+        bot = NerpyBot(config, intents, debug=False)
+
+        assert bot.bot_name == "NerpyBot"
+        assert bot.description == "NerpyBot - Always one step ahead!"
+
+    def test_init_overrides(self):
+        """Explicit bot.name and bot.description in config should be used as-is."""
+        config = {
+            "bot": {
+                "client_id": "123",
+                "token": "token",
+                "ops": [],
+                "modules": [],
+                "name": "Custom",
+                "description": "Custom desc",
+            }
+        }
+        intents = Intents.default()
+
+        bot = NerpyBot(config, intents, debug=False)
+
+        assert bot.bot_name == "Custom"
+        assert bot.description == "Custom desc"
+
+    def test_init_whitespace_name_falls_back_to_default(self):
+        """Whitespace-only bot.name should fall back to 'NerpyBot'."""
+        config = {
+            "bot": {
+                "client_id": "123",
+                "token": "token",
+                "ops": [],
+                "modules": [],
+                "name": "   ",
+            }
+        }
+        intents = Intents.default()
+
+        bot = NerpyBot(config, intents, debug=False)
+
+        assert bot.bot_name == "NerpyBot"
+        assert bot.description == "NerpyBot - Always one step ahead!"
+
     def test_init_with_debug_mode(self):
         """NerpyBot should respect debug flag."""
         config = {

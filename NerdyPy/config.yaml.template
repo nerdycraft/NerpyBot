@@ -11,6 +11,10 @@
 bot:
   client_id: "your_client_id_here"  # quoted to prevent formatter corruption
   token: your_bot_token_here
+  # Display name shown in Discord embeds and web dashboard (default: NerpyBot)
+  # name: NerpyBot
+  # Bot description/tagline; used as-is, no variable substitution (default: "NerpyBot - Always one step ahead!")
+  # description: "NerpyBot - Always one step ahead!"
   ops:
     - "your_discord_id_here"  # quoted to prevent formatter corruption
   # admin and voicecontrol auto-load (admin always, voicecontrol with tagging/music)

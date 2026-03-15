@@ -6,12 +6,14 @@ import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
 import { useLegalContact } from "@/composables/useLegalContact";
 import { useI18n } from "@/i18n";
 import { useAuthStore } from "@/stores/auth";
+import { useBrandingStore } from "@/stores/branding";
 import { toQueryScalar } from "@/utils/route";
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const { t } = useI18n();
+const branding = useBrandingStore();
 const { contact } = useLegalContact();
 
 const isTestMode = import.meta.env.VITE_TEST_MODE === "true";
@@ -105,7 +107,7 @@ function testLogin() {
 
       <!-- Title -->
       <div class="text-center">
-        <h1 class="login-title">NerpyBot</h1>
+        <h1 class="login-title">{{ branding.botName }}</h1>
         <p class="login-subtitle">{{ t("login.subtitle") }}</p>
       </div>
 

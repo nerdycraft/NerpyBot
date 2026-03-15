@@ -58,6 +58,8 @@ class WebConfig:
     legal_country_en: str = ""
     legal_country_de: str = ""
     legal_email: str = ""
+    bot_name: str = "NerpyBot"
+    bot_description: str = "NerpyBot - Always one step ahead!"
 
     @classmethod
     def load(cls, config_path: Path | str | None = None) -> WebConfig:
@@ -96,6 +98,10 @@ class WebConfig:
         cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()] if cors_origins_raw else ["*"]
         frontend_url = _get(sources, "web", "frontend_url", default="/")
         log_level = _get(sources, "web", "log_level", default="info")
+        bot_name = _get(sources, "bot", "name", default="NerpyBot")
+        raw_desc = _get(sources, "bot", "description")
+        bot_description = raw_desc if raw_desc else f"{bot_name} - Always one step ahead!"
+
         legal_enabled = _get(sources, "web", "legal_enabled").lower() in ("true", "1", "yes")
         if legal_enabled:
             legal_name = _require(_get(sources, "web", "legal_name"), "web.legal_name / NERPYBOT_WEB_LEGAL_NAME")
@@ -134,6 +140,8 @@ class WebConfig:
             legal_country_en=legal_country_en,
             legal_country_de=legal_country_de,
             legal_email=legal_email,
+            bot_name=bot_name,
+            bot_description=bot_description,
         )
 
 
@@ -197,6 +205,8 @@ def _env_to_dict() -> dict:
         (("NERPYBOT_WEB_DB_PASSWORD", "NERPYBOT_DB_PASSWORD"), ("database", "db_password")),
         (("NERPYBOT_WEB_DB_HOST", "NERPYBOT_DB_HOST"), ("database", "db_host")),
         (("NERPYBOT_WEB_DB_PORT", "NERPYBOT_DB_PORT"), ("database", "db_port")),
+        (("NERPYBOT_WEB_NAME", "NERPYBOT_NAME"), ("bot", "name")),
+        (("NERPYBOT_WEB_DESCRIPTION", "NERPYBOT_DESCRIPTION"), ("bot", "description")),
     ]
     for env_vars, keys in mappings:
         value = ""

@@ -125,9 +125,13 @@ class NerpyBot(Bot):
             debug (bool): Debug flag to enable debug behavior in subsystems.
 
         """
+        self.bot_name = (config["bot"].get("name") or "").strip() or "NerpyBot"
+        bot_description = (
+            config["bot"].get("description") or ""
+        ).strip() or f"{self.bot_name} - Always one step ahead!"
         super().__init__(
             command_prefix="",
-            description="NerdyBot - Always one step ahead!",
+            description=bot_description,
             intents=intents,
             help_command=None,
         )

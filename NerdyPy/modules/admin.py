@@ -294,7 +294,7 @@ class Admin(NerpyBotCog, Cog):
             description=f"**{td.days}**d · **{hours}**h · **{minutes}**m",
             color=0x5865F2,
         )
-        emb.set_author(name=f"NerpyBot v{bot_version}")
+        emb.set_author(name=f"{self.bot.bot_name} v{bot_version}")
         await ctx.send(embed=emb)
 
     @command(name="debug")
