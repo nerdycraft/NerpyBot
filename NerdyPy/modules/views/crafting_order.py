@@ -39,14 +39,16 @@ def _build_localized_options(items: list[tuple[int, str | None, dict | None]], l
 
     Label is the localized name when available, falling back to the English name.
     Description shows the English name only when a different localized label is shown.
+    Options are sorted by the displayed label so the dropdown order matches the locale.
     """
     options = []
-    for item_id, name, locales in items[:25]:
+    for item_id, name, locales in items:
         localized = _get_locale(locales, lang)
         label = localized or name or "Unknown"
         description = name if localized else None
         options.append(discord.SelectOption(label=label[:100], description=description, value=str(item_id)))
-    return options
+    options.sort(key=lambda o: o.label.casefold())
+    return options[:25]
 
 
 def _display_item_name(order: CraftingOrder) -> str:
