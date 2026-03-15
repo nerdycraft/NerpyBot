@@ -427,10 +427,7 @@ class ItemSelectView(ui.View):
                     role_id = m.RoleId
                     break
 
-        if role_id:
-            role = interaction.guild.get_role(role_id)
-
-        if not role_id or not role:
+        if not role_id:
             # Safety net: upstream profession_ids filter should prevent this, but if a profession
             # in the cache has no role mapping, surface a clear error rather than silently falling back.
             await interaction.response.edit_message(
@@ -438,6 +435,9 @@ class ItemSelectView(ui.View):
                 view=None,
             )
             return
+
+        # get_role() is cache-only — may return None on reconnect; embed handles None gracefully.
+        role = interaction.guild.get_role(role_id)
 
         localized_name = _get_locale(recipe.ItemNameLocales, self.lang)
         modal = CraftingOrderModal(
