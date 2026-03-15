@@ -2,7 +2,7 @@
 import { ref } from "vue";
 import { api } from "@/api/client";
 import type { SupportMessageRequest, SupportMessageResponse } from "@/api/types";
-import { useI18n, type I18nKey } from "@/i18n";
+import { type I18nKey, useI18n } from "@/i18n";
 
 type Category = SupportMessageRequest["category"];
 

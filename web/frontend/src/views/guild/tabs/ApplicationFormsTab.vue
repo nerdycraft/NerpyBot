@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
-import { useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
+import { onMounted, onUnmounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import { api } from "@/api/client";
 import type { ApplicationFormSchema } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
-import { useGuildEntities } from "@/composables/useGuildEntities";
 import InfoTooltip from "@/components/InfoTooltip.vue";
+import { useGuildEntities } from "@/composables/useGuildEntities";
 import { useI18n } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
@@ -34,7 +34,9 @@ let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
 function flashQuestionSaved(formId: number) {
   questionSavedFormId.value = formId;
-  flashTimer = setTimeout(() => { questionSavedFormId.value = null; }, 1800);
+  flashTimer = setTimeout(() => {
+    questionSavedFormId.value = null;
+  }, 1800);
 }
 
 onUnmounted(() => {
@@ -55,7 +57,10 @@ function blankForm() {
 }
 const formDraft = ref(blankForm());
 
-onMounted(() => { void load(); void fetchChannels(); });
+onMounted(() => {
+  void load();
+  void fetchChannels();
+});
 
 async function load() {
   loading.value = true;
@@ -105,7 +110,10 @@ async function saveForm() {
       apply_description: formDraft.value.apply_description || null,
     };
     if (editingFormId.value !== null) {
-      const updated = await api.put<ApplicationFormSchema>(`/guilds/${props.guildId}/application-forms/${editingFormId.value}`, body);
+      const updated = await api.put<ApplicationFormSchema>(
+        `/guilds/${props.guildId}/application-forms/${editingFormId.value}`,
+        body,
+      );
       const idx = forms.value.findIndex((f) => f.id === editingFormId.value);
       if (idx !== -1) forms.value[idx] = updated;
       editingFormId.value = null;
@@ -177,7 +185,6 @@ async function deleteQuestion(formId: number, questionId: number) {
     opError.value = e instanceof Error ? e.message : t("common.delete_failed");
   }
 }
-
 </script>
 
 <template>

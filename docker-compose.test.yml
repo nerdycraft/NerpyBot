@@ -21,5 +21,12 @@ services:
       NERPYBOT_WEB_CLIENT_ID: "0"
       NERPYBOT_WEB_CLIENT_SECRET: "test"
       NERPYBOT_WEB_OPS: "0"
+      NERPYBOT_WEB_LEGAL_ENABLED: "true"
+      NERPYBOT_WEB_LEGAL_NAME: "Test Person"
+      NERPYBOT_WEB_LEGAL_STREET: "Test Street 1"
+      NERPYBOT_WEB_LEGAL_ZIP_CITY: "12345 Test City"
+      NERPYBOT_WEB_LEGAL_COUNTRY_EN: "Germany"
+      NERPYBOT_WEB_LEGAL_COUNTRY_DE: "Deutschland"
+      NERPYBOT_WEB_LEGAL_EMAIL: "legal@example.com"
     ports:
       - "8080:8000"

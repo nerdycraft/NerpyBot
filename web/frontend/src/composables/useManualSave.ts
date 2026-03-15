@@ -1,5 +1,5 @@
-import { ref, watch, onUnmounted } from "vue";
 import type { Ref } from "vue";
+import { onUnmounted, ref, watch } from "vue";
 import { useI18n } from "@/i18n";
 
 /**
@@ -15,10 +15,7 @@ import { useI18n } from "@/i18n";
  * Returns { saving, error, success, dirty, ready, save }.
  * Write load errors directly into `error` so the template can use a single ref.
  */
-export function useManualSave<T>(
-  source: Ref<T | null>,
-  saveFn: (data: T) => Promise<T>,
-) {
+export function useManualSave<T>(source: Ref<T | null>, saveFn: (data: T) => Promise<T>) {
   const { t } = useI18n();
   const saving = ref(false);
   const error = ref<string | null>(null);
@@ -31,11 +28,15 @@ export function useManualSave<T>(
   // flush: 'sync' so the guard below fires inline during `source.value = result`
   // while saving is still true, preventing the server write-back from being
   // mistaken for a user edit.
-  watch(source, () => {
-    if (!ready.value || !source.value) return;
-    if (saving.value) return;
-    dirty.value = true;
-  }, { deep: true, flush: "sync" });
+  watch(
+    source,
+    () => {
+      if (!ready.value || !source.value) return;
+      if (saving.value) return;
+      dirty.value = true;
+    },
+    { deep: true, flush: "sync" },
+  );
 
   onUnmounted(() => {
     if (_clearSuccessTimer) clearTimeout(_clearSuccessTimer);

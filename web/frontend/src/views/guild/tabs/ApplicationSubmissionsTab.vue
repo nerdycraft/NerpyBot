@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
-import { useRoute } from "vue-router";
 import { Icon } from "@iconify/vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { api } from "@/api/client";
-import InfoTooltip from "@/components/InfoTooltip.vue";
-import { formatDatetime } from "@/utils/date";
 import type { ApplicationFormSchema, ApplicationSubmissionSchema } from "@/api/types";
-import { useI18n, type I18nKey } from "@/i18n";
+import InfoTooltip from "@/components/InfoTooltip.vue";
+import { type I18nKey, useI18n } from "@/i18n";
+import { formatDatetime } from "@/utils/date";
 import { toQueryScalar } from "@/utils/route";
 
 const props = defineProps<{ guildId: string }>();
@@ -41,9 +41,7 @@ const STATUS_BADGES: Record<string, string> = {
 };
 
 const filtered = computed(() =>
-  statusFilter.value
-    ? submissions.value.filter((s) => s.status === statusFilter.value)
-    : submissions.value,
+  statusFilter.value ? submissions.value.filter((s) => s.status === statusFilter.value) : submissions.value,
 );
 
 const selected = computed<ApplicationSubmissionSchema | null>(() =>
@@ -64,9 +62,10 @@ onMounted(async () => {
   const parsed = rawFormId ? Number(rawFormId) : NaN;
   const preselected = Number.isFinite(parsed) ? parsed : null;
   try {
-    const subUrl = preselected !== null
-      ? `/guilds/${props.guildId}/application-submissions?form_id=${preselected}`
-      : `/guilds/${props.guildId}/application-submissions`;
+    const subUrl =
+      preselected !== null
+        ? `/guilds/${props.guildId}/application-submissions?form_id=${preselected}`
+        : `/guilds/${props.guildId}/application-submissions`;
     const [formData, subData] = await Promise.all([
       api.get<ApplicationFormSchema[]>(`/guilds/${props.guildId}/application-forms`),
       api.get<ApplicationSubmissionSchema[]>(subUrl),
@@ -83,11 +82,14 @@ onMounted(async () => {
 });
 
 // Re-filter when navigating here from "View Submissions" while the tab is already mounted
-watch(() => route.query.formId, (newId) => {
-  const id = toQueryScalar(newId);
-  const n = id ? Number(id) : NaN;
-  void applyFormFilter(Number.isFinite(n) ? n : null);
-});
+watch(
+  () => route.query.formId,
+  (newId) => {
+    const id = toQueryScalar(newId);
+    const n = id ? Number(id) : NaN;
+    void applyFormFilter(Number.isFinite(n) ? n : null);
+  },
+);
 
 async function applyFormFilter(id: number | null) {
   formFilter.value = id;
@@ -106,7 +108,6 @@ async function applyFormFilter(id: number | null) {
     loading.value = false;
   }
 }
-
 </script>
 
 <template>

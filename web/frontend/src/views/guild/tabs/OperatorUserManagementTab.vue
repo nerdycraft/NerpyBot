@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
+import { onMounted, ref } from "vue";
 import { api } from "@/api/client";
 import type { PremiumUserSchema } from "@/api/types";
 import InfoTooltip from "@/components/InfoTooltip.vue";
-import { formatDate } from "@/utils/date";
 import { useI18n } from "@/i18n";
+import { formatDate } from "@/utils/date";
 
 const { t } = useI18n();
 
@@ -49,7 +49,6 @@ async function revokePremium(userId: string) {
     grantError.value = e instanceof Error ? e.message : t("common.delete_failed");
   }
 }
-
 </script>
 
 <template>

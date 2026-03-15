@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
 import { Icon } from "@iconify/vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import { api } from "@/api/client";
 import type { HealthResponse } from "@/api/types";
 import { useI18n } from "@/i18n";

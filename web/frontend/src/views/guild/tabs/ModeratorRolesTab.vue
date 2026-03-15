@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { api } from "@/api/client";
 import type { ModeratorRole } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
-import { useGuildEntities } from "@/composables/useGuildEntities";
 import InfoTooltip from "@/components/InfoTooltip.vue";
+import { useGuildEntities } from "@/composables/useGuildEntities";
 import { useI18n } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
@@ -18,8 +18,17 @@ const error = ref<string | null>(null);
 const newRoleId = ref("");
 const adding = ref(false);
 
-onMounted(() => { void load(); void fetchRoles(); });
-watch(() => props.guildId, () => { void load(); void fetchRoles(); });
+onMounted(() => {
+  void load();
+  void fetchRoles();
+});
+watch(
+  () => props.guildId,
+  () => {
+    void load();
+    void fetchRoles();
+  },
+);
 
 async function load() {
   loading.value = true;

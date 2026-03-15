@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
 import { Icon } from "@iconify/vue";
+import { computed, ref, watch } from "vue";
 import { api } from "@/api/client";
 import type { DiscordChannel, DiscordRole } from "@/api/types";
 
@@ -34,17 +34,13 @@ async function loadItems() {
   items.value = [];
   try {
     if (props.kind === "channel") {
-      const data = await api.get<{ channels: DiscordChannel[] }>(
-        `/guilds/${props.guildId}/discord/channels`,
-      );
+      const data = await api.get<{ channels: DiscordChannel[] }>(`/guilds/${props.guildId}/discord/channels`);
       if (seq !== _loadSeq) return;
       items.value = data.channels
         .filter((c) => TEXT_CHANNEL_TYPES.has(c.type))
         .map((c) => ({ id: c.id, name: c.name }));
     } else {
-      const data = await api.get<{ roles: DiscordRole[] }>(
-        `/guilds/${props.guildId}/discord/roles`,
-      );
+      const data = await api.get<{ roles: DiscordRole[] }>(`/guilds/${props.guildId}/discord/roles`);
       if (seq !== _loadSeq) return;
       items.value = data.roles.map((r) => ({ id: r.id, name: r.name }));
     }
@@ -57,9 +53,7 @@ async function loadItems() {
 
 watch(() => [props.guildId, props.kind] as const, loadItems, { immediate: true });
 
-const selectedName = computed(
-  () => items.value.find((i) => i.id === props.modelValue)?.name ?? props.modelValue ?? "",
-);
+const selectedName = computed(() => items.value.find((i) => i.id === props.modelValue)?.name ?? props.modelValue ?? "");
 
 const filtered = computed(() => {
   const q = query.value.toLowerCase();
@@ -67,9 +61,7 @@ const filtered = computed(() => {
   return items.value.filter((i) => i.name.toLowerCase().includes(q));
 });
 
-const defaultPlaceholder = computed(() =>
-  props.kind === "channel" ? "Select channel…" : "Select role…",
-);
+const defaultPlaceholder = computed(() => (props.kind === "channel" ? "Select channel…" : "Select role…"));
 
 function onFocus() {
   query.value = "";

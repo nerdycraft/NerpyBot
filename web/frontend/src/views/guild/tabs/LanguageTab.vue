@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from "vue";
+import { nextTick, ref, watch } from "vue";
 import { api } from "@/api/client";
 import type { LanguageConfig } from "@/api/types";
 import InfoTooltip from "@/components/InfoTooltip.vue";
 import { useAutoSave } from "@/composables/useAutoSave";
-import { useI18n, type I18nKey } from "@/i18n";
+import { type I18nKey, useI18n } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
 const { t } = useI18n();
@@ -35,7 +35,11 @@ async function loadConfig() {
   }
 }
 
-watch(() => props.guildId, () => void loadConfig(), { immediate: true });
+watch(
+  () => props.guildId,
+  () => void loadConfig(),
+  { immediate: true },
+);
 </script>
 
 <template>

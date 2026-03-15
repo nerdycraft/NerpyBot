@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import { api } from "@/api/client";
 import type { AutoDeleteRule } from "@/api/types";
 import DiscordPicker from "@/components/DiscordPicker.vue";
-import { useGuildEntities } from "@/composables/useGuildEntities";
 import InfoTooltip from "@/components/InfoTooltip.vue";
+import { useGuildEntities } from "@/composables/useGuildEntities";
 import { useI18n } from "@/i18n";
 
 const props = defineProps<{ guildId: string }>();
@@ -25,7 +25,10 @@ const newRule = ref({
 });
 const adding = ref(false);
 
-onMounted(() => { void load(); void fetchChannels(); });
+onMounted(() => {
+  void load();
+  void fetchChannels();
+});
 
 async function load() {
   loading.value = true;
@@ -57,10 +60,9 @@ async function add() {
 async function toggleEnabled(rule: AutoDeleteRule) {
   error.value = null;
   try {
-    const updated = await api.put<AutoDeleteRule>(
-      `/guilds/${props.guildId}/auto-delete/${rule.id}`,
-      { enabled: !rule.enabled },
-    );
+    const updated = await api.put<AutoDeleteRule>(`/guilds/${props.guildId}/auto-delete/${rule.id}`, {
+      enabled: !rule.enabled,
+    });
     const idx = rules.value.findIndex((r) => r.id === rule.id);
     if (idx !== -1) rules.value[idx] = updated;
   } catch (e: unknown) {

@@ -56,10 +56,7 @@ async function requestWithHeaders<T>(
       const contentType = res.headers.get("content-type") ?? "";
       if (contentType.includes("application/json")) {
         const body = (await res.json()) as { detail?: unknown };
-        detail =
-          typeof body.detail === "string"
-            ? body.detail
-            : JSON.stringify(body.detail ?? body);
+        detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail ?? body);
       } else {
         detail = await res.text();
       }

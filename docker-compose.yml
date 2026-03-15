@@ -85,6 +85,14 @@ services:
       # NERPYBOT_WEB_JWT_EXPIRY_HOURS: "24"
       # NERPYBOT_WEB_FRONTEND_URL: "http://localhost:5173"  # set only for local dev (Vite on a different port); leave unset in production
       # NERPYBOT_WEB_LOG_LEVEL: "debug"
+      # ── Legal / Impressum ──
+      # NERPYBOT_WEB_LEGAL_ENABLED: "true"  # set to true to enable legal pages; requires all fields below
+      # NERPYBOT_WEB_LEGAL_NAME: "Your Name"
+      # NERPYBOT_WEB_LEGAL_STREET: "Your Street 1"
+      # NERPYBOT_WEB_LEGAL_ZIP_CITY: "12345 Your City"
+      # NERPYBOT_WEB_LEGAL_COUNTRY_EN: "Germany"
+      # NERPYBOT_WEB_LEGAL_COUNTRY_DE: "Deutschland"
+      # NERPYBOT_WEB_LEGAL_EMAIL: "legal@example.com"
     volumes:
       - nerpybot-data:/data
 

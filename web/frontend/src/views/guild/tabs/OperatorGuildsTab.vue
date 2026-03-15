@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
+import { onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import { api } from "@/api/client";
 import type { BotGuildInfo } from "@/api/types";
 import { useI18n } from "@/i18n";

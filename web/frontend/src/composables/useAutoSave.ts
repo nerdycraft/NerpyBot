@@ -1,5 +1,5 @@
-import { ref, watch, onUnmounted } from "vue";
 import type { Ref } from "vue";
+import { onUnmounted, ref, watch } from "vue";
 import { useI18n } from "@/i18n";
 
 /**
@@ -12,10 +12,7 @@ import { useI18n } from "@/i18n";
  * Returns { saving, error, success, ready }.
  * Write load errors directly into `error` so the template can use a single ref.
  */
-export function useAutoSave<T>(
-  source: Ref<T | null>,
-  saveFn: (data: T) => Promise<T>,
-) {
+export function useAutoSave<T>(source: Ref<T | null>, saveFn: (data: T) => Promise<T>) {
   const { t } = useI18n();
   const saving = ref(false);
   const error = ref<string | null>(null);
@@ -32,16 +29,20 @@ export function useAutoSave<T>(
   // callback runs after the finally block sets saving=false, so the guard
   // can't suppress the spurious re-trigger from `source.value = <api result>`.
   // Synchronous flush fires inline at the assignment while saving is still true.
-  watch(source, () => {
-    if (!ready.value || !source.value) return;
-    if (saving.value) {
-      // User edited during an in-flight save — mark dirty so we re-save after.
-      _dirtyWhileSaving = true;
-      return;
-    }
-    if (_saveTimer) clearTimeout(_saveTimer);
-    _saveTimer = setTimeout(() => void doSave(), 600);
-  }, { deep: true, flush: "sync" });
+  watch(
+    source,
+    () => {
+      if (!ready.value || !source.value) return;
+      if (saving.value) {
+        // User edited during an in-flight save — mark dirty so we re-save after.
+        _dirtyWhileSaving = true;
+        return;
+      }
+      if (_saveTimer) clearTimeout(_saveTimer);
+      _saveTimer = setTimeout(() => void doSave(), 600);
+    },
+    { deep: true, flush: "sync" },
+  );
 
   onUnmounted(() => {
     if (_saveTimer) clearTimeout(_saveTimer);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import { api } from "@/api/client";
 import type { ReactionRoleMessageSchema } from "@/api/types";
 import { useGuildEntities } from "@/composables/useGuildEntities";

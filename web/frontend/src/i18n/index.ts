@@ -1,6 +1,6 @@
-import { useLocaleStore, type SupportedLocale } from "@/stores/locale";
-import { en } from "./locales/en";
+import { type SupportedLocale, useLocaleStore } from "@/stores/locale";
 import { de } from "./locales/de";
+import { en } from "./locales/en";
 
 type Locales = typeof en;
 
@@ -8,7 +8,9 @@ type Locales = typeof en;
 type FlatKeys<T, P extends string = ""> = {
   [K in keyof T & string]: T[K] extends Record<string, unknown>
     ? FlatKeys<T[K], P extends "" ? K : `${P}.${K}`>
-    : P extends "" ? K : `${P}.${K}`;
+    : P extends ""
+      ? K
+      : `${P}.${K}`;
 }[keyof T & string];
 
 /** Union of all valid translation key dot-paths. Exported for use in component type annotations. */

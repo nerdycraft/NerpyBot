@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { useAuthStore } from "@/stores/auth";
-import { useGuildStore } from "@/stores/guild";
 import { api } from "@/api/client";
 import type { UserInfo } from "@/api/types";
+import { useAuthStore } from "@/stores/auth";
+import { useGuildStore } from "@/stores/guild";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -11,6 +11,21 @@ const router = createRouter({
     {
       path: "/login",
       component: () => import("@/views/LoginView.vue"),
+      meta: { public: true },
+    },
+    {
+      path: "/terms",
+      component: () => import("@/views/TermsView.vue"),
+      meta: { public: true },
+    },
+    {
+      path: "/privacy",
+      component: () => import("@/views/PrivacyView.vue"),
+      meta: { public: true },
+    },
+    {
+      path: "/impressum",
+      component: () => import("@/views/ImpressumView.vue"),
       meta: { public: true },
     },
     {
