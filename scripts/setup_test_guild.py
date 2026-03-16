@@ -13,6 +13,7 @@ import argparse
 import asyncio
 import logging
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Make NerdyPy utils importable (mirrors tests/conftest.py:14)
@@ -103,6 +104,14 @@ CATEGORIES: list[tuple[str, list[tuple[str, str, set[str] | None]]]] = [
             ("no-connect", "voice", {"connect", "speak"}),  # music, tagging
         ],
     ),
+]
+
+# Channels to populate with seed messages on every run.
+# The auto-deleter consumes messages, so re-running the script refills them.
+# Tuple: (channel_name, message_count, pin_first_message)
+# pin_first_message=True lets testers verify delete_pinned_message=False/True behaviour.
+SEED_CHANNELS: list[tuple[str, int, bool]] = [
+    ("auto-delete-test", 20, True),
 ]
 
 # Channel-level permission overwrite kwargs for the bot member.
@@ -229,6 +238,18 @@ class SetupClient(discord.Client):
 
         print(f"\nDone! {created_count} created, {existed_count} already existed.")
 
+        # --- Seed channels ---
+        if SEED_CHANNELS:
+            print("\nSeeding channels:")
+            stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+            for ch_name, count, pin_first in SEED_CHANNELS:
+                ch = discord.utils.get(guild.text_channels, name=ch_name)
+                if ch is None:
+                    print(f"  [SKIP]    #{ch_name} not found")
+                    continue
+                seeded = await _seed_channel(ch, count, pin_first, stamp)
+                print(f"  [SEEDED]  #{ch_name:<20} ({seeded} messages sent{', 1 pinned' if pin_first else ''})")
+
 
 # ---------------------------------------------------------------------------
 # Idempotent helpers — each returns (resource | None, created: bool)
@@ -292,6 +313,33 @@ async def _ensure_channel(
         except discord.Forbidden as exc:
             print(f"    [WARN] Forbidden creating voice channel '{name}': {exc}", file=sys.stderr)
             return None, False
+
+
+async def _seed_channel(channel: discord.TextChannel, count: int, pin_first: bool, stamp: str) -> int:
+    """Send *count* numbered test messages to *channel* and optionally pin the first one.
+
+    Returns the number of messages actually sent. Failures per-message are logged to
+    stderr but do not abort the remaining sends.
+    """
+    first_message: discord.Message | None = None
+    sent = 0
+    for i in range(1, count + 1):
+        try:
+            msg = await channel.send(f"Auto-delete test message {i}/{count} — seeded {stamp}")
+            if i == 1:
+                first_message = msg
+            sent += 1
+        except discord.Forbidden as exc:
+            print(f"    [WARN] Cannot send to #{channel.name}: {exc}", file=sys.stderr)
+            break
+
+    if pin_first and first_message is not None:
+        try:
+            await first_message.pin()
+        except discord.Forbidden as exc:
+            print(f"    [WARN] Cannot pin in #{channel.name}: {exc}", file=sys.stderr)
+
+    return sent
 
 
 # ---------------------------------------------------------------------------
