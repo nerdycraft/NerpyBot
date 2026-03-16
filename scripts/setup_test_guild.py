@@ -258,6 +258,10 @@ async def _ensure_role(guild: discord.Guild, name: str) -> tuple[discord.Role | 
 async def _ensure_category(guild: discord.Guild, name: str) -> tuple[discord.CategoryChannel | None, bool]:
     existing = discord.utils.get(guild.categories, name=name)
     if existing is not None:
+        try:
+            await existing.set_permissions(guild.me, overwrite=BOT_OVERWRITE)
+        except discord.HTTPException as exc:
+            print(f"    [WARN] Failed to reconcile category '{name}' permissions: {exc}", file=sys.stderr)
         return existing, False
     try:
         overwrites = {guild.me: BOT_OVERWRITE}
@@ -275,7 +279,7 @@ async def _ensure_channel(
     ch_type: str,
     denied_perms: set[str] | None = None,
 ) -> tuple[discord.abc.GuildChannel | None, bool]:
-    overwrites = {guild.me: _build_overwrite(denied_perms)}
+    overwrite = _build_overwrite(denied_perms)
     if ch_type == "text":
         existing_collection = category.text_channels
         create = guild.create_text_channel
@@ -285,9 +289,15 @@ async def _ensure_channel(
 
     existing = discord.utils.get(existing_collection, name=name)
     if existing is not None:
+        try:
+            await existing.set_permissions(guild.me, overwrite=overwrite)
+        except discord.HTTPException as exc:
+            print(f"    [WARN] Failed to reconcile {ch_type} channel '{name}' permissions: {exc}", file=sys.stderr)
         return existing, False
     try:
-        ch = await create(name=name, category=category, overwrites=overwrites, reason="NerpyBot test guild setup")
+        ch = await create(
+            name=name, category=category, overwrites={guild.me: overwrite}, reason="NerpyBot test guild setup"
+        )
         return ch, True
     except discord.HTTPException as exc:
         print(f"    [WARN] Failed to create {ch_type} channel '{name}': {exc}", file=sys.stderr)
