@@ -7,6 +7,7 @@ import type { BotGuildInfo } from "@/api/types";
 import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
 import MockupToolbar from "@/components/MockupToolbar.vue";
 import { useAuthStore } from "@/stores/auth";
+import { useBrandingStore } from "@/stores/branding";
 import { useGuildStore } from "@/stores/guild";
 import ApplicationFormsTab from "./tabs/ApplicationFormsTab.vue";
 import ApplicationSubmissionsTab from "./tabs/ApplicationSubmissionsTab.vue";
@@ -38,6 +39,7 @@ import { toQueryScalar } from "@/utils/route";
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const branding = useBrandingStore();
 const guild = useGuildStore();
 const { t } = useI18n();
 
@@ -379,7 +381,7 @@ function guildIconUrl(): string | null {
         <Icon icon="mdi:menu" class="w-5 h-5" />
       </button>
       <span class="font-semibold text-sm truncate">
-        {{ guildId ? (guild.current?.name ?? t("nav.sidebar.guild_fallback")) : "NerpyBot" }}
+        {{ guildId ? (guild.current?.name ?? t("nav.sidebar.guild_fallback")) : branding.botName }}
       </span>
     </div>
 
@@ -453,7 +455,7 @@ function guildIconUrl(): string | null {
             </span>
           </div>
           <span v-show="sidebarOpen" class="font-semibold text-sm truncate flex-1">
-            {{ guildId ? (guild.current?.name ?? t("nav.sidebar.guild_fallback")) : "NerpyBot" }}
+            {{ guildId ? (guild.current?.name ?? t("nav.sidebar.guild_fallback")) : branding.botName }}
           </span>
           <Icon
             v-if="guildId"

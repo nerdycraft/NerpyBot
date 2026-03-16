@@ -36,6 +36,9 @@ services:
       # NERPYBOT_AUDIO_BUFFER_LIMIT: "5"
       # ── Logging ──
       # NERPYBOT_LOG_LEVEL: "debug"
+      # ── Display name ──
+      # NERPYBOT_NAME: "NerpyBot"
+      # NERPYBOT_DESCRIPTION: "NerpyBot - Always one step ahead!"
       # ── Web Dashboard (Valkey bridge — required when nerpybot-web is enabled) ──
       NERPYBOT_WEB_VALKEY_URL: "valkey://valkey:6379"
     volumes:
@@ -85,6 +88,9 @@ services:
       # NERPYBOT_WEB_JWT_EXPIRY_HOURS: "24"
       # NERPYBOT_WEB_FRONTEND_URL: "http://localhost:5173"  # set only for local dev (Vite on a different port); leave unset in production
       # NERPYBOT_WEB_LOG_LEVEL: "debug"
+      # ── Display name (mirrors NERPYBOT_NAME from the bot service) ──
+      # NERPYBOT_NAME: "NerpyBot"
+      # NERPYBOT_DESCRIPTION: "NerpyBot - Always one step ahead!"
       # ── Legal / Impressum ──
       # NERPYBOT_WEB_LEGAL_ENABLED: "true"  # set to true to enable legal pages; requires all fields below
       # NERPYBOT_WEB_LEGAL_NAME: "Your Name"

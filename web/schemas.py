@@ -466,3 +466,11 @@ class SupportMessageRequest(BaseModel):
 class SupportMessageResponse(BaseModel):
     success: bool
     sent_to: int = 0
+
+
+# ── Branding ──
+
+
+class BrandingResponse(BaseModel):
+    bot_name: str
+    bot_description: str

@@ -56,6 +56,8 @@ def parse_env_config() -> dict:
         ("NERPYBOT_VALKEY_URL", ["web", "valkey_url"], str),
         ("NERPYBOT_WEB_VALKEY_URL", ["web", "valkey_url"], str),  # overrides NERPYBOT_VALKEY_URL if both are set
         ("NERPYBOT_LOG_LEVEL", ["bot", "log_level"], str),
+        ("NERPYBOT_NAME", ["bot", "name"], str),
+        ("NERPYBOT_DESCRIPTION", ["bot", "description"], str),
     ]
     for var_name, keys, converter in mappings:
         value = os.environ.get(var_name)

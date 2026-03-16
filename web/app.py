@@ -71,8 +71,8 @@ def create_app(
         engine.dispose()
 
     app = FastAPI(
-        title="NerpyBot Dashboard API",
-        description="Management API for NerpyBot Discord bot",
+        title=f"{config.bot_name} Dashboard API",
+        description=config.bot_description,
         version="1.0.0",
         lifespan=lifespan,
         docs_url="/api/docs",

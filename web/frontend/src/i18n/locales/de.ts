@@ -112,25 +112,25 @@ export const de: typeof en = {
     terms_page: {
       acceptance_title: "1. Annahme der Nutzungsbedingungen",
       acceptance_body:
-        "Durch das Hinzufügen von NerpyBot zu deinem Discord-Server oder die Nutzung des NerpyBot-Dashboards stimmst du diesen Nutzungsbedingungen zu. Wenn du nicht einverstanden bist, nutze den Dienst nicht.",
+        "Durch das Hinzufügen von {botName} zu deinem Discord-Server oder die Nutzung des {botName}-Dashboards stimmst du diesen Nutzungsbedingungen zu. Wenn du nicht einverstanden bist, nutze den Dienst nicht.",
       description_title: "2. Beschreibung des Dienstes",
       description_body:
-        "NerpyBot ist ein Discord-Bot, der Serververwaltung, Moderation, Gaming-Integrationen (World of Warcraft, League of Legends), Bewerbungsformulare, Rollenverwaltung und weitere Funktionen bereitstellt. Ein Web-Dashboard steht Serveradministratoren mit Premium-Zugang zur Verfügung.",
+        "{botName} ist ein Discord-Bot, der Serververwaltung, Moderation, Gaming-Integrationen (World of Warcraft, League of Legends), Bewerbungsformulare, Rollenverwaltung und weitere Funktionen bereitstellt. Ein Web-Dashboard steht Serveradministratoren mit Premium-Zugang zur Verfügung.",
       acceptable_use_title: "3. Zulässige Nutzung",
-      acceptable_use_intro: "Du stimmst zu, NerpyBot nicht zu verwenden, um:",
+      acceptable_use_intro: "Du stimmst zu, {botName} nicht zu verwenden, um:",
       acceptable_use_item_discord: "Discords Nutzungsbedingungen oder Community-Richtlinien zu verletzen",
       acceptable_use_item_harass: "Andere Nutzer zu belästigen, zu bedrohen oder zu schädigen",
       acceptable_use_item_exploit: "Den Dienst zu missbrauchen, zu hacken oder zu stören",
       acceptable_use_item_unlawful: "Den Dienst für gesetzwidrige Zwecke zu nutzen",
       access_title: "4. Zugang und Verfügbarkeit",
       access_body:
-        "Wir behalten uns das Recht vor, NerpyBot von jedem Server zu entfernen oder den Dashboard-Zugang zu widerrufen, insbesondere bei Missbrauch oder Verstoß gegen diese Bedingungen. Außer bei schwerwiegenden Verstößen oder Missbrauch werden wir eine angemessene Vorankündigung geben. Wir garantieren keine kontinuierliche, ununterbrochene Verfügbarkeit des Dienstes.",
+        "Wir behalten uns das Recht vor, {botName} von jedem Server zu entfernen oder den Dashboard-Zugang zu widerrufen, insbesondere bei Missbrauch oder Verstoß gegen diese Bedingungen. Außer bei schwerwiegenden Verstößen oder Missbrauch werden wir eine angemessene Vorankündigung geben. Wir garantieren keine kontinuierliche, ununterbrochene Verfügbarkeit des Dienstes.",
       warranty_title: "5. Gewährleistungsausschluss",
       warranty_body:
-        "NerpyBot wird ohne jegliche ausdrückliche oder stillschweigende Gewährleistung bereitgestellt. Wir übernehmen keine Garantie für die Zuverlässigkeit, Genauigkeit oder Eignung für einen bestimmten Zweck des Dienstes.",
+        "{botName} wird ohne jegliche ausdrückliche oder stillschweigende Gewährleistung bereitgestellt. Wir übernehmen keine Garantie für die Zuverlässigkeit, Genauigkeit oder Eignung für einen bestimmten Zweck des Dienstes.",
       liability_title: "6. Haftungsbeschränkung",
       liability_body:
-        "Im gesetzlich zulässigen Umfang haften wir nicht für mittelbare, zufällige oder Folgeschäden, die aus der Nutzung von NerpyBot entstehen.",
+        "Im gesetzlich zulässigen Umfang haften wir nicht für mittelbare, zufällige oder Folgeschäden, die aus der Nutzung von {botName} entstehen.",
       changes_title: "7. Änderungen der Nutzungsbedingungen",
       changes_body:
         "Wir können diese Bedingungen von Zeit zu Zeit aktualisieren. Bei wesentlichen Änderungen werden wir im Voraus über unsere Discord-Community oder das Dashboard informieren. Die weitere Nutzung des Dienstes nach Ablauf der Ankündigungsfrist gilt als Zustimmung zu den aktualisierten Bedingungen.",
@@ -153,7 +153,7 @@ export const de: typeof en = {
       controller_label: "Verantwortlicher (Art. 13 Abs. 1 lit. a DSGVO)",
       data_collection_title: "1. Welche Daten wir erheben",
       data_collection_intro:
-        "NerpyBot erhebt und speichert die minimal notwendigen Daten, um seine Funktionen bereitzustellen. Rechtsgrundlage für die Verarbeitung ist Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung), sofern nicht anders angegeben:",
+        "{botName} erhebt und speichert die minimal notwendigen Daten, um seine Funktionen bereitzustellen. Rechtsgrundlage für die Verarbeitung ist Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung), sofern nicht anders angegeben:",
       data_collection_item_guild_ids: "<strong>Server-IDs</strong> — zur Zuordnung der Konfiguration zu deinem Server",
       data_collection_item_user_ids:
         "<strong>Discord-Nutzer-IDs und Benutzernamen</strong> — für Dashboard-Zugang, Erinnerungen und Moderationsaktionen",
@@ -167,20 +167,20 @@ export const de: typeof en = {
         "Wir erheben keine allgemeinen Nachrichteninhalte, Sprachaudio oder sonstige Daten über das für konfigurierte Funktionen Erforderliche hinaus.",
       data_use_title: "2. Wie wir deine Daten verwenden",
       data_use_body:
-        "Alle erhobenen Daten werden ausschließlich zur Bereitstellung der NerpyBot-Funktionalität auf deinem Server verwendet. Wir nutzen deine Daten nicht für Werbung, Analysen oder andere Zwecke als den Betrieb des Bots.",
+        "Alle erhobenen Daten werden ausschließlich zur Bereitstellung der {botName}-Funktionalität auf deinem Server verwendet. Wir nutzen deine Daten nicht für Werbung, Analysen oder andere Zwecke als den Betrieb des Bots.",
       data_retention_title: "3. Datenspeicherung und Aufbewahrungsfristen",
       data_retention_body1:
-        "Mit deinem Server verbundene Daten werden gespeichert, solange NerpyBot aktiv ist. Wenn du NerpyBot von deinem Server entfernst, kannst du die Löschung aller zugehörigen Daten durch Kontaktaufnahme mit einem Bot-Operator über Discord anfordern.",
+        "Mit deinem Server verbundene Daten werden gespeichert, solange {botName} aktiv ist. Wenn du {botName} von deinem Server entfernst, kannst du die Löschung aller zugehörigen Daten durch Kontaktaufnahme mit einem Bot-Operator über Discord anfordern.",
       data_retention_body2:
         "Dashboard-Nutzerdaten (Discord-Nutzer-ID, Benutzername, Premium-Status) werden gespeichert, bis der Zugang durch einen Operator widerrufen wird. Für alle anderen Daten gilt: Sie werden nicht länger gespeichert, als es für den jeweiligen Verwendungszweck erforderlich ist.",
       data_sharing_title: "4. Datenweitergabe",
       data_sharing_body1:
         "Wir verkaufen, vermieten oder teilen deine Daten nicht mit Dritten. Daten können offengelegt werden, wenn dies gesetzlich vorgeschrieben ist.",
       data_sharing_body2:
-        "NerpyBot integriert Drittanbieter-APIs (Blizzard Entertainment, Riot Games), um auf Anfrage öffentliche Spieldaten abzurufen. Wir teilen deine Discord-Daten nicht mit diesen Diensten.",
+        "{botName} integriert Drittanbieter-APIs (Blizzard Entertainment, Riot Games), um auf Anfrage öffentliche Spieldaten abzurufen. Wir teilen deine Discord-Daten nicht mit diesen Diensten.",
       international_title: "5. Übermittlung in Drittländer",
       international_body:
-        "Bei der Nutzung von Gaming-Integrationen fragt NerpyBot öffentliche APIs von Blizzard Entertainment (USA) und Riot Games (USA) ab. Diese Aufrufe erfolgen auf deine Anfrage hin und beinhalten keine Übermittlung deiner persönlichen Discord-Daten an diese Anbieter. Der Hosting-Dienst ist unter Hetzner, Deutschland betrieben — etwaige Datenübermittlungen in Drittländer erfolgen auf Grundlage geeigneter Garantien (z. B. Standardvertragsklauseln gemäß Art. 46 DSGVO).",
+        "Bei der Nutzung von Gaming-Integrationen fragt {botName} öffentliche APIs von Blizzard Entertainment (USA) und Riot Games (USA) ab. Diese Aufrufe erfolgen auf deine Anfrage hin und beinhalten keine Übermittlung deiner persönlichen Discord-Daten an diese Anbieter. Der Hosting-Dienst ist unter Hetzner, Deutschland betrieben — etwaige Datenübermittlungen in Drittländer erfolgen auf Grundlage geeigneter Garantien (z. B. Standardvertragsklauseln gemäß Art. 46 DSGVO).",
       security_title: "6. Datensicherheit",
       security_body:
         "Wir treffen angemessene technische und organisatorische Maßnahmen zum Schutz gespeicherter Daten. Kein System ist jedoch vollständig sicher, und wir können keine absolute Sicherheit garantieren.",
@@ -229,9 +229,9 @@ export const de: typeof en = {
   tabs: {
     language: {
       title: "Sprache",
-      desc: "Steuert die Sprache, die NerpyBot für alle Antworten in diesem Server verwendet, einschließlich Befehlsantworten, Embeds und automatischer Nachrichten. Änderungen werden sofort übernommen und automatisch gespeichert.",
+      desc: "Steuert die Sprache, die {botName} für alle Antworten in diesem Server verwendet, einschließlich Befehlsantworten, Embeds und automatischer Nachrichten. Änderungen werden sofort übernommen und automatisch gespeichert.",
       label: "Sprache",
-      tooltip: "Die Sprache, die NerpyBot bei Antworten auf diesem Server verwendet (z. B. English, Deutsch).",
+      tooltip: "Die Sprache, die {botName} bei Antworten auf diesem Server verwendet (z. B. English, Deutsch).",
       en: "English",
       de: "Deutsch",
     },
@@ -245,7 +245,7 @@ export const de: typeof en = {
 
     moderator_roles: {
       title: "Moderatorrollen",
-      desc: "Weise Discord-Rollen als NerpyBot-Moderatoren zu — Mitglieder mit einer der aufgelisteten Rollen können Moderationsbefehle wie Kick, Ban und Nachrichtenbereinigung nutzen. Du kannst beliebig viele Rollen hinzufügen; Änderungen treten sofort in Kraft.",
+      desc: "Weise Discord-Rollen als {botName}-Moderatoren zu — Mitglieder mit einer der aufgelisteten Rollen können Moderationsbefehle wie Kick, Ban und Nachrichtenbereinigung nutzen. Du kannst beliebig viele Rollen hinzufügen; Änderungen treten sofort in Kraft.",
       empty: "Keine Moderatorrollen konfiguriert.",
       role_label: "Rolle",
       role_tooltip:
@@ -297,7 +297,7 @@ export const de: typeof en = {
       kick_after_validation: "Kick-nach-Tagen muss mindestens 1 betragen.",
       reminder_label: "Erinnerungsnachricht (optional)",
       reminder_tooltip:
-        "Falls gesetzt, schickt NerpyBot dem Mitglied diese Nachricht per DM, bevor es gekickt wird. Leer lassen für stillen Kick.",
+        "Falls gesetzt, schickt {botName} dem Mitglied diese Nachricht per DM, bevor es gekickt wird. Leer lassen für stillen Kick.",
       placeholder: "Du wirst bald wegen Inaktivität gekickt…",
     },
 
@@ -338,11 +338,11 @@ export const de: typeof en = {
 
     server_overview: {
       title: "Deine Server",
-      desc: 'Alle Server, auf denen NerpyBot aktiv ist und du Zugang zum Dashboard hast. Klicke auf eine Karte, um zu den Einstellungen dieses Servers zu springen — der aktuell ausgewählte Server ist mit einem „Aktuell"-Badge hervorgehoben.',
-      empty: "NerpyBot ist noch auf keinem deiner Server.",
+      desc: 'Alle Server, auf denen {botName} aktiv ist und du Zugang zum Dashboard hast. Klicke auf eine Karte, um zu den Einstellungen dieses Servers zu springen — der aktuell ausgewählte Server ist mit einem „Aktuell"-Badge hervorgehoben.',
+      empty: "{botName} ist noch auf keinem deiner Server.",
       current: "Aktuell",
       add_title: "Zu einem Server hinzufügen",
-      add_desc: "Du hast ausreichende Berechtigungen, um NerpyBot auf diesen Servern einzuladen.",
+      add_desc: "Du hast ausreichende Berechtigungen, um {botName} auf diesen Servern einzuladen.",
       invite: "Einladen",
     },
 
