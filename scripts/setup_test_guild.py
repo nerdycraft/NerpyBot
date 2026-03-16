@@ -112,6 +112,9 @@ CATEGORIES: list[tuple[str, list[tuple[str, str, set[str] | None]]]] = [
 # pin_first_message=True lets testers verify delete_pinned_message=False/True behaviour.
 SEED_CHANNELS: list[tuple[str, int, bool]] = [
     ("auto-delete-test", 20, True),
+    # Seed the permission-denied channel too so the auto-deleter has messages to
+    # attempt deletion on — verifying it handles discord.Forbidden gracefully.
+    ("no-manage-messages", 20, False),
 ]
 
 # Channel-level permission overwrite kwargs for the bot member.
