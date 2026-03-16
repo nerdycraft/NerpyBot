@@ -250,8 +250,12 @@ class SetupClient(discord.Client):
                 if ch is None:
                     print(f"  [SKIP]    #{ch_name} not found")
                     continue
-                seeded = await _seed_channel(ch, count, pin_first, stamp)
-                print(f"  [SEEDED]  #{ch_name:<20} ({seeded} messages sent{', 1 pinned' if pin_first else ''})")
+                sent, had = await _seed_channel(ch, count, pin_first, stamp)
+                if sent == 0:
+                    print(f"  [FULL]    #{ch_name:<20} (already has {had}/{count} messages)")
+                else:
+                    pin_note = ", 1 pinned" if pin_first and had == 0 else ""
+                    print(f"  [SEEDED]  #{ch_name:<20} ({sent} sent, {had + sent}/{count} total{pin_note})")
 
 
 # ---------------------------------------------------------------------------
@@ -318,31 +322,37 @@ async def _ensure_channel(
             return None, False
 
 
-async def _seed_channel(channel: discord.TextChannel, count: int, pin_first: bool, stamp: str) -> int:
-    """Send *count* numbered test messages to *channel* and optionally pin the first one.
+async def _seed_channel(channel: discord.TextChannel, count: int, pin_first: bool, stamp: str) -> tuple[int, int]:
+    """Top up *channel* to *count* messages, sending only what is missing.
 
-    Returns the number of messages actually sent. Failures per-message are logged to
-    stderr but do not abort the remaining sends.
+    Returns (sent, had) where *had* is the number of messages already present
+    before this run. If the channel already has >= count messages, sends nothing.
+    Optionally pins the first new message (only when the channel was empty before).
     """
+    existing = [m async for m in channel.history(limit=count + 1, oldest_first=False)]
+    had = len(existing)
+    to_send = max(0, count - had)
+
     first_message: discord.Message | None = None
     sent = 0
-    for i in range(1, count + 1):
+    for i in range(had + 1, had + to_send + 1):
         try:
             msg = await channel.send(f"Auto-delete test message {i}/{count} — seeded {stamp}")
-            if i == 1:
+            if sent == 0:
                 first_message = msg
             sent += 1
         except discord.Forbidden as exc:
             print(f"    [WARN] Cannot send to #{channel.name}: {exc}", file=sys.stderr)
             break
 
-    if pin_first and first_message is not None:
+    # Only pin when seeding into an empty channel — avoid re-pinning on top-up runs.
+    if pin_first and had == 0 and first_message is not None:
         try:
             await first_message.pin()
         except discord.Forbidden as exc:
             print(f"    [WARN] Cannot pin in #{channel.name}: {exc}", file=sys.stderr)
 
-    return sent
+    return sent, had
 
 
 # ---------------------------------------------------------------------------
