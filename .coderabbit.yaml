@@ -7,18 +7,39 @@ tone_instructions: >
 reviews:
   profile: "assertive"
   high_level_summary: true
-  high_level_summary_in_walkthrough: true
+  high_level_summary_in_walkthrough: false
   collapse_walkthrough: true
   poem: false
   review_status: true
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  assess_linked_issues: false
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  suggested_reviewers: false
   auto_review:
     enabled: true
     drafts: false
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 3
     labels:
       - "review"
+    ignore_usernames:
+      - "dependabot[bot]"
+      - "renovate[bot]"
+      - "pre-commit-ci[bot]"
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
 
   path_filters:
     - "!uv.lock"
+    - "!web/frontend/package-lock.json"
+    - "!web/frontend/tsconfig*.json"
+    - "!web/frontend/.vscode/**"
     - "!coverage.xml"
     - "!**/__pycache__/**"
     - "!docs/superpowers/**"
@@ -90,5 +111,9 @@ reviews:
         - Never interpolate untrusted event inputs (PR title/body, issue title, head ref, commit message)
           directly into `run:` steps. Pass through `env:` variables instead.
 
+knowledge_base:
+  web_search:
+    enabled: false
+
 chat:
-  auto_reply: true
+  auto_reply: false
