@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "NerdyPy"))
 
 import discord
 from utils.config import parse_config
+from utils.permissions import REQUIRED_PERMISSIONS
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 
@@ -117,26 +118,13 @@ SEED_CHANNELS: list[tuple[str, int, bool]] = [
     ("no-manage-messages", 20, False),
 ]
 
-# Channel-level permission overwrite kwargs for the bot member.
-# Sourced from REQUIRED_PERMISSIONS in utils/permissions.py — channel-scoped flags only.
-# manage_roles and kick_members are guild-level only; Discord rejects channel overwrites
-# that include them unless the bot has administrator.
-_BOT_OVERWRITE_KWARGS: dict[str, bool] = dict(
-    view_channel=True,
-    send_messages=True,
-    send_messages_in_threads=True,
-    manage_messages=True,
-    read_message_history=True,
-    embed_links=True,
-    add_reactions=True,
-    create_public_threads=True,
-    manage_threads=True,
-    connect=True,
-    speak=True,
-    use_application_commands=True,
-    use_external_emojis=True,
-    use_external_stickers=True,
-)
+# Channel-level permission overwrite kwargs — derived from the union of all module
+# permissions in REQUIRED_PERMISSIONS. Guild-level-only flags are excluded: Discord
+# rejects channel overwrites containing them unless the bot has administrator.
+_GUILD_LEVEL_ONLY = {"manage_roles", "kick_members"}
+_BOT_OVERWRITE_KWARGS: dict[str, bool] = {
+    p: True for perms in REQUIRED_PERMISSIONS.values() for p in perms if p not in _GUILD_LEVEL_ONLY
+}
 
 BOT_OVERWRITE = discord.PermissionOverwrite(**_BOT_OVERWRITE_KWARGS)
 
@@ -158,38 +146,30 @@ class SetupClient(discord.Client):
         intents = discord.Intents.default()
         super().__init__(intents=intents)
         self.target_guild_id = guild_id
+        self.failed = False
 
     async def on_ready(self) -> None:
         try:
             await self._run_setup()
         except Exception as exc:
             print(f"\n[ERROR] Setup failed: {exc}", file=sys.stderr)
+            self.failed = True
         finally:
             await self.close()
 
     async def _run_setup(self) -> None:
         guild = self.get_guild(self.target_guild_id)
         if guild is None:
-            print(
-                f"[ERROR] Guild {self.target_guild_id} not found. Make sure the bot is a member of that server.",
-                file=sys.stderr,
-            )
-            return
+            raise RuntimeError(f"Guild {self.target_guild_id} not found. Make sure the bot is a member of that server.")
 
         # Pre-flight: check bot has the guild-level permissions this script needs
         me = guild.me
-        missing_perms: list[str] = []
-        if not me.guild_permissions.manage_roles:
-            missing_perms.append("manage_roles")
-        if not me.guild_permissions.manage_channels:
-            missing_perms.append("manage_channels")
+        missing_perms = [p for p in ("manage_roles", "manage_channels") if not getattr(me.guild_permissions, p)]
         if missing_perms:
-            print(
-                f"[ERROR] Bot is missing required guild permissions: {', '.join(missing_perms)}\n"
-                "Re-invite the bot with these permissions and try again.",
-                file=sys.stderr,
+            raise RuntimeError(
+                f"Bot is missing required guild permissions: {', '.join(missing_perms)}\n"
+                "Re-invite the bot with these permissions and try again."
             )
-            return
 
         print("\n=== NerpyBot Test Guild Setup ===")
         print(f"Guild: {guild.name} ({guild.id})\n")
@@ -242,20 +222,19 @@ class SetupClient(discord.Client):
         print(f"\nDone! {created_count} created, {existed_count} already existed.")
 
         # --- Seed channels ---
-        if SEED_CHANNELS:
-            print("\nSeeding channels:")
-            stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-            for ch_name, count, pin_first in SEED_CHANNELS:
-                ch = discord.utils.get(guild.text_channels, name=ch_name)
-                if ch is None:
-                    print(f"  [SKIP]    #{ch_name} not found")
-                    continue
-                sent, had = await _seed_channel(ch, count, pin_first, stamp)
-                if sent == 0:
-                    print(f"  [FULL]    #{ch_name:<20} (already has {had}/{count} messages)")
-                else:
-                    pin_note = ", 1 pinned" if pin_first and had == 0 else ""
-                    print(f"  [SEEDED]  #{ch_name:<20} ({sent} sent, {had + sent}/{count} total{pin_note})")
+        print("\nSeeding channels:")
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        for ch_name, count, pin_first in SEED_CHANNELS:
+            ch = discord.utils.get(guild.text_channels, name=ch_name)
+            if ch is None:
+                print(f"  [SKIP]    #{ch_name} not found")
+                continue
+            sent, had = await _seed_channel(ch, count, pin_first, stamp)
+            if sent == 0:
+                print(f"  [FULL]    #{ch_name:<20} (already has {had}/{count} messages)")
+            else:
+                pin_note = ", 1 pinned" if pin_first and had == 0 else ""
+                print(f"  [SEEDED]  #{ch_name:<20} ({sent} sent, {had + sent}/{count} total{pin_note})")
 
 
 # ---------------------------------------------------------------------------
@@ -297,29 +276,21 @@ async def _ensure_channel(
 ) -> tuple[discord.abc.GuildChannel | None, bool]:
     overwrites = {guild.me: _build_overwrite(denied_perms)}
     if ch_type == "text":
-        existing = discord.utils.get(category.text_channels, name=name)
-        if existing is not None:
-            return existing, False
-        try:
-            ch = await guild.create_text_channel(
-                name=name, category=category, overwrites=overwrites, reason="NerpyBot test guild setup"
-            )
-            return ch, True
-        except discord.Forbidden as exc:
-            print(f"    [WARN] Forbidden creating text channel '{name}': {exc}", file=sys.stderr)
-            return None, False
+        existing_collection = category.text_channels
+        create = guild.create_text_channel
     else:  # voice
-        existing = discord.utils.get(category.voice_channels, name=name)
-        if existing is not None:
-            return existing, False
-        try:
-            ch = await guild.create_voice_channel(
-                name=name, category=category, overwrites=overwrites, reason="NerpyBot test guild setup"
-            )
-            return ch, True
-        except discord.Forbidden as exc:
-            print(f"    [WARN] Forbidden creating voice channel '{name}': {exc}", file=sys.stderr)
-            return None, False
+        existing_collection = category.voice_channels
+        create = guild.create_voice_channel
+
+    existing = discord.utils.get(existing_collection, name=name)
+    if existing is not None:
+        return existing, False
+    try:
+        ch = await create(name=name, category=category, overwrites=overwrites, reason="NerpyBot test guild setup")
+        return ch, True
+    except discord.Forbidden as exc:
+        print(f"    [WARN] Forbidden creating {ch_type} channel '{name}': {exc}", file=sys.stderr)
+        return None, False
 
 
 async def _seed_channel(channel: discord.TextChannel, count: int, pin_first: bool, stamp: str) -> tuple[int, int]:
@@ -329,8 +300,7 @@ async def _seed_channel(channel: discord.TextChannel, count: int, pin_first: boo
     before this run. If the channel already has >= count messages, sends nothing.
     Optionally pins the first new message (only when the channel was empty before).
     """
-    existing = [m async for m in channel.history(limit=count + 1, oldest_first=False)]
-    had = len(existing)
+    had = sum(1 async for _ in channel.history(limit=count + 1, oldest_first=False))
     to_send = max(0, count - had)
 
     first_message: discord.Message | None = None
@@ -386,6 +356,8 @@ def main() -> None:
 
     client = SetupClient(guild_id=args.guild_id)
     asyncio.run(client.start(token))
+    if client.failed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
