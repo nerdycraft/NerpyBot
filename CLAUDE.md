@@ -175,7 +175,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **Tests for `require_guild_access` must first grant premium** — The guild router has `dependencies=[Depends(require_premium)]` at router level. A test user without premium hits `require_premium` (not `require_guild_access`) and gets 403 for the wrong reason. Call `PremiumUser.grant(user_id, operator_id, session)` before asserting access behavior.
 - **Vue Router `beforeEach` never sees the source of a declarative redirect** — `{ path: "/", redirect: "/guilds" }` is resolved before guards fire; `to.path` will be `"/guilds"`, never `"/"`. Guard conditions using the pre-redirect path silently never match.
 - **Static `index.html` `<title>` is baked at build time** — The Vue SPA updates `document.title` at runtime via `watch()` on the branding store, but the `<title>` tag in `dist/index.html` reflects whatever was configured when `npm run build` ran. Pre-built Docker containers always show the build-time title on first load.
-
+- **`GET /api/branding` is intentionally unauthenticated** — Any endpoint that provides pre-login UI data (bot name, description) must not have a JWT dependency. Users hit this endpoint before they have a token.
 - **Pinia one-shot load dedup: reset `_loadPromise = null` in outer `.catch()`** — If the reset is inside the async IIFE's `catch`, a concurrent caller can bypass the guard mid-flight. Attach `.catch(() => { _loadPromise = null; })` to the IIFE result before returning, so the guard stays valid for the full request lifetime.
 
 ## Configuration
