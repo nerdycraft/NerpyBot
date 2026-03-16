@@ -1,5 +1,5 @@
 common:
-  error_generic: "Ein Fehler ist aufgetreten. Der Bot-Betreiber wurde benachrichtigt."
+  error_generic: "Da ist was schiefgelaufen. Der Bot-Betreiber wurde benachrichtigt."
   not_found: "Nicht gefunden."
 
 bot:
@@ -7,13 +7,13 @@ bot:
 
 checks:
   voice:
-    not_connected: "Ich weiß nicht, wo du bist. Bitte tritt einem Sprachkanal bei."
-    no_connect_permission: "Ich darf deinem aktuellen Kanal nicht beitreten."
-    no_speak_permission: "Ich habe keine Berechtigung, in deinem Sprachkanal zu sprechen."
-    nothing_playing: "Es wird gerade nichts abgespielt."
-    user_not_in_voice: "Du musst in einem Sprachkanal sein, um diesen Befehl zu verwenden."
-    user_in_different_channel: "Du musst im selben Sprachkanal wie der Bot sein, um diesen Befehl zu verwenden."
-    leave_moderator_only: "Nur Moderatoren können den Bot den Sprachkanal verlassen lassen."
+    not_connected: "Ich find dich nicht — komm erstmal in nen Voice Channel!"
+    no_connect_permission: "Ich darf deinem Channel nicht beitreten."
+    no_speak_permission: "Ich darf in deinem Voice Channel nicht sprechen."
+    nothing_playing: "Gerade läuft nix."
+    user_not_in_voice: "Du musst in einem Voice Channel sein!"
+    user_in_different_channel: "Du musst im selben Voice Channel wie ich sein!"
+    leave_moderator_only: "Nur Mods können mich aus dem Voice Channel kicken."
   role:
     integration_assign: "**{role}** ist eine Integrationsrolle und kann Mitgliedern nicht zugewiesen werden."
     integration_remove: "**{role}** ist eine Integrationsrolle und kann Mitgliedern nicht entzogen werden."
@@ -43,24 +43,24 @@ music:
     artist: "Künstler"
     requested_by: "Angefragt von"
     progress: "Fortschritt"
-    not_in_channel: "Du musst im Sprachkanal sein, um dies zu verwenden."
-    queue_empty: "Warteschlange ist leer."
-    queue_header: "\U0001f3b5 Warteschlange"
+    not_in_channel: "Du musst im Voice Channel sein dafür!"
+    queue_empty: "Queue ist leer."
+    queue_header: "🎵 Queue"
     queue_footer: "{count} Songs"
     btn_pause: "⏸ Pause"
     btn_resume: "⏵ Weiter"
-    btn_skip: "⏩ Überspringen"
+    btn_skip: "⏩ Skip"
     btn_stop: "⏹ Stop"
-    btn_queue: "📋 Warteschlange"
+    btn_queue: "📋 Queue"
   skip:
-    success: "Aktuellen Titel übersprungen."
+    success: "Geskippt! ⏩"
   queue:
-    drop_success: "Warteschlange geleert und Wiedergabe gestoppt."
-    added: "Zur Warteschlange hinzugefügt"
+    drop_success: "Queue geleert, Wiedergabe gestoppt."
+    added: "Zur Queue hinzugefügt"
   playlist:
     not_a_playlist: "Das ist keine Playlist. Bitte füge ein einzelnes Video direkt mit dem Play-Befehl hinzu."
-    loading: "Bitte hab etwas Geduld. Das kann eine Weile dauern."
-    use_playlist_command: "Bitte verwende den Playlist-Befehl für Playlists."
+    loading: "Moment, das kann kurz dauern..."
+    use_playlist_command: "Das ist ne Playlist — nutz dafür den Playlist-Befehl!"
     created: "Playlist **{name}** erstellt."
     already_exists: "Eine Playlist namens **{name}** existiert bereits."
     not_found: "Playlist **{name}** nicht gefunden."
@@ -79,10 +79,10 @@ music:
   play:
     added: "Hinzugefügt: **{title}**"
     added_playlist: "**{count}** Songs aus *{title}* hinzugefügt"
-    not_found: "Keine Ergebnisse für diese Suche."
-    fetch_error: "Das Video konnte nicht abgerufen werden. Die URL ist möglicherweise ungültig oder das Video ist nicht verfügbar."
+    not_found: "Nix gefunden — versuch mal was anderes?"
+    fetch_error: "Kann das Video nicht laden — die URL ist vielleicht falsch oder das Video ist nicht verfügbar."
   search:
-    no_results: "Deine Suche hat keine Ergebnisse geliefert."
+    no_results: "Keine Treffer — versuch ne andere Suche?"
 
 league:
   summoner:
@@ -408,10 +408,10 @@ application:
   no_permission: "Du hast keine Berechtigung, Bewerbungen zu verwalten."
   missing_send_permission: "Ich habe keine Berechtigung, Nachrichten in {channel} zu senden. Bitte überprüfe meine Rollenberechtigungen."
   check_dms: "Sieh in deinen Direktnachrichten nach!"
-  dm_forbidden: "Ich konnte dir keine DM senden. Bitte aktiviere DMs von Servermitgliedern und versuche es erneut."
+  dm_forbidden: "Konnte dir keine DM schicken! Stell sicher, dass DMs von Servermitgliedern aktiviert sind."
   form_not_found: "Formular **{name}** nicht gefunden."
   form_already_exists: "Ein Formular mit dem Namen **{name}** existiert bereits."
-  error_generic: "Ein Fehler ist aufgetreten. Bitte versuche es später erneut."
+  error_generic: "Da ist was schiefgelaufen. Versuch's später nochmal!"
   fetch_description:
     invalid_ref: "Ungültige Nachrichtenreferenz — gib eine Nachrichten-ID oder einen Nachrichtenlink an."
     channel_inaccessible: "Ich kann nicht auf den Kanal dieser Nachricht zugreifen."
@@ -585,8 +585,8 @@ application:
     vote_change_placeholder: "Stimme ändern..."
     approve_label: "Genehmigen"
     deny_label: "Ablehnen"
-    btn_vote: "Abstimmen"
-    btn_edit_vote: "Stimme ändern"
+    btn_vote: "Voten"
+    btn_edit_vote: "Vote ändern"
     btn_message: "Nachricht"
     btn_override: "Überstimmen"
   decision:

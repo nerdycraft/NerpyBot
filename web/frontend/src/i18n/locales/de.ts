@@ -26,9 +26,9 @@ export const de: typeof en = {
     relative_one_day_ago: "vor 1 Tag",
     relative_days_ago: "vor {days} Tagen",
     back: "Zurück",
-    load_failed: "Laden fehlgeschlagen",
-    save_failed: "Speichern fehlgeschlagen",
-    delete_failed: "Löschen fehlgeschlagen",
+    load_failed: "Konnte nicht geladen werden",
+    save_failed: "Konnte nicht gespeichert werden",
+    delete_failed: "Konnte nicht gelöscht werden",
   },
 
   nav: {
@@ -70,7 +70,7 @@ export const de: typeof en = {
       expand: "Seitenleiste ausklappen",
       open_nav: "Navigation öffnen",
       support_mode: "Support-Modus",
-      support_mode_desc: "Ansicht als Operator. Sensible Inhalte sind verborgen. Schreibvorgänge sind deaktiviert.",
+      support_mode_desc: "Du bist im Operator-Modus. Sensible Inhalte sind verborgen, Schreibzugriff ist deaktiviert.",
       guild_fallback: "Server",
     },
   },
@@ -216,15 +216,14 @@ export const de: typeof en = {
 
   login: {
     subtitle: "Dashboard",
-    tagline: "Mit deinem Discord-Konto anmelden, um deine Server zu verwalten.",
-    login_btn: "Mit Discord anmelden",
+    tagline: "Meld dich mit Discord an, um deine Server zu verwalten.",
+    login_btn: "Mit Discord einloggen",
     session_expired_with_user: "Hey {username}, deine Sitzung ist abgelaufen.",
     session_expired: "Deine Sitzung ist abgelaufen.",
-    session_expired_hint: "Bitte melde dich erneut an, um fortzufahren.",
+    session_expired_hint: "Meld dich nochmal an, um weiterzumachen.",
     dismiss: "Schließen",
     premium_required: "Premium erforderlich",
-    premium_required_desc:
-      "Dashboard-Zugang ist eine Premium-Funktion. Wende dich an einen Bot-Operator, um Zugang zu beantragen.",
+    premium_required_desc: "Dashboard-Zugang ist ein Premium-Feature. Frag einen Bot-Operator nach Zugang.",
   },
 
   tabs: {
@@ -264,7 +263,7 @@ export const de: typeof en = {
       message_label: "Nachricht",
       message_tooltip:
         "Der Nachrichtentext beim Verlassen des Servers. Verwende {user} als Platzhalter — er wird durch den Benutzernamen des abgehenden Mitglieds ersetzt.",
-      placeholder: "Auf Wiedersehen {user}!",
+      placeholder: "Tschüss {user}!",
     },
 
     support: {
@@ -620,7 +619,7 @@ export const de: typeof en = {
         "Charaktere unterhalb dieses Levels werden ignoriert. Nützlich, um niedrigstufige Twinks aus Beiträgen herauszufiltern.",
       required_fields: "Region, Gildenname, Realm und Kanal sind erforderlich.",
       guild_name_placeholder: "z. B. Thunderfury",
-      guild_not_found: "Gilde auf diesem Realm nicht gefunden. Überprüfe Gildenname und Realm.",
+      guild_not_found: "Gilde auf dem Realm nicht gefunden. Check nochmal Name und Realm.",
       verify_warning: "Gilde kann nicht verifiziert werden (Bot offline). Trotzdem speichern?",
       save_anyway: "Trotzdem speichern",
       saving: "Speichern…",
