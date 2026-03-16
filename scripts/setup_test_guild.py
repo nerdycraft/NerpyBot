@@ -300,7 +300,7 @@ async def _seed_channel(channel: discord.TextChannel, count: int, pin_first: boo
     before this run. If the channel already has >= count messages, sends nothing.
     Optionally pins the first new message (only when the channel was empty before).
     """
-    had = sum(1 async for _ in channel.history(limit=count + 1, oldest_first=False))
+    had = sum([1 async for _ in channel.history(limit=count + 1, oldest_first=False)])
     to_send = max(0, count - had)
 
     first_message: discord.Message | None = None
