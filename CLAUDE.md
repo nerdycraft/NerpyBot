@@ -163,7 +163,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **`psutil.Process().cpu_percent(interval=None)` returns 0.0 on first call** — psutil needs an initial sample to compute a CPU diff. Prime with a discard call at module init: `_proc = psutil.Process(); _proc.cpu_percent(interval=None)` before the first real use. See `NerdyPy/utils/valkey.py`.
 - **`ruff` only lints Python** — Never pass `.yaml`/`.yml` files to `ruff check`; it produces hundreds of parse errors. YAML is checked by `npx prettier --check` (see dev commands above).
 - **SQLAlchemy 2.x bulk insert** — Use `session.execute(insert(Model), list_of_dicts)` for batch inserts instead of a `session.add()` loop; emits a single `INSERT ... VALUES` instead of N round-trips. Always guard with `if list_of_dicts:` before calling.
-- **`server_default=str(constant)`** — The `server_default` param requires a string literal even when `default=` can reference a Python constant directly: `Column(Integer, default=MY_CONST, server_default=str(MY_CONST))`.
+- **`server_default` requires a SQL expression string** — Pass verbatim SQL, not a Python value. For integers: `Column(Integer, default=MY_CONST, server_default=str(MY_CONST))` or `server_default=text(str(MY_CONST))`. For string literals: `server_default="'active'"` (inner SQL quotes) or `server_default=text("'active'")` — bare `server_default="active"` emits `DEFAULT active` (invalid SQL).
 
 #### Web Component (FastAPI / Vue)
 
