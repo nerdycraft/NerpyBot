@@ -47,6 +47,11 @@ music:
     queue_empty: "Queue is empty."
     queue_header: "🎵 Queue"
     queue_footer: "{count} songs"
+    btn_pause: "⏸ Pause"
+    btn_resume: "⏵ Resume"
+    btn_skip: "⏩ Skip"
+    btn_stop: "⏹ Stop"
+    btn_queue: "📋 Queue"
   skip:
     success: "Skipped current track."
   queue:
@@ -585,6 +590,10 @@ application:
     vote_change_placeholder: "Change your vote..."
     approve_label: "Approve"
     deny_label: "Deny"
+    btn_vote: "Vote"
+    btn_edit_vote: "Edit Vote"
+    btn_message: "Message"
+    btn_override: "Override"
   decision:
     approved_title: "Application Approved"
     denied_title: "Application Denied"

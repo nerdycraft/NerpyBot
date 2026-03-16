@@ -91,6 +91,15 @@ class NowPlayingView(discord.ui.View):
         super().__init__(timeout=None)
         self.audio = audio
         self.lang = lang
+        for item in self.children:
+            if item.custom_id == "music:pause_resume":
+                item.label = get_string(lang, "music.now_playing.btn_pause")
+            elif item.custom_id == "music:skip":
+                item.label = get_string(lang, "music.now_playing.btn_skip")
+            elif item.custom_id == "music:stop":
+                item.label = get_string(lang, "music.now_playing.btn_stop")
+            elif item.custom_id == "music:queue":
+                item.label = get_string(lang, "music.now_playing.btn_queue")
 
     def _in_same_channel(self, interaction: discord.Interaction) -> bool:
         bot_vc = interaction.guild.voice_client
@@ -125,11 +134,11 @@ class NowPlayingView(discord.ui.View):
             return
         if self.audio.is_paused(interaction.guild_id):
             self.audio.resume(interaction.guild_id)
-            button.label = "\u23f8 Pause"
+            button.label = get_string(self.lang, "music.now_playing.btn_pause")
             button.style = discord.ButtonStyle.primary
         else:
             self.audio.pause(interaction.guild_id)
-            button.label = "\u23f5 Resume"
+            button.label = get_string(self.lang, "music.now_playing.btn_resume")
             button.style = discord.ButtonStyle.success
         await interaction.response.edit_message(view=self)
 

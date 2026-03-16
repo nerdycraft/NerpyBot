@@ -47,6 +47,11 @@ music:
     queue_empty: "Warteschlange ist leer."
     queue_header: "\U0001f3b5 Warteschlange"
     queue_footer: "{count} Songs"
+    btn_pause: "⏸ Pause"
+    btn_resume: "⏵ Weiter"
+    btn_skip: "⏩ Überspringen"
+    btn_stop: "⏹ Stop"
+    btn_queue: "📋 Warteschlange"
   skip:
     success: "Aktuellen Titel übersprungen."
   queue:
@@ -580,6 +585,10 @@ application:
     vote_change_placeholder: "Stimme ändern..."
     approve_label: "Genehmigen"
     deny_label: "Ablehnen"
+    btn_vote: "Abstimmen"
+    btn_edit_vote: "Stimme ändern"
+    btn_message: "Nachricht"
+    btn_override: "Überstimmen"
   decision:
     approved_title: "Bewerbung genehmigt"
     denied_title: "Bewerbung abgelehnt"
