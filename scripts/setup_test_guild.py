@@ -193,6 +193,10 @@ class SetupClient(discord.Client):
                 print(f"  [FAILED]  {role_name}")
 
         # --- Categories & Channels ---
+        # Collect ensured text-channel objects keyed by name so the seed phase
+        # uses the exact same objects (avoids re-resolving guild-wide by name).
+        channel_map: dict[str, discord.TextChannel] = {}
+
         print("\nCategories & Channels:")
         for cat_name, channels in CATEGORIES:
             cat, cat_created = await _ensure_category(guild, cat_name)
@@ -217,6 +221,8 @@ class SetupClient(discord.Client):
                         created_count += 1
                     else:
                         existed_count += 1
+                    if ch_type == "text":
+                        channel_map[ch_name] = ch  # type: ignore[assignment]
                 else:
                     print(f"    [FAILED]  {prefix}{ch_name}")
 
@@ -226,15 +232,17 @@ class SetupClient(discord.Client):
         print("\nSeeding channels:")
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         for ch_name, count, pin_first in SEED_CHANNELS:
-            ch = discord.utils.get(guild.text_channels, name=ch_name)
+            ch = channel_map.get(ch_name)
             if ch is None:
                 print(f"  [SKIP]    #{ch_name} not found")
                 continue
-            sent, had = await _seed_channel(ch, count, pin_first, stamp)
-            if sent == 0:
+            status, sent, had, pinned = await _seed_channel(ch, count, pin_first, stamp)
+            if status == "full":
                 print(f"  [FULL]    #{ch_name:<20} (already has {had}/{count} messages)")
+            elif status == "error":
+                print(f"  [ERROR]   #{ch_name:<20} (seed failed — check warnings above)")
             else:
-                pin_note = ", 1 pinned" if pin_first and had == 0 else ""
+                pin_note = ", 1 pinned" if pinned else ""
                 print(f"  [SEEDED]  #{ch_name:<20} ({sent} sent, {had + sent}/{count} total{pin_note})")
 
 
@@ -304,19 +312,26 @@ async def _ensure_channel(
         return None, False
 
 
-async def _seed_channel(channel: discord.TextChannel, count: int, pin_first: bool, stamp: str) -> tuple[int, int]:
+async def _seed_channel(
+    channel: discord.TextChannel, count: int, pin_first: bool, stamp: str
+) -> tuple[str, int, int, bool]:
     """Top up *channel* to *count* messages, sending only what is missing.
 
-    Returns (sent, had) where *had* is the number of messages already present
-    before this run. If the channel already has >= count messages, sends nothing.
-    Optionally pins the first new message (only when the channel was empty before).
+    Returns (status, sent, had, pinned) where:
+    - status: "full" (already at count), "seeded" (messages sent), "error" (history/send failed)
+    - sent: number of messages sent this run
+    - had: messages present before this run
+    - pinned: True only if pin_first was requested and the pin actually succeeded
     """
     try:
         had = sum([1 async for _ in channel.history(limit=count + 1, oldest_first=False)])
     except discord.HTTPException as exc:
         print(f"    [WARN] Cannot read history of #{channel.name}: {exc}", file=sys.stderr)
-        return 0, 0
+        return "error", 0, 0, False
     to_send = max(0, count - had)
+
+    if to_send == 0:
+        return "full", 0, had, False
 
     first_message: discord.Message | None = None
     sent = 0
@@ -330,14 +345,19 @@ async def _seed_channel(channel: discord.TextChannel, count: int, pin_first: boo
             print(f"    [WARN] Cannot send to #{channel.name}: {exc}", file=sys.stderr)
             break
 
+    if sent == 0:
+        return "error", 0, had, False
+
     # Only pin when seeding into an empty channel — avoid re-pinning on top-up runs.
+    pinned = False
     if pin_first and had == 0 and first_message is not None:
         try:
             await first_message.pin()
+            pinned = True
         except discord.HTTPException as exc:
             print(f"    [WARN] Cannot pin in #{channel.name}: {exc}", file=sys.stderr)
 
-    return sent, had
+    return "seeded", sent, had, pinned
 
 
 # ---------------------------------------------------------------------------
