@@ -125,6 +125,7 @@ _GUILD_LEVEL_ONLY = {"manage_roles", "kick_members"}
 _BOT_OVERWRITE_KWARGS: dict[str, bool] = {
     p: True for perms in REQUIRED_PERMISSIONS.values() for p in perms if p not in _GUILD_LEVEL_ONLY
 }
+_BOT_OVERWRITE_KWARGS["pin_messages"] = True  # needed to seed pinned messages in auto-delete-test
 
 BOT_OVERWRITE = discord.PermissionOverwrite(**_BOT_OVERWRITE_KWARGS)
 
@@ -249,8 +250,8 @@ async def _ensure_role(guild: discord.Guild, name: str) -> tuple[discord.Role | 
     try:
         role = await guild.create_role(name=name, reason="NerpyBot test guild setup")
         return role, True
-    except discord.Forbidden as exc:
-        print(f"    [WARN] Forbidden creating role '{name}': {exc}", file=sys.stderr)
+    except discord.HTTPException as exc:
+        print(f"    [WARN] Failed to create role '{name}': {exc}", file=sys.stderr)
         return None, False
 
 
@@ -262,8 +263,8 @@ async def _ensure_category(guild: discord.Guild, name: str) -> tuple[discord.Cat
         overwrites = {guild.me: BOT_OVERWRITE}
         cat = await guild.create_category(name=name, overwrites=overwrites, reason="NerpyBot test guild setup")
         return cat, True
-    except discord.Forbidden as exc:
-        print(f"    [WARN] Forbidden creating category '{name}': {exc}", file=sys.stderr)
+    except discord.HTTPException as exc:
+        print(f"    [WARN] Failed to create category '{name}': {exc}", file=sys.stderr)
         return None, False
 
 
@@ -288,8 +289,8 @@ async def _ensure_channel(
     try:
         ch = await create(name=name, category=category, overwrites=overwrites, reason="NerpyBot test guild setup")
         return ch, True
-    except discord.Forbidden as exc:
-        print(f"    [WARN] Forbidden creating {ch_type} channel '{name}': {exc}", file=sys.stderr)
+    except discord.HTTPException as exc:
+        print(f"    [WARN] Failed to create {ch_type} channel '{name}': {exc}", file=sys.stderr)
         return None, False
 
 
@@ -300,7 +301,11 @@ async def _seed_channel(channel: discord.TextChannel, count: int, pin_first: boo
     before this run. If the channel already has >= count messages, sends nothing.
     Optionally pins the first new message (only when the channel was empty before).
     """
-    had = sum([1 async for _ in channel.history(limit=count + 1, oldest_first=False)])
+    try:
+        had = sum([1 async for _ in channel.history(limit=count + 1, oldest_first=False)])
+    except discord.HTTPException as exc:
+        print(f"    [WARN] Cannot read history of #{channel.name}: {exc}", file=sys.stderr)
+        return 0, 0
     to_send = max(0, count - had)
 
     first_message: discord.Message | None = None
@@ -311,7 +316,7 @@ async def _seed_channel(channel: discord.TextChannel, count: int, pin_first: boo
             if sent == 0:
                 first_message = msg
             sent += 1
-        except discord.Forbidden as exc:
+        except discord.HTTPException as exc:
             print(f"    [WARN] Cannot send to #{channel.name}: {exc}", file=sys.stderr)
             break
 
@@ -319,7 +324,7 @@ async def _seed_channel(channel: discord.TextChannel, count: int, pin_first: boo
     if pin_first and had == 0 and first_message is not None:
         try:
             await first_message.pin()
-        except discord.Forbidden as exc:
+        except discord.HTTPException as exc:
             print(f"    [WARN] Cannot pin in #{channel.name}: {exc}", file=sys.stderr)
 
     return sent, had
