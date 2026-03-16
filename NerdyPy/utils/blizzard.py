@@ -14,6 +14,7 @@ import difflib
 import itertools
 import json
 import unicodedata
+from urllib.parse import quote
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from datetime import datetime as dt
@@ -60,6 +61,373 @@ CRAFTING_PROFESSIONS = {
     "Jewelcrafting": 755,
     "Cooking": 185,
 }
+
+# Locale strings used in API calls per (region, language) combination.
+_BLIZZ_LOCALE = {
+    ("eu", "de"): "de_DE",
+    ("eu", "en"): "en_GB",
+    ("us", "en"): "en_US",
+    ("us", "de"): "en_US",
+    ("kr", "en"): "ko_KR",
+    ("tw", "en"): "zh_TW",
+}
+
+# Maps bot language codes to Blizzard API locale strings for multi-locale extraction.
+# item_search returns all locales in the response dict — we use this to build locale caches.
+_BOT_LANG_TO_BLIZZ: dict[str, str] = {
+    "en": "en_GB",
+    "de": "de_DE",
+}
+
+# Expansion prefix → canonical WoW expansion name.
+_EXPANSION_MAP: dict[str, str] = {
+    "classic": "Classic",
+    "outland": "The Burning Crusade",
+    "northrend": "Wrath of the Lich King",
+    "cataclysm": "Cataclysm",
+    "pandaria": "Mists of Pandaria",
+    "draenor": "Warlords of Draenor",
+    "legion": "Legion",
+    "kul tiran": "Battle for Azeroth",
+    "zandalari": "Battle for Azeroth",
+    "shadowlands": "Shadowlands",
+    "dragon isles": "Dragonflight",
+    "khaz algar": "The War Within",
+    "midnight": "Midnight",
+}
+
+# Category names that produce no cacheable item recipes.
+_SKIP_CATEGORIES: frozenset[str] = frozenset({"Recrafting", "Appendix I - Terms", "Appendix II - Stats", "Smelting"})
+
+# Pre-sorted expansion keys (longest first) for prefix matching in _resolve_expansion.
+_EXPANSION_KEYS: tuple[str, ...] = tuple(sorted(_EXPANSION_MAP, key=len, reverse=True))
+
+
+def _resolve_expansion(tier_name: str) -> str:
+    """Map a skill tier name to a canonical WoW expansion name.
+
+    Scans _EXPANSION_KEYS from longest key to shortest and returns the first
+    match where the tier name starts with that key.  Falls back to the raw
+    tier name if nothing matches.
+    """
+    tier_lower = tier_name.lower()
+    for key in _EXPANSION_KEYS:
+        if tier_lower.startswith(key):
+            return _EXPANSION_MAP[key]
+    return tier_name
+
+
+def _extract_locale_dict(source: dict | None) -> dict[str, str]:
+    """Extract non-English bot locale strings from a Blizzard multi-locale name dict.
+
+    Returns a dict of {bot_lang: localized_name} for every non-English language in
+    _BOT_LANG_TO_BLIZZ whose Blizzard locale key is present in ``source``.
+    Returns an empty dict (falsy) when ``source`` is not a dict or has no matches.
+    """
+    if not isinstance(source, dict):
+        return {}
+    return {
+        bot_lang: source[blizz_loc]
+        for bot_lang, blizz_loc in _BOT_LANG_TO_BLIZZ.items()
+        if bot_lang != "en" and blizz_loc in source
+    }
+
+
+async def sync_crafting_recipes(
+    bot,
+    region: str = "eu",
+    language: str = "en",
+    expansion: str | None = None,
+    progress_callback=None,
+) -> dict:
+    """Sync WoW crafting recipes into CraftingRecipeCache.
+
+    Walks all expansion skill tiers for every CRAFTING_PROFESSIONS entry.
+    For each recipe:
+      - Strategy 1 (Shadowlands and older): ``crafted_item`` is present in the
+        recipe response; fetch item details directly via ``item()``.
+      - Strategy 2 (Dragonflight+): no ``crafted_item``; search by recipe name
+        via ``item_search()`` to resolve item class/subclass metadata.
+
+    Housing detection is category-based: any category whose name contains
+    "house decor" (case-insensitive) is treated as housing.  The Blizzard
+    decor index API is no longer used.
+
+    Expansion scoping: if ``expansion`` is set (e.g. ``"Midnight"``), gear
+    recipes from non-matching tiers are skipped.  Housing recipes from ALL
+    tiers are always cached regardless of the expansion filter.
+
+    Returns {"crafted": N, "housing": N, "errors": N, "duration_seconds": float}.
+    """
+    import asyncio
+    import logging
+    import time
+
+    from blizzapi import Language, Region, RetailClient
+
+    from sqlalchemy import insert
+
+    from models.wow import RECIPE_TYPE_CRAFTED, RECIPE_TYPE_HOUSING, CraftingRecipeCache
+
+    log = logging.getLogger("nerpybot")
+    start = time.monotonic()
+
+    client_id = bot.config.get("wow", {}).get("wow_id")
+    client_secret = bot.config.get("wow", {}).get("wow_secret")
+    if not client_id or not client_secret:
+        raise ValueError("WoW API credentials (wow_id / wow_secret) not configured")
+
+    locale = _BLIZZ_LOCALE.get((region, language), "en_GB")
+    blizz_lang = (
+        Language.German if language == "de" else (Language.English_GreatBritian if region == "eu" else Language.English)
+    )
+    api = RetailClient(
+        client_id=client_id,
+        client_secret=client_secret,
+        region=Region(region),
+        language=blizz_lang,
+    )
+
+    sem = asyncio.Semaphore(15)
+    errors = 0
+    import datetime as _dt
+
+    now = _dt.datetime.now(_dt.timezone.utc)
+
+    async def _call(fn, *args, required: bool = True, **kwargs):
+        nonlocal errors
+        result = None
+        async with sem:
+            for attempt in range(3):
+                try:
+                    result = await asyncio.to_thread(fn, *args, **kwargs)
+                    check_rate_limit(result)
+                    break
+                except RateLimited:
+                    log.warning("sync_crafting_recipes: rate limited")
+                    errors += 1
+                    break
+                except json.JSONDecodeError as exc:
+                    if attempt < 2:
+                        await asyncio.sleep(0.5 * (attempt + 1))
+                        continue
+                    if required:
+                        log.debug("sync_crafting_recipes: API call failed: %s", exc)
+                        errors += 1
+                except Exception as exc:
+                    if required:
+                        log.debug("sync_crafting_recipes: API call failed: %s", exc)
+                        errors += 1
+                    break
+        await asyncio.sleep(0.05)  # throttle outside semaphore — releases slot before sleeping
+        return result
+
+    all_rows: list[dict] = []
+
+    async def _sync_profession(prof_name: str, prof_id: int):
+        prof_data = await _call(api.profession, professionId=prof_id)
+        if not isinstance(prof_data, dict):
+            return
+        skill_tiers = prof_data.get("skill_tiers", [])
+        await asyncio.gather(*[_sync_tier(prof_name, prof_id, tier) for tier in skill_tiers])
+
+    async def _sync_tier(prof_name: str, prof_id: int, tier: dict):
+        tier_id = tier.get("id")
+        tier_name = tier.get("name", "")
+        if not tier_id:
+            return
+        expansion_name = _resolve_expansion(tier_name)
+        tier_data = await _call(api.profession_skill_tier, professionId=prof_id, skillTierId=tier_id)
+        if not isinstance(tier_data, dict):
+            return
+        tasks = []
+        for cat in tier_data.get("categories", []):
+            cat_name = cat.get("name", "")
+            is_housing_cat = "house decor" in cat_name.lower()
+            # Skip categories that produce no cacheable items.
+            if cat_name in _SKIP_CATEGORIES:
+                continue
+            # Skip non-housing recipes from non-matching expansions (if filter is set).
+            # Substring match is intentional: config value is expected to be a full expansion
+            # name (e.g. "Midnight") that is always contained in the resolved tier name.
+            if expansion and not is_housing_cat:
+                if expansion.lower() not in expansion_name.lower():
+                    continue
+            for recipe_stub in cat.get("recipes", []):
+                recipe_id = recipe_stub.get("id")
+                if recipe_id:
+                    tasks.append(_sync_recipe(prof_name, prof_id, recipe_id, expansion_name, cat_name, is_housing_cat))
+        await asyncio.gather(*tasks)
+
+    async def _sync_recipe(
+        prof_name: str, prof_id: int, recipe_id: int, expansion_name: str, category_name: str, is_housing: bool
+    ):
+        recipe_data = await _call(api.recipe, recipeId=recipe_id)
+        if not isinstance(recipe_data, dict):
+            return
+
+        item_id = item_name = item_class_id = item_class_name = item_subclass_id = item_subclass_name = None
+        icon_url = None
+        bind_type = item_quality = None
+        item_name_locales: dict | None = None
+        item_class_name_locales: dict | None = None
+        item_subclass_name_locales: dict | None = None
+
+        # Strategy 1: crafted_item present (Shadowlands and older).
+        crafted_item = recipe_data.get("crafted_item") or recipe_data.get("alliance_crafted_item") or {}
+        if isinstance(crafted_item, dict):
+            item_id = crafted_item.get("id")
+            item_name = crafted_item.get("name")
+
+        if item_id:
+            # Run item(), item_media(), and an item_search() in parallel.
+            # item_search returns multi-locale name dicts; item() only returns the requested locale.
+            locale_search_coro = (
+                _call(api.item_search, fields={"name.en_GB": quote(item_name, safe=""), "_pageSize": 5}, required=False)
+                if item_name
+                else asyncio.sleep(0)
+            )
+            item_data, media, locale_search = await asyncio.gather(
+                _call(api.item, itemId=item_id),
+                _call(api.item_media, itemId=item_id, required=False),
+                locale_search_coro,
+            )
+            if isinstance(item_data, dict):
+                ic = item_data.get("item_class") or {}
+                isc = item_data.get("item_subclass") or {}
+                item_class_id = ic.get("id")
+                item_class_name = ic.get("name")
+                item_subclass_id = isc.get("id")
+                item_subclass_name = isc.get("name")
+                bind_type = (item_data.get("preview_item") or {}).get("binding", {}).get("type")
+                item_quality = (item_data.get("quality") or {}).get("type")
+            icon_url = get_asset_url(media, "icon")
+            # Populate locale dicts from item_search (same item_id match).
+            if isinstance(locale_search, dict):
+                for hit in locale_search.get("results", []):
+                    data = hit.get("data", {})
+                    if data.get("id") == item_id:
+                        name_val = data.get("name", {})
+                        ic_name_raw = (data.get("item_class") or {}).get("name")
+                        isc_name_raw = (data.get("item_subclass") or {}).get("name")
+                        item_name_locales = _extract_locale_dict(name_val) or None
+                        item_class_name_locales = _extract_locale_dict(ic_name_raw) or None
+                        item_subclass_name_locales = _extract_locale_dict(isc_name_raw) or None
+                        break
+        else:
+            # Strategy 2: item_search by recipe name (Dragonflight+).
+            # item_search returns localized name dicts: {"en_GB": "name", ...}
+            recipe_name = recipe_data.get("name", "")
+            if recipe_name:
+                search_result = await _call(
+                    api.item_search,
+                    fields={"name." + locale: quote(recipe_name, safe=""), "_pageSize": 5},
+                )
+                if isinstance(search_result, dict):
+                    for hit in search_result.get("results", []):
+                        data = hit.get("data", {})
+                        name_val = data.get("name", {})
+                        hit_name = name_val.get(locale, "") if isinstance(name_val, dict) else name_val
+                        if hit_name == recipe_name:
+                            item_id = data.get("id")
+                            ic = data.get("item_class") or {}
+                            isc = data.get("item_subclass") or {}
+                            ic_name_raw = ic.get("name") if isinstance(ic, dict) else None
+                            isc_name_raw = isc.get("name") if isinstance(isc, dict) else None
+                            item_class_id = ic.get("id") if isinstance(ic, dict) else None
+                            item_subclass_id = isc.get("id") if isinstance(isc, dict) else None
+
+                            # Always use en_GB for canonical columns; fall back to recipe_name if absent.
+                            item_name = (
+                                name_val.get("en_GB", recipe_name) if isinstance(name_val, dict) else recipe_name
+                            )
+                            item_class_name = ic_name_raw.get("en_GB") if isinstance(ic_name_raw, dict) else ic_name_raw
+                            item_subclass_name = (
+                                isc_name_raw.get("en_GB") if isinstance(isc_name_raw, dict) else isc_name_raw
+                            )
+
+                            # Build locale dicts for non-English bot languages from the multi-locale dicts.
+                            item_name_locales = _extract_locale_dict(name_val) or None
+                            item_class_name_locales = _extract_locale_dict(ic_name_raw) or None
+                            item_subclass_name_locales = _extract_locale_dict(isc_name_raw) or None
+
+                            item_quality = (data.get("quality") or {}).get("type")
+                            item_detail, media = await asyncio.gather(
+                                _call(api.item, itemId=item_id, required=False),
+                                _call(api.item_media, itemId=item_id, required=False),
+                            )
+                            if isinstance(item_detail, dict):
+                                bind_type = (item_detail.get("preview_item") or {}).get("binding", {}).get("type")
+                            icon_url = get_asset_url(media, "icon")
+                            break
+
+        # Skip recipes that produce no identifiable item.
+        if not item_id and not item_name:
+            return
+
+        if not item_name:
+            item_name = recipe_data.get("name", f"Recipe #{recipe_id}")
+
+        if not icon_url:
+            media = await _call(api.recipe_media, recipeId=recipe_id, required=False)
+            icon_url = get_asset_url(media, "icon")
+
+        all_rows.append(
+            {
+                "RecipeId": recipe_id,
+                "ProfessionId": prof_id,
+                "ProfessionName": prof_name,
+                "ItemId": item_id,
+                "ItemName": item_name,
+                "ItemNameLocales": item_name_locales,
+                "IconUrl": icon_url,
+                "RecipeType": RECIPE_TYPE_HOUSING if is_housing else RECIPE_TYPE_CRAFTED,
+                "ItemClassName": item_class_name,
+                "ItemClassNameLocales": item_class_name_locales,
+                "ItemClassId": item_class_id,
+                "ItemSubClassName": item_subclass_name,
+                "ItemSubClassNameLocales": item_subclass_name_locales,
+                "ItemSubClassId": item_subclass_id,
+                "ExpansionName": expansion_name,
+                "CategoryName": category_name,
+                "BindType": bind_type,
+                "ItemQuality": item_quality,
+                "LastSynced": now,
+            }
+        )
+
+    if progress_callback:
+        await progress_callback("Starting recipe sync…")
+
+    await asyncio.gather(*[_sync_profession(name, pid) for name, pid in CRAFTING_PROFESSIONS.items()])
+
+    # ── Upsert into database ──────────────────────────────────────────────
+    def _upsert():
+        with bot.session_scope() as session:
+            CraftingRecipeCache.delete_all(session)
+            if all_rows:
+                session.execute(insert(CraftingRecipeCache), all_rows)
+
+    await asyncio.to_thread(_upsert)
+
+    crafted_count = sum(1 for r in all_rows if r["RecipeType"] == RECIPE_TYPE_CRAFTED)
+    housing_count = sum(1 for r in all_rows if r["RecipeType"] == RECIPE_TYPE_HOUSING)
+    duration = round(time.monotonic() - start, 1)
+
+    log.info(
+        "sync_crafting_recipes: done — crafted=%d housing=%d errors=%d duration=%.1fs",
+        crafted_count,
+        housing_count,
+        errors,
+        duration,
+    )
+
+    return {
+        "crafted": crafted_count,
+        "housing": housing_count,
+        "errors": errors,
+        "duration_seconds": duration,
+    }
 
 
 # ── Mount set comparison ─────────────────────────────────────────────

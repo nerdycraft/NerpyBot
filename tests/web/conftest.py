@@ -30,17 +30,23 @@ def web_db_engine():
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
-    # Import all models
-    from models.admin import BotModeratorRole, GuildLanguageConfig, PermissionSubscriber, PremiumUser  # noqa: F401
-    from models.application import ApplicationForm, ApplicationQuestion  # noqa: F401
-    from models.leavemsg import LeaveMessage  # noqa: F401
-    from models.moderation import AutoDelete, AutoKicker  # noqa: F401
-    from models.music import Playlist, PlaylistEntry  # noqa: F401
-    from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage  # noqa: F401
-    from models.reminder import ReminderMessage  # noqa: F401
-    from models.rolemanage import RoleMapping  # noqa: F401
-    from models.tagging import Tag, TagEntry  # noqa: F401
-    from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRoleMapping, WowGuildNewsConfig  # noqa: F401
+    # Import all models so SQLAlchemy registers them before create_all()
+    from models.admin import BotModeratorRole, GuildLanguageConfig, PermissionSubscriber, PremiumUser
+    from models.application import ApplicationForm, ApplicationQuestion
+    from models.leavemsg import LeaveMessage
+    from models.moderation import AutoDelete, AutoKicker
+    from models.music import Playlist, PlaylistEntry
+    from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
+    from models.reminder import ReminderMessage
+    from models.rolemanage import RoleMapping
+    from models.tagging import Tag, TagEntry
+    from models.wow import (
+        CraftingBoardConfig,
+        CraftingOrder,
+        CraftingRecipeCache,
+        CraftingRoleMapping,
+        WowGuildNewsConfig,
+    )
 
     BASE.metadata.create_all(engine)
     yield engine

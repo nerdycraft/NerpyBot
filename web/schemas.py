@@ -474,3 +474,40 @@ class SupportMessageResponse(BaseModel):
 class BrandingResponse(BaseModel):
     bot_name: str
     bot_description: str
+
+
+# ── Recipe sync ──
+
+
+class RecipeSyncResponse(BaseModel):
+    queued: bool
+    error: str | None = None
+
+
+class RecipeSyncStatusResponse(BaseModel):
+    counts: dict[str, int]
+
+
+class RecipeCacheEntry(BaseModel):
+    recipe_id: int
+    item_name: str
+    profession_id: int
+    profession_name: str
+    recipe_type: str
+    item_class_name: str | None
+    item_subclass_name: str | None
+    expansion_name: str | None
+    category_name: str | None
+    wowhead_url: str | None
+
+
+class RecipeCacheProfession(BaseModel):
+    id: int
+    name: str
+
+
+class RecipeCacheBrowseResponse(BaseModel):
+    recipes: list[RecipeCacheEntry]
+    professions: list[RecipeCacheProfession]
+    expansions: list[str]
+    total: int

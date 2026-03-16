@@ -59,6 +59,7 @@ export const en = {
       operator_guilds: "All Guilds",
       operator_modules: "Modules",
       operator_user_management: "User Management",
+      operator_recipe_sync: "Recipe Cache",
     },
     sidebar: {
       all_servers: "All Servers",
@@ -378,6 +379,33 @@ export const en = {
       grant: "Grant Access",
       granting: "Granting…",
       since: "since {date}",
+    },
+
+    operator_recipe_sync: {
+      title: "Recipe Cache",
+      desc: "Sync WoW crafting recipes from the Blizzard API into the local cache. Required for type-driven crafting order creation.",
+      tab_sync: "Sync",
+      tab_browse: "Browse",
+      cache_stats: "Cache Statistics",
+      cache_empty: "No recipes cached yet. Run a sync to populate.",
+      sync_title: "Sync Recipes",
+      sync_desc:
+        "Fetches profession skill tiers and housing decor recipes from the Blizzard API. This runs asynchronously in the background and may take a few minutes.",
+      sync_button: "Start Sync",
+      syncing: "Queuing…",
+      sync_queued: "Sync queued. Stats will refresh in a few seconds.",
+      sync_failed: "Failed to queue sync.",
+      browse_type_all: "All types",
+      browse_type_crafted: "Crafted",
+      browse_type_housing: "Housing",
+      browse_profession_all: "All professions",
+      browse_expansion_all: "All expansions",
+      browse_empty: "No recipes match the current filters.",
+      browse_showing: "Showing {from}–{to} of {total}",
+      browse_col_item: "Item",
+      browse_col_profession: "Profession",
+      browse_col_type: "Type",
+      browse_col_expansion: "Expansion",
     },
 
     operator_dashboard: {

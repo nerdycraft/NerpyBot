@@ -58,6 +58,9 @@ notifications:
 wow:
   wow_id: your_wow_client_id
   wow_secret: your_wow_client_secret
+  # expansion: Midnight  # Cache gear recipes for this expansion only (canonical name, e.g. "Midnight", "The War Within")
+  #                      # Housing recipes from all expansions are always cached regardless.
+  #                      # Omit to sync gear recipes from all expansion tiers.
   # Optional guild news settings (defaults shown)
   # guild_news:
   #   poll_interval_minutes: 15

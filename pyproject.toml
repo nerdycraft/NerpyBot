@@ -74,6 +74,16 @@ filterwarnings = [
 [tool.ruff]
 line-length = 120
 
+[tool.ruff.lint]
+# Never auto-remove unused imports — they often have real side effects (e.g. SQLAlchemy model
+# registration). F401 is still reported; the developer must remove intentional ones explicitly.
+unfixable = ["F401"]
+
+[tool.ruff.lint.per-file-ignores]
+# conftest.py imports models purely for SQLAlchemy's create_all() side effect; they are
+# intentionally "unused" from Python's perspective.
+"tests/**/conftest.py" = ["F401"]
+
 [tool.ruff.format]
 line-ending = "lf"
 

@@ -1120,7 +1120,10 @@ async def post_apply_button_message(bot, form_id: int) -> None:
 
 
 async def edit_apply_button_message(bot, form_id: int) -> None:
-    """Edit the Apply button message in-place (e.g. after description change).  Best-effort."""
+    """Edit the Apply button message in-place (e.g. after description change).
+
+    Raises discord.HTTPException on failure — callers must catch.
+    """
     with bot.session_scope() as session:
         form = ApplicationForm.get_by_id(form_id, session)
         if form is None or not form.ApplyMessageId or not form.ApplyChannelId:
@@ -1137,9 +1140,12 @@ async def edit_apply_button_message(bot, form_id: int) -> None:
             channel = await bot.fetch_channel(channel_id)
         msg = await channel.fetch_message(message_id)
         embed = build_apply_embed(form_name, description, lang)
-        await msg.edit(embed=embed)
+        view = ApplicationApplyView(bot=bot)
+        view.apply_button.label = get_string(lang, "application.apply.button_label")
+        await msg.edit(embed=embed, view=view)
     except discord.HTTPException:
         bot.log.warning("application: could not edit apply message %d in channel %d", message_id, channel_id)
+        raise
 
 
 # ---------------------------------------------------------------------------

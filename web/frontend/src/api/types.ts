@@ -396,3 +396,39 @@ export interface SupportMessageResponse {
   success: boolean;
   sent_to: number;
 }
+
+// ── Recipe sync ──
+
+export interface RecipeSyncResponse {
+  queued: boolean;
+  error: string | null;
+}
+
+export interface RecipeSyncStatusResponse {
+  counts: Record<string, number>;
+}
+
+export interface RecipeCacheEntry {
+  recipe_id: number;
+  item_name: string;
+  profession_id: number;
+  profession_name: string;
+  recipe_type: string;
+  item_class_name: string | null;
+  item_subclass_name: string | null;
+  expansion_name: string | null;
+  category_name: string | null;
+  wowhead_url: string | null;
+}
+
+export interface RecipeCacheProfession {
+  id: number;
+  name: string;
+}
+
+export interface RecipeCacheBrowseResponse {
+  recipes: RecipeCacheEntry[];
+  professions: RecipeCacheProfession[];
+  expansions: string[];
+  total: number;
+}

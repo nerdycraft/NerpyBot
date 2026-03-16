@@ -179,6 +179,7 @@ class Admin(NerpyBotCog, Cog):
                 language=language,
             )
         await interaction.response.send_message(msg, ephemeral=True)
+        self.bot.dispatch("guild_language_changed", interaction.guild.id, language)
 
     @language.command(name="get")
     async def _language_get(self, interaction: Interaction):
@@ -237,16 +238,44 @@ class Admin(NerpyBotCog, Cog):
 
     @command(name="sync")
     async def sync(
-        self, ctx: Context, guilds: Greedy[Object], spec: Optional[Literal["local", "copy", "clear"]] = None
+        self,
+        ctx: Context,
+        guilds: Greedy[Object],
+        spec: Optional[Literal["local", "copy", "clear", "recipes"]] = None,
     ) -> None:
-        """Sync commands. [operator]
+        """Sync commands or data. [operator]
 
         Usage:
           `!sync`                — Sync commands globally
           `!sync <guild_id> ...` — Sync commands to specific guild(s)
           `!sync local`          — Sync current guild's commands
           `!sync copy`           — Copy global commands to current guild
-          `!sync clear`          — Clear commands from current guild"""
+          `!sync clear`          — Clear commands from current guild
+          `!sync recipes`        — Sync WoW crafting recipe cache from Blizzard API"""
+        if not guilds and spec == "recipes":
+            if ctx.author.id not in self.bot.ops:
+                await ctx.send("Recipe sync is restricted to bot operators.")
+                return
+            if "wow" not in self.bot.modules:
+                await ctx.send("WoW module is not loaded — cannot sync recipes.")
+                return
+            await ctx.send("Syncing crafting recipes from Blizzard API… this may take a few minutes.")
+            try:
+                from utils.blizzard import sync_crafting_recipes
+
+                expansion = self.bot.config.get("wow", {}).get("expansion")
+                stats = await sync_crafting_recipes(self.bot, expansion=expansion)
+                await ctx.send(
+                    f"Recipe sync complete: **{stats['crafted']}** crafted · "
+                    f"**{stats['housing']}** housing · "
+                    f"**{stats['errors']}** errors · "
+                    f"{stats['duration_seconds']}s"
+                )
+            except Exception as ex:
+                self.bot.log.error("Recipe sync failed: %s", ex, exc_info=True)
+                await ctx.send(f"Recipe sync failed: {ex}")
+            return
+
         if not guilds:
             if spec in ("local", "copy", "clear") and ctx.guild is None:
                 await ctx.send(f"The `{spec}` option requires a server context.")

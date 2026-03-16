@@ -57,6 +57,23 @@ function professionLabel(professionId: number, fallback: string): string {
   return p ? t(p.labelKey) : fallback;
 }
 
+const availableRoles = computed(() => {
+  const usedRoleIds = new Set(mappings.value.map((m) => m.role_id));
+  return allRoles.value.filter((r) => !usedRoleIds.has(r.id));
+});
+
+const availableProfessions = computed(() => {
+  const usedProfessionIds = new Set(mappings.value.map((m) => m.profession_id));
+  return PROFESSIONS.filter((p) => !usedProfessionIds.has(p.id));
+});
+
+function availableProfessionsForEdit(currentProfessionId: number) {
+  const usedProfessionIds = new Set(
+    mappings.value.filter((m) => m.profession_id !== currentProfessionId).map((m) => m.profession_id),
+  );
+  return PROFESSIONS.filter((p) => !usedProfessionIds.has(p.id));
+}
+
 const orderDateFormatter = computed(() => new Intl.DateTimeFormat(locale.current, { dateStyle: "short" }));
 
 const STATUS_LABEL_KEYS: Record<string, I18nKey> = {
@@ -215,7 +232,7 @@ watch(statusFilter, fetchOrders);
                 v-model="editMappingProfessionId"
                 class="bg-input border border-border rounded px-2 py-1 text-sm flex-1 min-w-[140px]"
               >
-                <option v-for="p in PROFESSIONS" :key="p.id" :value="p.id">{{ t(p.labelKey) }}</option>
+                <option v-for="p in availableProfessionsForEdit(m.profession_id)" :key="p.id" :value="p.id">{{ t(p.labelKey) }}</option>
               </select>
               <button class="text-xs text-primary hover:text-primary/80 flex-shrink-0" @click="updateMapping(m.id)">{{ t("common.save") }}</button>
               <button class="text-xs text-muted-foreground hover:text-foreground flex-shrink-0" @click="editingMappingId = null">×</button>
@@ -249,7 +266,7 @@ watch(statusFilter, fetchOrders);
               class="bg-input border border-border rounded px-3 py-1.5 text-sm min-w-[160px]"
             >
               <option value="">{{ t("tabs.wow_crafting.select_role") }}</option>
-              <option v-for="r in allRoles" :key="r.id" :value="r.id">@{{ r.name }}</option>
+              <option v-for="r in availableRoles" :key="r.id" :value="r.id">@{{ r.name }}</option>
             </select>
           </div>
           <div class="flex flex-col gap-1">
@@ -262,7 +279,7 @@ watch(statusFilter, fetchOrders);
               class="bg-input border border-border rounded px-3 py-1.5 text-sm min-w-[160px]"
             >
               <option value="">{{ t("tabs.wow_crafting.select_profession") }}</option>
-              <option v-for="p in PROFESSIONS" :key="p.id" :value="p.id">{{ t(p.labelKey) }}</option>
+              <option v-for="p in availableProfessions" :key="p.id" :value="p.id">{{ t(p.labelKey) }}</option>
             </select>
           </div>
           <button

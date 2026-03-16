@@ -20,6 +20,11 @@ from web.schemas import (
     ModuleListResponse,
     PremiumUserGrant,
     PremiumUserSchema,
+    RecipeCacheBrowseResponse,
+    RecipeCacheEntry,
+    RecipeCacheProfession,
+    RecipeSyncResponse,
+    RecipeSyncStatusResponse,
     VoiceConnectionDetail,
 )
 from web.cache import ValkeyClient
@@ -191,3 +196,101 @@ async def get_bot_guild(
         if g.get("id") == guild_id:
             return BotGuildInfo(**g)
     raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Guild not found")
+
+
+# ── Recipe sync ──
+
+
+@router.post("/recipe-sync", response_model=RecipeSyncResponse)
+async def trigger_recipe_sync(
+    user: dict = Depends(require_operator),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """Fire-and-forget recipe sync via the bot's Blizzard API connection."""
+    result = await vk.send_bot_command("recipe_sync", {})
+    if result is None:
+        return RecipeSyncResponse(queued=False, error="Bot unreachable")
+    return RecipeSyncResponse(**result)
+
+
+@router.get("/recipe-sync/status", response_model=RecipeSyncStatusResponse)
+async def get_recipe_sync_status(
+    user: dict = Depends(require_operator),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """Return current recipe cache counts per type."""
+    result = await vk.send_bot_command("recipe_sync_status", {})
+    if result is None:
+        raise HTTPException(status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE, detail="Bot unreachable")
+    return RecipeSyncStatusResponse(counts=result.get("counts", {}))
+
+
+@router.get("/recipe-cache", response_model=RecipeCacheBrowseResponse)
+async def browse_recipe_cache(
+    recipe_type: str | None = None,
+    profession_id: int | None = None,
+    expansion: str | None = None,
+    offset: int = 0,
+    limit: int = 50,
+    user: dict = Depends(require_operator),
+    session: Session = Depends(get_db_session),
+):
+    """Browse cached recipes with optional filters. Returns up to `limit` rows."""
+    from models.wow import CraftingRecipeCache
+    from sqlalchemy import asc, func
+
+    q = session.query(CraftingRecipeCache)
+    if recipe_type:
+        q = q.filter(CraftingRecipeCache.RecipeType == recipe_type)
+    if profession_id is not None:
+        q = q.filter(CraftingRecipeCache.ProfessionId == profession_id)
+    if expansion:
+        q = q.filter(CraftingRecipeCache.ExpansionName == expansion)
+
+    total = q.with_entities(func.count(CraftingRecipeCache.RecipeId)).scalar() or 0
+    rows = q.order_by(asc(CraftingRecipeCache.ItemName)).offset(offset).limit(limit).all()
+
+    # Dropdown option lists are only needed on the first page (filter change / initial load).
+    # On subsequent pages the frontend keeps the cached values from the first response.
+    professions: list[RecipeCacheProfession] = []
+    expansions: list[str] = []
+    if offset == 0:
+        type_filter = CraftingRecipeCache.RecipeType == recipe_type if recipe_type else True
+        prof_rows = (
+            session.query(CraftingRecipeCache.ProfessionId, CraftingRecipeCache.ProfessionName)
+            .filter(type_filter)
+            .distinct()
+            .order_by(asc(CraftingRecipeCache.ProfessionName))
+            .all()
+        )
+        exp_rows = (
+            session.query(CraftingRecipeCache.ExpansionName)
+            .filter(type_filter)
+            .filter(CraftingRecipeCache.ExpansionName.isnot(None))
+            .distinct()
+            .order_by(asc(CraftingRecipeCache.ExpansionName))
+            .all()
+        )
+        professions = [RecipeCacheProfession(id=p[0], name=p[1]) for p in prof_rows]
+        expansions = [e[0] for e in exp_rows]
+
+    return RecipeCacheBrowseResponse(
+        recipes=[
+            RecipeCacheEntry(
+                recipe_id=r.RecipeId,
+                item_name=r.ItemName,
+                profession_id=r.ProfessionId,
+                profession_name=r.ProfessionName,
+                recipe_type=r.RecipeType,
+                item_class_name=r.ItemClassName,
+                item_subclass_name=r.ItemSubClassName,
+                expansion_name=r.ExpansionName,
+                category_name=r.CategoryName,
+                wowhead_url=r.wowhead_url,
+            )
+            for r in rows
+        ],
+        professions=professions,
+        expansions=expansions,
+        total=total,
+    )

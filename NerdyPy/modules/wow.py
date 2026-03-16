@@ -12,8 +12,15 @@ from blizzapi import Language, Region, RetailClient
 from discord import Color, Embed, HTTPException, Interaction, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext import tasks
-from discord.ext.commands import GroupCog
-from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRoleMapping, WowCharacterMounts, WowGuildNewsConfig
+from discord.ext.commands import Cog, GroupCog
+from models.wow import (
+    CURRENT_BOARD_VERSION,
+    CraftingBoardConfig,
+    CraftingOrder,
+    CraftingRoleMapping,
+    WowCharacterMounts,
+    WowGuildNewsConfig,
+)
 from utils.blizzard import (
     CRAFTING_PROFESSIONS,
     RateLimited,
@@ -98,9 +105,126 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         register_before_loop(bot, self._crafting_cleanup_loop, "Crafting Cleanup")
         self._crafting_cleanup_loop.start()
 
+    async def cog_load(self):
+        # Ensure tables exist on existing databases before running migration checks.
+        self.bot.create_all()
+        self.bot.loop.create_task(self._run_board_migrations())
+
     def cog_unload(self):
         self._guild_news_loop.cancel()
         self._crafting_cleanup_loop.cancel()
+
+    async def _run_board_migrations(self):
+        """Wait for bot ready then migrate any stale crafting boards."""
+        await self.bot.wait_until_ready()
+        await self._migrate_boards()
+
+    async def _migrate_boards(self):
+        """Upgrade crafting boards that are behind CURRENT_BOARD_VERSION."""
+        with self.bot.session_scope() as session:
+            from sqlalchemy import or_
+
+            stale = (
+                session.query(CraftingBoardConfig)
+                .filter(
+                    or_(
+                        CraftingBoardConfig.BoardVersion.is_(None),
+                        CraftingBoardConfig.BoardVersion < CURRENT_BOARD_VERSION,
+                    )
+                )
+                .all()
+            )
+            boards = [(c.Id, c.GuildId, c.ChannelId, c.BoardMessageId, c.BoardVersion) for c in stale]
+
+        await asyncio.gather(
+            *[
+                self._migrate_single_board(config_id, guild_id, channel_id, message_id, version)
+                for config_id, guild_id, channel_id, message_id, version in boards
+            ]
+        )
+
+    async def _migrate_single_board(
+        self, config_id: int, guild_id: int, channel_id: int, message_id: int | None, version: int
+    ):
+        """Migrate a single crafting board to CURRENT_BOARD_VERSION.
+
+        On success or terminal LookupError (guild/channel/message permanently gone),
+        bumps BoardVersion so the board isn't retried on every restart. Transient
+        discord.HTTPException (429, 5xx) does NOT bump the version so the migration
+        is retried on the next startup.
+        """
+        from modules.views.crafting_order import CraftingBoardView
+
+        lang = self._lang(guild_id)
+
+        try:
+            guild = self.bot.get_guild(guild_id)
+            if not guild:
+                raise LookupError(f"guild {guild_id} not in cache")
+
+            try:
+                channel = guild.get_channel(channel_id) or await guild.fetch_channel(channel_id)
+            except (discord.NotFound, discord.Forbidden) as exc:
+                raise LookupError(f"channel {channel_id} inaccessible") from exc
+
+            if not message_id:
+                raise LookupError("no board message id")
+
+            try:
+                msg = await channel.fetch_message(message_id)
+            except (discord.NotFound, discord.Forbidden) as exc:
+                raise LookupError(f"board message {message_id} inaccessible") from exc
+            if msg.author.id != self.bot.user.id:
+                raise LookupError("board message not authored by bot")
+
+            # v1 → v2: add housing button
+            embed = msg.embeds[0] if msg.embeds else discord.Embed(color=discord.Color.gold())
+            new_view = CraftingBoardView(
+                self.bot,
+                label=get_string(lang, "wow.craftingorder.create_button"),
+                housing_label=get_string(lang, "wow.craftingorder.housing_button"),
+            )
+            try:
+                await msg.edit(embed=embed, view=new_view)
+            except (discord.NotFound, discord.Forbidden) as exc:
+                raise LookupError(f"board message {message_id} edit failed") from exc
+            self.bot.log.info(
+                "Board migration v%d→v%d: guild=%d config=%d", version, CURRENT_BOARD_VERSION, guild_id, config_id
+            )
+
+        except LookupError as exc:
+            # Terminal failure (guild/channel/message gone permanently) — bump version so
+            # we don't retry on every restart. Notify the channel if it's still reachable.
+            self.bot.log.warning(
+                "Board migration failed (terminal) for config=%d guild=%d: %s", config_id, guild_id, exc
+            )
+            try:
+                guild = self.bot.get_guild(guild_id)
+                if guild:
+                    channel = guild.get_channel(channel_id) or await guild.fetch_channel(channel_id)
+                    await channel.send(
+                        get_string(
+                            lang,
+                            "wow.craftingorder.board_migration_failed",
+                            channel=channel.mention,
+                            guild=guild.name,
+                        )
+                    )
+            except discord.HTTPException as notify_exc:
+                self.bot.log.debug("Board migration: could not notify channel %d: %s", channel_id, notify_exc)
+
+        except discord.HTTPException as exc:
+            # Transient failure (429, 5xx) — log and skip version bump so migration retries next startup.
+            self.bot.log.warning(
+                "Board migration failed (transient) for config=%d guild=%d: %s — will retry", config_id, guild_id, exc
+            )
+            return
+
+        # Bump version on success or terminal LookupError.
+        with self.bot.session_scope() as session:
+            config = session.get(CraftingBoardConfig, config_id)
+            if config:
+                config.BoardVersion = CURRENT_BOARD_VERSION
 
     async def _call_api(self, api_method, config_id, label, *args, rate_limited_event=None, stats=None, **kwargs):
         """Call a Blizzard API method with standard rate-limit and error handling.
@@ -1343,6 +1467,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
                 GuildId=interaction.guild_id,
                 ChannelId=channel.id,
                 Description=description,
+                BoardVersion=CURRENT_BOARD_VERSION,
             )
             session.add(config)
             session.flush()
@@ -1350,19 +1475,41 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             # Auto-match roles to Blizzard professions
             mapped, unmapped = self._auto_match_roles(interaction.guild, role_ids, session)
 
-            # Post board embed
-            from modules.views.crafting_order import CraftingBoardView
+        # Build embed and view then send to Discord outside the session so the DB
+        # connection is not held open during the HTTP call.
+        from modules.views.crafting_order import CraftingBoardView
 
-            embed = discord.Embed(
-                title=get_string(lang, "wow.craftingorder.board_title"),
-                description=description,
-                color=discord.Color.gold(),
-            )
-            embed.set_footer(text=get_string(lang, "wow.craftingorder.board_footer"))
+        embed = discord.Embed(
+            title=get_string(lang, "wow.craftingorder.board_title"),
+            description=description,
+            color=discord.Color.gold(),
+        )
+        embed.set_footer(text=get_string(lang, "wow.craftingorder.board_footer"))
 
-            view = CraftingBoardView(self.bot, label=get_string(lang, "wow.craftingorder.create_button"))
+        view = CraftingBoardView(
+            self.bot,
+            label=get_string(lang, "wow.craftingorder.create_button"),
+            housing_label=get_string(lang, "wow.craftingorder.housing_button"),
+        )
+        try:
             msg = await channel.send(embed=embed, view=view)
-            config.BoardMessageId = msg.id
+        except discord.HTTPException as exc:
+            # Board config was committed above; clean it up so the guild can retry.
+            with self.bot.session_scope() as session:
+                orphaned = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+                if orphaned is not None:
+                    session.delete(orphaned)
+                CraftingRoleMapping.delete_by_guild(interaction.guild_id, session)
+            self.bot.log.error("Failed to post crafting board embed (guild=%d): %s", interaction.guild_id, exc)
+            await interaction.followup.send(
+                get_string(lang, "wow.craftingorder.create.send_failed", channel=channel.mention), ephemeral=True
+            )
+            return
+
+        with self.bot.session_scope() as session:
+            config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+            if config is not None:
+                config.BoardMessageId = msg.id
 
         await interaction.followup.send(
             get_string(lang, "wow.craftingorder.create.success", channel=channel.mention), ephemeral=True
@@ -1443,21 +1590,112 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             channel_id = config.ChannelId
             message_id = config.BoardMessageId
 
-        # Edit the board embed in-place
-        try:
-            channel = interaction.guild.get_channel(channel_id)
-            if channel and message_id:
+        # Edit the board embed in-place and refresh the view with the housing button.
+        # Pre-set True when there is no message to update — description was saved, nothing to fail.
+        embed_updated = not message_id
+        if message_id:
+            try:
+                from modules.views.crafting_order import CraftingBoardView
+
+                channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
                 msg = await channel.fetch_message(message_id)
                 embed = msg.embeds[0] if msg.embeds else discord.Embed(color=discord.Color.gold())
                 embed.description = new_description
-                await msg.edit(embed=embed)
-        except discord.HTTPException:
-            self.bot.log.debug("Failed to edit board embed (channel=%s, msg=%s)", channel_id, message_id)
+                new_view = CraftingBoardView(
+                    self.bot,
+                    label=get_string(lang, "wow.craftingorder.create_button"),
+                    housing_label=get_string(lang, "wow.craftingorder.housing_button"),
+                )
+                await msg.edit(embed=embed, view=new_view)
+                embed_updated = True
+            except discord.HTTPException as exc:
+                self.bot.log.warning("Failed to edit board embed (channel=%s, msg=%s): %s", channel_id, message_id, exc)
 
-        await interaction.followup.send(get_string(lang, "wow.craftingorder.edit.success"), ephemeral=True)
+        if embed_updated:
+            await interaction.followup.send(get_string(lang, "wow.craftingorder.edit.success"), ephemeral=True)
+        else:
+            await interaction.followup.send(get_string(lang, "wow.craftingorder.edit.embed_failed"), ephemeral=True)
 
         if unmapped:
             await self._send_manual_mapping_view(interaction, unmapped, lang)
+
+    @Cog.listener("on_guild_language_changed")
+    async def _on_guild_language_changed(self, guild_id: int, new_lang: str) -> None:
+        """Refresh persistent WoW embeds when a guild's language preference changes."""
+        await self._refresh_crafting_board(guild_id, new_lang)
+        await self._refresh_active_orders(guild_id, new_lang)
+
+    async def _refresh_crafting_board(self, guild_id: int, new_lang: str) -> None:
+        """Edit the crafting board embed and view in-place with the new language."""
+        from modules.views.crafting_order import CraftingBoardView
+
+        with self.bot.session_scope() as session:
+            config = CraftingBoardConfig.get_by_guild(guild_id, session)
+            if config is None or not config.BoardMessageId or not config.ChannelId:
+                return
+            channel_id = config.ChannelId
+            message_id = config.BoardMessageId
+            description = config.Description
+
+        try:
+            guild = self.bot.get_guild(guild_id)
+            channel = guild.get_channel(channel_id) if guild else None
+            if channel is None:
+                channel = await self.bot.fetch_channel(channel_id)
+            msg = await channel.fetch_message(message_id)
+            embed = discord.Embed(
+                title=get_string(new_lang, "wow.craftingorder.board_title"),
+                description=description,
+                color=discord.Color.gold(),
+            )
+            embed.set_footer(text=get_string(new_lang, "wow.craftingorder.board_footer"))
+            view = CraftingBoardView(
+                self.bot,
+                label=get_string(new_lang, "wow.craftingorder.create_button"),
+                housing_label=get_string(new_lang, "wow.craftingorder.housing_button"),
+            )
+            await msg.edit(embed=embed, view=view)
+            self.bot.log.info("wow: refreshed crafting board embed for guild %d (lang=%s)", guild_id, new_lang)
+        except (discord.NotFound, discord.Forbidden):
+            self.bot.log.warning("wow: crafting board message not accessible for guild %d — skipping refresh", guild_id)
+        except discord.HTTPException as exc:
+            self.bot.log.warning("wow: failed to refresh crafting board for guild %d: %s", guild_id, exc)
+
+    async def _refresh_active_orders(self, guild_id: int, new_lang: str) -> None:
+        """Edit each active crafting order card embed and view with the new language."""
+        from modules.views.crafting_order import build_order_embed, build_order_view
+
+        with self.bot.session_scope() as session:
+            orders = CraftingOrder.get_active_by_guild(guild_id, session)
+            order_data = [
+                (order.Id, order.ChannelId, order.OrderMessageId)
+                for order in orders
+                if order.OrderMessageId and order.ChannelId
+            ]
+
+        guild = self.bot.get_guild(guild_id)
+        for i, (order_id, channel_id, message_id) in enumerate(order_data):
+            try:
+                channel = guild.get_channel(channel_id) if guild else None
+                if channel is None:
+                    channel = await self.bot.fetch_channel(channel_id)
+                msg = await channel.fetch_message(message_id)
+                with self.bot.session_scope() as session:
+                    order = CraftingOrder.get_by_id(order_id, session)
+                    if order is None:
+                        continue
+                    embed = build_order_embed(order, guild, new_lang)
+                    view = build_order_view(order.Id, order.Status, new_lang)
+                await msg.edit(embed=embed, view=view)
+                self.bot.log.info("wow: refreshed order #%d embed for guild %d (lang=%s)", order_id, guild_id, new_lang)
+            except (discord.NotFound, discord.Forbidden):
+                self.bot.log.warning(
+                    "wow: order #%d message not accessible for guild %d — skipping refresh", order_id, guild_id
+                )
+            except discord.HTTPException as exc:
+                self.bot.log.warning("wow: failed to refresh order #%d for guild %d: %s", order_id, guild_id, exc)
+            if i < len(order_data) - 1:
+                await asyncio.sleep(1)
 
     async def _send_manual_mapping_view(self, interaction: Interaction, unmapped: list[int], lang: str):
         """Send an ephemeral followup with Select dropdowns for manual profession mapping."""
