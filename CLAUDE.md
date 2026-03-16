@@ -175,7 +175,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **Tests for `require_guild_access` must first grant premium** — The guild router has `dependencies=[Depends(require_premium)]` at router level. A test user without premium hits `require_premium` (not `require_guild_access`) and gets 403 for the wrong reason. Call `PremiumUser.grant(user_id, operator_id, session)` before asserting access behavior.
 - **Vue Router `beforeEach` never sees the source of a declarative redirect** — `{ path: "/", redirect: "/guilds" }` is resolved before guards fire; `to.path` will be `"/guilds"`, never `"/"`. Guard conditions using the pre-redirect path silently never match.
 - **Static `index.html` `<title>` is baked at build time** — The Vue SPA updates `document.title` at runtime via `watch()` on the branding store, but the `<title>` tag in `dist/index.html` reflects whatever was configured when `npm run build` ran. Pre-built Docker containers always show the build-time title on first load.
-- **`GET /api/branding` is intentionally unauthenticated** — Any endpoint that provides pre-login UI data (bot name, description) must not have a JWT dependency. Users hit this endpoint before they have a token.
+
 - **Pinia one-shot load dedup: reset `_loadPromise = null` in outer `.catch()`** — If the reset is inside the async IIFE's `catch`, a concurrent caller can bypass the guard mid-flight. Attach `.catch(() => { _loadPromise = null; })` to the IIFE result before returning, so the guard stays valid for the full request lifetime.
 
 ## Configuration
@@ -199,6 +199,6 @@ Copy `NerdyPy/config.yaml.template` to `NerdyPy/config.yaml` and fill in:
 
 - **`docs/plans/`** and **`docs/superpowers/`** are gitignored — never stage or commit plan/spec files
 - **`gh pr create` in worktrees** — Always pass `--repo owner/repo --head <branch> --base main` explicitly; `gh` reads from the shell CWD (main worktree) and detects the wrong head branch otherwise.
-- **`no-command-chaining.sh` pre-commit hook blocks `&&`** — Shell commands chained with `&&` are rejected at commit time. Use separate Bash tool calls for each command instead.
+- **`no-command-chaining.sh` Claude Code hook blocks `&&`** — A `PreToolUse:Bash` hook in the user's Claude Code config rejects commands containing `&&`. This is NOT a git pre-commit hook. Use separate Bash tool calls for each command.
 - **`gh api -F` for comment bodies** — Use `-F body="..."` (capital F), not `-f body="..."`, when the body may contain backticks or special characters; `-f` causes parse errors in fish shell.
 - **Resolving PR review threads** — Use `gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "PRRT_kwDO..."}) { thread { isResolved } } }'`. The `threadId` is the GraphQL node ID from `reviewThreads.nodes[].id` (NOT the REST comment `id`). Fetch node IDs via GraphQL: `pullRequest(number: N) { reviewThreads(first: 50) { nodes { id isResolved isOutdated comments(first:1) { nodes { databaseId body } } } } }`.
