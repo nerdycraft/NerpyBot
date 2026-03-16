@@ -15,6 +15,7 @@ import logging
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import cast
 
 # Make NerdyPy utils importable (mirrors tests/conftest.py:14)
 sys.path.insert(0, str(Path(__file__).parent.parent / "NerdyPy"))
@@ -222,7 +223,7 @@ class SetupClient(discord.Client):
                     else:
                         existed_count += 1
                     if ch_type == "text":
-                        channel_map[ch_name] = ch  # type: ignore[assignment]
+                        channel_map[ch_name] = cast(discord.TextChannel, ch)
                 else:
                     print(f"    [FAILED]  {prefix}{ch_name}")
 
@@ -324,7 +325,7 @@ async def _seed_channel(
     - pinned: True only if pin_first was requested and the pin actually succeeded
     """
     try:
-        had = sum([1 async for _ in channel.history(limit=count + 1, oldest_first=False)])
+        had = sum(1 async for _ in channel.history(limit=count + 1, oldest_first=False))
     except discord.HTTPException as exc:
         print(f"    [WARN] Cannot read history of #{channel.name}: {exc}", file=sys.stderr)
         return "error", 0, 0, False
