@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import logging
-import re
 from datetime import UTC, datetime
 from importlib.metadata import version as pkg_version
 from typing import Literal, Optional
@@ -14,19 +13,10 @@ from models.admin import PermissionSubscriber
 from utils.checks import is_admin_or_operator, require_operator
 from utils.cog import NerpyBotCog
 from utils.constants import PROTECTED_MODULES
+from utils.duration import parse_duration
 from utils.errors import NerpyInfraException, NerpyPermissionError
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
 from utils.strings import get_guild_language, get_string
-
-_DURATION_MULTIPLIERS = {"m": 60, "h": 3600, "d": 86400}
-
-
-def _parse_duration(text: str) -> int | None:
-    """Parse a human duration string like '30m', '2h', '1d' into seconds."""
-    match = re.fullmatch(r"(\d+)\s*([mhd])", text.strip().lower())
-    if not match:
-        return None
-    return int(match.group(1)) * _DURATION_MULTIPLIERS[match.group(2)]
 
 
 def _format_remaining(seconds: float) -> str:
@@ -283,10 +273,12 @@ class Operator(NerpyBotCog, Cog):
             if not arg:
                 await ctx.send("Usage: `!errors suppress <duration>` (e.g. 30m, 2h, 1d)")
                 return
-            seconds = _parse_duration(arg)
-            if seconds is None:
-                await ctx.send("Invalid duration. Use `<number><m|h|d>`, e.g. `30m`, `2h`, `1d`.")
+            try:
+                td = parse_duration(arg)
+            except ValueError:
+                await ctx.send("Invalid duration. Use e.g. `30m`, `2h30m`, `1d`.")
                 return
+            seconds = int(td.total_seconds())
             self.bot.error_throttle.suppress(seconds)
             await ctx.send(f"🔇 Error notifications suppressed for {_format_remaining(seconds)}.")
 

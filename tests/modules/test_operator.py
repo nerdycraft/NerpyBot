@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from models.admin import PermissionSubscriber
-from modules.operator import Operator, _format_remaining, _parse_duration
+from modules.operator import Operator, _format_remaining
 from utils.strings import load_strings
 
 
@@ -362,28 +362,8 @@ class TestErrorsUnknownAction:
 
 
 # ---------------------------------------------------------------------------
-# _parse_duration / _format_remaining helpers
+# _format_remaining helper
 # ---------------------------------------------------------------------------
-
-
-class TestParseDuration:
-    def test_minutes(self):
-        assert _parse_duration("30m") == 1800
-
-    def test_hours(self):
-        assert _parse_duration("2h") == 7200
-
-    def test_days(self):
-        assert _parse_duration("1d") == 86400
-
-    def test_with_spaces(self):
-        assert _parse_duration(" 15 m ") == 900
-
-    def test_invalid_returns_none(self):
-        assert _parse_duration("banana") is None
-
-    def test_empty_returns_none(self):
-        assert _parse_duration("") is None
 
 
 class TestFormatRemaining:
