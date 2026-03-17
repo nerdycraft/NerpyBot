@@ -374,6 +374,15 @@ class CraftingRecipeCache(db.BASE):
         return or_(consumable_cond, cauldron_cond)
 
     @classmethod
+    def _main_class_condition(cls):
+        """Return an OR condition matching items that belong to the main gear class buckets.
+
+        Matches rows whose ItemClassName (lowercase) is one of the main class names
+        (armor, weapon, profession). Use ``~cls._main_class_condition()`` to exclude them.
+        """
+        return or_(*[func.lower(cls.ItemClassName) == name for name in _MAIN_ITEM_CLASS_NAMES])
+
+    @classmethod
     def get_by_profession(cls, prof_id, recipe_type, session):
         return (
             session.query(cls)
@@ -623,7 +632,7 @@ class CraftingRecipeCache(db.BASE):
             cls.RecipeType == recipe_type,
             cls.CategoryName.isnot(None),
             cls.BindType.isnot(None),
-            ~or_(*[func.lower(cls.ItemClassName) == name for name in _MAIN_ITEM_CLASS_NAMES]),
+            ~cls._main_class_condition(),
             ~cls._pvp_condition(),
             ~cls._raid_prep_condition(),
         )
@@ -639,7 +648,7 @@ class CraftingRecipeCache(db.BASE):
             cls.RecipeType == recipe_type,
             cls.CategoryName == category_name,
             cls.BindType.isnot(None),
-            ~or_(*[func.lower(cls.ItemClassName) == name for name in _MAIN_ITEM_CLASS_NAMES]),
+            ~cls._main_class_condition(),
             ~cls._pvp_condition(),
             ~cls._raid_prep_condition(),
         )
