@@ -272,7 +272,7 @@ class Admin(NerpyBotCog, Cog):
                     f"{stats['duration_seconds']}s"
                 )
                 if not stats["cache_updated"]:
-                    summary += "\n⚠️ Cache was **not** updated due to errors — stale data preserved. Retry when Blizzard API is stable."
+                    summary += "\n**Warning:** Cache was **not** updated due to errors — stale data preserved. Retry when Blizzard API is stable."
                 await ctx.send(summary)
             except Exception as ex:
                 self.bot.log.error("Recipe sync failed: %s", ex, exc_info=True)
