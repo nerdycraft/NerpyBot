@@ -4,6 +4,7 @@
 import logging
 import re
 from datetime import UTC, datetime, timedelta
+from urllib.parse import quote
 
 import discord
 from discord import Interaction, ui
@@ -1095,12 +1096,6 @@ class CraftingOrderModal(ui.Modal):
             item_name = item_name_input
             item_name_localized = None
 
-        # Auto-generate a Wowhead search URL for free-text "Other" items.
-        if not self._wowhead_url and item_name:
-            from urllib.parse import quote
-
-            self._wowhead_url = f"https://www.wowhead.com/search?q={quote(item_name)}"
-
         # Phase 1: persist the order and resolve all data needed for Discord.
         # Exit the session before any Discord HTTP calls to avoid holding a DB
         # connection open across network I/O.
@@ -1110,6 +1105,17 @@ class CraftingOrderModal(ui.Modal):
         view = None
         config = None
         with self.bot.session_scope() as session:
+            # Resolve free-text item names against the recipe cache before
+            # falling back to a Wowhead search URL.
+            if not self._wowhead_url and item_name:
+                cached = CraftingRecipeCache.find_best_match(item_name, session)
+                if cached:
+                    self._wowhead_url = cached.wowhead_url
+                    if not self._icon_url:
+                        self._icon_url = cached.IconUrl
+                else:
+                    self._wowhead_url = f"https://www.wowhead.com/search?q={quote(item_name)}"
+
             config = CraftingBoardConfig.get_by_guild(self.guild_id, session)
             if config is not None:
                 lang = self.bot.get_guild_language(self.guild_id)

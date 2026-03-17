@@ -452,3 +452,55 @@ class TestCraftingOrder:
         active = CraftingOrder.get_active_by_guild(100, db_session)
         assert len(active) == 1
         assert active[0].ItemName == "A"
+
+
+class TestCraftingRecipeCacheFindBestMatch:
+    def test_exact_match(self, db_session):
+        db_session.add(_recipe(RecipeId=100, ItemName="Farstrider Rock Satchel", ItemId=244719))
+        db_session.flush()
+
+        result = CraftingRecipeCache.find_best_match("Farstrider Rock Satchel", db_session)
+        assert result is not None
+        assert result.ItemId == 244719
+
+    def test_exact_match_case_insensitive(self, db_session):
+        db_session.add(_recipe(RecipeId=100, ItemName="Farstrider Rock Satchel", ItemId=244719))
+        db_session.flush()
+
+        result = CraftingRecipeCache.find_best_match("farstrider rock satchel", db_session)
+        assert result is not None
+        assert result.ItemId == 244719
+
+    def test_substring_match_unique_item(self, db_session):
+        db_session.add(_recipe(RecipeId=100, ItemName="Farstrider Rock Satchel", ItemId=244719))
+        db_session.flush()
+
+        result = CraftingRecipeCache.find_best_match("Rock Satchel", db_session)
+        assert result is not None
+        assert result.ItemId == 244719
+
+    def test_substring_match_same_item_multiple_professions(self, db_session):
+        # Same ItemId crafted by two professions — should still return a result
+        db_session.add(_recipe(RecipeId=101, ItemName="Farstrider Rock Satchel", ItemId=244719, ProfessionId=164))
+        db_session.add(_recipe(RecipeId=102, ItemName="Farstrider Rock Satchel", ItemId=244719, ProfessionId=165))
+        db_session.flush()
+
+        result = CraftingRecipeCache.find_best_match("Farstrider Rock Satchel", db_session)
+        assert result is not None
+        assert result.ItemId == 244719
+
+    def test_substring_match_ambiguous_returns_none(self, db_session):
+        # Two *different* items match the substring — ambiguous, return None
+        db_session.add(_recipe(RecipeId=101, ItemName="Farstrider Rock Satchel", ItemId=244719))
+        db_session.add(_recipe(RecipeId=102, ItemName="Farstrider Rock Backpack", ItemId=244720))
+        db_session.flush()
+
+        result = CraftingRecipeCache.find_best_match("Farstrider Rock", db_session)
+        assert result is None
+
+    def test_no_match_returns_none(self, db_session):
+        db_session.add(_recipe(RecipeId=100, ItemName="Farstrider Hardhat", ItemId=244715))
+        db_session.flush()
+
+        result = CraftingRecipeCache.find_best_match("Completely Unknown Item", db_session)
+        assert result is None

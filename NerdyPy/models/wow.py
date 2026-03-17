@@ -691,6 +691,41 @@ class CraftingRecipeCache(db.BASE):
             return f"https://www.wowhead.com/item={self.ItemId}"
         return f"https://www.wowhead.com/spell={self.RecipeId}"
 
+    @property
+    def dedup_key(self) -> str:
+        """Unique key for deduplication across professions (same item, different recipe rows)."""
+        return f"item:{self.ItemId}" if self.ItemId is not None else f"spell:{self.RecipeId}"
+
+    @classmethod
+    def find_best_match(cls, name: str, session):
+        """Try to resolve a free-text item name against the cache.
+
+        Strategy:
+        1. Exact case-insensitive match on ItemName → return immediately.
+        2. Substring match (LIKE %name%) → return the first result only if all
+           hits refer to the same item (deduplicated by dedup_key).
+           Multiple distinct items = ambiguous → return None.
+
+        The caller should fall back to a Wowhead search URL when None is returned.
+        """
+        # Exact match
+        exact = session.query(cls).filter(func.lower(cls.ItemName) == name.lower()).first()
+        if exact:
+            return exact
+
+        # Substring match — limit to avoid loading large result sets; we only need
+        # enough rows to determine whether the match is unique or ambiguous.
+        pattern = f"%{name.lower()}%"
+        matches = session.query(cls).filter(func.lower(cls.ItemName).like(pattern)).limit(100).all()
+        if not matches:
+            return None
+
+        unique_ids = {r.dedup_key for r in matches}
+        if len(unique_ids) == 1:
+            return matches[0]
+
+        return None
+
     @classmethod
     def count(cls, session) -> int:
         return session.query(cls).count()
