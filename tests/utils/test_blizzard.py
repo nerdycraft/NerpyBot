@@ -40,10 +40,9 @@ class TestRoleAutoMatch:
         assert matched is None
 
 
-def _make_bot(cache_row_count: int = 0):
+def _make_bot():
     """Return a (bot, session) pair with a working session_scope context manager."""
     session = MagicMock()
-    session.query.return_value.count.return_value = cache_row_count
 
     bot = MagicMock()
     bot.config.get.return_value = {"wow_id": "fake_id", "wow_secret": "fake_secret"}
@@ -71,7 +70,7 @@ class TestSyncCraftingRecipesGuard:
 
     async def test_clean_sync_updates_cache(self):
         """errors=0 → cache is always replaced."""
-        bot, session = _make_bot(cache_row_count=5)
+        bot, session = _make_bot()
         with patch("blizzapi.RetailClient", return_value=_make_client(fail=False)):
             with patch.object(CraftingRecipeCache, "count", return_value=5):
                 from utils.blizzard import sync_crafting_recipes
@@ -83,7 +82,7 @@ class TestSyncCraftingRecipesGuard:
 
     async def test_errors_with_populated_cache_skips_swap(self):
         """errors>0 and cache has rows → keep stale cache, do not wipe."""
-        bot, session = _make_bot(cache_row_count=10)
+        bot, session = _make_bot()
         with patch("blizzapi.RetailClient", return_value=_make_client(fail=True)):
             with patch.object(CraftingRecipeCache, "count", return_value=10):
                 from utils.blizzard import sync_crafting_recipes
@@ -99,7 +98,7 @@ class TestSyncCraftingRecipesGuard:
         """errors>0 but cache is empty → partial rows are written (something > nothing)."""
         import threading
 
-        bot, session = _make_bot(cache_row_count=0)
+        bot, session = _make_bot()
 
         # First profession call returns one skill tier with one recipe; all others raise.
         # threading.Lock ensures the call counter is safe across asyncio.to_thread workers.
