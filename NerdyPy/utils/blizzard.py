@@ -402,11 +402,21 @@ async def sync_crafting_recipes(
     await asyncio.gather(*[_sync_profession(name, pid) for name, pid in CRAFTING_PROFESSIONS.items()])
 
     # ── Upsert into database ──────────────────────────────────────────────
+    cache_updated = False
+
     def _upsert():
+        nonlocal cache_updated
         with bot.session_scope() as session:
+            if errors > 0 and CraftingRecipeCache.count(session) > 0:
+                log.warning(
+                    "sync_crafting_recipes: %d error(s) during fetch — keeping stale cache, retry later",
+                    errors,
+                )
+                return
             CraftingRecipeCache.delete_all(session)
             if all_rows:
                 session.execute(insert(CraftingRecipeCache), all_rows)
+            cache_updated = True
 
     await asyncio.to_thread(_upsert)
 
@@ -415,10 +425,11 @@ async def sync_crafting_recipes(
     duration = round(time.monotonic() - start, 1)
 
     log.info(
-        "sync_crafting_recipes: done — crafted=%d housing=%d errors=%d duration=%.1fs",
+        "sync_crafting_recipes: done — crafted=%d housing=%d errors=%d cache_updated=%s duration=%.1fs",
         crafted_count,
         housing_count,
         errors,
+        cache_updated,
         duration,
     )
 
@@ -426,6 +437,7 @@ async def sync_crafting_recipes(
         "crafted": crafted_count,
         "housing": housing_count,
         "errors": errors,
+        "cache_updated": cache_updated,
         "duration_seconds": duration,
     }
 

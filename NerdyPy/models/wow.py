@@ -480,5 +480,9 @@ class CraftingRecipeCache(db.BASE):
         return f"https://www.wowhead.com/spell={self.RecipeId}"
 
     @classmethod
+    def count(cls, session) -> int:
+        return session.query(cls).count()
+
+    @classmethod
     def delete_all(cls, session):
         session.query(cls).delete()
