@@ -68,12 +68,24 @@ Returns `{"crafted": N, "housing": N, "errors": N, "duration_seconds": float}`.
 ### Order Creation — Equippable/Consumable Flow
 
 1. User clicks **"Create Crafting Order"** on the board embed
-2. If cache has `"crafted"` recipes: **Item Type Select** — dropdown with item classes (Armor, Weapon, Consumable, …)
-3. **Item Subtype Select** — dropdown with subclasses for the chosen type (Plate, Leather, Flask, Feast, …)
-4. **Item Select** — up to 24 matching recipe options + "Other". "Other" skips to free-text modal.
+2. If cache has `"crafted"` recipes: **Virtual Category Select** — up to 6 curated buckets (availability-gated per guild):
+   - **⚔️ PvP Gear** — bound items whose `CategoryName` contains "Competitor" or "PvP"
+   - **🧪 Raid Prep** — NULL-BindType consumables (flask, phial, potion, feast, rune, tea) + cauldrons
+   - **🛡️ Armor** — bound Armor-class items, PvP excluded
+   - **⚔️ Weapons** — bound Weapon-class items, PvP excluded
+   - **🔧 Profession Gear** — bound Profession-class items
+   - **📦 Other Stuff** — remaining bound items (bags, treatises, transmutations, cosmetics)
+3. Depending on the bucket:
+   - **PvP** → Weapons (flat list) or Gear → armor subtype → items
+   - **Raid Prep** → category (e.g. "Light Potions") → items
+   - **Armor / Weapons / Profession Gear** → subclass → items (if >24 items for a subclass, an extra CategoryName drill-down step is inserted)
+   - **Other** → category → items
+4. **Item Select** — up to 24 matching recipe options + "Other (free text)". "Other" skips to free-text modal.
 5. On item selection: profession role is auto-resolved from the cache + `CraftingRoleMapping`; modal opens pre-filled with item name and icon
 6. Modal submit creates the `CraftingOrder` row with icon URL + Wowhead link, then posts the order embed
-7. If cache is empty at any step: graceful fallback to **Profession Select** → free-text modal
+7. If cache is empty (no orderable recipes found): graceful fallback to **Profession Select** → free-text modal
+
+Every leaf dropdown is guaranteed ≤24 items so Discord's 25-option limit is never hit. The BoE (bind-on-equip) items for gear professions are included in the orderable filter.
 
 ### Order Creation — Housing Flow
 
@@ -157,22 +169,24 @@ Maps Discord role IDs to Blizzard profession IDs, per guild. Auto-populated duri
 
 Bot-global cache of craftable recipes from the Blizzard API. Keyed by `RecipeId`.
 
-| Column             | Type          | Description                                                   |
-| ------------------ | ------------- | ------------------------------------------------------------- |
-| `RecipeId`         | Integer (PK)  | Blizzard recipe or spell ID                                   |
-| `ProfessionId`     | Integer       | Blizzard profession ID                                        |
-| `ProfessionName`   | Unicode 100   | e.g. "Blacksmithing"                                          |
-| `ItemId`           | Integer (opt) | Blizzard crafted item ID                                      |
-| `ItemName`         | Unicode 200   | Display name                                                  |
-| `IconUrl`          | Unicode 500   | Icon URL from Blizzard media API                              |
-| `RecipeType`       | String 20     | `"crafted"` or `"housing"`                                    |
-| `ItemClassName`    | Unicode 100   | Blizzard item_class name (e.g. "Armor", "Weapon")             |
-| `ItemClassId`      | Integer (opt) | Blizzard item_class.id (2=Weapon, 4=Armor)                    |
-| `ItemSubClassName` | Unicode 100   | item_subclass name (e.g. "Plate", "Cloth", "Flask")           |
-| `ItemSubClassId`   | Integer (opt) | item_subclass.id                                              |
-| `ExpansionName`    | Unicode 100   | Skill tier / expansion name (e.g. "Midnight", "Dragonflight") |
-| `CategoryName`     | Unicode 200   | Category within the profession tier                           |
-| `LastSynced`       | DateTime      | UTC timestamp of last sync                                    |
+| Column             | Type          | Description                                                                                                      |
+| ------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `RecipeId`         | Integer (PK)  | Blizzard recipe or spell ID                                                                                      |
+| `ProfessionId`     | Integer       | Blizzard profession ID                                                                                           |
+| `ProfessionName`   | Unicode 100   | e.g. "Blacksmithing"                                                                                             |
+| `ItemId`           | Integer (opt) | Blizzard crafted item ID                                                                                         |
+| `ItemName`         | Unicode 200   | Display name                                                                                                     |
+| `IconUrl`          | Unicode 500   | Icon URL from Blizzard media API                                                                                 |
+| `RecipeType`       | String 20     | `"crafted"` or `"housing"`                                                                                       |
+| `ItemClassName`    | Unicode 100   | Blizzard item_class name (e.g. "Armor", "Weapon")                                                                |
+| `ItemClassId`      | Integer (opt) | Blizzard item_class.id (2=Weapon, 4=Armor)                                                                       |
+| `ItemSubClassName` | Unicode 100   | item_subclass name (e.g. "Plate", "Cloth", "Flask")                                                              |
+| `ItemSubClassId`   | Integer (opt) | item_subclass.id                                                                                                 |
+| `ExpansionName`    | Unicode 100   | Skill tier / expansion name (e.g. "Midnight", "Dragonflight")                                                    |
+| `CategoryName`     | Unicode 200   | Category within the profession tier                                                                              |
+| `BindType`         | String 20     | Blizzard binding type: `ON_ACQUIRE` (BoP), `TO_ACCOUNT` (BoA), `ON_EQUIP` (BoE), or `NULL` (unbound consumables) |
+| `ItemQuality`      | String 20     | Item quality tier: `EPIC`, `RARE`, `COMMON`, etc. (nullable)                                                     |
+| `LastSynced`       | DateTime      | UTC timestamp of last sync                                                                                       |
 
 ### CraftingOrder
 
@@ -186,16 +200,16 @@ The `WowheadUrl` column was added in migration `012`.
 
 ## File Layout
 
-| File                                                                 | Contents                                                                         |
-| -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `NerdyPy/modules/wow.py`                                             | `craftingorder` command group (create, edit, remove)                             |
-| `NerdyPy/modules/views/crafting_order.py`                            | Board view, select views (type/subtype/item/expansion/housing profession), modal |
-| `NerdyPy/models/wow.py`                                              | CraftingBoardConfig, CraftingRoleMapping, CraftingRecipeCache, CraftingOrder     |
-| `NerdyPy/utils/blizzard.py`                                          | `sync_crafting_recipes()`, `_resolve_expansion()`, expansion map                 |
-| `NerdyPy/utils/valkey.py`                                            | `recipe_sync` + `recipe_sync_status` Valkey IPC handlers                         |
-| `NerdyPy/modules/admin.py`                                           | `!sync recipes` CLI command                                                      |
-| `web/routes/operator.py`                                             | `/operator/recipe-sync` POST + GET endpoints                                     |
-| `web/frontend/src/views/guild/tabs/OperatorRecipeSyncTab.vue`        | Dashboard operator tab for recipe cache management                               |
-| `NerdyPy/bot.py`                                                     | DynamicItem and persistent view registration in `setup_hook()`                   |
-| `NerdyPy/locales/lang_en.yaml`                                       | `wow.craftingorder.*` localization keys                                          |
-| `database-migrations/versions/012_add_crafting_order_wowhead_url.py` | Alembic migration: adds `WowheadUrl` to `CraftingOrder`                          |
+| File                                                                 | Contents                                                                                                                                                        |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NerdyPy/modules/wow.py`                                             | `craftingorder` command group (create, edit, remove)                                                                                                            |
+| `NerdyPy/modules/views/crafting_order.py`                            | Board view, virtual category select views (VirtualCategory, PvP, RaidPrep, Armor/Weapon overflow, Other), item/expansion/housing profession select views, modal |
+| `NerdyPy/models/wow.py`                                              | CraftingBoardConfig, CraftingRoleMapping, CraftingRecipeCache, CraftingOrder                                                                                    |
+| `NerdyPy/utils/blizzard.py`                                          | `sync_crafting_recipes()`, `_resolve_expansion()`, expansion map                                                                                                |
+| `NerdyPy/utils/valkey.py`                                            | `recipe_sync` + `recipe_sync_status` Valkey IPC handlers                                                                                                        |
+| `NerdyPy/modules/admin.py`                                           | `!sync recipes` CLI command                                                                                                                                     |
+| `web/routes/operator.py`                                             | `/operator/recipe-sync` POST + GET endpoints                                                                                                                    |
+| `web/frontend/src/views/guild/tabs/OperatorRecipeSyncTab.vue`        | Dashboard operator tab for recipe cache management                                                                                                              |
+| `NerdyPy/bot.py`                                                     | DynamicItem and persistent view registration in `setup_hook()`                                                                                                  |
+| `NerdyPy/locales/lang_en.yaml`                                       | `wow.craftingorder.*` localization keys                                                                                                                         |
+| `database-migrations/versions/012_add_crafting_order_wowhead_url.py` | Alembic migration: adds `WowheadUrl` to `CraftingOrder`                                                                                                         |
