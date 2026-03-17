@@ -118,7 +118,7 @@ function onInputManual(e: Event) {
     <div
       v-if="open && filtered.length > 0"
       data-dropdown
-      class="absolute left-0 right-0 top-full mt-1 z-30 bg-card border border-border rounded-md shadow-lg max-h-48 overflow-y-auto"
+      class="absolute left-0 right-0 top-full mt-1 z-30 bg-card border border-border rounded-md shadow-lg max-h-48 overflow-y-auto scrollbar-thin"
     >
       <button
         v-for="item in filtered"

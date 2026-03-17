@@ -173,13 +173,6 @@ const allSectionGroups: SectionGroup[] = [
         component: ServerOverviewTab,
       },
       {
-        id: "language",
-        labelKey: "nav.items.language",
-        icon: "mdi:translate",
-        component: LanguageTab,
-        guildOnly: true,
-      },
-      {
         id: "reminders",
         labelKey: "nav.items.reminders",
         icon: "mdi:bell-outline",
@@ -189,10 +182,18 @@ const allSectionGroups: SectionGroup[] = [
     ],
   },
   {
-    id: "moderation",
-    labelKey: "nav.groups.moderation",
-    accentClass: "text-amber-400",
+    id: "server-admin",
+    labelKey: "nav.groups.server_admin",
+    accentClass: "text-indigo-400",
+    minLevel: "admin",
     items: [
+      {
+        id: "language",
+        labelKey: "nav.items.language",
+        icon: "mdi:translate",
+        component: LanguageTab,
+        guildOnly: true,
+      },
       {
         id: "moderator-roles",
         labelKey: "nav.items.moderator_roles",
@@ -200,6 +201,13 @@ const allSectionGroups: SectionGroup[] = [
         component: ModeratorRolesTab,
         guildOnly: true,
       },
+    ],
+  },
+  {
+    id: "moderation",
+    labelKey: "nav.groups.moderation",
+    accentClass: "text-amber-400",
+    items: [
       {
         id: "auto-kicker",
         labelKey: "nav.items.auto_kicker",
@@ -510,7 +518,7 @@ function guildIconUrl(): string | null {
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 p-2 overflow-y-auto" :class="sidebarOpen ? 'space-y-4' : 'space-y-2'">
+      <nav class="flex-1 p-2 overflow-y-auto scrollbar-thin" :class="sidebarOpen ? 'space-y-3' : 'space-y-2'">
         <div v-for="(group, idx) in sectionGroups" :key="group.id">
           <p v-if="sidebarOpen" :class="['px-3 pb-1 text-xs font-semibold uppercase tracking-wider', group.accentClass]">
             {{ t(group.labelKey) }}
@@ -521,7 +529,7 @@ function guildIconUrl(): string | null {
               v-for="section in group.items"
               :key="section.id"
               :class="[
-                'w-full flex items-center py-2 rounded-md text-sm transition-colors text-left',
+                'w-full flex items-center py-1.5 rounded-md text-sm transition-colors text-left',
                 sidebarOpen ? 'gap-2.5' : 'justify-center',
                 activeSection === section.id
                   ? 'bg-primary/15 text-primary font-medium border-l-2 border-primary pl-[10px]'
@@ -560,7 +568,7 @@ function guildIconUrl(): string | null {
       </aside>
 
       <!-- Content area -->
-      <main class="flex-1 overflow-y-auto p-8">
+      <main class="flex-1 overflow-y-auto scrollbar-thin p-8">
         <!-- Support mode banner -->
         <div
           v-if="supportMode"

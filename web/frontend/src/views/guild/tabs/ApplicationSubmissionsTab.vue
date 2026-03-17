@@ -163,7 +163,7 @@ async function applyFormFilter(id: number | null) {
         </div>
 
         <!-- List -->
-        <div class="flex-1 overflow-y-auto">
+        <div class="flex-1 overflow-y-auto scrollbar-thin">
           <p v-if="filtered.length === 0" class="p-4 text-muted-foreground text-sm">{{ t("tabs.application_submissions.empty") }}</p>
           <button
             v-for="sub in filtered"
@@ -189,7 +189,7 @@ async function applyFormFilter(id: number | null) {
       </aside>
 
       <!-- Right panel: detail -->
-      <main class="flex-1 overflow-y-auto">
+      <main class="flex-1 overflow-y-auto scrollbar-thin">
         <p v-if="!selected" class="text-muted-foreground text-sm">{{ t("tabs.application_submissions.select_hint") }}</p>
 
         <div v-else class="max-w-2xl space-y-6">
