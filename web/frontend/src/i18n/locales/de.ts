@@ -254,7 +254,7 @@ export const de: typeof en = {
 
     leave_messages: {
       title: "Abschiedsnachrichten",
-      desc: "Sende eine benutzerdefinierte Nachricht in einen Kanal, wenn ein Mitglied den Server verlässt oder entfernt wird. Verwende {user} im Nachrichtentext, um das abgehende Mitglied namentlich zu erwähnen.",
+      desc: "Sende eine benutzerdefinierte Nachricht in einen Kanal, wenn ein Mitglied den Server verlässt oder entfernt wird. Verwende {member} im Nachrichtentext, um das abgehende Mitglied namentlich zu erwähnen.",
       enabled_tooltip:
         "Wenn aktiviert, postet der Bot jedes Mal eine Abschiedsnachricht, wenn ein Mitglied den Server verlässt oder entfernt wird.",
       channel_label: "Kanal",
@@ -262,8 +262,8 @@ export const de: typeof en = {
         "Der Textkanal, in dem Abschiedsnachrichten gepostet werden. Der Bot muss die Berechtigung haben, in diesem Kanal Nachrichten zu senden.",
       message_label: "Nachricht",
       message_tooltip:
-        "Der Nachrichtentext beim Verlassen des Servers. Verwende {user} als Platzhalter — er wird durch den Benutzernamen des abgehenden Mitglieds ersetzt.",
-      placeholder: "Tschüss {user}!",
+        "Der Nachrichtentext beim Verlassen des Servers. Verwende {member} als Platzhalter — er wird durch den Benutzernamen des abgehenden Mitglieds ersetzt.",
+      placeholder: "Tschüss {member}!",
     },
 
     support: {

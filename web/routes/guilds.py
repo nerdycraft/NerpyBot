@@ -207,6 +207,11 @@ async def set_leave_message(
 ):
     """Create or update the leave message configuration for a guild."""
     _deny_support_write(user)
+    if body.message is not None and "{member}" not in body.message:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Message must contain {member} placeholder for the member name.",
+        )
     from models.leavemsg import LeaveMessage
 
     cfg = LeaveMessage.get(guild_id, session)

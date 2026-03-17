@@ -252,7 +252,7 @@ export const en = {
 
     leave_messages: {
       title: "Leave Messages",
-      desc: "Post a custom message when someone leaves or gets removed from the server. Use {user} in the message text for the departing member's name.",
+      desc: "Post a custom message when someone leaves or gets removed from the server. Use {member} in the message text for the departing member's name.",
       enabled_tooltip:
         "When enabled, the bot will post a leave message each time a member leaves or is removed from the server.",
       channel_label: "Channel",
@@ -260,8 +260,8 @@ export const en = {
         "The text channel where leave messages will be posted. The bot must have permission to send messages in this channel.",
       message_label: "Message",
       message_tooltip:
-        "The message text to post when a member leaves. Use {user} as a placeholder — it will be replaced with the departing member's username.",
-      placeholder: "Goodbye {user}!",
+        "The message text to post when a member leaves. Use {member} as a placeholder — it will be replaced with the departing member's username.",
+      placeholder: "Goodbye {member}!",
     },
 
     support: {
