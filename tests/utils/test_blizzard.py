@@ -96,9 +96,40 @@ class TestSyncCraftingRecipesGuard:
         session.query.return_value.delete.assert_not_called()
 
     async def test_errors_with_empty_cache_writes_partial_data(self):
-        """errors>0 but cache is empty → write partial data (something > nothing)."""
+        """errors>0 but cache is empty → partial rows are written (something > nothing)."""
+        import threading
+
         bot, session = _make_bot(cache_row_count=0)
-        with patch("blizzapi.RetailClient", return_value=_make_client(fail=True)):
+
+        # First profession call returns one skill tier with one recipe; all others raise.
+        # threading.Lock ensures the call counter is safe across asyncio.to_thread workers.
+        _lock = threading.Lock()
+        _n = [0]
+
+        def _profession_side_effect(**kwargs):
+            with _lock:
+                _n[0] += 1
+                n = _n[0]
+            if n == 1:
+                return {"skill_tiers": [{"id": 1, "name": "Shadowlands Blacksmithing"}]}
+            raise RuntimeError("Blizzard API unavailable")
+
+        client = MagicMock()
+        client.profession.side_effect = _profession_side_effect
+        client.profession_skill_tier.return_value = {
+            "categories": [{"name": "Gear", "recipes": [{"id": 100, "name": "Iron Sword"}]}]
+        }
+        client.recipe.return_value = {"id": 100, "crafted_item": {"id": 200, "name": "Iron Sword"}}
+        client.item.return_value = {
+            "id": 200,
+            "item_class": {"id": 2, "name": "Weapon"},
+            "item_subclass": {"id": 0, "name": "Sword"},
+        }
+        client.item_media.return_value = None
+        client.item_search.return_value = None
+        client.recipe_media.return_value = None
+
+        with patch("blizzapi.RetailClient", return_value=client):
             with patch.object(CraftingRecipeCache, "count", return_value=0):
                 from utils.blizzard import sync_crafting_recipes
 
@@ -106,3 +137,4 @@ class TestSyncCraftingRecipesGuard:
 
         assert result["errors"] > 0
         assert result["cache_updated"] is True
+        assert result["crafted"] > 0  # partial rows were actually written
