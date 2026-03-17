@@ -10,6 +10,14 @@ NerpyBot is a Discord bot built with discord.py using the Cog extension system. 
 
 **Always use `uv run` to execute Python, pytest, ruff, and other tools** — this project is uv-managed and all dependencies live in uv's virtual environment.
 
+**Before running any `uv` command — especially in a fresh worktree — always sync all groups first to avoid false-positive import errors:**
+
+```bash
+uv sync --all-groups                 # Sync all dependency groups (bot + test + web)
+# Or in a worktree:
+uv sync --directory .worktrees/<name> --all-groups
+```
+
 ```bash
 # Install dependencies
 uv sync                              # All bot dependencies (default)
