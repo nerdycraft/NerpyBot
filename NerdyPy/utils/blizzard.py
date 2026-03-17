@@ -157,7 +157,13 @@ async def sync_crafting_recipes(
     recipes from non-matching tiers are skipped.  Housing recipes from ALL
     tiers are always cached regardless of the expansion filter.
 
-    Returns {"crafted": N, "housing": N, "errors": N, "duration_seconds": float}.
+    Returns {
+        "crafted": int,
+        "housing": int,
+        "errors": int,
+        "cache_updated": bool,  # False when errors > 0 and stale cache was preserved
+        "duration_seconds": float,
+    }.
     """
     import asyncio
     import logging
