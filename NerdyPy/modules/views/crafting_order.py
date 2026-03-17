@@ -534,12 +534,8 @@ class VirtualCategorySelectView(ui.View):
         value = interaction.data["values"][0]
 
         if value == _VCAT_PVP:
-            with self.bot.session_scope() as session:
-                pvp_classes = CraftingRecipeCache.get_pvp_item_classes(
-                    RECIPE_TYPE_CRAFTED, session, profession_ids=self.mapped_prof_ids
-                )
             view = PvPGroupSelectView(
-                self.bot, self.roles, self.guild_id, self.lang, pvp_classes, self.mapped_prof_ids, self.item_class_ids
+                self.bot, self.roles, self.guild_id, self.lang, self.mapped_prof_ids, self.item_class_ids
             )
             await interaction.response.edit_message(
                 content=get_string(self.lang, "wow.craftingorder.pvp_group_select"), view=view
@@ -609,7 +605,6 @@ class PvPGroupSelectView(ui.View):
         roles: list[discord.Role],
         guild_id: int,
         lang: str,
-        pvp_classes: list[tuple[int, str | None, dict | None]],
         mapped_prof_ids: set[int] | None = None,
         item_class_ids: dict[str, int] | None = None,
     ):
