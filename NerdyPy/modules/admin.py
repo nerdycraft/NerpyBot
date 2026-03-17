@@ -265,12 +265,15 @@ class Admin(NerpyBotCog, Cog):
 
                 expansion = self.bot.config.get("wow", {}).get("expansion")
                 stats = await sync_crafting_recipes(self.bot, expansion=expansion)
-                await ctx.send(
+                summary = (
                     f"Recipe sync complete: **{stats['crafted']}** crafted · "
                     f"**{stats['housing']}** housing · "
                     f"**{stats['errors']}** errors · "
                     f"{stats['duration_seconds']}s"
                 )
+                if not stats["cache_updated"]:
+                    summary += "\n**Warning:** Cache was **not** updated due to errors — stale data preserved. Retry when Blizzard API is stable."
+                await ctx.send(summary)
             except Exception as ex:
                 self.bot.log.error("Recipe sync failed: %s", ex, exc_info=True)
                 await ctx.send(f"Recipe sync failed: {ex}")

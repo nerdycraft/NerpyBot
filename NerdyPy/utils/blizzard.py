@@ -157,7 +157,13 @@ async def sync_crafting_recipes(
     recipes from non-matching tiers are skipped.  Housing recipes from ALL
     tiers are always cached regardless of the expansion filter.
 
-    Returns {"crafted": N, "housing": N, "errors": N, "duration_seconds": float}.
+    Returns {
+        "crafted": int,
+        "housing": int,
+        "errors": int,
+        "cache_updated": bool,  # False when errors > 0 and stale cache was preserved
+        "duration_seconds": float,
+    }.
     """
     import asyncio
     import logging
@@ -402,23 +408,31 @@ async def sync_crafting_recipes(
     await asyncio.gather(*[_sync_profession(name, pid) for name, pid in CRAFTING_PROFESSIONS.items()])
 
     # ── Upsert into database ──────────────────────────────────────────────
-    def _upsert():
+    def _upsert() -> bool:
         with bot.session_scope() as session:
+            if errors > 0 and CraftingRecipeCache.count(session) > 0:
+                log.warning(
+                    "sync_crafting_recipes: %d error(s) during fetch — keeping stale cache, retry later",
+                    errors,
+                )
+                return False
             CraftingRecipeCache.delete_all(session)
             if all_rows:
                 session.execute(insert(CraftingRecipeCache), all_rows)
+            return True
 
-    await asyncio.to_thread(_upsert)
+    cache_updated = await asyncio.to_thread(_upsert)
 
     crafted_count = sum(1 for r in all_rows if r["RecipeType"] == RECIPE_TYPE_CRAFTED)
     housing_count = sum(1 for r in all_rows if r["RecipeType"] == RECIPE_TYPE_HOUSING)
     duration = round(time.monotonic() - start, 1)
 
     log.info(
-        "sync_crafting_recipes: done — crafted=%d housing=%d errors=%d duration=%.1fs",
+        "sync_crafting_recipes: done — crafted=%d housing=%d errors=%d cache_updated=%s duration=%.1fs",
         crafted_count,
         housing_count,
         errors,
+        cache_updated,
         duration,
     )
 
@@ -426,6 +440,7 @@ async def sync_crafting_recipes(
         "crafted": crafted_count,
         "housing": housing_count,
         "errors": errors,
+        "cache_updated": cache_updated,
         "duration_seconds": duration,
     }
 
