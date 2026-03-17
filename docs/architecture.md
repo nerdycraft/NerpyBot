@@ -28,12 +28,12 @@ NerpyBot is a Discord bot built with discord.py using the Cog extension system. 
 
 ### Key Events
 
-| Event                  | Behavior                                                                |
-| ---------------------- | ----------------------------------------------------------------------- |
-| `on_app_command_error` | Logs errors and sends user-friendly messages for slash commands         |
-| `on_command_error`     | Handles errors for the few remaining prefix commands (admin sync/debug) |
-| `on_raw_reaction_add`  | Routes reactions to active conversations (raidplaner)                   |
-| `on_message`           | Routes DMs to active conversations, then processes prefix commands      |
+| Event                  | Behavior                                                                   |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `on_app_command_error` | Logs errors and sends user-friendly messages for slash commands            |
+| `on_command_error`     | Handles errors for the few remaining prefix commands (operator sync/debug) |
+| `on_raw_reaction_add`  | Routes reactions to active conversations (raidplaner)                      |
+| `on_message`           | Routes DMs to active conversations, then processes prefix commands         |
 
 ## Module System
 
@@ -48,15 +48,14 @@ Modules are loaded dynamically based on `config.bot.modules`. Available modules:
 
 | Module       | Type                  | Background Tasks                       | External APIs           |
 | ------------ | --------------------- | -------------------------------------- | ----------------------- |
-| admin        | Cog (slash + prefix)  | —                                      | —                       |
+| server_admin | Cog (slash)           | —                                      | —                       |
+| operator     | Cog (slash + prefix)  | —                                      | —                       |
 | league       | GroupCog              | —                                      | Riot API                |
-| leavemsg     | GroupCog              | —                                      | —                       |
 | moderation   | GroupCog              | AutoKicker (daily), AutoDeleter (5min) | —                       |
 | music        | GroupCog + QueueMixin | —                                      | YouTube API, yt-dlp     |
 | raidplaner   | Cog                   | —                                      | —                       |
-| reactionrole | GroupCog              | —                                      | —                       |
 | reminder     | GroupCog              | Reminder loop (30s)                    | —                       |
-| rolemanage   | GroupCog              | —                                      | —                       |
+| roles        | Cog (slash)           | —                                      | —                       |
 | tagging      | GroupCog + QueueMixin | —                                      | —                       |
 | wow          | GroupCog              | Guild news loop (15min)                | Blizzard API, Raider.io |
 
@@ -166,7 +165,7 @@ Format: `[DD/MM/YYYY HH:MM] - LEVEL - module line: message`
 
 ### Slash Commands
 
-All user-facing commands are slash commands (`/command`) using `@app_commands.command`. The `GroupCog` pattern creates command groups (e.g., `/wow armory`, `/reminder create`). Exceptions: admin `ping` is a hybrid command (slash + prefix), admin `sync`/`debug`/`uptime` are prefix-only (DM-only), and raidplaner remains fully prefix-only (interactive DM conversations).
+All user-facing commands are slash commands (`/command`) using `@app_commands.command`. The `GroupCog` pattern creates command groups (e.g., `/wow armory`, `/reminder create`). Exceptions: `operator` `ping` is a hybrid command (slash + prefix), `operator` `sync`/`debug`/`uptime` are prefix-only (DM-only), and raidplaner remains fully prefix-only (interactive DM conversations).
 
 ### Ephemeral Messaging
 

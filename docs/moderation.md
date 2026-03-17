@@ -139,3 +139,53 @@ Shows the current server member count. No permission required.
 | DeleteOlderThan     | BigInteger   | Age threshold in seconds                  |
 | DeletePinnedMessage | Boolean      | Include pinned messages (default `False`) |
 | Enabled             | Boolean      | Active toggle (default `True`)            |
+
+---
+
+## Leave Messages
+
+Sends a configurable farewell message when a member leaves the server. All commands require **Administrator**
+permission and are grouped under `/moderation leavemsg`.
+
+### Event Listener — `on_member_remove`
+
+1. Skip if the departing member is a bot
+2. Look up `LeaveMessage` config for this guild
+3. If enabled and channel still exists, send the configured message
+4. The `{member}` placeholder is replaced with the member's display name
+
+### `/moderation leavemsg enable <channel>`
+
+Enable leave messages and set the notification channel. Creates a config entry with the default message if none exists,
+or re-enables an existing one.
+
+| Parameter | Type          | Description                     |
+| --------- | ------------- | ------------------------------- |
+| `channel` | `TextChannel` | Where to send farewell messages |
+
+### `/moderation leavemsg disable`
+
+Disable leave messages without deleting the configuration.
+
+### `/moderation leavemsg message <message>`
+
+Set a custom farewell message.
+
+| Parameter | Type  | Description                                       |
+| --------- | ----- | ------------------------------------------------- |
+| `message` | `str` | Custom message template (must contain `{member}`) |
+
+**Default message:** `"{member} left the server :("`
+
+### `/moderation leavemsg status`
+
+Show the current configuration: enabled/disabled state, target channel, and message template.
+
+### Database Model — `LeaveMessage`
+
+| Column    | Type            | Purpose                                      |
+| --------- | --------------- | -------------------------------------------- |
+| GuildId   | BigInteger (PK) | Discord guild ID                             |
+| ChannelId | BigInteger      | Target channel for messages                  |
+| Message   | UnicodeText     | Message template with `{member}` placeholder |
+| Enabled   | Boolean         | Active/inactive toggle (default `False`)     |
