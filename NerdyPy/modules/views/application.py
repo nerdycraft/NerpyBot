@@ -142,7 +142,7 @@ async def _update_review_embed(
         status = submission.Status
         applicant_notified = submission.ApplicantNotified
 
-    view = ApplicationReviewView(bot=bot)
+    view = ApplicationReviewView(bot=bot, lang=lang)
     for item in view.children:
         if item.custom_id == "app_review_override":
             item.disabled = status == SubmissionStatus.PENDING
@@ -877,9 +877,18 @@ class ApplicationReviewView(discord.ui.View):
     across all guilds — the submission is looked up via ``interaction.message.id``.
     """
 
-    def __init__(self, bot=None):
+    def __init__(self, bot=None, lang: str = "en"):
         super().__init__(timeout=None)  # persistent — survives bot restarts
         self.bot = bot
+        for item in self.children:
+            if item.custom_id == "app_review_vote":
+                item.label = get_string(lang, "application.review.btn_vote")
+            elif item.custom_id == "app_review_edit_vote":
+                item.label = get_string(lang, "application.review.btn_edit_vote")
+            elif item.custom_id == "app_review_message":
+                item.label = get_string(lang, "application.review.btn_message")
+            elif item.custom_id == "app_review_override":
+                item.label = get_string(lang, "application.review.btn_override")
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
         if self.bot:

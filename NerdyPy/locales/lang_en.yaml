@@ -1,5 +1,5 @@
 common:
-  error_generic: "An error occurred. The bot operator has been notified."
+  error_generic: "Something went wrong. The bot operator has been notified."
   not_found: "Not found."
 
 bot:
@@ -10,10 +10,10 @@ checks:
     not_connected: "I don't know where you are. Please connect to a voice channel."
     no_connect_permission: "I'm not allowed to join you in your current channel."
     no_speak_permission: "I don't have permission to speak in your voice channel."
-    nothing_playing: "Nothing is playing right now."
-    user_not_in_voice: "You need to be in a voice channel to use this command."
-    user_in_different_channel: "You need to be in the same voice channel as the bot to use this command."
-    leave_moderator_only: "Only moderators can make the bot leave the voice channel."
+    nothing_playing: "Nothing's playing right now."
+    user_not_in_voice: "Hop into a voice channel first!"
+    user_in_different_channel: "You gotta be in the same voice channel as me!"
+    leave_moderator_only: "Only mods can kick me from voice."
   role:
     integration_assign: "**{role}** is an integration role and cannot be assigned to members."
     integration_remove: "**{role}** is an integration role and cannot be removed from members."
@@ -43,19 +43,24 @@ music:
     artist: "Artist"
     requested_by: "Requested by"
     progress: "Progress"
-    not_in_channel: "You must be in the voice channel to use this."
-    queue_empty: "Queue is empty."
+    not_in_channel: "You gotta be in the voice channel for that!"
+    queue_empty: "Queue's empty!"
     queue_header: "🎵 Queue"
     queue_footer: "{count} songs"
+    btn_pause: "⏸ Pause"
+    btn_resume: "⏵ Resume"
+    btn_skip: "⏩ Skip"
+    btn_stop: "⏹ Stop"
+    btn_queue: "📋 Queue"
   skip:
-    success: "Skipped current track."
+    success: "Skipped! ⏩"
   queue:
-    drop_success: "Cleared the queue and stopped playing audio."
+    drop_success: "Queue cleared, playback stopped."
     added: "Added to Queue"
   playlist:
     not_a_playlist: "This is not a playlist. Please add a single video directly with the play command."
-    loading: "Please bear with me. This can take a while."
-    use_playlist_command: "Please use the playlist command for playlists."
+    loading: "Hang tight, this might take a sec..."
+    use_playlist_command: "That's a playlist — use the playlist command for those!"
     created: "Playlist **{name}** created."
     already_exists: "A playlist named **{name}** already exists."
     not_found: "Playlist **{name}** not found."
@@ -74,10 +79,10 @@ music:
   play:
     added: "Added: **{title}**"
     added_playlist: "Added **{count}** songs from *{title}*"
-    not_found: "No results found for that search."
-    fetch_error: "Couldn't retrieve that video. The URL may be invalid or the video is unavailable."
+    not_found: "Couldn't find anything for that search."
+    fetch_error: "Can't grab that video — the URL might be broken or the video's unavailable."
   search:
-    no_results: "Your search did not yield any results."
+    no_results: "No results — try a different search?"
 
 league:
   summoner:
@@ -408,10 +413,10 @@ application:
   no_permission: "You don't have permission to manage applications."
   missing_send_permission: "I don't have permission to send messages in {channel}. Please check my role permissions."
   check_dms: "Check your DMs!"
-  dm_forbidden: "I couldn't send you a DM. Please enable DMs from server members and try again."
+  dm_forbidden: "Couldn't DM you! Make sure DMs from server members are enabled and try again."
   form_not_found: "Form **{name}** not found."
   form_already_exists: "A form named **{name}** already exists."
-  error_generic: "An error occurred. Please try again later."
+  error_generic: "Something went wrong. Try again in a bit!"
   fetch_description:
     invalid_ref: "Invalid message reference — provide a message ID or a message link."
     channel_inaccessible: "I can't access the channel that message is in."
@@ -585,6 +590,10 @@ application:
     vote_change_placeholder: "Change your vote..."
     approve_label: "Approve"
     deny_label: "Deny"
+    btn_vote: "Vote"
+    btn_edit_vote: "Change Vote"
+    btn_message: "Message"
+    btn_override: "Override"
   decision:
     approved_title: "Application Approved"
     denied_title: "Application Denied"

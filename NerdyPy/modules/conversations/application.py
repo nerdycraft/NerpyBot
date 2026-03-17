@@ -910,7 +910,7 @@ class ApplicationSubmitConversation(Conversation):
                     mention_ids.add(gr.RoleId)
                 submission_user_name = submission.UserName
 
-            view = ApplicationReviewView(bot=self.bot)
+            view = ApplicationReviewView(bot=self.bot, lang=self.lang)
             mention_content = " ".join(f"<@&{rid}>" for rid in sorted(mention_ids)) or None
 
             msg = await channel.send(embed=embed, view=view)

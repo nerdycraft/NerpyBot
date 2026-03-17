@@ -86,22 +86,30 @@ class TestLeaveMessageEndpoints:
     def test_put_creates(self, client, auth_header):
         response = client.put(
             f"/api/guilds/{GUILD_ID}/leave-messages",
-            json={"channel_id": "111222333", "message": "Bye {user}!", "enabled": True},
+            json={"channel_id": "111222333", "message": "Bye {member}!", "enabled": True},
             headers=auth_header,
         )
         assert response.status_code == 200
         assert response.json()["enabled"] is True
-        assert response.json()["message"] == "Bye {user}!"
+        assert response.json()["message"] == "Bye {member}!"
 
     def test_get_after_set(self, client, auth_header):
         client.put(
             f"/api/guilds/{GUILD_ID}/leave-messages",
-            json={"channel_id": "111222333", "message": "Goodbye!", "enabled": True},
+            json={"channel_id": "111222333", "message": "Goodbye {member}!", "enabled": True},
             headers=auth_header,
         )
         response = client.get(f"/api/guilds/{GUILD_ID}/leave-messages", headers=auth_header)
-        assert response.json()["message"] == "Goodbye!"
+        assert response.json()["message"] == "Goodbye {member}!"
         assert response.json()["channel_id"] == "111222333"
+
+    def test_put_rejects_missing_placeholder(self, client, auth_header):
+        response = client.put(
+            f"/api/guilds/{GUILD_ID}/leave-messages",
+            json={"message": "Goodbye!"},
+            headers=auth_header,
+        )
+        assert response.status_code == 422
 
 
 class TestAutoDeleteEndpoints:

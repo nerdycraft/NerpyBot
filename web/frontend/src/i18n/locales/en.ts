@@ -24,9 +24,9 @@ export const en = {
     relative_one_day_ago: "1 day ago",
     relative_days_ago: "{days} days ago",
     back: "Back",
-    load_failed: "Failed to load",
-    save_failed: "Failed to save",
-    delete_failed: "Failed to delete",
+    load_failed: "Couldn't load",
+    save_failed: "Couldn't save",
+    delete_failed: "Couldn't delete",
   },
 
   nav: {
@@ -214,14 +214,14 @@ export const en = {
 
   login: {
     subtitle: "Dashboard",
-    tagline: "Sign in with your Discord account to manage your servers.",
-    login_btn: "Login with Discord",
+    tagline: "Sign in with Discord to manage your servers.",
+    login_btn: "Log in with Discord",
     session_expired_with_user: "Hey {username}, your session has expired.",
     session_expired: "Your session has expired.",
-    session_expired_hint: "Please log in again to continue.",
+    session_expired_hint: "Log in again to continue.",
     dismiss: "Dismiss",
     premium_required: "Premium required",
-    premium_required_desc: "Dashboard access is a premium feature. Contact a bot operator to request access.",
+    premium_required_desc: "Dashboard access is a premium feature. Hit up a bot operator to get access.",
   },
 
   tabs: {
@@ -252,7 +252,7 @@ export const en = {
 
     leave_messages: {
       title: "Leave Messages",
-      desc: "Post a custom message to a channel whenever a member leaves or is removed from the server. Use {user} in the message text to mention the departing member by name.",
+      desc: "Post a custom message when someone leaves or gets removed from the server. Use {member} in the message text for the departing member's name.",
       enabled_tooltip:
         "When enabled, the bot will post a leave message each time a member leaves or is removed from the server.",
       channel_label: "Channel",
@@ -260,8 +260,8 @@ export const en = {
         "The text channel where leave messages will be posted. The bot must have permission to send messages in this channel.",
       message_label: "Message",
       message_tooltip:
-        "The message text to post when a member leaves. Use {user} as a placeholder — it will be replaced with the departing member's username.",
-      placeholder: "Goodbye {user}!",
+        "The message text to post when a member leaves. Use {member} as a placeholder — it will be replaced with the departing member's username.",
+      placeholder: "Goodbye {member}!",
     },
 
     support: {
@@ -335,7 +335,7 @@ export const en = {
     server_overview: {
       title: "Your Servers",
       desc: 'All servers where {botName} is active and you have access to the dashboard. Click any card to jump to that server\'s settings — the currently selected server is highlighted with a "Current" badge.',
-      empty: "{botName} is not in any of your servers yet.",
+      empty: "{botName} isn't in any of your servers yet.",
       current: "Current",
       add_title: "Add to a Server",
       add_desc: "You have sufficient permissions to invite {botName} to these servers.",
@@ -610,7 +610,7 @@ export const en = {
         "Characters below this level are ignored. Useful for filtering out low-level alts from news posts.",
       required_fields: "Region, guild name, realm, and channel are required.",
       guild_name_placeholder: "e.g. Thunderfury",
-      guild_not_found: "Guild not found on this realm. Check the guild name and realm.",
+      guild_not_found: "Guild not found on that realm. Double-check the name and realm.",
       verify_warning: "Cannot verify guild (bot offline). Save anyway?",
       save_anyway: "Save anyway",
       saving: "Saving…",

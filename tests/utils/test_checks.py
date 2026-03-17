@@ -243,10 +243,10 @@ class TestIsConnectedToVoice:
 class TestCanStopPlayback:
     async def test_rejects_when_nothing_playing(self, mock_interaction):
         mock_interaction.guild.voice_client = None
-        with pytest.raises(SilentCheckFailure, match="Nothing is playing"):
+        with pytest.raises(SilentCheckFailure, match="playing"):
             await can_stop_playback(mock_interaction)
         msg = mock_interaction.response.send_message.call_args[0][0]
-        assert "Nothing is playing" in msg
+        assert "playing" in msg
 
     async def test_allows_moderator_from_anywhere(self, mock_interaction):
         bot_voice = MagicMock()
@@ -268,7 +268,7 @@ class TestCanStopPlayback:
         bot_voice.channel = MagicMock()
         mock_interaction.guild.voice_client = bot_voice
         mock_interaction.user.voice = None
-        with pytest.raises(SilentCheckFailure, match="be in a voice channel"):
+        with pytest.raises(SilentCheckFailure, match="voice channel"):
             await can_stop_playback(mock_interaction)
 
     async def test_rejects_user_in_different_channel(self, mock_interaction):
@@ -286,7 +286,7 @@ class TestCanStopPlayback:
         bot_voice.channel = MagicMock()
         mock_interaction.guild.voice_client = bot_voice
         mock_interaction.user.voice.channel = None
-        with pytest.raises(SilentCheckFailure, match="be in a voice channel"):
+        with pytest.raises(SilentCheckFailure, match="voice channel"):
             await can_stop_playback(mock_interaction)
 
 
@@ -301,10 +301,10 @@ class TestCanLeaveVoice:
         assert await can_leave_voice(mock_interaction) is True
 
     async def test_rejects_regular_user(self, mock_interaction):
-        with pytest.raises(SilentCheckFailure, match="[Mm]oderators"):
+        with pytest.raises(SilentCheckFailure, match="[Mm]od"):
             await can_leave_voice(mock_interaction)
         msg = mock_interaction.response.send_message.call_args[0][0]
-        assert "moderators" in msg.lower()
+        assert "mod" in msg.lower()
 
 
 # ---------------------------------------------------------------------------
