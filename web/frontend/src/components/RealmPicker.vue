@@ -92,7 +92,7 @@ function select(realm: RealmResult) {
     </p>
     <div
       v-if="open && results.length"
-      class="absolute left-0 right-0 top-full mt-1 z-30 bg-card border border-border rounded-md shadow-lg max-h-48 overflow-y-auto"
+      class="absolute left-0 right-0 top-full mt-1 z-30 bg-card border border-border rounded-md shadow-lg max-h-48 overflow-y-auto scrollbar-thin"
     >
       <button
         v-for="r in results"

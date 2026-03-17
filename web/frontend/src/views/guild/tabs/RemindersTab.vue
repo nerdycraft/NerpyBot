@@ -290,7 +290,7 @@ async function createReminder() {
           />
           <div
             v-if="tzOpen"
-            class="absolute top-full left-0 right-0 z-20 mt-1 bg-card border border-border rounded shadow-lg max-h-48 overflow-y-auto"
+            class="absolute top-full left-0 right-0 z-20 mt-1 bg-card border border-border rounded shadow-lg max-h-48 overflow-y-auto scrollbar-thin"
           >
             <button
               v-for="tz in filteredTz"

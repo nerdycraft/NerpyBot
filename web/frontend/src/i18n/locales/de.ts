@@ -34,11 +34,12 @@ export const de: typeof en = {
   nav: {
     groups: {
       general: "Allgemein",
+      server_admin: "Serveradmin",
       moderation: "Moderation",
       roles: "Rollen",
       applications: "Bewerbungen",
       wow: "WoW",
-      support: "Support",
+      support: "Hilfe",
       operator: "Operator",
     },
     items: {
@@ -58,7 +59,7 @@ export const de: typeof en = {
       wow_crafting: "Handwerkstafeln",
       support: "Kontakt & Feedback",
       operator_dashboard: "Bot-Status",
-      operator_guilds: "Alle Server",
+      operator_guilds: "Support-Modus",
       operator_modules: "Module",
       operator_user_management: "Benutzerverwaltung",
       operator_recipe_sync: "Rezept-Cache",

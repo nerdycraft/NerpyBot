@@ -32,11 +32,12 @@ export const en = {
   nav: {
     groups: {
       general: "General",
+      server_admin: "Server Admin",
       moderation: "Moderation",
       roles: "Roles",
       applications: "Applications",
       wow: "WoW",
-      support: "Support",
+      support: "Help",
       operator: "Operator",
     },
     items: {
@@ -56,7 +57,7 @@ export const en = {
       wow_crafting: "Crafting Boards",
       support: "Contact & Feedback",
       operator_dashboard: "Bot Health",
-      operator_guilds: "All Guilds",
+      operator_guilds: "Support Mode",
       operator_modules: "Modules",
       operator_user_management: "User Management",
       operator_recipe_sync: "Recipe Cache",

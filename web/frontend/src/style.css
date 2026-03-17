@@ -44,3 +44,28 @@ body {
   color: var(--foreground);
   font-family: 'Figtree', system-ui, sans-serif;
 }
+
+/* Thin, themed scrollbar — invisible at rest, appears on hover */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent; /* Firefox: hidden at rest */
+}
+.scrollbar-thin:hover {
+  scrollbar-color: var(--border) transparent; /* Firefox: visible on hover */
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+}
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+.scrollbar-thin:hover::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
