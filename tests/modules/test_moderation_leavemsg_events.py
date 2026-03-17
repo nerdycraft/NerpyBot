@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests for LeaveMsg.on_member_remove event listener."""
+"""Tests for Moderation.on_member_remove event listener (leavemsg)."""
 
 from unittest.mock import AsyncMock, MagicMock
 
@@ -7,7 +7,7 @@ import pytest
 from discord import TextChannel
 
 from models.leavemsg import LeaveMessage
-from modules.leavemsg import LeaveMsg
+from modules.moderation import Moderation
 from utils.strings import load_strings
 
 
@@ -19,7 +19,10 @@ def _load_locale_strings():
 
 @pytest.fixture
 def cog(mock_bot):
-    return LeaveMsg(mock_bot)
+    # Use __new__ to avoid starting asyncio background loops outside an event loop
+    c = Moderation.__new__(Moderation)
+    c.bot = mock_bot
+    return c
 
 
 class TestOnMemberRemove:
@@ -41,18 +44,15 @@ class TestOnMemberRemove:
         )
         db_session.commit()
 
-        # Build mock channel
         mock_channel = MagicMock(spec=TextChannel)
         mock_channel.id = channel_id
         mock_channel.send = AsyncMock()
 
-        # Build mock guild
         mock_guild = MagicMock()
         mock_guild.id = guild_id
         mock_guild.name = "Test Guild"
         mock_guild.get_channel = MagicMock(return_value=mock_channel)
 
-        # Build mock member
         member = MagicMock()
         member.bot = False
         member.display_name = "Alice"
@@ -119,7 +119,6 @@ class TestOnMemberRemove:
         mock_guild = MagicMock()
         mock_guild.id = guild_id
         mock_guild.name = "Test Guild"
-        # Returning None simulates a missing/deleted channel
         mock_guild.get_channel = MagicMock(return_value=None)
 
         member = MagicMock()
@@ -130,5 +129,3 @@ class TestOnMemberRemove:
 
         # Should not raise
         await cog.on_member_remove(member)
-
-        # Nothing to assert regarding send — channel is None so the method returns early

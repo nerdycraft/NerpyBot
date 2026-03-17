@@ -83,15 +83,14 @@ For release procedures (tagging, release branches, hotfixes), see `docs/release-
 
 Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamically based on `config.yaml`:
 
-- **admin** - Server management, moderator role config, language preference, command sync (always auto-loaded)
+- **server_admin** - Modrole config and language preference (always auto-loaded)
+- **operator** - Bot operator commands: botpermissions, ping, sync, debug, uptime, errors, disable/enable (always auto-loaded)
 - **application** - Custom application/form system with DM conversations and button-based review
 - **league** - Riot API integration
-- **leavemsg** - Custom leave messages when members depart
-- **moderation** - Server moderation tools
+- **moderation** - Server moderation tools including leave messages (`/moderation leavemsg`)
 - **music** - Voice channel audio playback
-- **reactionrole** - Reaction-based role assignment
 - **reminder** - Timed user reminders
-- **rolemanage** - Delegated role management (lets specific roles assign other roles via mappings)
+- **roles** - Delegated role management (`/rolemanage`) and reaction-based role assignment (`/reactionrole`)
 - **tagging** - Audio tag management
 - **voicecontrol** - Voice stop/leave commands (auto-loaded when tagging or music is enabled)
 - **wow** - Blizzard API integration (armory lookup, guild news tracking, crafting order board)

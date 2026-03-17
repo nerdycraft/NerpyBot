@@ -228,7 +228,7 @@ class NerpyBot(Bot):
 
         # noinspection GrazieInspection
         # auto-load essential extensions not explicitly listed in config
-        auto_load = ["admin"]
+        auto_load = ["server_admin", "operator"]
         if audio_module_loaded:
             auto_load.append("voicecontrol")
 

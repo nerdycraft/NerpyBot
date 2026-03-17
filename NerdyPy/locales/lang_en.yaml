@@ -27,7 +27,7 @@ admin:
     invalid: "Unsupported language: `{language}`. Available: {available}"
   modrole:
     get_current: "Bot-moderator role: **{role}**"
-    get_stale: "A bot-moderator role is configured but the role no longer exists. Use `/admin modrole delete` to clear it."
+    get_stale: "A bot-moderator role is configured but the role no longer exists. Use `/modrole delete` to clear it."
     get_none: "No bot-moderator role configured. Falling back to permission-based checks."
     set_success: "Bot-moderator role set to **{role}**."
     delete_success: "Bot-moderator role removed."
@@ -175,7 +175,7 @@ leavemsg:
   message:
     success: "Leave message updated to: {message}"
     missing_placeholder: "Message must contain {member} placeholder for the member name."
-    not_enabled: "Please enable leave messages first using `/leavemsg enable #channel`."
+    not_enabled: "Please enable leave messages first using `/moderation leavemsg enable #channel`."
     modal_title: "Leave Message"
     modal_placeholder: "Use {member} for the member's name, e.g. Goodbye {member}!"
   fetch_message:

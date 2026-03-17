@@ -12,7 +12,7 @@ services:
       NERPYBOT_TOKEN: "your_bot_token_here"
       NERPYBOT_CLIENT_ID: "your_client_id_here"
       NERPYBOT_OPS: "your_discord_id_here"
-      NERPYBOT_MODULES: "application,league,leavemsg,moderation,reactionrole,rolemanage,reminder,tagging,wow"
+      NERPYBOT_MODULES: "application,league,moderation,reminder,roles,tagging,wow"
       # ── Database (SQLite default) ──
       NERPYBOT_DB_TYPE: sqlite
       NERPYBOT_DB_NAME: /data/db.db

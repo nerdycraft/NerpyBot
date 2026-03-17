@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Tests for modules.rolemanage — localized delegated role management responses."""
+"""Tests for modules.roles — delegated role management commands."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from models.rolemanage import RoleMapping
-from modules.rolemanage import RoleManage
+from modules.roles import Roles
 from utils.strings import load_strings
 
 
@@ -21,13 +21,13 @@ def _bypass_role_checks(monkeypatch):
     async def _always_true(*_args, **_kwargs):
         return True
 
-    monkeypatch.setattr("modules.rolemanage.is_role_assignable", _always_true)
-    monkeypatch.setattr("modules.rolemanage.is_role_below_bot", _always_true)
+    monkeypatch.setattr("modules.roles.is_role_assignable", _always_true)
+    monkeypatch.setattr("modules.roles.is_role_below_bot", _always_true)
 
 
 @pytest.fixture
 def cog(mock_bot):
-    cog = RoleManage.__new__(RoleManage)
+    cog = Roles.__new__(Roles)
     cog.bot = mock_bot
     return cog
 
@@ -74,7 +74,7 @@ def member():
 
 class TestAllow:
     async def test_allow_success(self, cog, interaction, source_role, target_role):
-        await RoleManage._allow.callback(cog, interaction, source_role, target_role)
+        await Roles._rolemanage_allow.callback(cog, interaction, source_role, target_role)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "can now assign" in msg
@@ -85,7 +85,7 @@ class TestAllow:
         db_session.add(RoleMapping(GuildId=987654321, SourceRoleId=111, TargetRoleId=222))
         db_session.commit()
 
-        await RoleManage._allow.callback(cog, interaction, source_role, target_role)
+        await Roles._rolemanage_allow.callback(cog, interaction, source_role, target_role)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "already assign" in msg
@@ -101,13 +101,13 @@ class TestDeny:
         db_session.add(RoleMapping(GuildId=987654321, SourceRoleId=111, TargetRoleId=222))
         db_session.commit()
 
-        await RoleManage._deny.callback(cog, interaction, source_role, target_role)
+        await Roles._rolemanage_deny.callback(cog, interaction, source_role, target_role)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "no longer assign" in msg
 
     async def test_deny_not_found(self, cog, interaction, source_role, target_role):
-        await RoleManage._deny.callback(cog, interaction, source_role, target_role)
+        await Roles._rolemanage_deny.callback(cog, interaction, source_role, target_role)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "No matching mapping" in msg
@@ -120,7 +120,7 @@ class TestDeny:
 
 class TestList:
     async def test_list_empty(self, cog, interaction):
-        await RoleManage._list.callback(cog, interaction)
+        await Roles._rolemanage_list.callback(cog, interaction)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "No role mappings" in msg
@@ -133,7 +133,7 @@ class TestList:
 
 class TestAssign:
     async def test_assign_no_permission(self, cog, interaction, member, target_role):
-        await RoleManage._assign.callback(cog, interaction, member, target_role)
+        await Roles._rolemanage_assign.callback(cog, interaction, member, target_role)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "permission to assign" in msg
@@ -143,7 +143,7 @@ class TestAssign:
         db_session.commit()
         interaction.user.roles = [MagicMock(id=111)]
 
-        await RoleManage._assign.callback(cog, interaction, member, target_role)
+        await Roles._rolemanage_assign.callback(cog, interaction, member, target_role)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "Assigned" in msg
@@ -158,7 +158,7 @@ class TestAssign:
 
 class TestRemove:
     async def test_remove_no_permission(self, cog, interaction, member, target_role):
-        await RoleManage._remove.callback(cog, interaction, member, target_role)
+        await Roles._rolemanage_remove.callback(cog, interaction, member, target_role)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "permission to remove" in msg
@@ -169,7 +169,7 @@ class TestRemove:
         interaction.user.roles = [MagicMock(id=111)]
         member.roles = [target_role]
 
-        await RoleManage._remove.callback(cog, interaction, member, target_role)
+        await Roles._rolemanage_remove.callback(cog, interaction, member, target_role)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "Removed" in msg
