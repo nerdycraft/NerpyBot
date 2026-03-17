@@ -22,6 +22,60 @@ from utils.strings import get_string
 
 log = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Virtual category sentinel values
+# ---------------------------------------------------------------------------
+
+_VCAT_PVP = "__pvp__"
+_VCAT_RAID_PREP = "__raid_prep__"
+_VCAT_ARMOR = "__armor__"
+_VCAT_WEAPONS = "__weapons__"
+_VCAT_PROFESSION = "__profession__"
+_VCAT_OTHER = "__other_cat__"
+
+_VCAT_LABEL_KEYS = {
+    _VCAT_PVP: ("⚔️ ", "pvp_category"),
+    _VCAT_RAID_PREP: ("🧪 ", "raid_prep_category"),
+    _VCAT_ARMOR: ("🛡️ ", "armor_category"),
+    _VCAT_WEAPONS: ("⚔️ ", "weapons_category"),
+    _VCAT_PROFESSION: ("🔧 ", "profession_gear_category"),
+    _VCAT_OTHER: ("📦 ", "other_category"),
+}
+
+_PVP_GROUP_WEAPONS = "__pvp_weapons__"
+_PVP_GROUP_GEAR = "__pvp_gear__"
+
+
+def _build_vcat_info(recipe_type: str, session, profession_ids) -> tuple[list[str], dict[str, int]]:
+    """Check which virtual categories have items and build the item class ID map.
+
+    Returns:
+        available_vcats: ordered list of vcat sentinel keys that have ≥1 item
+        item_class_ids: mapping of lower(ItemClassName) → ItemClassId for non-PvP orderable classes
+    """
+    available = []
+
+    # Get all non-PvP orderable item classes to build the class ID map in one query.
+    all_classes = CraftingRecipeCache.get_item_classes(
+        recipe_type, session, profession_ids=profession_ids, orderable_only=True, exclude_pvp=True
+    )
+    item_class_ids = {name.lower(): cls_id for cls_id, name, _ in all_classes if name}
+
+    if CraftingRecipeCache.get_pvp_item_classes(recipe_type, session, profession_ids):
+        available.append(_VCAT_PVP)
+    if CraftingRecipeCache.get_raid_prep_categories(recipe_type, session, profession_ids):
+        available.append(_VCAT_RAID_PREP)
+    if "armor" in item_class_ids:
+        available.append(_VCAT_ARMOR)
+    if "weapon" in item_class_ids:
+        available.append(_VCAT_WEAPONS)
+    if "profession" in item_class_ids:
+        available.append(_VCAT_PROFESSION)
+    if CraftingRecipeCache.get_other_categories(recipe_type, session, profession_ids):
+        available.append(_VCAT_OTHER)
+
+    return available, item_class_ids
+
 
 def _ls(interaction: Interaction, key: str, **kwargs) -> str:
     """Shorthand for localized string lookup."""
@@ -177,15 +231,12 @@ class CraftingBoardView(ui.View):
         return lang, mapped_prof_ids, mapping_role_ids
 
     async def _on_create_order(self, interaction: Interaction):
-        lang = mapped_prof_ids = mapping_role_ids = item_classes = None
+        lang = mapped_prof_ids = mapping_role_ids = available_vcats = item_class_ids = None
         with self.bot.session_scope() as session:
             board_ctx = self._load_board_context(interaction.guild_id, session)
             if board_ctx is not None:
                 lang, mapped_prof_ids, mapping_role_ids = board_ctx
-                # Check if cache has crafted recipes for type-driven flow, filtered to mapped professions
-                item_classes = CraftingRecipeCache.get_item_classes(
-                    RECIPE_TYPE_CRAFTED, session, profession_ids=mapped_prof_ids, orderable_only=True
-                )
+                available_vcats, item_class_ids = _build_vcat_info(RECIPE_TYPE_CRAFTED, session, mapped_prof_ids)
 
         if board_ctx is None:
             await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
@@ -196,17 +247,13 @@ class CraftingBoardView(ui.View):
             await interaction.response.send_message(_ls(interaction, "create.no_roles"), ephemeral=True)
             return
 
-        if item_classes:
-            view = ItemTypeSelectView(
-                self.bot,
-                roles,
-                interaction.guild_id,
-                lang,
-                item_classes,
-                mapped_prof_ids=mapped_prof_ids,
-                orderable_only=True,
+        if available_vcats:
+            view = VirtualCategorySelectView(
+                self.bot, roles, interaction.guild_id, lang, available_vcats, mapped_prof_ids, item_class_ids
             )
-            await interaction.response.send_message(_ls(interaction, "item_type_select"), view=view, ephemeral=True)
+            await interaction.response.send_message(
+                get_string(lang, "wow.craftingorder.virtual_category_select"), view=view, ephemeral=True
+            )
         else:
             view = ProfessionSelectView(self.bot, roles, interaction.guild_id, lang)
             await interaction.response.send_message(_ls(interaction, "profession_select"), view=view, ephemeral=True)
@@ -370,6 +417,7 @@ class ItemSubTypeSelectView(ui.View):
         subclasses: list[tuple[int, str, dict | None]],
         mapped_prof_ids: set[int] | None = None,
         orderable_only: bool = False,
+        exclude_pvp: bool = False,
     ):
         super().__init__(timeout=180)
         self.bot = bot
@@ -379,6 +427,7 @@ class ItemSubTypeSelectView(ui.View):
         self.item_class_id = item_class_id
         self.mapped_prof_ids = mapped_prof_ids
         self.orderable_only = orderable_only
+        self.exclude_pvp = exclude_pvp
 
         options = _build_localized_options(subclasses, lang)
         select = ui.Select(
@@ -398,8 +447,385 @@ class ItemSubTypeSelectView(ui.View):
                 session,
                 profession_ids=self.mapped_prof_ids,
                 orderable_only=self.orderable_only,
+                exclude_pvp=self.exclude_pvp,
             )
 
+        if len(recipes) > 24:
+            with self.bot.session_scope() as session:
+                category_names = CraftingRecipeCache.get_category_names(
+                    RECIPE_TYPE_CRAFTED,
+                    self.item_class_id,
+                    item_subclass_id,
+                    session,
+                    profession_ids=self.mapped_prof_ids,
+                    orderable_only=self.orderable_only,
+                    exclude_pvp=self.exclude_pvp,
+                )
+            if len(category_names) > 1:
+                view = CategorySelectView(
+                    self.bot,
+                    self.roles,
+                    self.guild_id,
+                    self.lang,
+                    self.item_class_id,
+                    item_subclass_id,
+                    category_names,
+                    self.mapped_prof_ids,
+                    self.orderable_only,
+                )
+                await interaction.response.edit_message(
+                    content=get_string(self.lang, "wow.craftingorder.category_select"), view=view
+                )
+                return
+
+        view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
+        await interaction.response.edit_message(
+            content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
+        )
+
+
+class VirtualCategorySelectView(ui.View):
+    """Crafted order flow entry: choose a virtual category (PvP, Raid Prep, Armor, …)."""
+
+    def __init__(
+        self,
+        bot,
+        roles: list[discord.Role],
+        guild_id: int,
+        lang: str,
+        available_vcats: list[str],
+        mapped_prof_ids: set[int] | None,
+        item_class_ids: dict[str, int],
+    ):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.roles = roles
+        self.guild_id = guild_id
+        self.lang = lang
+        self.mapped_prof_ids = mapped_prof_ids
+        self.item_class_ids = item_class_ids
+
+        options = []
+        for vcat in available_vcats:
+            emoji, key = _VCAT_LABEL_KEYS[vcat]
+            label = emoji + get_string(lang, f"wow.craftingorder.{key}")
+            options.append(discord.SelectOption(label=label[:100], value=vcat))
+
+        select = ui.Select(
+            placeholder=get_string(lang, "wow.craftingorder.virtual_category_select"),
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+    async def _on_select(self, interaction: Interaction):
+        value = interaction.data["values"][0]
+
+        if value == _VCAT_PVP:
+            with self.bot.session_scope() as session:
+                pvp_classes = CraftingRecipeCache.get_pvp_item_classes(
+                    RECIPE_TYPE_CRAFTED, session, profession_ids=self.mapped_prof_ids
+                )
+            view = PvPGroupSelectView(self.bot, self.roles, self.guild_id, self.lang, pvp_classes, self.mapped_prof_ids)
+            await interaction.response.edit_message(
+                content=get_string(self.lang, "wow.craftingorder.pvp_group_select"), view=view
+            )
+
+        elif value == _VCAT_RAID_PREP:
+            with self.bot.session_scope() as session:
+                categories = CraftingRecipeCache.get_raid_prep_categories(
+                    RECIPE_TYPE_CRAFTED, session, profession_ids=self.mapped_prof_ids
+                )
+            view = RaidPrepCategorySelectView(
+                self.bot, self.roles, self.guild_id, self.lang, categories, self.mapped_prof_ids
+            )
+            await interaction.response.edit_message(
+                content=get_string(self.lang, "wow.craftingorder.raid_prep_select"), view=view
+            )
+
+        elif value in (_VCAT_ARMOR, _VCAT_WEAPONS, _VCAT_PROFESSION):
+            class_name_lower = {_VCAT_ARMOR: "armor", _VCAT_WEAPONS: "weapon", _VCAT_PROFESSION: "profession"}[value]
+            class_id = self.item_class_ids.get(class_name_lower)
+            if class_id is None:
+                await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
+                return
+            exclude_pvp = value in (_VCAT_ARMOR, _VCAT_WEAPONS)
+            with self.bot.session_scope() as session:
+                subclasses = CraftingRecipeCache.get_item_subclasses(
+                    RECIPE_TYPE_CRAFTED,
+                    class_id,
+                    session,
+                    profession_ids=self.mapped_prof_ids,
+                    orderable_only=True,
+                    exclude_pvp=exclude_pvp,
+                )
+            view = ItemSubTypeSelectView(
+                self.bot,
+                self.roles,
+                self.guild_id,
+                self.lang,
+                class_id,
+                subclasses,
+                self.mapped_prof_ids,
+                orderable_only=True,
+                exclude_pvp=exclude_pvp,
+            )
+            await interaction.response.edit_message(
+                content=get_string(self.lang, "wow.craftingorder.item_subtype_select"), view=view
+            )
+
+        elif value == _VCAT_OTHER:
+            with self.bot.session_scope() as session:
+                categories = CraftingRecipeCache.get_other_categories(
+                    RECIPE_TYPE_CRAFTED, session, profession_ids=self.mapped_prof_ids
+                )
+            view = OtherCategorySelectView(
+                self.bot, self.roles, self.guild_id, self.lang, categories, self.mapped_prof_ids
+            )
+            await interaction.response.edit_message(
+                content=get_string(self.lang, "wow.craftingorder.other_select"), view=view
+            )
+
+
+class PvPGroupSelectView(ui.View):
+    """PvP flow step 1: choose Weapons (all at once) or Gear (by armor type)."""
+
+    def __init__(
+        self,
+        bot,
+        roles: list[discord.Role],
+        guild_id: int,
+        lang: str,
+        pvp_classes: list[tuple[int, str | None, dict | None]],
+        mapped_prof_ids: set[int] | None = None,
+    ):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.roles = roles
+        self.guild_id = guild_id
+        self.lang = lang
+        self.pvp_classes = pvp_classes
+        self.mapped_prof_ids = mapped_prof_ids
+
+        options = [
+            discord.SelectOption(
+                label="⚔️ " + get_string(lang, "wow.craftingorder.weapons_category"),
+                value=_PVP_GROUP_WEAPONS,
+            ),
+            discord.SelectOption(
+                label="🛡️ " + get_string(lang, "wow.craftingorder.armor_category"),
+                value=_PVP_GROUP_GEAR,
+            ),
+        ]
+        select = ui.Select(
+            placeholder=get_string(lang, "wow.craftingorder.pvp_group_select"),
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+    async def _on_select(self, interaction: Interaction):
+        value = interaction.data["values"][0]
+
+        if value == _PVP_GROUP_WEAPONS:
+            weapon_class_id = next(
+                (cls_id for cls_id, name, _ in self.pvp_classes if name and "weapon" in name.lower()), None
+            )
+            if weapon_class_id is None:
+                await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
+                return
+            with self.bot.session_scope() as session:
+                recipes = CraftingRecipeCache.get_pvp_items(
+                    RECIPE_TYPE_CRAFTED, weapon_class_id, None, session, profession_ids=self.mapped_prof_ids
+                )
+            view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
+            await interaction.response.edit_message(
+                content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
+            )
+
+        elif value == _PVP_GROUP_GEAR:
+            armor_class_id = next(
+                (cls_id for cls_id, name, _ in self.pvp_classes if name and "armor" in name.lower()), None
+            )
+            if armor_class_id is None:
+                await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
+                return
+            with self.bot.session_scope() as session:
+                subclasses = CraftingRecipeCache.get_pvp_item_subclasses(
+                    RECIPE_TYPE_CRAFTED, armor_class_id, session, profession_ids=self.mapped_prof_ids
+                )
+            view = PvPArmorTypeSelectView(
+                self.bot, self.roles, self.guild_id, self.lang, armor_class_id, subclasses, self.mapped_prof_ids
+            )
+            await interaction.response.edit_message(
+                content=get_string(self.lang, "wow.craftingorder.pvp_armor_select"), view=view
+            )
+
+
+class PvPArmorTypeSelectView(ui.View):
+    """PvP flow step 2 (gear path): choose armor subtype, then items."""
+
+    def __init__(
+        self,
+        bot,
+        roles: list[discord.Role],
+        guild_id: int,
+        lang: str,
+        armor_class_id: int,
+        subclasses: list[tuple[int, str | None, dict | None]],
+        mapped_prof_ids: set[int] | None = None,
+    ):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.roles = roles
+        self.guild_id = guild_id
+        self.lang = lang
+        self.armor_class_id = armor_class_id
+        self.mapped_prof_ids = mapped_prof_ids
+
+        options = _build_localized_options(subclasses, lang)
+        select = ui.Select(
+            placeholder=get_string(lang, "wow.craftingorder.pvp_armor_select"),
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+    async def _on_select(self, interaction: Interaction):
+        item_subclass_id = int(interaction.data["values"][0])
+        with self.bot.session_scope() as session:
+            recipes = CraftingRecipeCache.get_pvp_items(
+                RECIPE_TYPE_CRAFTED, self.armor_class_id, item_subclass_id, session, profession_ids=self.mapped_prof_ids
+            )
+        view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
+        await interaction.response.edit_message(
+            content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
+        )
+
+
+class RaidPrepCategorySelectView(ui.View):
+    """Raid prep flow: choose consumable/cauldron category, then items."""
+
+    def __init__(
+        self,
+        bot,
+        roles: list[discord.Role],
+        guild_id: int,
+        lang: str,
+        categories: list[str],
+        mapped_prof_ids: set[int] | None = None,
+    ):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.roles = roles
+        self.guild_id = guild_id
+        self.lang = lang
+        self.mapped_prof_ids = mapped_prof_ids
+
+        options = [discord.SelectOption(label=cat[:100], value=cat) for cat in categories[:25]]
+        select = ui.Select(
+            placeholder=get_string(lang, "wow.craftingorder.raid_prep_select"),
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+    async def _on_select(self, interaction: Interaction):
+        category_name = interaction.data["values"][0]
+        with self.bot.session_scope() as session:
+            recipes = CraftingRecipeCache.get_raid_prep_items(
+                RECIPE_TYPE_CRAFTED, category_name, session, profession_ids=self.mapped_prof_ids
+            )
+        view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
+        await interaction.response.edit_message(
+            content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
+        )
+
+
+class CategorySelectView(ui.View):
+    """Generic category drill-down for armor subclass overflow (>24 items)."""
+
+    def __init__(
+        self,
+        bot,
+        roles: list[discord.Role],
+        guild_id: int,
+        lang: str,
+        item_class_id: int,
+        item_subclass_id: int,
+        category_names: list[str],
+        mapped_prof_ids: set[int] | None = None,
+        orderable_only: bool = False,
+    ):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.roles = roles
+        self.guild_id = guild_id
+        self.lang = lang
+        self.item_class_id = item_class_id
+        self.item_subclass_id = item_subclass_id
+        self.mapped_prof_ids = mapped_prof_ids
+        self.orderable_only = orderable_only
+
+        options = [discord.SelectOption(label=name[:100], value=name) for name in category_names[:25]]
+        select = ui.Select(
+            placeholder=get_string(lang, "wow.craftingorder.category_select"),
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+    async def _on_select(self, interaction: Interaction):
+        category_name = interaction.data["values"][0]
+        with self.bot.session_scope() as session:
+            recipes = CraftingRecipeCache.get_by_type_subclass_and_category(
+                RECIPE_TYPE_CRAFTED,
+                self.item_class_id,
+                self.item_subclass_id,
+                category_name,
+                session,
+                profession_ids=self.mapped_prof_ids,
+                orderable_only=self.orderable_only,
+            )
+        view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
+        await interaction.response.edit_message(
+            content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
+        )
+
+
+class OtherCategorySelectView(ui.View):
+    """Other bucket flow: choose a category (bags, treatises, transmutations, …), then items."""
+
+    def __init__(
+        self,
+        bot,
+        roles: list[discord.Role],
+        guild_id: int,
+        lang: str,
+        categories: list[str],
+        mapped_prof_ids: set[int] | None = None,
+    ):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.roles = roles
+        self.guild_id = guild_id
+        self.lang = lang
+        self.mapped_prof_ids = mapped_prof_ids
+
+        options = [discord.SelectOption(label=cat[:100], value=cat) for cat in categories[:25]]
+        select = ui.Select(
+            placeholder=get_string(lang, "wow.craftingorder.other_select"),
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+    async def _on_select(self, interaction: Interaction):
+        category_name = interaction.data["values"][0]
+        with self.bot.session_scope() as session:
+            recipes = CraftingRecipeCache.get_other_items(
+                RECIPE_TYPE_CRAFTED, category_name, session, profession_ids=self.mapped_prof_ids
+            )
         view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
         await interaction.response.edit_message(
             content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
