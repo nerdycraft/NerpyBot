@@ -209,7 +209,7 @@ async def set_leave_message(
     _deny_support_write(user)
     if body.message is not None and "{member}" not in body.message:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Message must contain {member} placeholder for the member name.",
         )
     from models.leavemsg import LeaveMessage
