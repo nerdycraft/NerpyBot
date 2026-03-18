@@ -43,6 +43,60 @@ _VCAT_LABEL_KEYS = {
     _VCAT_OTHER: ("📦 ", "other_category"),
 }
 
+_EMOJI_MAP: dict[str, str] = {
+    # Armor subtypes
+    "plate": "🛡️",
+    "mail": "🔗",
+    "leather": "🧥",
+    "cloth": "🧵",
+    "shield": "🛡️",
+    "cosmetic": "🎭",
+    "miscellaneous": "📦",
+    # Weapon subtypes
+    "dagger": "🗡️",
+    "sword": "⚔️",
+    "axe": "🪓",
+    "mace": "🔨",
+    "staff": "🪄",
+    "stave": "🪄",
+    "wand": "✨",
+    "bow": "🏹",
+    "gun": "🔫",
+    "fist": "👊",
+    "polearm": "🔱",
+    "off-hand": "📖",
+    # Consumables / Raid Prep
+    "flask": "🧪",
+    "phial": "🧪",
+    "potion": "🧫",
+    "cauldron": "🫕",
+    "feast": "🍖",
+    "food": "🍲",
+    "rune": "🔮",
+    "tea": "🍵",
+    # Profession gear
+    "profession": "🔧",
+    "tool": "🔧",
+    # Other
+    "bag": "🎒",
+    "gem": "💎",
+    "enchant": "✨",
+    "embellishment": "🪡",
+    "transmut": "⚗️",
+    "treatise": "📚",
+    "alloy": "⛏️",
+}
+
+
+def _emoji_for(name: str) -> str:
+    """Return a matching emoji + space for a category/subclass name, or empty string."""
+    name_lower = name.lower()
+    for keyword, emoji in _EMOJI_MAP.items():
+        if keyword in name_lower:
+            return emoji + " "
+    return ""
+
+
 _PVP_GROUP_WEAPONS = "__pvp_weapons__"
 _PVP_GROUP_GEAR = "__pvp_gear__"
 
@@ -93,26 +147,47 @@ def _get_locale(locales: dict | None, lang: str) -> str | None:
     return (locales or {}).get(lang) if lang != "en" else None
 
 
-def _build_localized_options(items: list[tuple[int, str | None, dict | None]], lang: str) -> list[discord.SelectOption]:
+def _build_localized_options(
+    items: list[tuple[int, str | None, dict | None]], lang: str, emojis: bool = False
+) -> list[discord.SelectOption]:
     """Build SelectOptions from (id, english_name, locales) tuples.
 
     Label is the localized name when available, falling back to the English name.
     Description shows the English name only when a different localized label is shown.
     Options are sorted by the displayed label so the dropdown order matches the locale.
+    If emojis=True, a keyword-matched emoji prefix is prepended to each label.
     """
     options = []
     for item_id, name, locales in items:
         localized = _get_locale(locales, lang)
         label = localized or name or "Unknown"
+        prefix = _emoji_for(name or "") if emojis else ""
         description = name[:100] if localized else None
-        options.append(discord.SelectOption(label=label[:100], description=description, value=str(item_id)))
+        options.append(discord.SelectOption(label=(prefix + label)[:100], description=description, value=str(item_id)))
     options.sort(key=lambda o: o.label.casefold())
     return options[:25]
 
 
-def _build_plain_options(categories: list[str]) -> list[discord.SelectOption]:
-    """Build SelectOptions from plain category name strings (label = value = the category name)."""
-    return [discord.SelectOption(label=cat[:100], value=cat) for cat in categories[:25]]
+def _build_localized_category_options(
+    categories: list[tuple[str, dict | None]], lang: str
+) -> list[discord.SelectOption]:
+    """Build SelectOptions from (category_name, locales) tuples.
+
+    Label is the localized name when available, falling back to the English name.
+    Description shows the English name only when a different localized label is shown.
+    An emoji prefix is prepended based on keyword matching.
+    The value is always the English category name (used for DB lookups in callbacks).
+    Options are sorted by the displayed label so the dropdown order matches the locale.
+    """
+    options = []
+    for cat_name, locales in categories:
+        localized = _get_locale(locales, lang)
+        label = localized or cat_name
+        prefix = _emoji_for(cat_name)
+        description = cat_name[:100] if localized else None
+        options.append(discord.SelectOption(label=(prefix + label)[:100], description=description, value=cat_name))
+    options.sort(key=lambda o: o.label.casefold())
+    return options[:25]
 
 
 def _display_item_name(order: CraftingOrder) -> str:
@@ -440,7 +515,7 @@ class ItemSubTypeSelectView(ui.View):
         self.orderable_only = orderable_only
         self.exclude_pvp = exclude_pvp
 
-        options = _build_localized_options(subclasses, lang)
+        options = _build_localized_options(subclasses, lang, emojis=True)
         select = ui.Select(
             placeholder=get_string(lang, "wow.craftingorder.item_subtype_select"),
             options=options,
@@ -689,7 +764,7 @@ class PvPArmorTypeSelectView(ui.View):
         self.armor_class_id = armor_class_id
         self.mapped_prof_ids = mapped_prof_ids
 
-        options = _build_localized_options(subclasses, lang)
+        options = _build_localized_options(subclasses, lang, emojis=True)
         select = ui.Select(
             placeholder=get_string(lang, "wow.craftingorder.pvp_armor_select"),
             options=options,
@@ -718,7 +793,7 @@ class RaidPrepCategorySelectView(ui.View):
         roles: list[discord.Role],
         guild_id: int,
         lang: str,
-        categories: list[str],
+        categories: list[tuple[str, dict | None]],
         mapped_prof_ids: set[int] | None = None,
     ):
         super().__init__(timeout=180)
@@ -730,7 +805,7 @@ class RaidPrepCategorySelectView(ui.View):
 
         select = ui.Select(
             placeholder=get_string(lang, "wow.craftingorder.raid_prep_select"),
-            options=_build_plain_options(categories),
+            options=_build_localized_category_options(categories, lang),
         )
         select.callback = self._on_select
         self.add_item(select)
@@ -758,7 +833,7 @@ class CategorySelectView(ui.View):
         lang: str,
         item_class_id: int,
         item_subclass_id: int,
-        category_names: list[str],
+        category_names: list[tuple[str, dict | None]],
         mapped_prof_ids: set[int] | None = None,
         orderable_only: bool = False,
     ):
@@ -774,7 +849,7 @@ class CategorySelectView(ui.View):
 
         select = ui.Select(
             placeholder=get_string(lang, "wow.craftingorder.category_select"),
-            options=_build_plain_options(category_names),
+            options=_build_localized_category_options(category_names, lang),
         )
         select.callback = self._on_select
         self.add_item(select)
@@ -806,7 +881,7 @@ class OtherCategorySelectView(ui.View):
         roles: list[discord.Role],
         guild_id: int,
         lang: str,
-        categories: list[str],
+        categories: list[tuple[str, dict | None]],
         mapped_prof_ids: set[int] | None = None,
     ):
         super().__init__(timeout=180)
@@ -818,7 +893,7 @@ class OtherCategorySelectView(ui.View):
 
         select = ui.Select(
             placeholder=get_string(lang, "wow.craftingorder.other_select"),
-            options=_build_plain_options(categories),
+            options=_build_localized_category_options(categories, lang),
         )
         select.callback = self._on_select
         self.add_item(select)

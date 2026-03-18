@@ -317,6 +317,7 @@ class CraftingRecipeCache(db.BASE):
     ItemSubClassId = Column(Integer, nullable=True)
     ExpansionName = Column(Unicode(100), nullable=True)
     CategoryName = Column(Unicode(200), nullable=True)
+    CategoryNameLocales = Column(JSON, nullable=True)
     BindType = Column(String(20), nullable=True)  # ON_ACQUIRE, TO_ACCOUNT, ON_EQUIP, or None
     ItemQuality = Column(String(20), nullable=True)  # EPIC, RARE, COMMON, etc.
     LastSynced = Column(DateTime, default=lambda: datetime.now(UTC))
@@ -547,17 +548,19 @@ class CraftingRecipeCache(db.BASE):
         return q.order_by(asc(cls.ItemName)).all()
 
     @classmethod
-    def get_raid_prep_categories(cls, recipe_type, session, profession_ids: set[int] | None = None):
-        """Return distinct CategoryName strings matching raid prep consumables and cauldrons."""
-        q = session.query(cls.CategoryName).filter(
+    def get_raid_prep_categories(
+        cls, recipe_type, session, profession_ids: set[int] | None = None
+    ) -> list[tuple[str, dict | None]]:
+        """Return distinct (CategoryName, CategoryNameLocales) tuples matching raid prep consumables and cauldrons."""
+        q = session.query(cls.CategoryName, cls.CategoryNameLocales).filter(
             cls.RecipeType == recipe_type,
             cls.CategoryName.isnot(None),
             cls._raid_prep_condition(),
         )
         if profession_ids:
             q = q.filter(cls.ProfessionId.in_(profession_ids))
-        rows = q.distinct().order_by(asc(cls.CategoryName)).all()
-        return [r[0] for r in rows]
+        rows = q.order_by(asc(cls.CategoryName)).all()
+        return list({r[0]: (r[0], r[1]) for r in rows}.values())
 
     @classmethod
     def get_raid_prep_items(cls, recipe_type, category_name, session, profession_ids: set[int] | None = None):
@@ -581,9 +584,9 @@ class CraftingRecipeCache(db.BASE):
         profession_ids: set[int] | None = None,
         orderable_only: bool = False,
         exclude_pvp: bool = False,
-    ):
-        """Return distinct CategoryName strings for a class/subclass combination."""
-        q = session.query(cls.CategoryName).filter(
+    ) -> list[tuple[str, dict | None]]:
+        """Return distinct (CategoryName, CategoryNameLocales) tuples for a class/subclass combination."""
+        q = session.query(cls.CategoryName, cls.CategoryNameLocales).filter(
             cls.RecipeType == recipe_type,
             cls.ItemClassId == item_class_id,
             cls.ItemSubClassId == item_subclass_id,
@@ -595,8 +598,8 @@ class CraftingRecipeCache(db.BASE):
             q = cls._apply_orderable_filter(q, profession_ids)
         if exclude_pvp:
             q = q.filter(~cls._pvp_condition())
-        rows = q.distinct().order_by(asc(cls.CategoryName)).all()
-        return [r[0] for r in rows]
+        rows = q.order_by(asc(cls.CategoryName)).all()
+        return list({r[0]: (r[0], r[1]) for r in rows}.values())
 
     @classmethod
     def get_by_type_subclass_and_category(
@@ -623,12 +626,14 @@ class CraftingRecipeCache(db.BASE):
         return q.order_by(asc(cls.ItemName)).all()
 
     @classmethod
-    def get_other_categories(cls, recipe_type, session, profession_ids: set[int] | None = None):
-        """Return distinct CategoryName strings for bound items outside the main gear buckets.
+    def get_other_categories(
+        cls, recipe_type, session, profession_ids: set[int] | None = None
+    ) -> list[tuple[str, dict | None]]:
+        """Return distinct (CategoryName, CategoryNameLocales) tuples for bound items outside the main gear buckets.
 
         Excludes Armor, Weapon, and Profession class items, PvP items, and raid prep items.
         """
-        q = session.query(cls.CategoryName).filter(
+        q = session.query(cls.CategoryName, cls.CategoryNameLocales).filter(
             cls.RecipeType == recipe_type,
             cls.CategoryName.isnot(None),
             cls.BindType.isnot(None),
@@ -638,8 +643,8 @@ class CraftingRecipeCache(db.BASE):
         )
         if profession_ids:
             q = q.filter(cls.ProfessionId.in_(profession_ids))
-        rows = q.distinct().order_by(asc(cls.CategoryName)).all()
-        return [r[0] for r in rows]
+        rows = q.order_by(asc(cls.CategoryName)).all()
+        return list({r[0]: (r[0], r[1]) for r in rows}.values())
 
     @classmethod
     def get_other_items(cls, recipe_type, category_name, session, profession_ids: set[int] | None = None):

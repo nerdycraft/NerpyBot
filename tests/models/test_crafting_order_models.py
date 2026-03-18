@@ -264,21 +264,51 @@ class TestRaidPrepQueries:
         )
         db_session.flush()
 
+    def test_categories_returns_tuples(self, db_session):
+        categories = CraftingRecipeCache.get_raid_prep_categories(RECIPE_TYPE_CRAFTED, db_session)
+        assert all(isinstance(t, tuple) and len(t) == 2 for t in categories)
+
     def test_categories_includes_potions(self, db_session):
         categories = CraftingRecipeCache.get_raid_prep_categories(RECIPE_TYPE_CRAFTED, db_session)
-        assert "Elemental Potions" in categories
+        names = [t[0] for t in categories]
+        assert "Elemental Potions" in names
 
     def test_categories_includes_flasks(self, db_session):
         categories = CraftingRecipeCache.get_raid_prep_categories(RECIPE_TYPE_CRAFTED, db_session)
-        assert "Sin'dorei Flasks" in categories
+        names = [t[0] for t in categories]
+        assert "Sin'dorei Flasks" in names
 
     def test_categories_includes_cauldrons(self, db_session):
         categories = CraftingRecipeCache.get_raid_prep_categories(RECIPE_TYPE_CRAFTED, db_session)
-        assert "Alchemy Cauldrons" in categories
+        names = [t[0] for t in categories]
+        assert "Alchemy Cauldrons" in names
 
     def test_categories_excludes_non_prep(self, db_session):
         categories = CraftingRecipeCache.get_raid_prep_categories(RECIPE_TYPE_CRAFTED, db_session)
-        assert "Plate Armor" not in categories
+        names = [t[0] for t in categories]
+        assert "Plate Armor" not in names
+
+    def test_categories_locale_is_none_when_not_set(self, db_session):
+        categories = CraftingRecipeCache.get_raid_prep_categories(RECIPE_TYPE_CRAFTED, db_session)
+        for name, locales in categories:
+            assert locales is None
+
+    def test_categories_locale_returned_when_set(self, db_session):
+        db_session.add(
+            _recipe(
+                RecipeId=45,
+                ItemClassName="Consumable",
+                ItemClassId=0,
+                ItemSubClassId=0,
+                CategoryName="Light Potions",
+                CategoryNameLocales={"de": "Leichte Tränke"},
+                BindType=None,
+            )
+        )
+        db_session.flush()
+        categories = CraftingRecipeCache.get_raid_prep_categories(RECIPE_TYPE_CRAFTED, db_session)
+        locales_map = {name: locales for name, locales in categories}
+        assert locales_map.get("Light Potions") == {"de": "Leichte Tränke"}
 
     def test_get_items_by_category(self, db_session):
         results = CraftingRecipeCache.get_raid_prep_items(RECIPE_TYPE_CRAFTED, "Elemental Potions", db_session)
@@ -300,15 +330,37 @@ class TestCategoryQueries:
         db_session.add(_recipe(RecipeId=52, ItemClassId=4, ItemSubClassId=1, CategoryName="Competitor's Cloth"))
         db_session.flush()
 
+    def test_get_category_names_returns_tuples(self, db_session):
+        results = CraftingRecipeCache.get_category_names(RECIPE_TYPE_CRAFTED, 4, 1, db_session)
+        assert all(isinstance(t, tuple) and len(t) == 2 for t in results)
+
     def test_get_category_names_returns_all(self, db_session):
-        names = CraftingRecipeCache.get_category_names(RECIPE_TYPE_CRAFTED, 4, 1, db_session)
+        results = CraftingRecipeCache.get_category_names(RECIPE_TYPE_CRAFTED, 4, 1, db_session)
+        names = [t[0] for t in results]
         assert sorted(names) == ["Cloth Hat", "Cloth Robe", "Competitor's Cloth"]
 
     def test_get_category_names_excludes_pvp(self, db_session):
-        names = CraftingRecipeCache.get_category_names(RECIPE_TYPE_CRAFTED, 4, 1, db_session, exclude_pvp=True)
+        results = CraftingRecipeCache.get_category_names(RECIPE_TYPE_CRAFTED, 4, 1, db_session, exclude_pvp=True)
+        names = [t[0] for t in results]
         assert "Competitor's Cloth" not in names
         assert "Cloth Hat" in names
         assert "Cloth Robe" in names
+
+    def test_get_category_names_locale_returned_when_set(self, db_session):
+        db_session.add(
+            _recipe(
+                RecipeId=53,
+                ItemClassId=4,
+                ItemSubClassId=1,
+                CategoryName="Cloth Hat",
+                CategoryNameLocales={"de": "Stoffhut"},
+            )
+        )
+        db_session.flush()
+        results = CraftingRecipeCache.get_category_names(RECIPE_TYPE_CRAFTED, 4, 1, db_session)
+        locales_map = {name: locales for name, locales in results}
+        # The dedup picks the first row by name; locale data should be present
+        assert locales_map.get("Cloth Hat") == {"de": "Stoffhut"}
 
     def test_get_by_type_subclass_and_category(self, db_session):
         results = CraftingRecipeCache.get_by_type_subclass_and_category(
@@ -385,26 +437,53 @@ class TestOtherQueries:
         )
         db_session.flush()
 
+    def test_returns_tuples(self, db_session):
+        categories = CraftingRecipeCache.get_other_categories(RECIPE_TYPE_CRAFTED, db_session)
+        assert all(isinstance(t, tuple) and len(t) == 2 for t in categories)
+
     def test_includes_bags_and_treatises(self, db_session):
         categories = CraftingRecipeCache.get_other_categories(RECIPE_TYPE_CRAFTED, db_session)
-        assert "Embroidered Bags" in categories
-        assert "Profession Treatises" in categories
+        names = [t[0] for t in categories]
+        assert "Embroidered Bags" in names
+        assert "Profession Treatises" in names
 
     def test_excludes_armor_class(self, db_session):
         categories = CraftingRecipeCache.get_other_categories(RECIPE_TYPE_CRAFTED, db_session)
-        assert "Plate Armor" not in categories
+        names = [t[0] for t in categories]
+        assert "Plate Armor" not in names
 
     def test_excludes_pvp(self, db_session):
         categories = CraftingRecipeCache.get_other_categories(RECIPE_TYPE_CRAFTED, db_session)
-        assert "Competitor's Bags" not in categories
+        names = [t[0] for t in categories]
+        assert "Competitor's Bags" not in names
 
     def test_excludes_unbound(self, db_session):
         categories = CraftingRecipeCache.get_other_categories(RECIPE_TYPE_CRAFTED, db_session)
-        assert "Free Bags" not in categories
+        names = [t[0] for t in categories]
+        assert "Free Bags" not in names
 
     def test_excludes_cauldrons(self, db_session):
         categories = CraftingRecipeCache.get_other_categories(RECIPE_TYPE_CRAFTED, db_session)
-        assert "Alchemy Cauldrons" not in categories
+        names = [t[0] for t in categories]
+        assert "Alchemy Cauldrons" not in names
+
+    def test_locale_returned_when_set(self, db_session):
+        db_session.add(
+            _recipe(
+                RecipeId=66,
+                ProfessionId=197,
+                ItemClassName="Container",
+                ItemClassId=1,
+                ItemSubClassId=0,
+                CategoryName="Embroidered Bags",
+                CategoryNameLocales={"de": "Gestickte Taschen"},
+                BindType=BIND_ON_ACQUIRE,
+            )
+        )
+        db_session.flush()
+        categories = CraftingRecipeCache.get_other_categories(RECIPE_TYPE_CRAFTED, db_session)
+        locales_map = {name: locales for name, locales in categories}
+        assert locales_map.get("Embroidered Bags") == {"de": "Gestickte Taschen"}
 
     def test_get_items_by_category(self, db_session):
         results = CraftingRecipeCache.get_other_items(RECIPE_TYPE_CRAFTED, "Embroidered Bags", db_session)
