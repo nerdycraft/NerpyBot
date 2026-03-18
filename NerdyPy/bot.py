@@ -240,6 +240,9 @@ class NerpyBot(Bot):
                     self.log.error(f"failed to auto-load {module} extension. {e}")
                     self.log.debug(print_exc())
 
+        # load localization strings before registering persistent views (views call get_string in __init__)
+        load_strings()
+
         # Register persistent views so buttons on old messages keep working
         if "application" in self.modules:
             try:
@@ -270,9 +273,6 @@ class NerpyBot(Bot):
             except Exception as e:
                 self.log.error(f"failed to register crafting order persistent views. {e}")
                 self.log.debug(print_exc())
-
-        # load localization strings
-        load_strings()
 
         # create database/tables and such stuff
         self.create_all()
