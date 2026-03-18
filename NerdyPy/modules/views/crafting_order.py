@@ -586,7 +586,8 @@ class VirtualCategorySelectView(ui.View):
         for vcat in available_vcats:
             emoji, key = _VCAT_LABEL_KEYS[vcat]
             label = emoji + get_string(lang, f"wow.craftingorder.{key}")
-            options.append(discord.SelectOption(label=label[:100], value=vcat))
+            en_name = get_string("en", f"wow.craftingorder.{key}") if lang != "en" else None
+            options.append(discord.SelectOption(label=label[:100], description=en_name, value=vcat))
 
         select = ui.Select(
             placeholder=get_string(lang, "wow.craftingorder.virtual_category_select"),
@@ -681,16 +682,17 @@ class PvPGroupSelectView(ui.View):
         self.mapped_prof_ids = mapped_prof_ids
         self.item_class_ids = item_class_ids or {}
 
-        options = [
-            discord.SelectOption(
-                label="⚔️ " + get_string(lang, "wow.craftingorder.weapons_category"),
-                value=_PVP_GROUP_WEAPONS,
-            ),
-            discord.SelectOption(
-                label="🛡️ " + get_string(lang, "wow.craftingorder.armor_category"),
-                value=_PVP_GROUP_GEAR,
-            ),
-        ]
+        options = []
+        for vcat, pvp_value in ((_VCAT_WEAPONS, _PVP_GROUP_WEAPONS), (_VCAT_ARMOR, _PVP_GROUP_GEAR)):
+            emoji, key = _VCAT_LABEL_KEYS[vcat]
+            full_key = f"wow.craftingorder.{key}"
+            options.append(
+                discord.SelectOption(
+                    label=emoji + get_string(lang, full_key),
+                    description=get_string("en", full_key) if lang != "en" else None,
+                    value=pvp_value,
+                )
+            )
         select = ui.Select(
             placeholder=get_string(lang, "wow.craftingorder.pvp_group_select"),
             options=options,
