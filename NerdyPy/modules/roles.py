@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import asyncio
+
 import discord
 from discord import Forbidden, HTTPException, Interaction, Member, NotFound, Role, TextChannel, app_commands
 from discord.app_commands import checks
@@ -168,12 +170,14 @@ class Roles(NerpyBotCog, Cog):
         if not await is_role_below_bot(interaction, target_role):
             return
 
-        already_exists = False
+        error_msg = None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             existing = RoleMapping.get(interaction.guild.id, source_role.id, target_role.id, session)
             if existing:
-                already_exists = True
+                error_msg = get_string(
+                    lang, "rolemanage.allow.already_exists", source=source_role.name, target=target_role.name
+                )
             else:
                 mapping = RoleMapping(
                     GuildId=interaction.guild.id,
@@ -182,11 +186,8 @@ class Roles(NerpyBotCog, Cog):
                 )
                 session.add(mapping)
 
-        if already_exists:
-            await interaction.response.send_message(
-                get_string(lang, "rolemanage.allow.already_exists", source=source_role.name, target=target_role.name),
-                ephemeral=True,
-            )
+        if error_msg:
+            await interaction.response.send_message(error_msg, ephemeral=True)
             return
 
         await interaction.response.send_message(
@@ -387,7 +388,7 @@ class Roles(NerpyBotCog, Cog):
             )
             return
 
-        already_mapped = False
+        error_msg = None
         with self.bot.session_scope() as session:
             rr_msg = ReactionRoleMessage.get_by_message(msg_id, session)
             if rr_msg is None:
@@ -401,7 +402,7 @@ class Roles(NerpyBotCog, Cog):
 
             existing = ReactionRoleEntry.get_by_message_and_emoji(rr_msg.Id, emoji, session)
             if existing is not None:
-                already_mapped = True
+                error_msg = get_string(lang, "reactionrole.add.already_mapped", emoji=emoji)
             else:
                 entry = ReactionRoleEntry(
                     ReactionRoleMessageId=rr_msg.Id,
@@ -410,10 +411,8 @@ class Roles(NerpyBotCog, Cog):
                 )
                 session.add(entry)
 
-        if already_mapped:
-            await interaction.response.send_message(
-                get_string(lang, "reactionrole.add.already_mapped", emoji=emoji), ephemeral=True
-            )
+        if error_msg:
+            await interaction.response.send_message(error_msg, ephemeral=True)
             return
 
         try:
@@ -458,8 +457,7 @@ class Roles(NerpyBotCog, Cog):
                     session.delete(entry)
 
                     # clean up the parent if no entries remain
-                    remaining = [e for e in rr_msg.entries if e.Id != entry.Id]
-                    if not remaining:
+                    if len(rr_msg.entries) == 1:
                         session.delete(rr_msg)
 
         if reply:
@@ -531,8 +529,10 @@ class Roles(NerpyBotCog, Cog):
             await interaction.response.send_message(no_config_msg, ephemeral=True)
             return
 
-        for emoji in emojis:
-            await self._clear_reaction(interaction.guild, channel_id, msg_id, emoji)
+        await asyncio.gather(
+            *[self._clear_reaction(interaction.guild, channel_id, msg_id, emoji) for emoji in emojis],
+            return_exceptions=True,
+        )
 
         await interaction.response.send_message(
             get_string(lang, "reactionrole.clear.success", message_id=msg_id), ephemeral=True
