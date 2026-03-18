@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from "@iconify/vue";
-import { onMounted, onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 import { api } from "@/api/client";
 import type {
   BotPermissionGuildResult,
@@ -148,6 +148,9 @@ async function fetchErrorStatus() {
   errorError.value = null;
   try {
     errorStatus.value = await api.get<ErrorStatusResponse>("/operator/error-status");
+    if (errorStatus.value.debug_enabled !== undefined) {
+      debugEnabled.value = errorStatus.value.debug_enabled ?? null;
+    }
   } catch (e: unknown) {
     errorError.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
@@ -201,6 +204,13 @@ async function toggleDebug() {
   }
 }
 
+// ── Tab lazy-load watcher ──────────────────────────────────────────────────────
+
+watch(activeTab, (tab) => {
+  if (tab === "permissions" && !permissions.value.length && !permLoading.value) fetchPermissions();
+  if (tab === "error_control" && !errorStatus.value && !errorLoading.value) fetchErrorStatus();
+});
+
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 onMounted(fetchHealth);
@@ -223,14 +233,14 @@ onMounted(fetchHealth);
       </button>
       <button
         :class="['subtab-btn', { active: activeTab === 'permissions' }]"
-        @click="activeTab = 'permissions'; if (!permissions.length && !permLoading) fetchPermissions()"
+        @click="activeTab = 'permissions'"
       >
         <Icon icon="mdi:shield-check-outline" />
         {{ t("tabs.operator_dashboard.tab_permissions") }}
       </button>
       <button
         :class="['subtab-btn', { active: activeTab === 'error_control' }]"
-        @click="activeTab = 'error_control'; if (!errorStatus && !errorLoading) fetchErrorStatus()"
+        @click="activeTab = 'error_control'"
       >
         <Icon icon="mdi:bell-cog-outline" />
         {{ t("tabs.operator_dashboard.tab_error_control") }}
@@ -496,7 +506,7 @@ onMounted(fetchHealth);
                   {{
                     guild.all_ok
                       ? t("tabs.operator_dashboard.permissions_all_ok")
-                      : `${guild.missing.length} missing`
+                      : t("tabs.operator_dashboard.permissions_missing", { count: guild.missing.length })
                   }}
                 </span>
               </td>

@@ -325,7 +325,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             )
         return {"guilds": results}
     elif command == "error_status":
-        return bot.error_throttle.get_status()
+        return {**bot.error_throttle.get_status(), "debug_enabled": bot.debug}
     elif command == "error_suppress":
         from utils.duration import parse_duration
 

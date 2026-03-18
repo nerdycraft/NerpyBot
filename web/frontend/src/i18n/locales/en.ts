@@ -461,6 +461,7 @@ export const en = {
       permissions_col_status: "Status",
       permissions_col_missing: "Missing Permissions",
       permissions_all_ok: "All OK",
+      permissions_missing: "{count} missing",
       permissions_subscribe: "Subscribe",
       permissions_unsubscribe: "Unsubscribe",
       permissions_subscribed_tip: "You'll receive a DM if permissions are missing on restart",

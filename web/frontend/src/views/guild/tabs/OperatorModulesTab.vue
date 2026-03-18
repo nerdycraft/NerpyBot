@@ -158,7 +158,7 @@ onMounted(fetchModules);
       </button>
       <button
         :class="['subtab-btn', { active: activeTab === 'sync' }]"
-        @click="activeTab = 'sync'; fetchGuilds()"
+        @click="activeTab = 'sync'"
       >
         <Icon icon="mdi:sync" />
         {{ t("tabs.operator_modules.tab_sync") }}

@@ -358,6 +358,7 @@ export interface ErrorStatusResponse {
   suppressed_remaining: number | null;
   throttle_window: number;
   buckets: Record<string, ErrorStatusBucket>;
+  debug_enabled?: boolean | null;
 }
 
 export interface ErrorActionResponse {

@@ -509,6 +509,7 @@ class ErrorStatusResponse(BaseModel):
     suppressed_remaining: float | None
     throttle_window: int
     buckets: dict[str, ErrorStatusBucket]
+    debug_enabled: bool | None = None
 
 
 class ErrorSuppressRequest(BaseModel):

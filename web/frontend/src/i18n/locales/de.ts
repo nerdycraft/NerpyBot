@@ -465,6 +465,7 @@ export const de: typeof en = {
       permissions_col_status: "Status",
       permissions_col_missing: "Fehlende Berechtigungen",
       permissions_all_ok: "Alles OK",
+      permissions_missing: "{count} fehlend",
       permissions_subscribe: "Abonnieren",
       permissions_unsubscribe: "Abbestellen",
       permissions_subscribed_tip: "Du erhältst eine DM, wenn beim Neustart Berechtigungen fehlen",
