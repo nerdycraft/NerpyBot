@@ -19,6 +19,7 @@ from models.application import (
     ApplicationTemplate,
     ApplicationTemplateQuestion,
     SubmissionStatus,
+    VoteType,
     seed_built_in_templates,
 )
 from modules.conversations.application import (
@@ -1291,48 +1292,94 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     async def _refresh_apply_embeds(self, guild_id: int) -> None:
         """Re-post or edit the Apply button embed for each configured form in the guild."""
-        from modules.views.application import edit_apply_button_message
+        from modules.views.application import _ApplyEmbedData, edit_apply_button_message
 
+        lang = self.bot.get_guild_language(guild_id)
         with self.bot.session_scope() as session:
             forms = ApplicationForm.get_all_by_guild(guild_id, session)
-            form_ids = [f.Id for f in forms if f.ApplyMessageId and f.ApplyChannelId]
+            preloaded = [
+                _ApplyEmbedData(
+                    channel_id=f.ApplyChannelId,
+                    message_id=f.ApplyMessageId,
+                    form_name=f.Name,
+                    description=f.ApplyDescription,
+                    lang=lang,
+                )
+                for f in forms
+                if f.ApplyMessageId and f.ApplyChannelId
+            ]
 
-        for form_id in form_ids:
+        for data in preloaded:
             try:
-                await edit_apply_button_message(self.bot, form_id)
-                self.bot.log.info("application: refreshed apply embed for form %d (guild %d)", form_id, guild_id)
+                await edit_apply_button_message(self.bot, preloaded=data)
+                self.bot.log.info(
+                    "application: refreshed apply embed for message %d (guild %d)", data.message_id, guild_id
+                )
             except discord.HTTPException as exc:
                 self.bot.log.warning(
-                    "application: failed to refresh apply embed for form %d (guild %d): %s", form_id, guild_id, exc
+                    "application: failed to refresh apply embed for message %d (guild %d): %s",
+                    data.message_id,
+                    guild_id,
+                    exc,
                 )
 
     async def _refresh_review_embeds(self, guild_id: int) -> None:
         """Re-render each pending review embed in the guild with the new language."""
-        from modules.views.application import _update_review_embed
+        from modules.views.application import _ReviewEmbedData, _update_review_embed
 
+        lang = self.bot.get_guild_language(guild_id)
         with self.bot.session_scope() as session:
             submissions = ApplicationSubmission.get_by_guild(guild_id, session)
-            pending = [
-                (s.ReviewMessageId, s.form.ReviewChannelId)
-                for s in submissions
-                if s.Status == SubmissionStatus.PENDING and s.ReviewMessageId and s.form and s.form.ReviewChannelId
-            ]
+            pending = []
+            for s in submissions:
+                if not (
+                    s.Status == SubmissionStatus.PENDING and s.ReviewMessageId and s.form and s.form.ReviewChannelId
+                ):
+                    continue
+                answers = [
+                    (a.question.QuestionText if a.question else f"Question {a.QuestionId}", a.AnswerText)
+                    for a in s.answers
+                ]
+                pending.append(
+                    _ReviewEmbedData(
+                        user_id=s.UserId,
+                        user_name=s.UserName,
+                        submitted_at=s.SubmittedAt,
+                        status=s.Status,
+                        applicant_notified=s.ApplicantNotified,
+                        form_name=s.form.Name,
+                        required_approvals=s.form.RequiredApprovals,
+                        required_denials=s.form.RequiredDenials,
+                        lang=lang,
+                        approve_count=sum(1 for v in s.votes if v.Vote == VoteType.APPROVE),
+                        deny_count=sum(1 for v in s.votes if v.Vote == VoteType.DENY),
+                        answers=answers,
+                        review_channel_id=s.form.ReviewChannelId,
+                        review_message_id=s.ReviewMessageId,
+                    )
+                )
 
-        for i, (review_message_id, review_channel_id) in enumerate(pending):
+        for i, data in enumerate(pending):
             try:
                 await _update_review_embed(
                     self.bot,
-                    review_channel_id=review_channel_id,
-                    review_message_id=review_message_id,
+                    review_channel_id=data.review_channel_id,
+                    review_message_id=data.review_message_id,
+                    preloaded=data,
                 )
-                self.bot.log.info("application: refreshed review embed %d (guild %d)", review_message_id, guild_id)
+                self.bot.log.info("application: refreshed review embed %d (guild %d)", data.review_message_id, guild_id)
             except (discord.NotFound, discord.Forbidden):
                 self.bot.log.warning(
-                    "application: review message %d not accessible (guild %d) — skipping", review_message_id, guild_id
+                    "application: review message %d not accessible (guild %d) — skipping",
+                    data.review_message_id,
+                    guild_id,
                 )
             except discord.HTTPException as exc:
                 self.bot.log.warning(
-                    "application: failed to refresh review embed %d (guild %d): %s", review_message_id, guild_id, exc
+                    "application: failed to refresh review embed %d (guild %d): %s",
+                    data.review_message_id,
+                    guild_id,
+                    exc,
                 )
             if i < len(pending) - 1:
                 await asyncio.sleep(1)

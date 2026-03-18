@@ -9,7 +9,8 @@ ApplicationApplyView — single-button persistent view ("Apply") posted in a pub
 Clicking it starts the same DM conversation as ``/apply``.
 """
 
-from datetime import UTC
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 import discord
 from sqlalchemy.exc import IntegrityError
@@ -23,6 +24,43 @@ from models.application import (
     VoteType,
 )
 from utils.strings import get_string
+
+
+# ---------------------------------------------------------------------------
+# Pre-loaded data carriers (used by bulk language-refresh to avoid N+1 sessions)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _ApplyEmbedData:
+    """Scalar data needed to edit an Apply button embed without a DB session."""
+
+    channel_id: int
+    message_id: int
+    form_name: str
+    description: str | None
+    lang: str
+
+
+@dataclass
+class _ReviewEmbedData:
+    """Scalar data needed to rebuild a review embed without a DB session."""
+
+    user_id: int
+    user_name: str
+    submitted_at: datetime
+    status: SubmissionStatus
+    applicant_notified: bool
+    form_name: str
+    required_approvals: int
+    required_denials: int
+    lang: str
+    approve_count: int
+    deny_count: int
+    answers: list[tuple[str, str | None]]
+    # Routing — used by _refresh_review_embeds for message resolution; ignored by embed builders
+    review_channel_id: int = 0
+    review_message_id: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -63,40 +101,59 @@ def check_override_permission(interaction: discord.Interaction, bot) -> bool:
 
 def build_review_embed(submission, form, session, lang: str = "en") -> discord.Embed:
     """Build the review embed shown in the review channel for a submission."""
-    approve_count = ApplicationVote.count_by_type(submission.Id, VoteType.APPROVE, session)
-    deny_count = ApplicationVote.count_by_type(submission.Id, VoteType.DENY, session)
+    answers = [
+        (a.question.QuestionText if a.question else f"Question {a.QuestionId}", a.AnswerText)
+        for a in submission.answers
+    ]
+    return _build_review_embed_from_data(
+        _ReviewEmbedData(
+            user_id=submission.UserId,
+            user_name=submission.UserName,
+            submitted_at=submission.SubmittedAt,
+            status=submission.Status,
+            applicant_notified=submission.ApplicantNotified,
+            form_name=form.Name,
+            required_approvals=form.RequiredApprovals,
+            required_denials=form.RequiredDenials,
+            lang=lang,
+            approve_count=ApplicationVote.count_by_type(submission.Id, VoteType.APPROVE, session),
+            deny_count=ApplicationVote.count_by_type(submission.Id, VoteType.DENY, session),
+            answers=answers,
+        )
+    )
 
-    embed = discord.Embed(title=f"\U0001f4cb {form.Name}", colour=_status_colour(submission.Status))
+
+def _build_review_embed_from_data(data: "_ReviewEmbedData") -> discord.Embed:
+    """Build the review embed from pre-extracted scalar data (no DB session needed)."""
+    embed = discord.Embed(title=f"\U0001f4cb {data.form_name}", colour=_status_colour(data.status))
     embed.add_field(
-        name=get_string(lang, "application.review.applicant"),
-        value=f"<@{submission.UserId}> ({submission.UserName})",
+        name=get_string(data.lang, "application.review.applicant"),
+        value=f"<@{data.user_id}> ({data.user_name})",
         inline=True,
     )
-    submitted_at = submission.SubmittedAt
+    submitted_at = data.submitted_at
     if submitted_at.tzinfo is None:
         submitted_at = submitted_at.replace(tzinfo=UTC)
     embed.add_field(
-        name=get_string(lang, "application.review.submitted"),
+        name=get_string(data.lang, "application.review.submitted"),
         value=discord.utils.format_dt(submitted_at, style="R"),
         inline=True,
     )
-
-    for answer in submission.answers:
-        label = answer.question.QuestionText if answer.question else f"Question {answer.QuestionId}"
+    for label, answer_text in data.answers:
         embed.add_field(
-            name=label, value=answer.AnswerText or get_string(lang, "application.review.no_answer"), inline=False
+            name=label,
+            value=answer_text or get_string(data.lang, "application.review.no_answer"),
+            inline=False,
         )
-
-    status_display = submission.Status.capitalize()
     embed.set_footer(
         text=get_string(
-            lang,
+            data.lang,
             "application.review.footer",
-            status=status_display,
-            approvals=approve_count,
-            required_approvals=form.RequiredApprovals,
-            denials=deny_count,
-            required_denials=form.RequiredDenials,
+            status=data.status.value.capitalize(),
+            approvals=data.approve_count,
+            required_approvals=data.required_approvals,
+            denials=data.deny_count,
+            required_denials=data.required_denials,
         )
     )
     return embed
@@ -108,6 +165,7 @@ async def _update_review_embed(
     interaction: discord.Interaction | None = None,
     review_channel_id: int | None = None,
     review_message_id: int | None = None,
+    preloaded: "_ReviewEmbedData | None" = None,
 ):
     """Rebuild and edit the review embed with current vote counts.
 
@@ -117,6 +175,8 @@ async def _update_review_embed(
     ``interaction.message`` is None).
 
     If the submission is no longer pending, all buttons are disabled.
+
+    Pass ``preloaded`` to skip the database lookup entirely (used by bulk language-refresh).
     """
     # Resolve the review message
     if interaction is not None and interaction.message is not None:
@@ -131,16 +191,22 @@ async def _update_review_embed(
     else:
         raise ValueError("Either interaction (with .message) or review_channel_id+review_message_id must be provided")
 
-    with bot.session_scope() as session:
-        submission = ApplicationSubmission.get_by_review_message(msg_id, session)
-        if submission is None:
-            bot.log.warning("application: no submission found for review message %d — was it deleted?", msg_id)
-            return
-        form = ApplicationForm.get_by_id(submission.FormId, session)
-        lang = bot.get_guild_language(submission.GuildId)
-        embed = build_review_embed(submission, form, session, lang)
-        status = submission.Status
-        applicant_notified = submission.ApplicantNotified
+    if preloaded is not None:
+        embed = _build_review_embed_from_data(preloaded)
+        status = preloaded.status
+        applicant_notified = preloaded.applicant_notified
+        lang = preloaded.lang
+    else:
+        with bot.session_scope() as session:
+            submission = ApplicationSubmission.get_by_review_message(msg_id, session)
+            if submission is None:
+                bot.log.warning("application: no submission found for review message %d — was it deleted?", msg_id)
+                return
+            form = ApplicationForm.get_by_id(submission.FormId, session)
+            lang = bot.get_guild_language(submission.GuildId)
+            embed = build_review_embed(submission, form, session, lang)
+            status = submission.Status
+            applicant_notified = submission.ApplicantNotified
 
     view = ApplicationReviewView(bot=bot, lang=lang)
     for item in view.children:
@@ -1123,20 +1189,31 @@ async def post_apply_button_message(bot, form_id: int) -> None:
             form.ApplyMessageId = msg.id
 
 
-async def edit_apply_button_message(bot, form_id: int) -> None:
+async def edit_apply_button_message(
+    bot, form_id: int | None = None, *, preloaded: "_ApplyEmbedData | None" = None
+) -> None:
     """Edit the Apply button message in-place (e.g. after description change).
 
     Raises discord.HTTPException on failure — callers must catch.
+
+    Pass ``preloaded`` to skip the database lookup (used by bulk language-refresh).
     """
-    with bot.session_scope() as session:
-        form = ApplicationForm.get_by_id(form_id, session)
-        if form is None or not form.ApplyMessageId or not form.ApplyChannelId:
-            return
-        channel_id = form.ApplyChannelId
-        message_id = form.ApplyMessageId
-        form_name = form.Name
-        description = form.ApplyDescription
-        lang = bot.get_guild_language(form.GuildId)
+    if preloaded is not None:
+        channel_id = preloaded.channel_id
+        message_id = preloaded.message_id
+        form_name = preloaded.form_name
+        description = preloaded.description
+        lang = preloaded.lang
+    else:
+        with bot.session_scope() as session:
+            form = ApplicationForm.get_by_id(form_id, session)
+            if form is None or not form.ApplyMessageId or not form.ApplyChannelId:
+                return
+            channel_id = form.ApplyChannelId
+            message_id = form.ApplyMessageId
+            form_name = form.Name
+            description = form.ApplyDescription
+            lang = bot.get_guild_language(form.GuildId)
 
     try:
         channel = bot.get_channel(channel_id)
