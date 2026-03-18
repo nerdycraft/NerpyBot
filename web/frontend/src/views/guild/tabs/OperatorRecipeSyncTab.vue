@@ -9,6 +9,7 @@ import type {
   RecipeSyncResponse,
   RecipeSyncStatusResponse,
 } from "@/api/types";
+import SubTabBar from "@/components/SubTabBar.vue";
 import { useI18n } from "@/i18n";
 
 const { t } = useI18n();
@@ -135,7 +136,7 @@ onMounted(fetchStatus);
     <p class="tab-desc">{{ t("tabs.operator_recipe_sync.desc") }}</p>
 
     <!-- Sub-tab switcher -->
-    <div class="subtab-bar">
+    <SubTabBar>
       <button :class="['subtab-btn', { active: activeTab === 'sync' }]" @click="activeTab = 'sync'">
         <Icon icon="mdi:sync" />
         {{ t("tabs.operator_recipe_sync.tab_sync") }}
@@ -144,7 +145,7 @@ onMounted(fetchStatus);
         <Icon icon="mdi:magnify" />
         {{ t("tabs.operator_recipe_sync.tab_browse") }}
       </button>
-    </div>
+    </SubTabBar>
 
     <!-- ── Sync tab ── -->
     <template v-if="activeTab === 'sync'">
@@ -273,40 +274,6 @@ onMounted(fetchStatus);
 .tab-desc {
   color: var(--color-text-muted, #888);
   margin-bottom: 1rem;
-}
-
-/* Sub-tab bar */
-.subtab-bar {
-  display: flex;
-  gap: 0.25rem;
-  margin-bottom: 1.25rem;
-  border-bottom: 1px solid var(--color-border, #333);
-  padding-bottom: 0;
-}
-
-.subtab-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.4rem 0.9rem;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  color: var(--color-text-muted, #888);
-  font-size: 0.875rem;
-  font-weight: 500;
-  margin-bottom: -1px;
-  transition: color 0.15s;
-}
-
-.subtab-btn:hover {
-  color: var(--color-text, #fff);
-}
-
-.subtab-btn.active {
-  color: var(--color-accent, #7289da);
-  border-bottom-color: var(--color-accent, #7289da);
 }
 
 /* Cards */

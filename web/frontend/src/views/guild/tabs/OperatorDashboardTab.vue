@@ -11,6 +11,7 @@ import type {
   ErrorStatusResponse,
   HealthResponse,
 } from "@/api/types";
+import SubTabBar from "@/components/SubTabBar.vue";
 import { useI18n } from "@/i18n";
 
 const { t } = useI18n();
@@ -224,7 +225,7 @@ onMounted(fetchHealth);
     <p class="text-muted-foreground text-sm mb-4">{{ t("tabs.operator_dashboard.desc") }}</p>
 
     <!-- Sub-tab bar -->
-    <div class="subtab-bar">
+    <SubTabBar>
       <button :class="['subtab-btn', { active: activeTab === 'health' }]" @click="activeTab = 'health'">
         <Icon icon="mdi:heart-pulse" />
         {{ t("tabs.operator_dashboard.tab_health") }}
@@ -243,7 +244,7 @@ onMounted(fetchHealth);
         <Icon icon="mdi:bell-cog-outline" />
         {{ t("tabs.operator_dashboard.tab_error_control") }}
       </button>
-    </div>
+    </SubTabBar>
 
     <!-- ── Health tab ── -->
     <template v-if="activeTab === 'health'">
@@ -729,38 +730,3 @@ onMounted(fetchHealth);
     </template>
   </div>
 </template>
-
-<style scoped>
-.subtab-bar {
-  display: flex;
-  gap: 0.25rem;
-  margin-bottom: 1.25rem;
-  border-bottom: 1px solid var(--color-border, #333);
-  padding-bottom: 0;
-}
-
-.subtab-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.4rem 0.9rem;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  color: var(--color-text-muted, #888);
-  font-size: 0.875rem;
-  font-weight: 500;
-  margin-bottom: -1px;
-  transition: color 0.15s;
-}
-
-.subtab-btn:hover {
-  color: var(--color-text, #fff);
-}
-
-.subtab-btn.active {
-  color: var(--color-accent, #7289da);
-  border-bottom-color: var(--color-accent, #7289da);
-}
-</style>
