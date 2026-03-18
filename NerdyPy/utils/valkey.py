@@ -64,6 +64,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             - validate_wow_guild: {"valid": bool, "display_name": str or None} and optionally {"error": "..."}
             - unknown commands: {"error": "Unknown command: ..."}
     """
+    global _required_permissions
     if command == "health":
         import sys
 
@@ -313,7 +314,6 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
     elif command == "bot_permissions":
         from utils.permissions import check_guild_permissions, required_permissions_for
 
-        global _required_permissions
         if _required_permissions is None:
             _required_permissions = required_permissions_for(bot.modules)
         required = _required_permissions
