@@ -86,6 +86,9 @@ def mock_log():
 @pytest.fixture
 def mock_bot(db_session, mock_log):
     """Create a mock bot with session_scope context manager."""
+    from utils.cache import GuildConfigCache
+    from utils.strings import get_string
+
     bot = MagicMock()
     bot.log = mock_log
 
@@ -95,6 +98,20 @@ def mock_bot(db_session, mock_log):
 
     bot.session_scope = session_scope
     bot.config = MagicMock()
+
+    # Wire up a real GuildConfigCache backed by the test DB session so that
+    # tests inserting GuildLanguageConfig/BotModeratorRole rows see correct results.
+    db_session.close = MagicMock()  # prevent cache from closing the shared test session
+    _factory = MagicMock(return_value=db_session)
+    _cache = GuildConfigCache()
+    bot.guild_cache = _cache
+    bot.SESSION = _factory
+    bot.get_guild_language = lambda guild_id: (
+        "en" if guild_id is None else _cache.get_guild_language(guild_id, _factory)
+    )
+    bot.get_localized_string = lambda guild_id, key, **kwargs: get_string(
+        bot.get_guild_language(guild_id), key, **kwargs
+    )
 
     return bot
 

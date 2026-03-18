@@ -15,7 +15,7 @@ from utils.duration import parse_duration
 from utils.helpers import notify_error, register_before_loop, send_paginated
 from utils.permissions import validate_channel_permissions
 from utils.schedule import compute_next_fire
-from utils.strings import get_guild_language, get_string
+from utils.strings import get_string
 
 LOOP_MAX_SECONDS = 60.0
 LOOP_MIN_SECONDS = 5.0
@@ -147,8 +147,7 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
 
     def _lang(self, guild_id):
         """Look up the guild's language preference."""
-        with self.bot.session_scope() as session:
-            return get_guild_language(guild_id, session)
+        return self.bot.get_guild_language(guild_id)
 
     # -- /reminder create ----------------------------------------------
 
@@ -182,8 +181,8 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
         schedule_type = "interval" if repeat else "once"
         next_fire = datetime.now(UTC) + td
 
+        lang = self.bot.get_guild_language(interaction.guild.id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild.id, session)
             reminder = ReminderMessage(
                 GuildId=interaction.guild.id,
                 ChannelId=target.id,
@@ -332,8 +331,8 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
     @app_commands.command(name="list")
     async def _reminder_list(self, interaction: Interaction):
         """List all current reminder messages."""
+        lang = self.bot.get_guild_language(interaction.guild.id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild.id, session)
             msgs = ReminderMessage.get_all_by_guild(interaction.guild.id, session)
             if not msgs:
                 await interaction.response.send_message(get_string(lang, "reminder.no_reminders"), ephemeral=True)
@@ -444,8 +443,8 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
         timezone: Optional[str] = None,
     ):
         """Edit an existing reminder's message, channel, or timing."""
+        lang = self.bot.get_guild_language(interaction.guild.id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild.id, session)
             msg = ReminderMessage.get_by_id(reminder_id, interaction.guild.id, session)
             if msg is None:
                 await interaction.response.send_message(get_string(lang, "reminder.not_found"), ephemeral=True)
@@ -600,8 +599,8 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
     @app_commands.autocomplete(reminder_id=_reminder_id_autocomplete)
     async def _reminder_delete(self, interaction: Interaction, reminder_id: int):
         """Delete a reminder message."""
+        lang = self.bot.get_guild_language(interaction.guild.id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild.id, session)
             ReminderMessage.delete(reminder_id, interaction.guild.id, session)
         self._reschedule()
         await interaction.response.send_message(get_string(lang, "reminder.delete.success"), ephemeral=True)
@@ -612,8 +611,8 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
     @app_commands.autocomplete(reminder_id=_reminder_id_autocomplete)
     async def _reminder_pause(self, interaction: Interaction, reminder_id: int):
         """Pause a reminder without deleting it."""
+        lang = self.bot.get_guild_language(interaction.guild.id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild.id, session)
             msg = ReminderMessage.get_by_id(reminder_id, interaction.guild.id, session)
             if msg is None:
                 await interaction.response.send_message(get_string(lang, "reminder.not_found"), ephemeral=True)
@@ -635,8 +634,8 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
     @app_commands.autocomplete(reminder_id=_reminder_id_autocomplete)
     async def _reminder_resume(self, interaction: Interaction, reminder_id: int):
         """Resume a paused reminder."""
+        lang = self.bot.get_guild_language(interaction.guild.id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild.id, session)
             msg = ReminderMessage.get_by_id(reminder_id, interaction.guild.id, session)
             if msg is None:
                 await interaction.response.send_message(get_string(lang, "reminder.not_found"), ephemeral=True)

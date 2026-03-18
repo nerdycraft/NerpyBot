@@ -583,15 +583,14 @@ class TestGlobalInteractionCheck:
 
         mock_self = MagicMock()
         mock_self.disabled_modules = {"music"}
-        mock_session = MagicMock()
-        mock_self.session_scope.return_value.__enter__ = MagicMock(return_value=mock_session)
-        mock_self.session_scope.return_value.__exit__ = MagicMock(return_value=False)
+        mock_self.get_localized_string.return_value = "Module disabled"
 
-        with patch("NerdyPy.bot.get_localized_string", return_value="Module disabled"):
-            with pytest.raises(SilentCheckFailure):
-                await NerpyBot._global_interaction_check(mock_self, mock_interaction)
+        with pytest.raises(SilentCheckFailure):
+            await NerpyBot._global_interaction_check(mock_self, mock_interaction)
 
-            mock_interaction.response.send_message.assert_called_once()
+        mock_interaction.response.send_message.assert_called_once()
+        mock_self.get_localized_string.assert_called_once()
+        assert mock_self.get_localized_string.call_args.args[0] == mock_interaction.guild_id
 
 
 class TestRunMigrations:

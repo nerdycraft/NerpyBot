@@ -65,6 +65,9 @@ def mock_interaction(db_session):
     interaction.followup.send = AsyncMock()
 
     # interaction.client (the bot)
+    from utils.cache import GuildConfigCache
+    from utils.strings import get_string
+
     client = MagicMock()
     client.ops = []
 
@@ -73,6 +76,17 @@ def mock_interaction(db_session):
         yield db_session
 
     client.session_scope = session_scope
+
+    # Wire up cache so checks that query modrole or emit localized strings work correctly.
+    db_session.close = MagicMock()  # prevent cache from closing the shared test session
+    _factory = MagicMock(return_value=db_session)
+    _cache = GuildConfigCache()
+    client.guild_cache = _cache
+    client.SESSION = _factory
+    client.get_localized_string = lambda guild_id, key, **kwargs: get_string(
+        "en" if guild_id is None else _cache.get_guild_language(guild_id, _factory), key, **kwargs
+    )
+
     interaction.client = client
 
     return interaction

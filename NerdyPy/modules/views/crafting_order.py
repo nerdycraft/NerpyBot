@@ -18,15 +18,14 @@ from models.wow import (
     CraftingRoleMapping,
 )
 from utils.blizzard import CRAFTING_PROFESSIONS
-from utils.strings import get_guild_language, get_localized_string, get_string
+from utils.strings import get_string
 
 log = logging.getLogger(__name__)
 
 
 def _ls(interaction: Interaction, key: str, **kwargs) -> str:
     """Shorthand for localized string lookup."""
-    with interaction.client.session_scope() as session:
-        return get_localized_string(interaction.guild_id, f"wow.craftingorder.{key}", session, **kwargs)
+    return interaction.client.get_localized_string(interaction.guild_id, f"wow.craftingorder.{key}", **kwargs)
 
 
 def _get_locale(locales: dict | None, lang: str) -> str | None:
@@ -169,7 +168,7 @@ class CraftingBoardView(ui.View):
         """Load board lang + role maps from DB. Returns None if no board is configured for the guild."""
         if CraftingBoardConfig.get_by_guild(guild_id, session) is None:
             return None
-        lang = get_guild_language(guild_id, session)
+        lang = self.bot.get_guild_language(guild_id)
         mapped_prof_ids: set[int] = set()
         mapping_role_ids: list[int] = []
         for m in CraftingRoleMapping.get_by_guild(guild_id, session):
@@ -448,9 +447,9 @@ class ItemSelectView(ui.View):
 
         if value == self._OTHER_VALUE:
             # Fall back to profession select (free-text)
+            lang = self.bot.get_guild_language(interaction.guild_id)
             with self.bot.session_scope() as session:
                 mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
-                lang = get_guild_language(interaction.guild_id, session)
             roles_found = [r for m in mappings if (r := interaction.guild.get_role(m.RoleId))]
             if not roles_found:
                 await interaction.response.edit_message(
@@ -685,7 +684,7 @@ class CraftingOrderModal(ui.Modal):
         with self.bot.session_scope() as session:
             config = CraftingBoardConfig.get_by_guild(self.guild_id, session)
             if config is not None:
-                lang = get_guild_language(self.guild_id, session)
+                lang = self.bot.get_guild_language(self.guild_id)
                 channel_id = config.ChannelId
 
                 order = CraftingOrder(
@@ -799,7 +798,7 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
                 not_open = True
             else:
                 order = CraftingOrder.get_by_id(self.order_id, session)
-                lang = get_guild_language(interaction.guild_id, session)
+                lang = interaction.client.get_guild_language(interaction.guild_id)
                 embed = build_order_embed(order, interaction.guild, lang)
                 view = build_order_view(order.Id, "in_progress", lang)
         if not_open:
@@ -841,7 +840,7 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
             order.Status = "open"
             order.CrafterId = None
             order.CrafterName = None
-            lang = get_guild_language(interaction.guild_id, session)
+            lang = interaction.client.get_guild_language(interaction.guild_id)
             embed = build_order_embed(order, interaction.guild, lang)
             view = build_order_view(order.Id, "open", lang)
         await interaction.response.edit_message(embed=embed, view=view)
@@ -1002,8 +1001,7 @@ class AskQuestionButton(ui.DynamicItem[ui.Button], template=r"crafting:ask:(?P<o
         return cls(order_id=int(match["order_id"]))
 
     async def callback(self, interaction: Interaction):
-        with interaction.client.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
+        lang = interaction.client.get_guild_language(interaction.guild_id)
         modal = AskQuestionModal(self.order_id, lang)
         await interaction.response.send_modal(modal)
 

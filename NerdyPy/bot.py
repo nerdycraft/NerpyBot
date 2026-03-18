@@ -44,6 +44,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from models.admin import BotGuild
 from utils import logging
 from utils.audio import Audio
+from utils.cache import GuildConfigCache
 from utils.config import parse_config
 from utils.conversation import AnswerType, ConversationManager
 from utils.database import BASE
@@ -51,7 +52,7 @@ from utils.error_throttle import ErrorCounter, ErrorThrottle
 from utils.errors import NerpyException, NerpyInfraException, SilentCheckFailure
 from utils.helpers import error_context, notify_error, parse_id, send_hidden_message
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
-from utils.strings import get_localized_string, get_string, load_strings
+from utils.strings import get_string, load_strings
 from utils.valkey import valkey_listener_loop
 
 SENTINEL_PATH = Path("/tmp/nerpybot_ready")
@@ -151,6 +152,7 @@ class NerpyBot(Bot):
         self.error_throttle = ErrorThrottle()
         self.error_counter = ErrorCounter()
         self.disabled_modules: set[str] = set()
+        self.guild_cache = GuildConfigCache()
 
         # database variables
         db_connection_string = self.build_connection_string(config)
@@ -188,6 +190,20 @@ class NerpyBot(Bot):
     def create_all(self) -> None:
         """creates all tables previously defined"""
         BASE.metadata.create_all(self.ENGINE)
+
+    def get_guild_language(self, guild_id: int | None) -> str:
+        """Return the configured language for a guild, defaulting to 'en'.
+
+        Uses the in-memory cache; loads from DB on first access per guild.
+        """
+        if guild_id is None:
+            return "en"
+        return self.guild_cache.get_guild_language(guild_id, self.SESSION)
+
+    def get_localized_string(self, guild_id: int | None, key: str, **kwargs) -> str:
+        """Resolve the guild language from cache, then look up and format a string."""
+        lang = self.get_guild_language(guild_id)
+        return get_string(lang, key, **kwargs)
 
     @contextmanager
     def session_scope(self) -> Generator[Session, Any, None]:
@@ -290,8 +306,7 @@ class NerpyBot(Bot):
         module_name = type(cog).__module__.rsplit(".", 1)[-1]
         if module_name in self.disabled_modules:
             try:
-                with self.session_scope() as session:
-                    msg = get_localized_string(interaction.guild_id, "bot.module_disabled", session, module=module_name)
+                msg = self.get_localized_string(interaction.guild_id, "bot.module_disabled", module=module_name)
             except Exception:
                 msg = get_string("en", "bot.module_disabled", module=module_name)
             if not interaction.response.is_done():
@@ -338,6 +353,16 @@ class NerpyBot(Bot):
                 BotGuild.sync([g.id for g in self.guilds], session)
         except Exception as e:
             self.log.warning(f"Failed to sync BotGuild table: {e}")
+
+        for cache_name, warm in (
+            ("reaction-role", self.guild_cache.warm_reaction_roles),
+            ("leave-message", self.guild_cache.warm_leave_messages),
+        ):
+            try:
+                warm(self.SESSION)
+            except Exception as e:
+                self.log.warning(f"Failed to warm {cache_name} cache: {e}")
+        self.log.debug("Guild config cache warm-up finished.")
 
         required = required_permissions_for(self.modules)
         for guild in self.guilds:
@@ -390,8 +415,7 @@ class NerpyBot(Bot):
                 self.log.error(f"{err_ctx}: {error.original.__class__.__name__}: {error.original}")
                 print_tb(error.original.__traceback__)
                 try:
-                    with self.session_scope() as session:
-                        msg = get_localized_string(interaction.guild_id, "common.error_generic", session)
+                    msg = self.get_localized_string(interaction.guild_id, "common.error_generic")
                 except Exception:
                     msg = get_string("en", "common.error_generic")
                 await send_hidden_message(interaction, msg)
@@ -430,6 +454,15 @@ class NerpyBot(Bot):
                 BotGuild.remove(guild.id, session)
         except Exception as e:
             self.log.warning(f"Failed to remove guild {guild.id} from BotGuild table: {e}")
+        self.guild_cache.evict_guild(guild.id)
+
+    async def on_guild_language_changed(self, guild_id: int, language: str) -> None:
+        """Update the language cache when a guild changes its language setting."""
+        self.guild_cache.set_guild_language(guild_id, language)
+
+    async def on_modrole_changed(self, guild_id: int, role_id: int | None) -> None:
+        """Update the modrole cache when a guild's bot-moderator role is set or cleared."""
+        self.guild_cache.set_modrole(guild_id, role_id)
 
     async def on_raw_reaction_add(self, payload: RawReactionActionEvent) -> None:
         """

@@ -18,9 +18,12 @@ def _load_locale_strings():
 @pytest.fixture
 def mock_bot_with_disable():
     """Minimal mock of NerpyBot with disabled_modules set."""
+    from utils.strings import get_string
+
     bot = MagicMock()
     bot.disabled_modules = set()
     bot.log = MagicMock()
+    bot.get_localized_string = lambda guild_id, key, **kwargs: get_string("en", key, **kwargs)
     return bot
 
 

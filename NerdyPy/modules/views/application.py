@@ -22,7 +22,7 @@ from models.application import (
     SubmissionStatus,
     VoteType,
 )
-from utils.strings import get_guild_language, get_string
+from utils.strings import get_string
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +137,7 @@ async def _update_review_embed(
             bot.log.warning("application: no submission found for review message %d — was it deleted?", msg_id)
             return
         form = ApplicationForm.get_by_id(submission.FormId, session)
-        lang = get_guild_language(submission.GuildId, session)
+        lang = bot.get_guild_language(submission.GuildId)
         embed = build_review_embed(submission, form, session, lang)
         status = submission.Status
         applicant_notified = submission.ApplicantNotified
@@ -313,7 +313,7 @@ async def _post_edit_and_update_embed(
 
 async def _validate_review_interaction(bot, interaction, session):
     """Check permission, look up submission, verify pending. Returns (lang, submission, existing_vote) or None."""
-    lang = get_guild_language(interaction.guild_id, session)
+    lang = bot.get_guild_language(interaction.guild_id)
     if not check_application_permission(interaction, bot):
         await interaction.response.send_message(
             get_string(lang, "application.review.no_review_permission"), ephemeral=True
@@ -893,8 +893,7 @@ class ApplicationReviewView(discord.ui.View):
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
         if self.bot:
             self.bot.log.error("Error in ApplicationReviewView: %s", error, exc_info=error)
-            with self.bot.session_scope() as session:
-                lang = get_guild_language(interaction.guild_id, session)
+            lang = self.bot.get_guild_language(interaction.guild_id)
         else:
             lang = "en"
         msg = get_string(lang, "application.error_generic")
@@ -969,16 +968,14 @@ class ApplicationReviewView(discord.ui.View):
 
     @discord.ui.button(label="Message", style=discord.ButtonStyle.grey, custom_id="app_review_message")
     async def message_applicant(self, interaction: discord.Interaction, button: discord.ui.Button):
+        lang = self.bot.get_guild_language(interaction.guild_id)
         if not check_application_permission(interaction, self.bot):
-            with self.bot.session_scope() as session:
-                lang = get_guild_language(interaction.guild_id, session)
             await interaction.response.send_message(
                 get_string(lang, "application.review.no_review_permission"), ephemeral=True
             )
             return
 
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             submission = ApplicationSubmission.get_by_review_message(interaction.message.id, session)
             if submission is None:
                 await interaction.response.send_message(
@@ -1017,16 +1014,14 @@ class ApplicationReviewView(discord.ui.View):
 
     @discord.ui.button(label="Override", style=discord.ButtonStyle.danger, custom_id="app_review_override")
     async def override(self, interaction: discord.Interaction, button: discord.ui.Button):
+        lang = self.bot.get_guild_language(interaction.guild_id)
         if not check_override_permission(interaction, self.bot):
-            with self.bot.session_scope() as session:
-                lang = get_guild_language(interaction.guild_id, session)
             await interaction.response.send_message(
                 get_string(lang, "application.review.no_override_permission"), ephemeral=True
             )
             return
 
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             submission = ApplicationSubmission.get_by_review_message(interaction.message.id, session)
             if submission is None:
                 await interaction.response.send_message(
@@ -1102,7 +1097,7 @@ async def post_apply_button_message(bot, form_id: int) -> None:
         old_message_id = form.ApplyMessageId
         form_name = form.Name
         description = form.ApplyDescription
-        lang = get_guild_language(form.GuildId, session)
+        lang = bot.get_guild_language(form.GuildId)
 
     # Delete old message if it exists
     if old_message_id:
@@ -1141,7 +1136,7 @@ async def edit_apply_button_message(bot, form_id: int) -> None:
         message_id = form.ApplyMessageId
         form_name = form.Name
         description = form.ApplyDescription
-        lang = get_guild_language(form.GuildId, session)
+        lang = bot.get_guild_language(form.GuildId)
 
     try:
         channel = bot.get_channel(channel_id)
@@ -1176,8 +1171,7 @@ class ApplicationApplyView(discord.ui.View):
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
         if self.bot:
             self.bot.log.error("Error in ApplicationApplyView: %s", error, exc_info=error)
-            with self.bot.session_scope() as session:
-                lang = get_guild_language(interaction.guild_id, session)
+            lang = self.bot.get_guild_language(interaction.guild_id)
         else:
             lang = "en"
         msg = get_string(lang, "application.error_generic")
@@ -1189,8 +1183,8 @@ class ApplicationApplyView(discord.ui.View):
     @discord.ui.button(label="Apply", style=discord.ButtonStyle.green, custom_id="app_apply_button")
     async def apply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         # 1. Look up form via apply message ID
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             form = ApplicationForm.get_by_apply_message(interaction.message.id, session)
             if form is None:
                 await interaction.response.send_message(

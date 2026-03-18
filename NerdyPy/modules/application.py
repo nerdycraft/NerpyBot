@@ -29,7 +29,7 @@ from modules.views.application import check_override_permission
 from sqlalchemy.exc import SQLAlchemyError
 from utils.cog import NerpyBotCog
 from utils.helpers import fetch_message_content
-from utils.strings import get_guild_language, get_raw, get_string
+from utils.strings import get_raw, get_string
 
 
 async def _send_ephemeral(interaction: Interaction, msg: str) -> None:
@@ -72,8 +72,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         super().__init__(bot)
 
     def _lang(self, guild_id: int) -> str:
-        with self.bot.session_scope() as session:
-            return get_guild_language(guild_id, session)
+        return self.bot.get_guild_language(guild_id)
 
     async def cog_load(self):
         # Ensure any new tables introduced by this cog exist before seeding.
@@ -93,8 +92,8 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             return _filter_choices(ApplicationForm.get_all_by_guild(interaction.guild.id, session), current)
 
     async def _template_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             templates = ApplicationTemplate.get_available(interaction.guild.id, session)
             choices = []
             for tpl in templates:
@@ -167,7 +166,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         interaction: Interaction, name: str, session
     ) -> tuple[str, "ApplicationForm"] | None:
         """Look up a form by name; returns (lang, form) or sends an error and returns None."""
-        lang = get_guild_language(interaction.guild_id, session)
+        lang = interaction.client.get_guild_language(interaction.guild_id)
         form = ApplicationForm.get(name, interaction.guild.id, session)
         if not form:
             await interaction.response.send_message(
@@ -406,13 +405,12 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     @app_commands.command(name="list")
     async def _list(self, interaction: Interaction):
         """List all application forms for this server."""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         if not self._has_manage_permission(interaction):
-            lang = self._lang(interaction.guild_id)
             await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             forms = ApplicationForm.get_all_by_guild(interaction.guild.id, session)
             if not forms:
                 await interaction.response.send_message(get_string(lang, "application.list.empty"), ephemeral=True)
@@ -556,13 +554,12 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     @template_group.command(name="list")
     async def _template_list(self, interaction: Interaction):
         """Show available application form templates."""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         if not self._has_manage_permission(interaction):
-            lang = self._lang(interaction.guild_id)
             await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             templates = ApplicationTemplate.get_available(interaction.guild.id, session)
             if not templates:
                 await interaction.response.send_message(
@@ -607,13 +604,12 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     @app_commands.autocomplete(name=_template_autocomplete)
     async def _template_view(self, interaction: Interaction, name: str):
         """Show the contents of a template (questions, approval/denial messages)."""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         if not self._has_manage_permission(interaction):
-            lang = self._lang(interaction.guild_id)
             await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             tpl = ApplicationTemplate.get_by_name(name, interaction.guild.id, session)
             if not tpl:
                 await interaction.response.send_message(
@@ -672,13 +668,12 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         name: str,
     ):
         """Create a new guild template via DM conversation."""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         if not self._has_manage_permission(interaction):
-            lang = self._lang(interaction.guild_id)
             await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             existing = ApplicationTemplate.get_by_name(name, interaction.guild.id, session)
             if existing and not existing.IsBuiltIn:
                 await interaction.response.send_message(
@@ -821,13 +816,12 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     @app_commands.autocomplete(form=_form_name_autocomplete)
     async def _template_save(self, interaction: Interaction, form: str, template_name: str):
         """Save an existing form as a guild template."""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         if not self._has_manage_permission(interaction):
-            lang = self._lang(interaction.guild_id)
             await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             src_form = ApplicationForm.get(form, interaction.guild.id, session)
             if not src_form:
                 await interaction.response.send_message(
@@ -869,13 +863,12 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     @app_commands.autocomplete(template_name=_guild_template_autocomplete)
     async def _template_delete(self, interaction: Interaction, template_name: str):
         """Delete a guild custom template."""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         if not self._has_manage_permission(interaction):
-            lang = self._lang(interaction.guild_id)
             await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
             if not tpl:
                 await interaction.response.send_message(
@@ -1021,13 +1014,12 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     @app_commands.autocomplete(name=_form_name_autocomplete)
     async def _export(self, interaction: Interaction, name: str):
         """Export an application form as a JSON file via DM."""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         if not self._has_manage_permission(interaction):
-            lang = self._lang(interaction.guild_id)
             await interaction.response.send_message(get_string(lang, "application.no_permission"), ephemeral=True)
             return
 
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             form = ApplicationForm.get(name, interaction.guild.id, session)
             if not form:
                 await interaction.response.send_message(

@@ -19,7 +19,7 @@ from utils.cog import NerpyBotCog
 from utils.errors import NerpyValidationError
 from utils.helpers import fetch_message_content, notify_error, register_before_loop, send_paginated
 from utils.permissions import validate_channel_permissions
-from utils.strings import get_guild_language, get_string
+from utils.strings import get_string
 
 DEFAULT_LEAVE_MESSAGE = "{member} left the server :("
 
@@ -49,8 +49,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
 
     def _lang(self, guild_id):
         """Look up the guild's language preference."""
-        with self.bot.session_scope() as session:
-            return get_guild_language(guild_id, session)
+        return self.bot.get_guild_language(guild_id)
 
     def __init__(self, bot):
         super().__init__(bot)
@@ -71,7 +70,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 self.bot.log.debug("Fetching configurations")
                 configurations = AutoKicker.get_all(session)
                 self.bot.log.debug(f"Fetched {len(configurations)} configurations")
-                guild_langs = {c.GuildId: get_guild_language(c.GuildId, session) for c in configurations}
+            guild_langs = {c.GuildId: self.bot.get_guild_language(c.GuildId) for c in configurations}
 
             for configuration in configurations:
                 if configuration is None:
@@ -256,8 +255,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         reminder_message_source: Optional[str] = None,
     ):
         """Activates the AutoKicker. [bot-moderator]"""
-        with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild.id, session)
+        lang = self.bot.get_guild_language(interaction.guild.id)
 
         # Fetch from a message reference if provided
         if reminder_message_source:
@@ -322,8 +320,8 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel_id = channel.id
         channel_name = channel.name
 
+        lang = self.bot.get_guild_language(interaction.guild.id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild.id, session)
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
             if configuration is not None:
                 await interaction.response.send_message(
@@ -380,8 +378,8 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel_id = channel.id
         channel_name = channel.name
 
+        lang = self.bot.get_guild_language(interaction.guild.id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild.id, session)
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
             if configuration is not None:
                 AutoDelete.delete(interaction.guild.id, channel_id, session)
@@ -404,8 +402,8 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         interaction
         """
 
+        lang = self.bot.get_guild_language(interaction.guild.id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild.id, session)
             configurations = AutoDelete.get_by_guild(interaction.guild.id, session)
             if configurations:
                 msg = ""
@@ -446,8 +444,8 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel: discord.TextChannel
             The channel to pause auto-deletion for
         """
+        lang = self.bot.get_guild_language(interaction.guild.id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild.id, session)
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel.id, session)
             if configuration is None:
                 await interaction.response.send_message(
@@ -476,8 +474,8 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel: discord.TextChannel
             The channel to resume auto-deletion for
         """
+        lang = self.bot.get_guild_language(interaction.guild.id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild.id, session)
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel.id, session)
             if configuration is None:
                 await interaction.response.send_message(
@@ -522,8 +520,8 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel_id = channel.id
         channel_name = channel.name
 
+        lang = self.bot.get_guild_language(interaction.guild.id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild.id, session)
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
             if configuration is not None:
                 if delete_older_than is None:
@@ -620,6 +618,9 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         if member.bot:
             return
 
+        if not self.bot.guild_cache.is_leave_message_guild(member.guild.id):
+            return
+
         with self.bot.session_scope() as session:
             leave_config = LeaveMessage.get(member.guild.id, session)
 
@@ -669,8 +670,8 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         """
         validate_channel_permissions(channel, interaction.guild, "view_channel", "send_messages")
 
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
                 leave_config = LeaveMessage(
@@ -686,6 +687,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 if leave_config.Message is None:
                     leave_config.Message = DEFAULT_LEAVE_MESSAGE
 
+        self.bot.guild_cache.set_leave_message_guild(interaction.guild.id, True)
         await interaction.response.send_message(
             get_string(lang, "leavemsg.enable.success", channel=channel.mention), ephemeral=True
         )
@@ -694,13 +696,14 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     @checks.has_permissions(administrator=True)
     async def _leavemsg_disable(self, interaction: Interaction) -> None:
         """Disable leave messages for this server. [administrator]"""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
                 raise NerpyValidationError(get_string(lang, "leavemsg.disable.not_configured"))
             leave_config.Enabled = False
 
+        self.bot.guild_cache.set_leave_message_guild(interaction.guild.id, False)
         await interaction.response.send_message(get_string(lang, "leavemsg.disable.success"), ephemeral=True)
 
     async def save_leave_message(self, interaction: Interaction, message: str, lang: str) -> None:
@@ -736,8 +739,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         message_source: Optional[str] = None,
     ) -> None:
         """Set a custom leave message. Use {member} as placeholder. [administrator]"""
-        with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
+        lang = self.bot.get_guild_language(interaction.guild_id)
 
         # Path 1: fetch from an existing Discord message
         if message_source:
@@ -762,8 +764,8 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     @checks.has_permissions(administrator=True)
     async def _leavemsg_status(self, interaction: Interaction) -> None:
         """Show current leave message configuration. [administrator]"""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             leave_config = LeaveMessage.get(interaction.guild.id, session)
 
         if leave_config is None or not leave_config.Enabled:
