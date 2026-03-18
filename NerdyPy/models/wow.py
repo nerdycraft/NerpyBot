@@ -447,9 +447,9 @@ class CraftingRecipeCache(db.BASE):
 
         Deduplication is intentionally by name (not id): the Blizzard item API historically
         returned short names ("Axe") for all hand-type variants sharing a subclass, causing
-        duplicate dropdown entries.  The sync now fetches canonical display_name from the
-        item-subclass endpoint ("One-Handed Axe"), but deduplication by name is kept as a
-        safety net for stale rows that predate that fix.
+        duplicate dropdown entries.  The sync now fetches verbose_name from the item-subclass
+        endpoint ("One-Handed Axes", "Two-Handed Axes"), but deduplication by name is kept as
+        a safety net for stale rows that predate that fix.
         """
         seen: dict = {}
         for r in q.order_by(asc(order_col)).all():
