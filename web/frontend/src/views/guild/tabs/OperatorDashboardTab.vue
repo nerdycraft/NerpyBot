@@ -74,6 +74,7 @@ onUnmounted(() => {
 const permissions = ref<BotPermissionGuildResult[]>([]);
 const subscriptions = ref<Set<string>>(new Set());
 const permLoading = ref(false);
+const permFetched = ref(false);
 const permError = ref<string | null>(null);
 const pendingSubGuild = ref<string | null>(null);
 
@@ -92,6 +93,7 @@ async function fetchPermissions() {
     permError.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
     permLoading.value = false;
+    permFetched.value = true;
   }
 }
 
@@ -123,7 +125,6 @@ const suppressLoading = ref(false);
 const suppressMessage = ref<string | null>(null);
 const resumeLoading = ref(false);
 const debugLoading = ref(false);
-const debugEnabled = ref<boolean | null>(null);
 const debugMessage = ref<string | null>(null);
 
 function formatSeconds(seconds: number): string {
@@ -148,9 +149,6 @@ async function fetchErrorStatus() {
   errorError.value = null;
   try {
     errorStatus.value = await api.get<ErrorStatusResponse>("/operator/error-status");
-    if (errorStatus.value.debug_enabled !== undefined) {
-      debugEnabled.value = errorStatus.value.debug_enabled ?? null;
-    }
   } catch (e: unknown) {
     errorError.value = e instanceof Error ? e.message : t("common.load_failed");
   } finally {
@@ -196,7 +194,7 @@ async function toggleDebug() {
   debugMessage.value = null;
   try {
     const res = await api.post<DebugToggleResponse>("/operator/debug-toggle", {});
-    debugEnabled.value = res.debug_enabled;
+    if (errorStatus.value) errorStatus.value.debug_enabled = res.debug_enabled;
   } catch (e: unknown) {
     debugMessage.value = e instanceof Error ? e.message : t("common.save_failed");
   } finally {
@@ -207,7 +205,7 @@ async function toggleDebug() {
 // ── Tab lazy-load watcher ──────────────────────────────────────────────────────
 
 watch(activeTab, (tab) => {
-  if (tab === "permissions" && !permissions.value.length && !permLoading.value) fetchPermissions();
+  if (tab === "permissions" && !permFetched.value && !permLoading.value) fetchPermissions();
   if (tab === "error_control" && !errorStatus.value && !errorLoading.value) fetchErrorStatus();
 });
 
@@ -704,8 +702,8 @@ onMounted(fetchHealth);
           <div>
             <p class="text-sm">
               {{
-                debugEnabled !== null
-                  ? debugEnabled
+                errorStatus?.debug_enabled != null
+                  ? errorStatus.debug_enabled
                     ? t("tabs.operator_dashboard.debug_enabled")
                     : t("tabs.operator_dashboard.debug_disabled")
                   : "—"
@@ -715,7 +713,7 @@ onMounted(fetchHealth);
           </div>
           <button
             class="px-3 py-1.5 rounded border border-border bg-muted/50 text-sm font-medium disabled:opacity-50 hover:bg-muted transition-colors flex items-center gap-1.5"
-            :disabled="debugLoading"
+            :disabled="debugLoading || !errorStatus"
             @click="toggleDebug"
           >
             <Icon v-if="debugLoading" icon="mdi:loading" class="w-4 h-4 animate-spin" />

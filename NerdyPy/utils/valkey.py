@@ -20,6 +20,7 @@ from utils.constants import PROTECTED_MODULES
 _proc = psutil.Process()
 _recipe_sync_running = False
 _proc.cpu_percent(interval=None)  # prime the baseline; first call always returns 0.0
+_required_permissions = None  # cached across requests; invalidated on module load/unload
 
 
 def _is_valid_module_name(module: str) -> bool:
@@ -118,6 +119,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             return {"success": False, "error": "Invalid module name"}
         try:
             await bot.load_extension(f"modules.{module}")
+            _required_permissions = None  # loaded modules changed
             return {"success": True}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -129,6 +131,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             return {"success": False, "error": f"Module '{module}' is protected and cannot be unloaded"}
         try:
             await bot.unload_extension(f"modules.{module}")
+            _required_permissions = None  # loaded modules changed
             return {"success": True}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -310,7 +313,10 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
     elif command == "bot_permissions":
         from utils.permissions import check_guild_permissions, required_permissions_for
 
-        required = required_permissions_for(bot.modules)
+        global _required_permissions
+        if _required_permissions is None:
+            _required_permissions = required_permissions_for(bot.modules)
+        required = _required_permissions
         results = []
         for guild in bot.guilds:
             missing = check_guild_permissions(guild, required)

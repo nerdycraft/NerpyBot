@@ -147,7 +147,13 @@ function ok(data: unknown, supportMode = false) {
   return { data, supportMode };
 }
 
-/** Parse a duration string like "30m", "2h", "1d" to seconds (best-effort). */
+/**
+ * Parse a duration string to seconds (best-effort, dev-mode only).
+ * Supports single-unit suffixes only: 30s, 30m, 2h, 1d.
+ * Compound strings like "2h30m" or "1d12h" are NOT supported here —
+ * the real backend uses pytimeparse2 which handles them. Unrecognised
+ * strings fall back to 1800 (30 min) so suppress still works for testing.
+ */
 function parseDurationSecs(s: string): number {
   const m = s.trim().match(/^(\d+(?:\.\d+)?)\s*([smhd]?)$/i);
   if (!m) return 1800;
@@ -637,6 +643,8 @@ const routes: Route[] = [
   {
     pattern: /^\/operator\/error-resume$/,
     handler: () => {
+      const isSuppressed = _errorSuppressedUntil !== null && _errorSuppressedUntil > Date.now();
+      if (!isSuppressed) return ok({ success: false, already_active: true });
       _errorSuppressedUntil = null;
       return ok({ success: true });
     },
