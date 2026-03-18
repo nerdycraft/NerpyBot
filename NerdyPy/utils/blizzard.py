@@ -244,6 +244,11 @@ async def sync_crafting_recipes(
         return result
 
     all_rows: list[dict] = []
+    # Cache canonical item-subclass display names fetched from api.item_subclass().
+    # Keyed by (item_class_id, item_subclass_id). Populated lazily on first encounter.
+    # The item/item_search APIs return short names ("Axe"); the item-subclass API returns
+    # the full qualifier ("One-Handed Axe"), which is what we want to store and display.
+    subclass_name_cache: dict[tuple[int, int], tuple[str | None, dict | None]] = {}
 
     async def _sync_profession(prof_name: str, prof_id: int):
         prof_data = await _call(api.profession, professionId=prof_id)
@@ -425,6 +430,43 @@ async def sync_crafting_recipes(
         if not icon_url:
             media = await _call(api.recipe_media, recipeId=recipe_id, required=False)
             icon_url = get_asset_url(media, "icon")
+
+        # Fetch the canonical subclass display name (e.g. "One-Handed Axe" instead of "Axe").
+        # The item/item_search APIs return a short name without the 1H/2H qualifier;
+        # api.item_subclass() returns display_name with the full qualifier.
+        if item_class_id is not None and item_subclass_id is not None:
+            sc_key = (item_class_id, item_subclass_id)
+            if sc_key not in subclass_name_cache:
+                sc_data = await _call(
+                    api.item_subclass, itemClassId=item_class_id, itemSubclassId=item_subclass_id, required=False
+                )
+                canonical_sc_name: str | None = None
+                canonical_sc_locales: dict | None = None
+                if isinstance(sc_data, dict):
+                    canonical_sc_name = sc_data.get("display_name")
+                    if locale_clients and canonical_sc_name:
+                        loc_sc_data = await asyncio.gather(
+                            *[
+                                _call(
+                                    lc.item_subclass,
+                                    itemClassId=item_class_id,
+                                    itemSubclassId=item_subclass_id,
+                                    required=False,
+                                )
+                                for lc in locale_clients.values()
+                            ]
+                        )
+                        loc_dict = {
+                            bot_lang: loc_sc.get("display_name")
+                            for bot_lang, loc_sc in zip(locale_clients.keys(), loc_sc_data)
+                            if isinstance(loc_sc, dict) and loc_sc.get("display_name") != canonical_sc_name
+                        }
+                        canonical_sc_locales = loc_dict or None
+                subclass_name_cache[sc_key] = (canonical_sc_name, canonical_sc_locales)
+            cached_sc_name, cached_sc_locales = subclass_name_cache[sc_key]
+            if cached_sc_name:
+                item_subclass_name = cached_sc_name
+                item_subclass_name_locales = cached_sc_locales
 
         all_rows.append(
             {

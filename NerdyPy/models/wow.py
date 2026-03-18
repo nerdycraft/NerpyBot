@@ -445,9 +445,11 @@ class CraftingRecipeCache(db.BASE):
         equality operator for json.  Instead, collect all rows ordered by name and pick
         the first row per unique name using dict insertion order (Python 3.7+).
 
-        Deduplication is by name (not id) because some item subclasses share the same
-        display name (e.g. one-handed and two-handed Axe both have ItemSubClassName="Axe").
-        Keeping the first occurrence (lowest id) per name avoids duplicate dropdown entries.
+        Deduplication is intentionally by name (not id): the Blizzard item API historically
+        returned short names ("Axe") for all hand-type variants sharing a subclass, causing
+        duplicate dropdown entries.  The sync now fetches canonical display_name from the
+        item-subclass endpoint ("One-Handed Axe"), but deduplication by name is kept as a
+        safety net for stale rows that predate that fix.
         """
         seen: dict = {}
         for r in q.order_by(asc(order_col)).all():
