@@ -86,6 +86,57 @@ _EMOJI_MAP: dict[str, str] = {
     "transmut": "⚗️",
     "treatise": "📚",
     "alloy": "⛏️",
+    # Gems / Jewelcrafting
+    "diamond": "💎",
+    "amethyst": "💎",
+    "garnet": "💎",
+    "lapis": "💎",
+    "peridot": "💎",
+    "jewel": "💎",
+    "ring": "💍",
+    "locket": "📿",
+    # Engineering
+    "cogwheel": "⚙️",
+    "bot": "🤖",
+    "parts": "⚙️",
+    "bits": "⚙️",
+    # Alchemy
+    "alchemist": "⚗️",
+    # Cooking
+    "hearty": "🍲",
+    # Enchanting / Inscription / Misc craft
+    "illusion": "🌀",
+    "shatter": "💥",
+    "contract": "📜",
+    "myster": "🔮",
+    "rod": "🪄",
+    "spellthread": "🧵",
+    "glamour": "🎭",
+    # Tailoring
+    "garment": "👗",
+    "couture": "👗",
+    "wardrobe": "👔",
+    # Recycling / Salvage
+    "recraft": "♻️",
+    "salvage": "♻️",
+    # Housing
+    "decor": "🏠",
+    # Progression tiers (Engineering)
+    "starter": "🔰",
+    "intermediate": "📗",
+    "advanced": "📘",
+    "master": "🏆",
+    # Generic fallbacks — must stay at the END to avoid clobbering specific matches above
+    "competitor": "⚔️",
+    "reagent": "🧬",
+    "consumable": "🧪",
+    "trinket": "📿",
+    "combat": "⚔️",
+    "stonework": "🪨",
+    "armor": "🛡️",
+    "weapon": "⚔️",
+    "fish": "🎣",
+    "other": "📦",
 }
 
 
