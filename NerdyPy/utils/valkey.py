@@ -368,7 +368,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                 synced = await bot.tree.sync()
                 return {"success": True, "synced_count": len(synced)}
             if not guild_ids:
-                return {"success": False, "error": "guild_id required for this mode"}
+                return {"success": False, "error": "guild_ids required for this mode"}
             guild_id = int(guild_ids[0])
             guild = bot.get_guild(guild_id)
             if guild is None:

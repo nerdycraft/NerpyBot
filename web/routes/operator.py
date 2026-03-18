@@ -388,6 +388,7 @@ async def get_error_status(
         suppressed_remaining=result.get("suppressed_remaining"),
         throttle_window=result.get("throttle_window", 900),
         buckets={k: ErrorStatusBucket(**v) for k, v in result.get("buckets", {}).items()},
+        debug_enabled=result.get("debug_enabled"),
     )
 
 
