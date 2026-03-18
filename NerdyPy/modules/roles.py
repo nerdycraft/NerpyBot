@@ -84,7 +84,10 @@ class Roles(NerpyBotCog, Cog):
         """Remove all reactions of a specific emoji from a message."""
         channel = guild.get_channel(channel_id)
         if channel is None:
-            return
+            try:
+                channel = await guild.fetch_channel(channel_id)
+            except (discord.NotFound, discord.Forbidden):
+                return
         try:
             discord_msg = await channel.fetch_message(message_id)
             await discord_msg.clear_reaction(emoji)
@@ -165,24 +168,26 @@ class Roles(NerpyBotCog, Cog):
         if not await is_role_below_bot(interaction, target_role):
             return
 
+        already_exists = False
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             existing = RoleMapping.get(interaction.guild.id, source_role.id, target_role.id, session)
             if existing:
-                await interaction.response.send_message(
-                    get_string(
-                        lang, "rolemanage.allow.already_exists", source=source_role.name, target=target_role.name
-                    ),
-                    ephemeral=True,
+                already_exists = True
+            else:
+                mapping = RoleMapping(
+                    GuildId=interaction.guild.id,
+                    SourceRoleId=source_role.id,
+                    TargetRoleId=target_role.id,
                 )
-                return
+                session.add(mapping)
 
-            mapping = RoleMapping(
-                GuildId=interaction.guild.id,
-                SourceRoleId=source_role.id,
-                TargetRoleId=target_role.id,
+        if already_exists:
+            await interaction.response.send_message(
+                get_string(lang, "rolemanage.allow.already_exists", source=source_role.name, target=target_role.name),
+                ephemeral=True,
             )
-            session.add(mapping)
+            return
 
         await interaction.response.send_message(
             get_string(lang, "rolemanage.allow.success", source=source_role.name, target=target_role.name),
@@ -221,10 +226,6 @@ class Roles(NerpyBotCog, Cog):
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             mappings = RoleMapping.get_by_guild(interaction.guild.id, session)
-            if not mappings:
-                await interaction.response.send_message(get_string(lang, "rolemanage.list.empty"), ephemeral=True)
-                return
-
             msg = ""
             for m in mappings:
                 source = interaction.guild.get_role(m.SourceRoleId)
@@ -232,6 +233,10 @@ class Roles(NerpyBotCog, Cog):
                 source_name = source.name if source else f"Unknown ({m.SourceRoleId})"
                 target_name = target.name if target else f"Unknown ({m.TargetRoleId})"
                 msg += f"> **{source_name}** \u2192 {target_name}\n"
+
+        if not mappings:
+            await interaction.response.send_message(get_string(lang, "rolemanage.list.empty"), ephemeral=True)
+            return
 
         await send_paginated(
             interaction, msg, title=get_string(lang, "rolemanage.list.title"), color=0x3498DB, ephemeral=True
@@ -382,6 +387,7 @@ class Roles(NerpyBotCog, Cog):
             )
             return
 
+        already_mapped = False
         with self.bot.session_scope() as session:
             rr_msg = ReactionRoleMessage.get_by_message(msg_id, session)
             if rr_msg is None:
@@ -395,17 +401,20 @@ class Roles(NerpyBotCog, Cog):
 
             existing = ReactionRoleEntry.get_by_message_and_emoji(rr_msg.Id, emoji, session)
             if existing is not None:
-                await interaction.response.send_message(
-                    get_string(lang, "reactionrole.add.already_mapped", emoji=emoji), ephemeral=True
+                already_mapped = True
+            else:
+                entry = ReactionRoleEntry(
+                    ReactionRoleMessageId=rr_msg.Id,
+                    Emoji=emoji,
+                    RoleId=role.id,
                 )
-                return
+                session.add(entry)
 
-            entry = ReactionRoleEntry(
-                ReactionRoleMessageId=rr_msg.Id,
-                Emoji=emoji,
-                RoleId=role.id,
+        if already_mapped:
+            await interaction.response.send_message(
+                get_string(lang, "reactionrole.add.already_mapped", emoji=emoji), ephemeral=True
             )
-            session.add(entry)
+            return
 
         try:
             await discord_msg.add_reaction(emoji)
@@ -433,29 +442,29 @@ class Roles(NerpyBotCog, Cog):
         """
         msg_id = int(message_id)
 
+        reply = None
+        channel_id = None
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             rr_msg = ReactionRoleMessage.get_by_message(msg_id, session)
             if rr_msg is None:
-                await interaction.response.send_message(
-                    get_string(lang, "reactionrole.remove.no_config"), ephemeral=True
-                )
-                return
+                reply = get_string(lang, "reactionrole.remove.no_config")
+            else:
+                entry = ReactionRoleEntry.get_by_message_and_emoji(rr_msg.Id, emoji, session)
+                if entry is None:
+                    reply = get_string(lang, "reactionrole.remove.no_mapping", emoji=emoji)
+                else:
+                    channel_id = rr_msg.ChannelId
+                    session.delete(entry)
 
-            entry = ReactionRoleEntry.get_by_message_and_emoji(rr_msg.Id, emoji, session)
-            if entry is None:
-                await interaction.response.send_message(
-                    get_string(lang, "reactionrole.remove.no_mapping", emoji=emoji), ephemeral=True
-                )
-                return
+                    # clean up the parent if no entries remain
+                    remaining = [e for e in rr_msg.entries if e.Id != entry.Id]
+                    if not remaining:
+                        session.delete(rr_msg)
 
-            channel_id = rr_msg.ChannelId
-            session.delete(entry)
-
-            # clean up the parent if no entries remain
-            remaining = [e for e in rr_msg.entries if e.Id != entry.Id]
-            if not remaining:
-                session.delete(rr_msg)
+        if reply:
+            await interaction.response.send_message(reply, ephemeral=True)
+            return
 
         await self._clear_reaction(interaction.guild, channel_id, msg_id, emoji)
         await interaction.response.send_message(
@@ -469,10 +478,6 @@ class Roles(NerpyBotCog, Cog):
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             messages = ReactionRoleMessage.get_by_guild(interaction.guild.id, session)
-            if not messages:
-                await interaction.response.send_message(get_string(lang, "reactionrole.list.empty"), ephemeral=True)
-                return
-
             msg = ""
             for rr_msg in messages:
                 channel = interaction.guild.get_channel(rr_msg.ChannelId)
@@ -486,6 +491,10 @@ class Roles(NerpyBotCog, Cog):
                 else:
                     msg += f"> {get_string(lang, 'reactionrole.list.no_mappings')}\n"
                 msg += "\n"
+
+        if not messages:
+            await interaction.response.send_message(get_string(lang, "reactionrole.list.empty"), ephemeral=True)
+            return
 
         await send_paginated(
             interaction, msg, title=get_string(lang, "reactionrole.list.title"), color=0x9B59B6, ephemeral=True
@@ -505,18 +514,22 @@ class Roles(NerpyBotCog, Cog):
         """
         msg_id = int(message_id)
 
+        channel_id = None
+        emojis = []
         with self.bot.session_scope() as session:
             lang = get_guild_language(interaction.guild_id, session)
             rr_msg = ReactionRoleMessage.get_by_message(msg_id, session)
             if rr_msg is None:
-                await interaction.response.send_message(
-                    get_string(lang, "reactionrole.remove.no_config"), ephemeral=True
-                )
-                return
+                no_config_msg = get_string(lang, "reactionrole.remove.no_config")
+            else:
+                no_config_msg = None
+                channel_id = rr_msg.ChannelId
+                emojis = [entry.Emoji for entry in rr_msg.entries]
+                ReactionRoleMessage.delete(msg_id, session)
 
-            channel_id = rr_msg.ChannelId
-            emojis = [entry.Emoji for entry in rr_msg.entries]
-            ReactionRoleMessage.delete(msg_id, session)
+        if no_config_msg:
+            await interaction.response.send_message(no_config_msg, ephemeral=True)
+            return
 
         for emoji in emojis:
             await self._clear_reaction(interaction.guild, channel_id, msg_id, emoji)

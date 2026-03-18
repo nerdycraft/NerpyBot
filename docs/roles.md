@@ -12,7 +12,7 @@ roles can assign which target roles.
 
 ### Concept
 
-```
+```text
 Admin creates mapping:  @Moderator  →  @Verified
                         (source)       (target)
 

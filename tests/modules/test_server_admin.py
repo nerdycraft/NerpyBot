@@ -81,14 +81,14 @@ class TestModroleGet:
         role_mock.name = "Mods"
         interaction.guild.get_role = MagicMock(return_value=role_mock)
 
-        await ServerAdmin._modrole_get.callback(cog, interaction)
+        await ServerAdmin.modrole._children["get"].callback(cog, interaction)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "Bot-moderator role" in msg
         assert "Mods" in msg
 
     async def test_get_none(self, cog, interaction):
-        await ServerAdmin._modrole_get.callback(cog, interaction)
+        await ServerAdmin.modrole._children["get"].callback(cog, interaction)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "No bot-moderator role" in msg
@@ -105,7 +105,7 @@ class TestModroleSet:
         role.id = 555
         role.name = "Mods"
 
-        await ServerAdmin._modrole_set.callback(cog, interaction, role)
+        await ServerAdmin.modrole._children["set"].callback(cog, interaction, role)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "set to" in msg
@@ -119,7 +119,7 @@ class TestModroleSet:
 
 class TestModroleDelete:
     async def test_delete_success(self, cog, interaction):
-        await ServerAdmin._modrole_del.callback(cog, interaction)
+        await ServerAdmin.modrole._children["delete"].callback(cog, interaction)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "removed" in msg
@@ -134,7 +134,7 @@ class TestLanguageSet:
     @pytest.mark.asyncio
     async def test_set_valid_language(self, cog, mock_interaction, db_session, _load_test_locales):
         mock_interaction.guild.id = 123
-        await ServerAdmin._language_set.callback(cog, mock_interaction, language="de")
+        await ServerAdmin.language._children["set"].callback(cog, mock_interaction, language="de")
 
         config = GuildLanguageConfig.get(123, db_session)
         assert config is not None
@@ -149,7 +149,7 @@ class TestLanguageSet:
         db_session.add(GuildLanguageConfig(GuildId=123, Language="en"))
         db_session.commit()
 
-        await ServerAdmin._language_set.callback(cog, mock_interaction, language="de")
+        await ServerAdmin.language._children["set"].callback(cog, mock_interaction, language="de")
 
         config = GuildLanguageConfig.get(123, db_session)
         assert config.Language == "de"
@@ -157,7 +157,7 @@ class TestLanguageSet:
     @pytest.mark.asyncio
     async def test_set_invalid_language(self, cog, mock_interaction, db_session, _load_test_locales):
         mock_interaction.guild.id = 123
-        await ServerAdmin._language_set.callback(cog, mock_interaction, language="xx")
+        await ServerAdmin.language._children["set"].callback(cog, mock_interaction, language="xx")
 
         config = GuildLanguageConfig.get(123, db_session)
         assert config is None
@@ -168,7 +168,7 @@ class TestLanguageSet:
     @pytest.mark.asyncio
     async def test_set_normalizes_case(self, cog, mock_interaction, db_session, _load_test_locales):
         mock_interaction.guild.id = 123
-        await ServerAdmin._language_set.callback(cog, mock_interaction, language="DE")
+        await ServerAdmin.language._children["set"].callback(cog, mock_interaction, language="DE")
 
         config = GuildLanguageConfig.get(123, db_session)
         assert config is not None
@@ -187,7 +187,7 @@ class TestLanguageGet:
         db_session.add(GuildLanguageConfig(GuildId=123, Language="de"))
         db_session.commit()
 
-        await ServerAdmin._language_get.callback(cog, mock_interaction)
+        await ServerAdmin.language._children["get"].callback(cog, mock_interaction)
 
         call_args = str(mock_interaction.response.send_message.call_args)
         assert "de" in call_args
@@ -196,7 +196,7 @@ class TestLanguageGet:
     async def test_get_default(self, cog, mock_interaction, db_session, _load_test_locales):
         mock_interaction.guild.id = 123
 
-        await ServerAdmin._language_get.callback(cog, mock_interaction)
+        await ServerAdmin.language._children["get"].callback(cog, mock_interaction)
 
         call_args = str(mock_interaction.response.send_message.call_args)
         assert "english" in call_args.lower() or "English" in call_args

@@ -625,6 +625,11 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             return
 
         channel = member.guild.get_channel(leave_config.ChannelId)
+        if channel is None:
+            try:
+                channel = await member.guild.fetch_channel(leave_config.ChannelId)
+            except (discord.NotFound, discord.Forbidden):
+                channel = None
         if channel is None or not isinstance(channel, TextChannel):
             self.bot.log.warning(
                 f"[{member.guild.name} ({member.guild.id})]: "
@@ -636,11 +641,13 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
 
         message = leave_config.Message or DEFAULT_LEAVE_MESSAGE
         member_str = f"**{member.display_name}** ({member.name})"
-        formatted_message = message.format(member=member_str) if "{member}" in message else f"{message} — {member_str}"
+        formatted_message = (
+            message.replace("{member}", member_str) if "{member}" in message else f"{message} — {member_str}"
+        )
 
         try:
             await channel.send(formatted_message)
-        except Exception as ex:
+        except discord.HTTPException as ex:
             self.bot.log.error(
                 f"[{member.guild.name} ({member.guild.id})]: failed to send leave message for {member}: {ex}"
             )
@@ -788,6 +795,9 @@ class _LeaveMessageModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: Interaction):
         cog = self.bot.get_cog("Moderation")
+        if cog is None:
+            await interaction.response.send_message("Bot is reloading, please try again.", ephemeral=True)
+            return
         await cog.save_leave_message(interaction, self.message_input.value.strip(), self.lang)
 
 

@@ -66,7 +66,7 @@ def role():
 
 class TestAdd:
     async def test_add_success(self, cog, interaction, channel, role):
-        await Roles._reactionrole_add.callback(cog, interaction, channel, "12345", "👍", role)
+        await Roles.reactionrole._children["add"].callback(cog, interaction, channel, "12345", "👍", role)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "Mapped" in msg
@@ -80,7 +80,7 @@ class TestAdd:
         db_session.add(ReactionRoleEntry(ReactionRoleMessageId=rr_msg.Id, Emoji="👍", RoleId=333))
         db_session.commit()
 
-        await Roles._reactionrole_add.callback(cog, interaction, channel, "12345", "👍", role)
+        await Roles.reactionrole._children["add"].callback(cog, interaction, channel, "12345", "👍", role)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "already mapped" in msg
@@ -93,7 +93,7 @@ class TestAdd:
 
 class TestRemove:
     async def test_remove_no_config(self, cog, interaction):
-        await Roles._reactionrole_remove.callback(cog, interaction, "99999", "👍")
+        await Roles.reactionrole._children["remove"].callback(cog, interaction, "99999", "👍")
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "No reaction role config" in msg
@@ -107,7 +107,7 @@ class TestRemove:
 
         cog._clear_reaction = AsyncMock()
 
-        await Roles._reactionrole_remove.callback(cog, interaction, "12345", "👍")
+        await Roles.reactionrole._children["remove"].callback(cog, interaction, "12345", "👍")
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "Removed mapping" in msg
@@ -120,7 +120,7 @@ class TestRemove:
 
 class TestList:
     async def test_list_empty(self, cog, interaction):
-        await Roles._reactionrole_list.callback(cog, interaction)
+        await Roles.reactionrole._children["list"].callback(cog, interaction)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "No reaction roles configured" in msg
@@ -133,7 +133,7 @@ class TestList:
 
 class TestClear:
     async def test_clear_no_config(self, cog, interaction):
-        await Roles._reactionrole_clear.callback(cog, interaction, "99999")
+        await Roles.reactionrole._children["clear"].callback(cog, interaction, "99999")
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "No reaction role config" in msg
@@ -147,7 +147,7 @@ class TestClear:
 
         cog._clear_reaction = AsyncMock()
 
-        await Roles._reactionrole_clear.callback(cog, interaction, "12345")
+        await Roles.reactionrole._children["clear"].callback(cog, interaction, "12345")
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "Cleared all" in msg

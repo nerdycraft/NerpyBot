@@ -57,7 +57,7 @@ def operator_ctx(mock_bot):
 
 class TestBotpermissionsSubscribe:
     async def test_subscribe_success(self, cog, interaction, db_session):
-        await Operator._botpermissions_subscribe.callback(cog, interaction)
+        await Operator.botpermissions._children["subscribe"].callback(cog, interaction)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "Subscribed" in msg
@@ -66,7 +66,7 @@ class TestBotpermissionsSubscribe:
         db_session.add(PermissionSubscriber(GuildId=987654321, UserId=123456789))
         db_session.commit()
 
-        await Operator._botpermissions_subscribe.callback(cog, interaction)
+        await Operator.botpermissions._children["subscribe"].callback(cog, interaction)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "already subscribed" in msg
@@ -79,7 +79,7 @@ class TestBotpermissionsSubscribe:
 
 class TestBotpermissionsUnsubscribe:
     async def test_unsubscribe_not_subscribed(self, cog, interaction):
-        await Operator._botpermissions_unsubscribe.callback(cog, interaction)
+        await Operator.botpermissions._children["unsubscribe"].callback(cog, interaction)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "not subscribed" in msg
@@ -88,7 +88,7 @@ class TestBotpermissionsUnsubscribe:
         db_session.add(PermissionSubscriber(GuildId=987654321, UserId=123456789))
         db_session.commit()
 
-        await Operator._botpermissions_unsubscribe.callback(cog, interaction)
+        await Operator.botpermissions._children["unsubscribe"].callback(cog, interaction)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "Unsubscribed" in msg

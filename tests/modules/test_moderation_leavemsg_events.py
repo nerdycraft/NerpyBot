@@ -4,7 +4,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from discord import TextChannel
+from discord import NotFound, TextChannel
 
 from models.leavemsg import LeaveMessage
 from modules.moderation import Moderation
@@ -120,6 +120,9 @@ class TestOnMemberRemove:
         mock_guild.id = guild_id
         mock_guild.name = "Test Guild"
         mock_guild.get_channel = MagicMock(return_value=None)
+        mock_http_resp = MagicMock()
+        mock_http_resp.status = 404
+        mock_guild.fetch_channel = AsyncMock(side_effect=NotFound(mock_http_resp, "Unknown Channel"))
 
         member = MagicMock()
         member.bot = False

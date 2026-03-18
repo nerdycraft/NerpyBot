@@ -32,14 +32,14 @@ class ServerAdmin(NerpyBotCog, Cog):
             entry = BotModeratorRole.get(interaction.guild.id, session)
             if entry is not None:
                 role = interaction.guild.get_role(entry.RoleId)
-                if role is not None:
-                    await interaction.response.send_message(
-                        get_string(lang, "admin.modrole.get_current", role=role.name), ephemeral=True
-                    )
-                else:
-                    await interaction.response.send_message(get_string(lang, "admin.modrole.get_stale"), ephemeral=True)
+                msg = (
+                    get_string(lang, "admin.modrole.get_current", role=role.name)
+                    if role is not None
+                    else get_string(lang, "admin.modrole.get_stale")
+                )
             else:
-                await interaction.response.send_message(get_string(lang, "admin.modrole.get_none"), ephemeral=True)
+                msg = get_string(lang, "admin.modrole.get_none")
+        await interaction.response.send_message(msg, ephemeral=True)
 
     @modrole.command(name="set")
     async def _modrole_set(self, interaction: Interaction, role: Role):
