@@ -307,6 +307,82 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         except Exception as exc:
             bot.log.warning("recipe_sync_status failed: %s", exc)
             return {"counts": {}}
+    elif command == "bot_permissions":
+        from utils.permissions import check_guild_permissions, required_permissions_for
+
+        required = required_permissions_for(bot.modules)
+        results = []
+        for guild in bot.guilds:
+            missing = check_guild_permissions(guild, required)
+            results.append(
+                {
+                    "guild_id": str(guild.id),
+                    "guild_name": guild.name,
+                    "guild_icon": guild.icon.key if guild.icon else None,
+                    "missing": missing,
+                    "all_ok": len(missing) == 0,
+                }
+            )
+        return {"guilds": results}
+    elif command == "error_status":
+        return bot.error_throttle.get_status()
+    elif command == "error_suppress":
+        from utils.duration import parse_duration
+
+        duration_str = payload.get("duration", "")
+        try:
+            td = parse_duration(duration_str)
+        except (ValueError, TypeError):
+            return {"success": False, "error": "Invalid duration. Use e.g. 30m, 2h, 1d."}
+        seconds = int(td.total_seconds())
+        bot.error_throttle.suppress(seconds)
+        return {"success": True, "seconds": seconds}
+    elif command == "error_resume":
+        if not bot.error_throttle.is_suppressed:
+            return {"success": False, "already_active": True}
+        bot.error_throttle.resume()
+        return {"success": True}
+    elif command == "debug_toggle":
+        import logging as _logging
+
+        logger = _logging.getLogger("nerpybot")
+        if logger.level == _logging.DEBUG:
+            logger.setLevel(_logging.INFO)
+            bot.debug = False
+        else:
+            logger.setLevel(_logging.DEBUG)
+            bot.debug = True
+        bot.log.info("debug logging toggled to %s via dashboard", bot.debug)
+        return {"debug_enabled": bot.debug}
+    elif command == "sync_commands":
+        mode = payload.get("mode", "global")
+        guild_ids: list[str] = payload.get("guild_ids", [])
+        try:
+            if mode == "global":
+                synced = await bot.tree.sync()
+                return {"success": True, "synced_count": len(synced)}
+            if not guild_ids:
+                return {"success": False, "error": "guild_id required for this mode"}
+            guild_id = int(guild_ids[0])
+            guild = bot.get_guild(guild_id)
+            if guild is None:
+                return {"success": False, "error": f"Guild {guild_id} not found in cache"}
+            if mode == "local":
+                synced = await bot.tree.sync(guild=guild)
+                return {"success": True, "synced_count": len(synced)}
+            elif mode == "copy":
+                bot.tree.copy_global_to(guild=guild)
+                synced = await bot.tree.sync(guild=guild)
+                return {"success": True, "synced_count": len(synced)}
+            elif mode == "clear":
+                bot.tree.clear_commands(guild=guild)
+                await bot.tree.sync(guild=guild)
+                return {"success": True, "synced_count": 0}
+            else:
+                return {"success": False, "error": f"Unknown mode: {mode}"}
+        except Exception as exc:
+            bot.log.error("sync_commands failed: %s", exc)
+            return {"success": False, "error": str(exc)}
     else:
         return {"error": f"Unknown command: {command}"}
 

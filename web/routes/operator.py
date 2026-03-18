@@ -15,6 +15,14 @@ from web.dependencies import get_db_session, get_valkey, require_operator
 from web.schemas import (
     BotGuildInfo,
     BotGuildListResponse,
+    BotPermissionGuildResult,
+    BotPermissionSubscription,
+    BotPermissionsResponse,
+    DebugToggleResponse,
+    ErrorActionResponse,
+    ErrorStatusBucket,
+    ErrorStatusResponse,
+    ErrorSuppressRequest,
     HealthResponse,
     ModuleActionResponse,
     ModuleListResponse,
@@ -25,6 +33,8 @@ from web.schemas import (
     RecipeCacheProfession,
     RecipeSyncResponse,
     RecipeSyncStatusResponse,
+    SyncCommandsRequest,
+    SyncCommandsResponse,
     VoiceConnectionDetail,
 )
 from web.cache import ValkeyClient
@@ -294,3 +304,144 @@ async def browse_recipe_cache(
         expansions=expansions,
         total=total,
     )
+
+
+# ── Bot permissions ──
+
+
+@router.get("/bot-permissions", response_model=BotPermissionsResponse)
+async def get_bot_permissions(
+    user: dict = Depends(require_operator),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """Check bot permissions across all guilds."""
+    result = await vk.send_bot_command("bot_permissions", {})
+    if result is None:
+        raise HTTPException(status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE, detail="Bot unreachable")
+    return BotPermissionsResponse(guilds=[BotPermissionGuildResult(**g) for g in result.get("guilds", [])])
+
+
+@router.get("/bot-permissions/subscriptions", response_model=list[BotPermissionSubscription])
+async def list_permission_subscriptions(
+    user: dict = Depends(require_operator),
+    session: Session = Depends(get_db_session),
+):
+    """Return which guilds the current operator is subscribed to for missing-permission DMs."""
+    from models.admin import PermissionSubscriber
+
+    user_id = int(user["sub"])
+    rows = session.query(PermissionSubscriber).filter(PermissionSubscriber.UserId == user_id).all()
+    return [BotPermissionSubscription(guild_id=str(r.GuildId), subscribed=True) for r in rows]
+
+
+@router.post("/bot-permissions/subscriptions/{guild_id}", response_model=BotPermissionSubscription)
+async def subscribe_bot_permissions(
+    guild_id: str,
+    user: dict = Depends(require_operator),
+    session: Session = Depends(get_db_session),
+):
+    """Subscribe to missing-permission DMs for a guild."""
+    from models.admin import PermissionSubscriber
+
+    user_id = int(user["sub"])
+    try:
+        gid = int(guild_id)
+    except ValueError:
+        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid guild_id")
+    existing = PermissionSubscriber.get(gid, user_id, session)
+    if existing is None:
+        session.add(PermissionSubscriber(GuildId=gid, UserId=user_id))
+    return BotPermissionSubscription(guild_id=guild_id, subscribed=True)
+
+
+@router.delete("/bot-permissions/subscriptions/{guild_id}", status_code=http_status.HTTP_204_NO_CONTENT)
+async def unsubscribe_bot_permissions(
+    guild_id: str,
+    user: dict = Depends(require_operator),
+    session: Session = Depends(get_db_session),
+):
+    """Unsubscribe from missing-permission DMs for a guild."""
+    from models.admin import PermissionSubscriber
+
+    user_id = int(user["sub"])
+    try:
+        gid = int(guild_id)
+    except ValueError:
+        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid guild_id")
+    PermissionSubscriber.delete(gid, user_id, session)
+
+
+# ── Error control ──
+
+
+@router.get("/error-status", response_model=ErrorStatusResponse)
+async def get_error_status(
+    user: dict = Depends(require_operator),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """Return current error throttle and suppression state."""
+    result = await vk.send_bot_command("error_status", {})
+    if result is None:
+        raise HTTPException(status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE, detail="Bot unreachable")
+    return ErrorStatusResponse(
+        is_suppressed=result.get("is_suppressed", False),
+        suppressed_remaining=result.get("suppressed_remaining"),
+        throttle_window=result.get("throttle_window", 900),
+        buckets={k: ErrorStatusBucket(**v) for k, v in result.get("buckets", {}).items()},
+    )
+
+
+@router.post("/error-suppress", response_model=ErrorActionResponse)
+async def suppress_errors(
+    body: ErrorSuppressRequest,
+    user: dict = Depends(require_operator),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """Suppress error DM notifications for a duration."""
+    result = await vk.send_bot_command("error_suppress", {"duration": body.duration})
+    if result is None:
+        return ErrorActionResponse(success=False, error="Bot unreachable")
+    return ErrorActionResponse(**result)
+
+
+@router.post("/error-resume", response_model=ErrorActionResponse)
+async def resume_errors(
+    user: dict = Depends(require_operator),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """Resume error DM notifications."""
+    result = await vk.send_bot_command("error_resume", {})
+    if result is None:
+        return ErrorActionResponse(success=False, error="Bot unreachable")
+    return ErrorActionResponse(**result)
+
+
+# ── Debug toggle ──
+
+
+@router.post("/debug-toggle", response_model=DebugToggleResponse)
+async def toggle_debug(
+    user: dict = Depends(require_operator),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """Toggle debug logging on the bot at runtime."""
+    result = await vk.send_bot_command("debug_toggle", {})
+    if result is None:
+        raise HTTPException(status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE, detail="Bot unreachable")
+    return DebugToggleResponse(debug_enabled=result.get("debug_enabled", False))
+
+
+# ── Command sync ──
+
+
+@router.post("/sync-commands", response_model=SyncCommandsResponse)
+async def sync_commands(
+    body: SyncCommandsRequest,
+    user: dict = Depends(require_operator),
+    vk: ValkeyClient = Depends(get_valkey),
+):
+    """Sync Discord slash commands via the bot."""
+    result = await vk.send_bot_command("sync_commands", {"mode": body.mode, "guild_ids": body.guild_ids})
+    if result is None:
+        return SyncCommandsResponse(success=False, error="Bot unreachable")
+    return SyncCommandsResponse(**result)
