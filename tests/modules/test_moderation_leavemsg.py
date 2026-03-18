@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Tests for modules.leavemsg — leave message commands."""
+"""Tests for modules.moderation — leavemsg sub-group commands."""
 
 from unittest.mock import MagicMock
 
 import pytest
 from models.leavemsg import LeaveMessage
-from modules.leavemsg import LeaveMsg
+from modules.moderation import Moderation
 from utils.errors import NerpyValidationError
 from utils.strings import load_strings
 
@@ -18,7 +18,10 @@ def _load_locale_strings():
 
 @pytest.fixture
 def cog(mock_bot):
-    return LeaveMsg(mock_bot)
+    # Use __new__ to avoid starting asyncio background loops outside an event loop
+    c = Moderation.__new__(Moderation)
+    c.bot = mock_bot
+    return c
 
 
 @pytest.fixture
@@ -29,7 +32,7 @@ def interaction(mock_interaction):
 
 
 # ---------------------------------------------------------------------------
-# /leavemsg enable
+# /moderation leavemsg enable
 # ---------------------------------------------------------------------------
 
 
@@ -40,7 +43,7 @@ class TestLeavemsgEnable:
         channel.mention = "<#111>"
         channel.permissions_for.return_value = MagicMock(view_channel=True, send_messages=True)
 
-        await LeaveMsg._leavemsg_enable.callback(cog, interaction, channel)
+        await Moderation.leavemsg._children["enable"].callback(cog, interaction, channel)
 
         interaction.response.send_message.assert_awaited_once()
         msg = interaction.response.send_message.call_args[0][0]
@@ -61,7 +64,7 @@ class TestLeavemsgEnable:
         channel.mention = "<#333>"
         channel.permissions_for.return_value = MagicMock(view_channel=True, send_messages=True)
 
-        await LeaveMsg._leavemsg_enable.callback(cog, interaction, channel)
+        await Moderation.leavemsg._children["enable"].callback(cog, interaction, channel)
 
         config = db_session.query(LeaveMessage).filter_by(GuildId=987654321).first()
         assert config.ChannelId == 333
@@ -69,7 +72,7 @@ class TestLeavemsgEnable:
 
 
 # ---------------------------------------------------------------------------
-# /leavemsg disable
+# /moderation leavemsg disable
 # ---------------------------------------------------------------------------
 
 
@@ -78,18 +81,18 @@ class TestLeavemsgDisable:
         db_session.add(LeaveMessage(GuildId=987654321, ChannelId=111, Enabled=True))
         db_session.commit()
 
-        await LeaveMsg._leavemsg_disable.callback(cog, interaction)
+        await Moderation.leavemsg._children["disable"].callback(cog, interaction)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "disabled" in msg.lower() or "deaktiviert" in msg.lower()
 
     async def test_disable_not_configured(self, cog, interaction):
         with pytest.raises(NerpyValidationError, match="not configured|nicht konfiguriert"):
-            await LeaveMsg._leavemsg_disable.callback(cog, interaction)
+            await Moderation.leavemsg._children["disable"].callback(cog, interaction)
 
 
 # ---------------------------------------------------------------------------
-# /leavemsg message
+# /moderation leavemsg message
 # ---------------------------------------------------------------------------
 
 
@@ -98,7 +101,7 @@ class TestLeavemsgMessage:
         db_session.add(LeaveMessage(GuildId=987654321, ChannelId=111, Enabled=True))
         db_session.commit()
 
-        await LeaveMsg._leavemsg_message.callback(cog, interaction, "Goodbye {member}!")
+        await Moderation.leavemsg._children["message"].callback(cog, interaction, "Goodbye {member}!")
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "Goodbye {member}!" in msg
@@ -111,21 +114,21 @@ class TestLeavemsgMessage:
         db_session.commit()
 
         with pytest.raises(NerpyValidationError, match="\\{member\\}"):
-            await LeaveMsg._leavemsg_message.callback(cog, interaction, "No placeholder here")
+            await Moderation.leavemsg._children["message"].callback(cog, interaction, "No placeholder here")
 
     async def test_set_message_not_enabled(self, cog, interaction):
         with pytest.raises(NerpyValidationError, match="enable|aktiviere"):
-            await LeaveMsg._leavemsg_message.callback(cog, interaction, "Bye {member}")
+            await Moderation.leavemsg._children["message"].callback(cog, interaction, "Bye {member}")
 
 
 # ---------------------------------------------------------------------------
-# /leavemsg status
+# /moderation leavemsg status
 # ---------------------------------------------------------------------------
 
 
 class TestLeavemsgStatus:
     async def test_status_not_enabled(self, cog, interaction):
-        await LeaveMsg._leavemsg_status.callback(cog, interaction)
+        await Moderation.leavemsg._children["status"].callback(cog, interaction)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "not enabled" in msg.lower() or "nicht aktiviert" in msg.lower()
@@ -138,7 +141,7 @@ class TestLeavemsgStatus:
         channel.mention = "<#111>"
         interaction.guild.get_channel = MagicMock(return_value=channel)
 
-        await LeaveMsg._leavemsg_status.callback(cog, interaction)
+        await Moderation.leavemsg._children["status"].callback(cog, interaction)
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "<#111>" in msg

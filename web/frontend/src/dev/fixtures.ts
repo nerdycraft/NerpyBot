@@ -597,12 +597,12 @@ export const operatorHealth: HealthResponse = {
 
 export const operatorModules: ModuleListResponse = {
   modules: [
-    { name: "admin", loaded: true, protected: true },
+    { name: "server_admin", loaded: true, protected: true },
+    { name: "operator", loaded: true, protected: true },
     { name: "application", loaded: true, protected: false },
     { name: "reminder", loaded: true, protected: false },
+    { name: "roles", loaded: true, protected: false },
     { name: "wow", loaded: true, protected: false },
-    { name: "reactionrole", loaded: true, protected: false },
-    { name: "leavemsg", loaded: true, protected: false },
   ],
   available: ["league", "music"],
   status: "ok",

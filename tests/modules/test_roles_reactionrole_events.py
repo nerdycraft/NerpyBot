@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Tests for ReactionRole on_raw_reaction_add and on_raw_reaction_remove event listeners."""
+"""Tests for Roles.on_raw_reaction_add and on_raw_reaction_remove event listeners."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
-from modules.reactionrole import ReactionRole
+from modules.roles import Roles
 from utils.strings import load_strings
 
 
@@ -18,8 +18,8 @@ def _load_locale_strings():
 
 @pytest.fixture
 def cog(mock_bot):
-    """Create a ReactionRole cog using __new__ to skip discord.py Cog init machinery."""
-    c = ReactionRole.__new__(ReactionRole)
+    """Create a Roles cog using __new__ to skip discord.py Cog init machinery."""
+    c = Roles.__new__(Roles)
     c.bot = mock_bot
     return c
 
@@ -110,7 +110,6 @@ class TestOnRawReactionAdd:
         mock_guild.name = "Test Guild"
         cog.bot.get_guild = MagicMock(return_value=mock_guild)
 
-        # Should not raise and should not add any roles
         await cog.on_raw_reaction_add(payload)
 
         member.add_roles.assert_not_called()

@@ -15,19 +15,20 @@ bot:
   # name: NerpyBot
   # Bot description/tagline; used as-is, no variable substitution (default: "NerpyBot - Always one step ahead!")
   # description: "NerpyBot - Always one step ahead!"
+  # Log level override; same as --loglevel CLI flag (DEBUG, INFO, WARNING, ERROR). Ignored when --loglevel is explicitly passed.
+  # log_level: INFO
   ops:
     - "your_discord_id_here"  # quoted to prevent formatter corruption
-  # admin and voicecontrol auto-load (admin always, voicecontrol with tagging/music)
+  # server_admin, operator, and voicecontrol auto-load (server_admin+operator always, voicecontrol with tagging/music)
   modules:
     - application
     - league
-    - leavemsg
     - moderation
-    - reactionrole
-    - rolemanage
     - reminder
+    - roles
     - tagging
     - wow
+    # - music  # requires music.ytkey; voicecontrol auto-loads with this
 
 database:
   # db_type: sqlite (default) or postgresql

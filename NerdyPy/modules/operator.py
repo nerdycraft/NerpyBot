@@ -1,31 +1,22 @@
 # -*- coding: utf-8 -*-
 
 import logging
-import re
 from datetime import UTC, datetime
 from importlib.metadata import version as pkg_version
 from typing import Literal, Optional
 
-from discord import Embed, Forbidden, HTTPException, Interaction, Object, Role, app_commands
+from discord import Embed, Forbidden, HTTPException, Interaction, Object, app_commands
 from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError
 from discord.ext.commands import Cog, Context, Greedy, command, hybrid_command
-from models.admin import BotModeratorRole, GuildLanguageConfig, PermissionSubscriber
+
+from models.admin import PermissionSubscriber
 from utils.checks import is_admin_or_operator, require_operator
 from utils.cog import NerpyBotCog
 from utils.constants import PROTECTED_MODULES
+from utils.duration import parse_duration
 from utils.errors import NerpyInfraException, NerpyPermissionError
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
-from utils.strings import available_languages, get_guild_language, get_localized_string, get_string
-
-_DURATION_MULTIPLIERS = {"m": 60, "h": 3600, "d": 86400}
-
-
-def _parse_duration(text: str) -> int | None:
-    """Parse a human duration string like '30m', '2h', '1d' into seconds."""
-    match = re.fullmatch(r"(\d+)\s*([mhd])", text.strip().lower())
-    if not match:
-        return None
-    return int(match.group(1)) * _DURATION_MULTIPLIERS[match.group(2)]
+from utils.strings import get_guild_language, get_string
 
 
 def _format_remaining(seconds: float) -> str:
@@ -44,17 +35,13 @@ def _format_remaining(seconds: float) -> str:
 
 
 @app_commands.default_permissions(administrator=True)
-class Admin(NerpyBotCog, Cog):
-    """cog for administrative usage"""
+class Operator(NerpyBotCog, Cog):
+    """Cog for bot operator commands: botpermissions, ping, and prefix operator commands."""
 
-    modrole = app_commands.Group(
-        name="modrole", description="Manage the bot-moderator role for this server", guild_only=True
-    )
     botpermissions = app_commands.Group(name="botpermissions", description="Check bot permissions", guild_only=True)
-    language = app_commands.Group(name="language", description="Manage the server language preference", guild_only=True)
 
     async def interaction_check(self, interaction: Interaction) -> bool:
-        """Allow administrators and bot operators to use all admin slash commands."""
+        """Allow ping through; require administrator or operator for botpermissions."""
         if interaction.command and interaction.command.name == "ping":
             return True
         if await is_admin_or_operator(interaction):
@@ -70,45 +57,6 @@ class Admin(NerpyBotCog, Cog):
         if ctx.guild and ctx.author.guild_permissions.administrator:
             return True
         raise NerpyPermissionError("This command requires administrator permissions or bot operator status.")
-
-    @modrole.command(name="get")
-    async def _modrole_get(self, interaction: Interaction):
-        """Show the currently configured bot-moderator role."""
-        with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
-            entry = BotModeratorRole.get(interaction.guild.id, session)
-            if entry is not None:
-                role = interaction.guild.get_role(entry.RoleId)
-                if role is not None:
-                    await interaction.response.send_message(
-                        get_string(lang, "admin.modrole.get_current", role=role.name), ephemeral=True
-                    )
-                else:
-                    await interaction.response.send_message(get_string(lang, "admin.modrole.get_stale"), ephemeral=True)
-            else:
-                await interaction.response.send_message(get_string(lang, "admin.modrole.get_none"), ephemeral=True)
-
-    @modrole.command(name="set")
-    async def _modrole_set(self, interaction: Interaction, role: Role):
-        """Set the bot-moderator role for this server."""
-        with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
-            entry = BotModeratorRole.get(interaction.guild.id, session)
-            if entry is None:
-                entry = BotModeratorRole(GuildId=interaction.guild.id)
-                session.add(entry)
-            entry.RoleId = role.id
-        await interaction.response.send_message(
-            get_string(lang, "admin.modrole.set_success", role=role.name), ephemeral=True
-        )
-
-    @modrole.command(name="delete")
-    async def _modrole_del(self, interaction: Interaction):
-        """Remove the bot-moderator role configuration."""
-        with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
-            BotModeratorRole.delete(interaction.guild.id, session)
-        await interaction.response.send_message(get_string(lang, "admin.modrole.delete_success"), ephemeral=True)
 
     @botpermissions.command(name="check")
     async def _botpermissions_check(self, interaction: Interaction) -> None:
@@ -145,67 +93,6 @@ class Admin(NerpyBotCog, Cog):
                 return
             PermissionSubscriber.delete(interaction.guild.id, interaction.user.id, session)
         await interaction.response.send_message(get_string(lang, "admin.botpermissions.unsubscribed"), ephemeral=True)
-
-    @language.command(name="set")
-    @app_commands.describe(language="Language code to set for this server")
-    async def _language_set(self, interaction: Interaction, language: str):
-        """Set the server's language preference for bot responses."""
-        language = language.lower()
-        if language not in available_languages():
-            with self.bot.session_scope() as session:
-                msg = get_localized_string(
-                    interaction.guild.id,
-                    "admin.language.invalid",
-                    session,
-                    language=language,
-                    available=", ".join(sorted(available_languages())),
-                )
-            await interaction.response.send_message(msg, ephemeral=True)
-            return
-
-        with self.bot.session_scope() as session:
-            config = GuildLanguageConfig.get(interaction.guild.id, session)
-            if config is None:
-                config = GuildLanguageConfig(GuildId=interaction.guild.id)
-                session.add(config)
-            config.Language = language
-
-        # Read back with new language so confirmation is in the newly set language
-        with self.bot.session_scope() as session:
-            msg = get_localized_string(
-                interaction.guild.id,
-                "admin.language.set_success",
-                session,
-                language=language,
-            )
-        await interaction.response.send_message(msg, ephemeral=True)
-        self.bot.dispatch("guild_language_changed", interaction.guild.id, language)
-
-    @language.command(name="get")
-    async def _language_get(self, interaction: Interaction):
-        """Show the current language preference for this server."""
-        with self.bot.session_scope() as session:
-            config = GuildLanguageConfig.get(interaction.guild.id, session)
-            if config is not None:
-                msg = get_localized_string(
-                    interaction.guild.id,
-                    "admin.language.get_current",
-                    session,
-                    language=config.Language,
-                )
-            else:
-                msg = get_localized_string(interaction.guild.id, "admin.language.get_default", session)
-        await interaction.response.send_message(msg, ephemeral=True)
-
-    async def _language_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
-        """Autocomplete for available languages."""
-        return [
-            app_commands.Choice(name=lang, value=lang)
-            for lang in sorted(available_languages())
-            if current.lower() in lang.lower()
-        ][:25]
-
-    _language_set = app_commands.autocomplete(language=_language_autocomplete)(_language_set)
 
     @hybrid_command(name="ping")
     async def ping(self, ctx: Context):
@@ -386,10 +273,12 @@ class Admin(NerpyBotCog, Cog):
             if not arg:
                 await ctx.send("Usage: `!errors suppress <duration>` (e.g. 30m, 2h, 1d)")
                 return
-            seconds = _parse_duration(arg)
-            if seconds is None:
-                await ctx.send("Invalid duration. Use `<number><m|h|d>`, e.g. `30m`, `2h`, `1d`.")
+            try:
+                td = parse_duration(arg)
+            except ValueError:
+                await ctx.send("Invalid duration. Use e.g. `30m`, `2h30m`, `1d`.")
                 return
+            seconds = int(td.total_seconds())
             self.bot.error_throttle.suppress(seconds)
             await ctx.send(f"🔇 Error notifications suppressed for {_format_remaining(seconds)}.")
 
@@ -408,7 +297,7 @@ class Admin(NerpyBotCog, Cog):
         """Disable a module at runtime. [operator]
 
         Disables all slash commands in a module. Users will see an ephemeral
-        "disabled for maintenance" message. Protected: `admin`, `voicecontrol`.
+        "disabled for maintenance" message. Protected: `server_admin`, `operator`, `voicecontrol`.
 
         Usage: `!disable <module>` (e.g. `!disable wow`)"""
         require_operator(ctx)
@@ -473,4 +362,4 @@ class Admin(NerpyBotCog, Cog):
 
 async def setup(bot):
     """adds this module to the bot"""
-    await bot.add_cog(Admin(bot))
+    await bot.add_cog(Operator(bot))
