@@ -115,7 +115,7 @@ class Roles(NerpyBotCog, Cog):
 
         try:
             await payload.member.add_roles(role, reason="Reaction role")
-        except Exception as ex:
+        except HTTPException as ex:
             self.bot.log.error(
                 f"[{guild_info}] {payload.member} ({payload.member.id}): "
                 f"failed to add role {role.name} ({role.id}): {ex}"
@@ -143,7 +143,7 @@ class Roles(NerpyBotCog, Cog):
 
         try:
             await member.remove_roles(role, reason="Reaction role")
-        except Exception as ex:
+        except HTTPException as ex:
             self.bot.log.error(
                 f"[{guild.name} ({guild.id})] {member} ({member.id}): "
                 f"failed to remove role {role.name} ({role.id}): {ex}"
@@ -367,7 +367,11 @@ class Roles(NerpyBotCog, Cog):
         role: discord.Role
             The role to assign when the emoji is used
         """
-        msg_id = int(message_id)
+        try:
+            msg_id = int(message_id)
+        except ValueError:
+            await interaction.response.send_message("Invalid message ID.", ephemeral=True)
+            return
 
         if not await is_role_below_bot(interaction, role):
             return
@@ -417,7 +421,7 @@ class Roles(NerpyBotCog, Cog):
 
         try:
             await discord_msg.add_reaction(emoji)
-        except Exception as ex:
+        except HTTPException as ex:
             self.bot.log.warning(f"{error_context(interaction)}: could not add reaction to message {msg_id}: {ex}")
 
         await interaction.response.send_message(
@@ -439,7 +443,11 @@ class Roles(NerpyBotCog, Cog):
         emoji: str
             The emoji mapping to remove
         """
-        msg_id = int(message_id)
+        try:
+            msg_id = int(message_id)
+        except ValueError:
+            await interaction.response.send_message("Invalid message ID.", ephemeral=True)
+            return
 
         reply = None
         channel_id = None
@@ -510,7 +518,11 @@ class Roles(NerpyBotCog, Cog):
         message_id: str
             The Discord message ID to clear all mappings from
         """
-        msg_id = int(message_id)
+        try:
+            msg_id = int(message_id)
+        except ValueError:
+            await interaction.response.send_message("Invalid message ID.", ephemeral=True)
+            return
 
         channel_id = None
         emojis = []

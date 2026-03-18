@@ -38,12 +38,13 @@ _MAX_INDIVIDUAL_PER_RUN = 50
 class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     """cog for bot management"""
 
-    autodeleter = app_commands.Group(name="autodeleter", description="Manage autodeletion per channel")
-    user_group = app_commands.Group(name="user", description="User moderation")
+    autodeleter = app_commands.Group(name="autodeleter", description="Manage autodeletion per channel", guild_only=True)
+    user_group = app_commands.Group(name="user", description="User moderation", guild_only=True)
     leavemsg = app_commands.Group(
         name="leavemsg",
         description="Manage server leave messages",
         default_permissions=discord.Permissions(administrator=True),
+        guild_only=True,
     )
 
     def _lang(self, guild_id):
