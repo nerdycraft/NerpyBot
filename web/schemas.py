@@ -476,6 +476,74 @@ class BrandingResponse(BaseModel):
     bot_description: str
 
 
+# ── Bot permissions ──
+
+
+class BotPermissionGuildResult(BaseModel):
+    guild_id: str
+    guild_name: str
+    guild_icon: str | None
+    missing: list[str]
+    all_ok: bool
+
+
+class BotPermissionsResponse(BaseModel):
+    guilds: list[BotPermissionGuildResult]
+
+
+class BotPermissionSubscription(BaseModel):
+    guild_id: str
+    subscribed: bool
+
+
+# ── Error control ──
+
+
+class ErrorStatusBucket(BaseModel):
+    last_notified_ago: float
+    suppressed_count: int
+
+
+class ErrorStatusResponse(BaseModel):
+    is_suppressed: bool
+    suppressed_remaining: float | None
+    throttle_window: int
+    buckets: dict[str, ErrorStatusBucket]
+    debug_enabled: bool | None = None
+
+
+class ErrorSuppressRequest(BaseModel):
+    duration: str = Field(..., description="Duration string, e.g. '30m', '2h', '1d'")
+
+
+class ErrorActionResponse(BaseModel):
+    success: bool
+    seconds: int | None = None
+    already_active: bool | None = None
+    error: str | None = None
+
+
+# ── Debug ──
+
+
+class DebugToggleResponse(BaseModel):
+    debug_enabled: bool
+
+
+# ── Command sync ──
+
+
+class SyncCommandsRequest(BaseModel):
+    mode: Literal["global", "local", "copy", "clear"]
+    guild_ids: list[str] = []
+
+
+class SyncCommandsResponse(BaseModel):
+    success: bool
+    synced_count: int | None = None
+    error: str | None = None
+
+
 # ── Recipe sync ──
 
 

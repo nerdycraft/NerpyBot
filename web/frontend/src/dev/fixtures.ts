@@ -12,11 +12,13 @@ import type {
   AutoDeleteRule,
   AutoKickerConfig,
   BotGuildInfo,
+  BotPermissionGuildResult,
   CraftingBoardSchema,
   CraftingOrderSchema,
   CraftingRoleMappingSchema,
   DiscordChannel,
   DiscordRole,
+  ErrorStatusResponse,
   HealthResponse,
   LanguageConfig,
   LeaveMessageConfig,
@@ -24,6 +26,8 @@ import type {
   ModuleListResponse,
   PremiumUserSchema,
   ReactionRoleMessageSchema,
+  RecipeCacheBrowseResponse,
+  RecipeSyncStatusResponse,
   ReminderSchema,
   RoleMappingSchema,
   WowGuildNewsSchema,
@@ -619,3 +623,87 @@ export const operatorPremiumUsers: PremiumUserSchema[] = [
   { user_id: "111000000000000001", granted_at: "2026-01-10T12:00:00Z", granted_by: "999000000000000000" },
   { user_id: "111000000000000002", granted_at: "2026-02-14T09:30:00Z", granted_by: "999000000000000000" },
 ];
+
+export const operatorBotPermissions: { guilds: BotPermissionGuildResult[] } = {
+  guilds: [
+    { guild_id: GUILD1, guild_name: "Nerdcraft Central", guild_icon: null, missing: [], all_ok: true },
+    {
+      guild_id: GUILD2,
+      guild_name: "Quiet Corner",
+      guild_icon: null,
+      missing: ["send_messages", "embed_links"],
+      all_ok: false,
+    },
+    { guild_id: GUILD3, guild_name: "External Server", guild_icon: null, missing: [], all_ok: true },
+    {
+      guild_id: "999000000000000004",
+      guild_name: "Cool Guild",
+      guild_icon: null,
+      missing: ["manage_messages"],
+      all_ok: false,
+    },
+  ],
+};
+
+export const operatorErrorStatus: ErrorStatusResponse = {
+  is_suppressed: false,
+  suppressed_remaining: null,
+  throttle_window: 900,
+  buckets: {
+    "modules.wow.on_wow_guild_news": { last_notified_ago: 3720, suppressed_count: 0 },
+    "modules.league.on_league_rotation": { last_notified_ago: 86401, suppressed_count: 3 },
+  },
+  debug_enabled: false,
+};
+
+export const operatorRecipeSyncStatus: RecipeSyncStatusResponse = {
+  counts: { crafting: 1847, gathering: 423 },
+};
+
+export const operatorRecipeCache: RecipeCacheBrowseResponse = {
+  recipes: [
+    {
+      recipe_id: 1001,
+      item_name: "Algari Competitor's Wrap",
+      profession_id: 197,
+      profession_name: "Tailoring",
+      recipe_type: "crafting",
+      item_class_name: "Armor",
+      item_subclass_name: "Cloth",
+      expansion_name: "The War Within",
+      category_name: "Embroidery",
+      wowhead_url: null,
+    },
+    {
+      recipe_id: 1002,
+      item_name: "Artisan's Metal Brick",
+      profession_id: 164,
+      profession_name: "Blacksmithing",
+      recipe_type: "crafting",
+      item_class_name: "Gem",
+      item_subclass_name: null,
+      expansion_name: "The War Within",
+      category_name: "Materials",
+      wowhead_url: null,
+    },
+    {
+      recipe_id: 1003,
+      item_name: "Charged Dew Drop",
+      profession_id: 171,
+      profession_name: "Alchemy",
+      recipe_type: "crafting",
+      item_class_name: "Consumable",
+      item_subclass_name: "Potion",
+      expansion_name: "The War Within",
+      category_name: "Potions",
+      wowhead_url: null,
+    },
+  ],
+  professions: [
+    { id: 164, name: "Blacksmithing" },
+    { id: 171, name: "Alchemy" },
+    { id: 197, name: "Tailoring" },
+  ],
+  expansions: ["Dragonflight", "The War Within"],
+  total: 3,
+};

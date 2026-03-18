@@ -331,6 +331,58 @@ export interface DiscordRole {
 
 // ── Operator ──
 
+export interface BotPermissionGuildResult {
+  guild_id: string;
+  guild_name: string;
+  guild_icon: string | null;
+  missing: string[];
+  all_ok: boolean;
+}
+
+export interface BotPermissionsResponse {
+  guilds: BotPermissionGuildResult[];
+}
+
+export interface BotPermissionSubscription {
+  guild_id: string;
+  subscribed: boolean;
+}
+
+export interface ErrorStatusBucket {
+  last_notified_ago: number;
+  suppressed_count: number;
+}
+
+export interface ErrorStatusResponse {
+  is_suppressed: boolean;
+  suppressed_remaining: number | null;
+  throttle_window: number;
+  buckets: Record<string, ErrorStatusBucket>;
+  debug_enabled?: boolean | null;
+}
+
+export interface ErrorActionResponse {
+  success: boolean;
+  seconds?: number | null;
+  already_active?: boolean | null;
+  error?: string | null;
+}
+
+export interface DebugToggleResponse {
+  debug_enabled: boolean;
+}
+
+export interface SyncCommandsRequest {
+  mode: "global" | "local" | "copy" | "clear";
+  guild_ids?: string[];
+}
+
+export interface SyncCommandsResponse {
+  success: boolean;
+  synced_count?: number | null;
+  error?: string | null;
+}
+
 export interface VoiceConnectionDetail {
   guild_id: string;
   guild_name: string;
