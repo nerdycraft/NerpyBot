@@ -439,13 +439,21 @@ class CraftingRecipeCache(db.BASE):
 
     @staticmethod
     def _dedup_rows(q, order_col) -> list[tuple]:
-        """Deduplicate (id, name, locales) rows by id, preserving sort order.
+        """Deduplicate (id, name, locales) rows by display name, preserving sort order.
 
         SQL DISTINCT cannot be used when a JSON column is projected — PostgreSQL has no
         equality operator for json.  Instead, collect all rows ordered by name and pick
-        the first row per id using dict insertion order (Python 3.7+).
+        the first row per unique name using dict insertion order (Python 3.7+).
+
+        Deduplication is by name (not id) because some item subclasses share the same
+        display name (e.g. one-handed and two-handed Axe both have ItemSubClassName="Axe").
+        Keeping the first occurrence (lowest id) per name avoids duplicate dropdown entries.
         """
-        return list({r[0]: (r[0], r[1], r[2]) for r in q.order_by(asc(order_col)).all()}.values())
+        seen: dict = {}
+        for r in q.order_by(asc(order_col)).all():
+            if r[1] not in seen:
+                seen[r[1]] = (r[0], r[1], r[2])
+        return list(seen.values())
 
     @classmethod
     def get_item_classes(
