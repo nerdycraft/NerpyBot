@@ -52,9 +52,13 @@ import {
   guild3RoleMappings,
   guild3WowGuildNews,
   operatorBotGuilds,
+  operatorBotPermissions,
+  operatorErrorStatus,
   operatorHealth,
   operatorModules,
   operatorPremiumUsers,
+  operatorRecipeCache,
+  operatorRecipeSyncStatus,
   ROLES,
 } from "./fixtures";
 
@@ -121,6 +125,9 @@ const stores: Record<string, Record<string, unknown>> = {
 };
 
 let mutablePremiumUsers = [...operatorPremiumUsers];
+const mutablePermissionSubscriptions = new Set<string>();
+let _debugEnabled = operatorErrorStatus.debug_enabled ?? false;
+let _errorSuppressedUntil: number | null = null; // epoch ms
 
 // ── Route table ───────────────────────────────────────────────────────────────
 
@@ -138,6 +145,23 @@ interface Route {
 
 function ok(data: unknown, supportMode = false) {
   return { data, supportMode };
+}
+
+/** Parse a duration string like "30m", "2h", "1d" to seconds (best-effort). */
+function parseDurationSecs(s: string): number {
+  const m = s.trim().match(/^(\d+(?:\.\d+)?)\s*([smhd]?)$/i);
+  if (!m) return 1800;
+  const n = parseFloat(m[1]!);
+  switch ((m[2] ?? "").toLowerCase()) {
+    case "s":
+      return n;
+    case "h":
+      return n * 3600;
+    case "d":
+      return n * 86400;
+    default:
+      return n * 60; // "m" or bare number
+  }
 }
 
 function guildStore(guildId: string, key: string): unknown[] {
@@ -567,6 +591,85 @@ const routes: Route[] = [
   {
     pattern: /^\/operator\/support$/,
     handler: () => ok({ success: true, sent_to: 1 }),
+  },
+
+  // ── Operator: bot permissions ──────────────────────────────────────────────
+  {
+    pattern: /^\/operator\/bot-permissions\/subscriptions\/(.+)$/,
+    handler: (_m, [, guildId]) => {
+      if (_m === "POST") mutablePermissionSubscriptions.add(guildId);
+      if (_m === "DELETE") mutablePermissionSubscriptions.delete(guildId);
+      return ok(_m === "POST" ? { guild_id: guildId, subscribed: true } : undefined);
+    },
+  },
+  {
+    pattern: /^\/operator\/bot-permissions\/subscriptions$/,
+    handler: () => ok([...mutablePermissionSubscriptions].map((id) => ({ guild_id: id, subscribed: true }))),
+  },
+  {
+    pattern: /^\/operator\/bot-permissions$/,
+    handler: () => ok(operatorBotPermissions),
+  },
+
+  // ── Operator: error control ────────────────────────────────────────────────
+  {
+    pattern: /^\/operator\/error-status$/,
+    handler: () => {
+      const now = Date.now();
+      const isSuppressed = _errorSuppressedUntil !== null && _errorSuppressedUntil > now;
+      return ok({
+        ...operatorErrorStatus,
+        is_suppressed: isSuppressed,
+        suppressed_remaining: isSuppressed ? (_errorSuppressedUntil! - now) / 1000 : null,
+        debug_enabled: _debugEnabled,
+      });
+    },
+  },
+  {
+    pattern: /^\/operator\/error-suppress$/,
+    handler: (_m, _g, body) => {
+      const duration = (body as { duration?: string })?.duration ?? "30m";
+      const seconds = parseDurationSecs(duration);
+      _errorSuppressedUntil = Date.now() + seconds * 1000;
+      return ok({ success: true, seconds });
+    },
+  },
+  {
+    pattern: /^\/operator\/error-resume$/,
+    handler: () => {
+      _errorSuppressedUntil = null;
+      return ok({ success: true });
+    },
+  },
+  {
+    pattern: /^\/operator\/debug-toggle$/,
+    handler: () => {
+      _debugEnabled = !_debugEnabled;
+      return ok({ debug_enabled: _debugEnabled });
+    },
+  },
+
+  // ── Operator: command sync ─────────────────────────────────────────────────
+  {
+    pattern: /^\/operator\/sync-commands$/,
+    handler: (_m, _g, body) => {
+      const mode = (body as { mode?: string })?.mode ?? "global";
+      return ok({ success: true, synced_count: mode === "clear" ? 0 : 42 });
+    },
+  },
+
+  // ── Operator: recipe sync ──────────────────────────────────────────────────
+  {
+    pattern: /^\/operator\/recipe-sync\/status$/,
+    handler: () => ok(operatorRecipeSyncStatus),
+  },
+  {
+    pattern: /^\/operator\/recipe-sync$/,
+    handler: () => ok({ queued: true }),
+  },
+  {
+    pattern: /^\/operator\/recipe-cache$/,
+    handler: () => ok(operatorRecipeCache),
   },
 ];
 
