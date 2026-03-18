@@ -589,6 +589,8 @@ class TestGlobalInteractionCheck:
             await NerpyBot._global_interaction_check(mock_self, mock_interaction)
 
         mock_interaction.response.send_message.assert_called_once()
+        mock_self.get_localized_string.assert_called_once()
+        assert mock_self.get_localized_string.call_args.args[0] == mock_interaction.guild_id
 
 
 class TestRunMigrations:

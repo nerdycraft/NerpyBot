@@ -50,6 +50,7 @@ class ServerAdmin(NerpyBotCog, Cog):
                 entry = BotModeratorRole(GuildId=interaction.guild.id)
                 session.add(entry)
             entry.RoleId = role.id
+        self.bot.guild_cache.set_modrole(interaction.guild.id, role.id)
         lang = self.bot.get_guild_language(interaction.guild_id)
         await interaction.response.send_message(
             get_string(lang, "admin.modrole.set_success", role=role.name), ephemeral=True
@@ -61,6 +62,7 @@ class ServerAdmin(NerpyBotCog, Cog):
         """Remove the bot-moderator role configuration."""
         with self.bot.session_scope() as session:
             BotModeratorRole.delete(interaction.guild.id, session)
+        self.bot.guild_cache.set_modrole(interaction.guild.id, None)
         lang = self.bot.get_guild_language(interaction.guild_id)
         await interaction.response.send_message(get_string(lang, "admin.modrole.delete_success"), ephemeral=True)
         self.bot.dispatch("modrole_changed", interaction.guild.id, None)

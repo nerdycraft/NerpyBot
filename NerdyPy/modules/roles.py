@@ -421,7 +421,7 @@ class Roles(NerpyBotCog, Cog):
             await interaction.response.send_message(error_msg, ephemeral=True)
             return
 
-        self.bot.guild_cache.add_reaction_role_message(msg_id)
+        self.bot.guild_cache.add_reaction_role_message(interaction.guild.id, msg_id)
 
         try:
             await discord_msg.add_reaction(emoji)
@@ -479,7 +479,7 @@ class Roles(NerpyBotCog, Cog):
             return
 
         if last_entry_removed:
-            self.bot.guild_cache.remove_reaction_role_message(msg_id)
+            self.bot.guild_cache.remove_reaction_role_message(interaction.guild.id, msg_id)
 
         await self._clear_reaction(interaction.guild, channel_id, msg_id, emoji)
         await interaction.response.send_message(
@@ -550,7 +550,7 @@ class Roles(NerpyBotCog, Cog):
             await interaction.response.send_message(no_config_msg, ephemeral=True)
             return
 
-        self.bot.guild_cache.remove_reaction_role_message(msg_id)
+        self.bot.guild_cache.remove_reaction_role_message(interaction.guild.id, msg_id)
 
         await asyncio.gather(
             *[self._clear_reaction(interaction.guild, channel_id, msg_id, emoji) for emoji in emojis],

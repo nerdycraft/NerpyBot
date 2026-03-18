@@ -144,17 +144,17 @@ class TestReactionRoles:
     def test_add_after_warm(self, cache, session_factory):
         cache.warm_reaction_roles(session_factory)
         assert cache.is_reaction_role_message(77) is False
-        cache.add_reaction_role_message(77)
+        cache.add_reaction_role_message(GUILD_ID, 77)
         assert cache.is_reaction_role_message(77) is True
 
     def test_remove_after_add(self, cache, session_factory):
         cache.warm_reaction_roles(session_factory)
-        cache.add_reaction_role_message(77)
-        cache.remove_reaction_role_message(77)
+        cache.add_reaction_role_message(GUILD_ID, 77)
+        cache.remove_reaction_role_message(GUILD_ID, 77)
         assert cache.is_reaction_role_message(77) is False
 
     def test_remove_nonexistent_is_safe(self, cache):
-        cache.remove_reaction_role_message(999)  # must not raise
+        cache.remove_reaction_role_message(GUILD_ID, 999)  # must not raise
 
     def test_warm_is_idempotent(self, cache, session_factory, db_session):
         from models.reactionrole import ReactionRoleMessage
@@ -163,7 +163,7 @@ class TestReactionRoles:
         db_session.commit()
 
         cache.warm_reaction_roles(session_factory)
-        cache.add_reaction_role_message(99)  # locally added
+        cache.add_reaction_role_message(GUILD_ID, 99)  # locally added
 
         cache.warm_reaction_roles(session_factory)  # re-warm clears local addition
         assert cache.is_reaction_role_message(99) is False
@@ -245,6 +245,14 @@ class TestEviction:
         cache.set_leave_message_guild(GUILD_ID, True)
         cache.evict_guild(GUILD_ID)
         assert cache.is_leave_message_guild(GUILD_ID) is False
+
+    def test_evict_removes_reaction_role_messages(self, cache, session_factory):
+        cache.warm_reaction_roles(session_factory)
+        cache.add_reaction_role_message(GUILD_ID, 42)
+        cache.add_reaction_role_message(GUILD_ID_2, 99)
+        cache.evict_guild(GUILD_ID)
+        assert cache.is_reaction_role_message(42) is False  # evicted
+        assert cache.is_reaction_role_message(99) is True  # other guild unaffected
 
     def test_evict_nonexistent_is_safe(self, cache):
         cache.evict_guild(GUILD_ID)  # must not raise

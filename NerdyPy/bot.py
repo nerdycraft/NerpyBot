@@ -354,12 +354,15 @@ class NerpyBot(Bot):
         except Exception as e:
             self.log.warning(f"Failed to sync BotGuild table: {e}")
 
-        try:
-            self.guild_cache.warm_reaction_roles(self.SESSION)
-            self.guild_cache.warm_leave_messages(self.SESSION)
-            self.log.debug("Guild config cache warmed up.")
-        except Exception as e:
-            self.log.warning(f"Failed to warm guild config cache: {e}")
+        for cache_name, warm in (
+            ("reaction-role", self.guild_cache.warm_reaction_roles),
+            ("leave-message", self.guild_cache.warm_leave_messages),
+        ):
+            try:
+                warm(self.SESSION)
+            except Exception as e:
+                self.log.warning(f"Failed to warm {cache_name} cache: {e}")
+        self.log.debug("Guild config cache warm-up finished.")
 
         required = required_permissions_for(self.modules)
         for guild in self.guilds:

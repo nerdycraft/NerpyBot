@@ -15,7 +15,8 @@ class GuildConfigCache:
     def __init__(self):
         self._lang: dict[int, str] = {}
         self._modrole: dict[int, int | None] = {}
-        self._rr_message_ids: set[int] = set()
+        self._rr_message_ids: set[int] = set()  # flat set for O(1) hot-path lookup
+        self._rr_by_guild: dict[int, set[int]] = {}  # guild_id -> set[message_id] for eviction
         self._rr_warmed: bool = False
         self._leave_guild_ids: set[int] = set()
         self._leave_warmed: bool = False
@@ -82,13 +83,16 @@ class GuildConfigCache:
             return True
         return message_id in self._rr_message_ids
 
-    def add_reaction_role_message(self, message_id: int) -> None:
+    def add_reaction_role_message(self, guild_id: int, message_id: int) -> None:
         """Register a new reaction role message ID in the cache."""
         self._rr_message_ids.add(message_id)
+        self._rr_by_guild.setdefault(guild_id, set()).add(message_id)
 
-    def remove_reaction_role_message(self, message_id: int) -> None:
+    def remove_reaction_role_message(self, guild_id: int, message_id: int) -> None:
         """Remove a reaction role message ID from the cache."""
         self._rr_message_ids.discard(message_id)
+        if guild_id in self._rr_by_guild:
+            self._rr_by_guild[guild_id].discard(message_id)
 
     def warm_reaction_roles(self, session_factory) -> None:
         """Bulk-load all reaction role message IDs from the database.
@@ -99,11 +103,14 @@ class GuildConfigCache:
         try:
             from models.reactionrole import ReactionRoleMessage
 
-            ids = {row.MessageId for row in session.query(ReactionRoleMessage).all()}
+            by_guild: dict[int, set[int]] = {}
+            for row in session.query(ReactionRoleMessage).all():
+                by_guild.setdefault(row.GuildId, set()).add(row.MessageId)
         finally:
             session.close()
 
-        self._rr_message_ids = ids
+        self._rr_by_guild = by_guild
+        self._rr_message_ids = {mid for mids in by_guild.values() for mid in mids}
         self._rr_warmed = True
 
     # ── Leave messages ────────────────────────────────────────────────────────
@@ -147,3 +154,6 @@ class GuildConfigCache:
         self._lang.pop(guild_id, None)
         self._modrole.pop(guild_id, None)
         self._leave_guild_ids.discard(guild_id)
+        guild_rr = self._rr_by_guild.pop(guild_id, None)
+        if guild_rr:
+            self._rr_message_ids -= guild_rr

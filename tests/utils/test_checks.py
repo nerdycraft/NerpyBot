@@ -83,7 +83,9 @@ def mock_interaction(db_session):
     _cache = GuildConfigCache()
     client.guild_cache = _cache
     client.SESSION = _factory
-    client.get_localized_string = lambda guild_id, key, **kwargs: get_string("en", key, **kwargs)
+    client.get_localized_string = lambda guild_id, key, **kwargs: get_string(
+        "en" if guild_id is None else _cache.get_guild_language(guild_id, _factory), key, **kwargs
+    )
 
     interaction.client = client
 
