@@ -104,13 +104,15 @@ class GuildConfigCache:
             from models.reactionrole import ReactionRoleMessage
 
             by_guild: dict[int, set[int]] = {}
+            all_ids: set[int] = set()
             for row in session.query(ReactionRoleMessage).all():
                 by_guild.setdefault(row.GuildId, set()).add(row.MessageId)
+                all_ids.add(row.MessageId)
         finally:
             session.close()
 
         self._rr_by_guild = by_guild
-        self._rr_message_ids = {mid for mids in by_guild.values() for mid in mids}
+        self._rr_message_ids = all_ids
         self._rr_warmed = True
 
     # ── Leave messages ────────────────────────────────────────────────────────
