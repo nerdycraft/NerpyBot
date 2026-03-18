@@ -16,7 +16,7 @@ from utils.constants import PROTECTED_MODULES
 from utils.duration import parse_duration
 from utils.errors import NerpyInfraException, NerpyPermissionError
 from utils.permissions import build_permissions_embed, check_guild_permissions, required_permissions_for
-from utils.strings import get_guild_language, get_string
+from utils.strings import get_string
 
 
 def _format_remaining(seconds: float) -> str:
@@ -69,8 +69,8 @@ class Operator(NerpyBotCog, Cog):
     @botpermissions.command(name="subscribe")
     async def _botpermissions_subscribe(self, interaction: Interaction) -> None:
         """Get DM notifications about missing permissions on bot restart."""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             existing = PermissionSubscriber.get(interaction.guild.id, interaction.user.id, session)
             if existing is not None:
                 await interaction.response.send_message(
@@ -83,8 +83,8 @@ class Operator(NerpyBotCog, Cog):
     @botpermissions.command(name="unsubscribe")
     async def _botpermissions_unsubscribe(self, interaction: Interaction) -> None:
         """Stop receiving DM notifications about missing permissions."""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             existing = PermissionSubscriber.get(interaction.guild.id, interaction.user.id, session)
             if existing is None:
                 await interaction.response.send_message(

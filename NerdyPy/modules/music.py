@@ -14,7 +14,7 @@ from utils.checks import is_connected_to_voice
 from utils.cog import NerpyBotCog
 from utils.download import download, fetch_yt_infos
 from utils.helpers import error_context, youtube
-from utils.strings import get_guild_language, get_string
+from utils.strings import get_string
 
 
 @app_commands.guild_only()
@@ -39,8 +39,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
         self.audio._on_song_start_hook = None
 
     def _lang(self, guild_id: int) -> str:
-        with self.bot.session_scope() as session:
-            return get_guild_language(guild_id, session)
+        return self.bot.get_guild_language(guild_id)
 
     async def _handle_song_start(self, guild_id: int, song: QueuedSong) -> None:
         """Called by Audio._play() when a new song starts. Creates or updates the now-playing embed."""

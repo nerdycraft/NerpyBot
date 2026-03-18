@@ -20,11 +20,14 @@ def _load_locale_strings():
 @pytest.fixture
 def bot(db_session):
     """Minimal mock of NerpyBot sufficient for _on_app_command_error."""
+    from utils.strings import get_string
+
     b = MagicMock()
     b.log = MagicMock()
     b.error_throttle = MagicMock()
     b.error_throttle.should_notify = MagicMock(return_value=True)
     b.config = {"notifications": {"error_recipients": []}}
+    b.get_localized_string = lambda guild_id, key, **kwargs: get_string("en", key, **kwargs)
 
     @contextmanager
     def session_scope():

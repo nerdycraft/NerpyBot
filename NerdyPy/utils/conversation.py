@@ -4,8 +4,6 @@ from enum import Enum
 
 from discord import Embed
 
-from utils.strings import get_guild_language
-
 
 class AnswerType(Enum):
     REACTION = 0
@@ -20,11 +18,7 @@ class Conversation:
         self.user = user
         self.guild = guild
 
-        if guild is not None:
-            with self.bot.session_scope() as session:
-                self.lang = get_guild_language(guild.id, session)
-        else:
-            self.lang = "en"
+        self.lang = self.bot.get_guild_language(guild.id) if guild is not None else "en"
 
         self.isActive = True
 

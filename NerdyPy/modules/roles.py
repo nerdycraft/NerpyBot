@@ -13,7 +13,7 @@ from utils.checks import is_role_assignable, is_role_below_bot
 from utils.cog import NerpyBotCog
 from utils.helpers import error_context, notify_error, send_paginated
 from utils.permissions import validate_channel_permissions
-from utils.strings import get_guild_language, get_string
+from utils.strings import get_string
 
 
 class Roles(NerpyBotCog, Cog):
@@ -42,8 +42,7 @@ class Roles(NerpyBotCog, Cog):
     # ── reactionrole helpers ──────────────────────────────────────────────────
 
     def _lang(self, guild_id: int) -> str:
-        with self.bot.session_scope() as session:
-            return get_guild_language(guild_id, session)
+        return self.bot.get_guild_language(guild_id)
 
     async def _message_id_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         with self.bot.session_scope() as session:
@@ -64,6 +63,9 @@ class Roles(NerpyBotCog, Cog):
 
     def _get_role_for_reaction(self, payload):
         """Look up the role for a given reaction event payload."""
+        if not self.bot.guild_cache.is_reaction_role_message(payload.message_id):
+            return None
+
         with self.bot.session_scope() as session:
             rr_msg = ReactionRoleMessage.get_by_message(payload.message_id, session)
             if rr_msg is None:
@@ -170,9 +172,9 @@ class Roles(NerpyBotCog, Cog):
         if not await is_role_below_bot(interaction, target_role):
             return
 
+        lang = self.bot.get_guild_language(interaction.guild_id)
         error_msg = None
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             existing = RoleMapping.get(interaction.guild.id, source_role.id, target_role.id, session)
             if existing:
                 error_msg = get_string(
@@ -208,8 +210,8 @@ class Roles(NerpyBotCog, Cog):
         target_role: discord.Role
             The target role
         """
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             deleted = RoleMapping.delete(interaction.guild.id, source_role.id, target_role.id, session)
 
         if deleted:
@@ -224,8 +226,8 @@ class Roles(NerpyBotCog, Cog):
     @checks.has_permissions(manage_roles=True)
     async def _rolemanage_list(self, interaction: Interaction):
         """List all delegated role mappings for this server. [manage_roles]"""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             mappings = RoleMapping.get_by_guild(interaction.guild.id, session)
             msg = ""
             for m in mappings:
@@ -260,8 +262,8 @@ class Roles(NerpyBotCog, Cog):
         if not await is_role_below_bot(interaction, role):
             return
 
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             mappings = RoleMapping.get_by_target(interaction.guild.id, role.id, session)
 
         if not mappings or not self._has_source_role(interaction.user, mappings):
@@ -311,8 +313,8 @@ class Roles(NerpyBotCog, Cog):
         if not await is_role_below_bot(interaction, role):
             return
 
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             mappings = RoleMapping.get_by_target(interaction.guild.id, role.id, session)
 
         if not mappings or not self._has_source_role(interaction.user, mappings):
@@ -419,6 +421,8 @@ class Roles(NerpyBotCog, Cog):
             await interaction.response.send_message(error_msg, ephemeral=True)
             return
 
+        self.bot.guild_cache.add_reaction_role_message(msg_id)
+
         try:
             await discord_msg.add_reaction(emoji)
         except HTTPException as ex:
@@ -449,10 +453,11 @@ class Roles(NerpyBotCog, Cog):
             await interaction.response.send_message("Invalid message ID.", ephemeral=True)
             return
 
+        lang = self.bot.get_guild_language(interaction.guild_id)
         reply = None
         channel_id = None
+        last_entry_removed = False
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             rr_msg = ReactionRoleMessage.get_by_message(msg_id, session)
             if rr_msg is None:
                 reply = get_string(lang, "reactionrole.remove.no_config")
@@ -467,10 +472,14 @@ class Roles(NerpyBotCog, Cog):
                     # clean up the parent if no entries remain
                     if len(rr_msg.entries) == 1:
                         session.delete(rr_msg)
+                        last_entry_removed = True
 
         if reply:
             await interaction.response.send_message(reply, ephemeral=True)
             return
+
+        if last_entry_removed:
+            self.bot.guild_cache.remove_reaction_role_message(msg_id)
 
         await self._clear_reaction(interaction.guild, channel_id, msg_id, emoji)
         await interaction.response.send_message(
@@ -481,8 +490,8 @@ class Roles(NerpyBotCog, Cog):
     @checks.has_permissions(manage_roles=True)
     async def _reactionrole_list(self, interaction: Interaction):
         """List all reaction role configurations for this server."""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             messages = ReactionRoleMessage.get_by_guild(interaction.guild.id, session)
             msg = ""
             for rr_msg in messages:
@@ -524,10 +533,10 @@ class Roles(NerpyBotCog, Cog):
             await interaction.response.send_message("Invalid message ID.", ephemeral=True)
             return
 
+        lang = self.bot.get_guild_language(interaction.guild_id)
         channel_id = None
         emojis = []
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             rr_msg = ReactionRoleMessage.get_by_message(msg_id, session)
             if rr_msg is None:
                 no_config_msg = get_string(lang, "reactionrole.remove.no_config")
@@ -540,6 +549,8 @@ class Roles(NerpyBotCog, Cog):
         if no_config_msg:
             await interaction.response.send_message(no_config_msg, ephemeral=True)
             return
+
+        self.bot.guild_cache.remove_reaction_role_message(msg_id)
 
         await asyncio.gather(
             *[self._clear_reaction(interaction.guild, channel_id, msg_id, emoji) for emoji in emojis],

@@ -15,7 +15,7 @@ from utils.cog import NerpyBotCog
 from utils.download import download
 from utils.errors import NerpyNotFoundError
 from utils.helpers import error_context, send_paginated
-from utils.strings import get_guild_language, get_string
+from utils.strings import get_string
 
 
 @app_commands.guild_only()
@@ -31,8 +31,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
         self.audio = self.bot.audio
 
     def _lang(self, guild_id: int) -> str:
-        with self.bot.session_scope() as session:
-            return get_guild_language(guild_id, session)
+        return self.bot.get_guild_language(guild_id)
 
     async def _tag_name_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         with self.bot.session_scope() as session:
@@ -75,8 +74,8 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
         self, interaction: Interaction, name: str, tag_type: Literal["sound", "text", "url"], content: str
     ) -> None:
         """Create Tags."""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             if Tag.exists(name, interaction.guild.id, session):
                 await interaction.response.send_message(
                     get_string(lang, "tagging.create.already_exists", name=name), ephemeral=True
@@ -110,8 +109,8 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_add(self, interaction: Interaction, name: str, content: str):
         """add an entry to an existing tag"""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             if not Tag.exists(name, interaction.guild.id, session):
                 await interaction.response.send_message(
                     get_string(lang, "tagging.not_found", name=name), ephemeral=True
@@ -154,8 +153,8 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     async def _tag_delete(self, interaction: Interaction, name: str):
         """delete a tag?"""
         self.bot.log.info(f'{error_context(interaction)}: deleting tag "{name}"')
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             if not Tag.exists(name, interaction.guild.id, session):
                 await interaction.response.send_message(
                     get_string(lang, "tagging.not_found", name=name), ephemeral=True
@@ -174,8 +173,8 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     @app_commands.command(name="list")
     async def _tag_list(self, interaction: Interaction):
         """a list of all available tags"""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             tags = Tag.get_all_from_guild(interaction.guild.id, session)
 
             if not tags:
@@ -202,8 +201,8 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_info(self, interaction: Interaction, name: str):
         """information about the tag"""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             t = Tag.get(name, interaction.guild.id, session)
             emoji = self._TAG_TYPE_EMOJI.get(t.Type, "\u2753")
             tag_type = TagType(t.Type).name.capitalize()
@@ -224,8 +223,8 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
     @app_commands.autocomplete(name=_tag_name_autocomplete)
     async def _tag_raw(self, interaction: Interaction, name: str):
         """raw tag data"""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             t = Tag.get(name, interaction.guild.id, session)
             msg = ""
             for i, entry in enumerate(t.entries.all(), start=1):
@@ -240,8 +239,8 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
 
     async def _send_to_queue(self, interaction: Interaction, tag_name):
         self.bot.log.info(f'{error_context(interaction)}: requesting tag "{tag_name}"')
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             _tag = Tag.get(tag_name, interaction.guild.id, session)
             if _tag is None:
                 raise NerpyNotFoundError(get_string(lang, "tagging.get.not_found", name=tag_name))

@@ -5,9 +5,8 @@ from typing import cast
 from bot import NerpyBot
 from discord import Interaction, Role, app_commands
 from discord.ext.commands import Context
-from models.admin import BotModeratorRole
 from utils.errors import NerpyPermissionError, SilentCheckFailure
-from utils.strings import get_localized_string, get_string
+from utils.strings import get_string
 
 
 def _localized(interaction: Interaction, key: str, **kwargs) -> str:
@@ -15,8 +14,7 @@ def _localized(interaction: Interaction, key: str, **kwargs) -> str:
     bot = cast("NerpyBot", interaction.client)
     if interaction.guild_id is None:
         return get_string("en", key, **kwargs)
-    with bot.session_scope() as session:
-        return get_localized_string(interaction.guild_id, key, session, **kwargs)
+    return bot.get_localized_string(interaction.guild_id, key, **kwargs)
 
 
 def require_operator(ctx_or_interaction: Context | Interaction) -> None:
@@ -60,10 +58,9 @@ async def is_bot_moderator(interaction: Interaction) -> bool:
     if perms.mute_members or perms.manage_channels or perms.administrator or interaction.user.id in bot.ops:
         return True
 
-    with bot.session_scope() as session:
-        entry = BotModeratorRole.get(interaction.guild.id, session)
-        if entry is not None:
-            return any(r.id == entry.RoleId for r in interaction.user.roles)
+    role_id = bot.guild_cache.get_modrole(interaction.guild.id, bot.SESSION)
+    if role_id is not None:
+        return any(r.id == role_id for r in interaction.user.roles)
 
     return False
 

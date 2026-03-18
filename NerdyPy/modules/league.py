@@ -9,7 +9,7 @@ from discord.ext.commands import GroupCog
 from utils.cog import NerpyBotCog
 from utils.errors import NerpyInfraException
 from utils.helpers import error_context
-from utils.strings import get_guild_language, get_string
+from utils.strings import get_string
 
 
 class LeagueCommand(Enum):
@@ -30,8 +30,7 @@ class League(NerpyBotCog, GroupCog):
         self.config = self.bot.config["league"]
 
     def _lang(self, guild_id: int) -> str:
-        with self.bot.session_scope() as session:
-            return get_guild_language(guild_id, session)
+        return self.bot.get_guild_language(guild_id)
 
     async def _get_latest_version(self) -> str:
         if self.version is None:

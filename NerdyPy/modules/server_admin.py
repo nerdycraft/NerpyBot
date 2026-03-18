@@ -6,7 +6,7 @@ from discord.ext.commands import Cog
 from models.admin import BotModeratorRole, GuildLanguageConfig
 from utils.checks import is_admin_or_operator
 from utils.cog import NerpyBotCog
-from utils.strings import available_languages, get_guild_language, get_localized_string, get_string
+from utils.strings import available_languages, get_string
 
 
 @app_commands.default_permissions(administrator=True)
@@ -27,41 +27,43 @@ class ServerAdmin(NerpyBotCog, Cog):
     @modrole.command(name="get")
     async def _modrole_get(self, interaction: Interaction):
         """Show the currently configured bot-moderator role."""
+        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             entry = BotModeratorRole.get(interaction.guild.id, session)
-            if entry is not None:
-                role = interaction.guild.get_role(entry.RoleId)
-                msg = (
-                    get_string(lang, "admin.modrole.get_current", role=role.name)
-                    if role is not None
-                    else get_string(lang, "admin.modrole.get_stale")
-                )
-            else:
-                msg = get_string(lang, "admin.modrole.get_none")
+        if entry is not None:
+            role = interaction.guild.get_role(entry.RoleId)
+            msg = (
+                get_string(lang, "admin.modrole.get_current", role=role.name)
+                if role is not None
+                else get_string(lang, "admin.modrole.get_stale")
+            )
+        else:
+            msg = get_string(lang, "admin.modrole.get_none")
         await interaction.response.send_message(msg, ephemeral=True)
 
     @modrole.command(name="set")
     async def _modrole_set(self, interaction: Interaction, role: Role):
         """Set the bot-moderator role for this server."""
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             entry = BotModeratorRole.get(interaction.guild.id, session)
             if entry is None:
                 entry = BotModeratorRole(GuildId=interaction.guild.id)
                 session.add(entry)
             entry.RoleId = role.id
+        lang = self.bot.get_guild_language(interaction.guild_id)
         await interaction.response.send_message(
             get_string(lang, "admin.modrole.set_success", role=role.name), ephemeral=True
         )
+        self.bot.dispatch("modrole_changed", interaction.guild.id, role.id)
 
     @modrole.command(name="delete")
     async def _modrole_del(self, interaction: Interaction):
         """Remove the bot-moderator role configuration."""
         with self.bot.session_scope() as session:
-            lang = get_guild_language(interaction.guild_id, session)
             BotModeratorRole.delete(interaction.guild.id, session)
+        lang = self.bot.get_guild_language(interaction.guild_id)
         await interaction.response.send_message(get_string(lang, "admin.modrole.delete_success"), ephemeral=True)
+        self.bot.dispatch("modrole_changed", interaction.guild.id, None)
 
     @language.command(name="set")
     @app_commands.describe(language="Language code to set for this server")
@@ -69,14 +71,12 @@ class ServerAdmin(NerpyBotCog, Cog):
         """Set the server's language preference for bot responses."""
         language = language.lower()
         if language not in available_languages():
-            with self.bot.session_scope() as session:
-                msg = get_localized_string(
-                    interaction.guild.id,
-                    "admin.language.invalid",
-                    session,
-                    language=language,
-                    available=", ".join(sorted(available_languages())),
-                )
+            msg = self.bot.get_localized_string(
+                interaction.guild.id,
+                "admin.language.invalid",
+                language=language,
+                available=", ".join(sorted(available_languages())),
+            )
             await interaction.response.send_message(msg, ephemeral=True)
             return
 
@@ -87,14 +87,9 @@ class ServerAdmin(NerpyBotCog, Cog):
                 session.add(config)
             config.Language = language
 
-        # Read back with new language so confirmation is in the newly set language
-        with self.bot.session_scope() as session:
-            msg = get_localized_string(
-                interaction.guild.id,
-                "admin.language.set_success",
-                session,
-                language=language,
-            )
+        # Update cache immediately so confirmation reply uses the new language
+        self.bot.guild_cache.set_guild_language(interaction.guild.id, language)
+        msg = self.bot.get_localized_string(interaction.guild.id, "admin.language.set_success", language=language)
         await interaction.response.send_message(msg, ephemeral=True)
         self.bot.dispatch("guild_language_changed", interaction.guild.id, language)
 
@@ -103,15 +98,14 @@ class ServerAdmin(NerpyBotCog, Cog):
         """Show the current language preference for this server."""
         with self.bot.session_scope() as session:
             config = GuildLanguageConfig.get(interaction.guild.id, session)
-            if config is not None:
-                msg = get_localized_string(
-                    interaction.guild.id,
-                    "admin.language.get_current",
-                    session,
-                    language=config.Language,
-                )
-            else:
-                msg = get_localized_string(interaction.guild.id, "admin.language.get_default", session)
+        if config is not None:
+            msg = self.bot.get_localized_string(
+                interaction.guild.id,
+                "admin.language.get_current",
+                language=config.Language,
+            )
+        else:
+            msg = self.bot.get_localized_string(interaction.guild.id, "admin.language.get_default")
         await interaction.response.send_message(msg, ephemeral=True)
 
     async def _language_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
