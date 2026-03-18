@@ -64,6 +64,7 @@ _EMOJI_MAP: dict[str, str] = {
     "gun": "🔫",
     "fist": "👊",
     "polearm": "🔱",
+    "glaive": "🗡️",
     "off-hand": "📖",
     # Consumables / Raid Prep
     "flask": "🧪",
@@ -157,15 +158,18 @@ def _build_localized_options(
     Options are sorted by the displayed label so the dropdown order matches the locale.
     If emojis=True, a keyword-matched emoji prefix is prepended to each label.
     """
-    options = []
+    keyed: list[tuple[str, discord.SelectOption]] = []
     for item_id, name, locales in items:
         localized = _get_locale(locales, lang)
         label = localized or name or "Unknown"
         prefix = _emoji_for(name or "") if emojis else ""
         description = name[:100] if localized else None
-        options.append(discord.SelectOption(label=(prefix + label)[:100], description=description, value=str(item_id)))
-    options.sort(key=lambda o: o.label.casefold())
-    return options[:25]
+        sort_key = (localized or name or "").casefold()
+        keyed.append(
+            (sort_key, discord.SelectOption(label=(prefix + label)[:100], description=description, value=str(item_id)))
+        )
+    keyed.sort(key=lambda x: x[0])
+    return [o for _, o in keyed[:25]]
 
 
 def _build_localized_category_options(
