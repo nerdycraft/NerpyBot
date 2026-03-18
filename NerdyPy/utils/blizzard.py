@@ -197,16 +197,17 @@ async def sync_crafting_recipes(
     # Extra clients for fetching localized category names from profession_skill_tier.
     # That endpoint returns single-locale strings (unlike item_search which returns all locales),
     # so we need one client per non-English bot language.
-    locale_clients: dict[str, RetailClient] = {}
-    for _bot_lang in _BOT_LANG_TO_BLIZZ:
-        if _bot_lang == "en":
-            continue
-        locale_clients[_bot_lang] = RetailClient(
+    # Extend _lang_enum when adding a new language to _BOT_LANG_TO_BLIZZ.
+    _lang_enum: dict[str, Language] = {"de": Language.German}
+    locale_clients: dict[str, RetailClient] = {
+        lang: RetailClient(
             client_id=client_id,
             client_secret=client_secret,
             region=Region(region),
-            language=Language.German if _bot_lang == "de" else blizz_lang,
+            language=lang_enum,
         )
+        for lang, lang_enum in _lang_enum.items()
+    }
 
     sem = asyncio.Semaphore(15)
     errors = 0
@@ -261,22 +262,26 @@ async def sync_crafting_recipes(
         if not isinstance(tier_data, dict):
             return
 
-        # Fetch localized category names from each non-English locale client.
+        # Fetch localized category names from all non-English locale clients in parallel.
         # Blizzard returns categories in the same order across locales for the same tier ID,
         # so we can zip English and localized categories by index.
         cat_locales: dict[str, dict[str, str]] = {}
-        for bot_lang, loc_client in locale_clients.items():
-            loc_tier = await _call(
-                loc_client.profession_skill_tier, professionId=prof_id, skillTierId=tier_id, required=False
+        if locale_clients:
+            loc_langs = list(locale_clients.keys())
+            loc_tiers = await asyncio.gather(
+                *[
+                    _call(lc.profession_skill_tier, professionId=prof_id, skillTierId=tier_id, required=False)
+                    for lc in locale_clients.values()
+                ]
             )
-            if isinstance(loc_tier, dict):
-                en_cats = tier_data.get("categories", [])
-                loc_cats = loc_tier.get("categories", [])
-                for en_cat, loc_cat in zip(en_cats, loc_cats):
-                    en_name = en_cat.get("name", "")
-                    loc_name = loc_cat.get("name", "")
-                    if en_name and loc_name and en_name != loc_name:
-                        cat_locales.setdefault(en_name, {})[bot_lang] = loc_name
+            en_cats = tier_data.get("categories", [])
+            for bot_lang, loc_tier in zip(loc_langs, loc_tiers):
+                if isinstance(loc_tier, dict):
+                    for en_cat, loc_cat in zip(en_cats, loc_tier.get("categories", [])):
+                        en_name = en_cat.get("name", "")
+                        loc_name = loc_cat.get("name", "")
+                        if en_name and loc_name and en_name != loc_name:
+                            cat_locales.setdefault(en_name, {})[bot_lang] = loc_name
 
         tasks = []
         for cat in tier_data.get("categories", []):
@@ -291,7 +296,7 @@ async def sync_crafting_recipes(
             if expansion and not is_housing_cat:
                 if expansion.lower() not in expansion_name.lower():
                     continue
-            cat_name_locales = cat_locales.get(cat_name) or None
+            cat_name_locales = cat_locales.get(cat_name)
             for recipe_stub in cat.get("recipes", []):
                 recipe_id = recipe_stub.get("id")
                 if recipe_id:

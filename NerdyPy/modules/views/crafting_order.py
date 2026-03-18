@@ -148,7 +148,7 @@ def _get_locale(locales: dict | None, lang: str) -> str | None:
 
 
 def _build_localized_options(
-    items: list[tuple[int, str | None, dict | None]], lang: str, emojis: bool = False
+    items: list[tuple[int | str, str | None, dict | None]], lang: str, emojis: bool = False
 ) -> list[discord.SelectOption]:
     """Build SelectOptions from (id, english_name, locales) tuples.
 
@@ -173,21 +173,10 @@ def _build_localized_category_options(
 ) -> list[discord.SelectOption]:
     """Build SelectOptions from (category_name, locales) tuples.
 
-    Label is the localized name when available, falling back to the English name.
-    Description shows the English name only when a different localized label is shown.
-    An emoji prefix is prepended based on keyword matching.
     The value is always the English category name (used for DB lookups in callbacks).
-    Options are sorted by the displayed label so the dropdown order matches the locale.
+    Emoji prefixes are always applied based on keyword matching.
     """
-    options = []
-    for cat_name, locales in categories:
-        localized = _get_locale(locales, lang)
-        label = localized or cat_name
-        prefix = _emoji_for(cat_name)
-        description = cat_name[:100] if localized else None
-        options.append(discord.SelectOption(label=(prefix + label)[:100], description=description, value=cat_name))
-    options.sort(key=lambda o: o.label.casefold())
-    return options[:25]
+    return _build_localized_options([(name, name, locales) for name, locales in categories], lang, emojis=True)
 
 
 def _display_item_name(order: CraftingOrder) -> str:
