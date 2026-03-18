@@ -554,7 +554,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
 
         emb = Embed(title=member.display_name, color=Color(0xE74C3C))
         emb.description = get_string(lang, "moderation.user.info.original_name", name=member.name)
-        emb.set_thumbnail(url=member.avatar.url)
+        emb.set_thumbnail(url=member.display_avatar.url)
         emb.add_field(name=get_string(lang, "moderation.user.info.created"), value=created)
         emb.add_field(name=get_string(lang, "moderation.user.info.joined"), value=joined)
         emb.add_field(
@@ -602,6 +602,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         )
 
     @app_commands.command()
+    @app_commands.guild_only()
     async def membercount(self, interaction: Interaction):
         """displays the current membercount of the server [bot-moderator]"""
         lang = self._lang(interaction.guild.id)

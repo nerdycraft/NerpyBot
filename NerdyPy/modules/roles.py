@@ -93,7 +93,7 @@ class Roles(NerpyBotCog, Cog):
         try:
             discord_msg = await channel.fetch_message(message_id)
             await discord_msg.clear_reaction(emoji)
-        except Exception as ex:
+        except HTTPException as ex:
             self.bot.log.warning(
                 f"[{guild.name} ({guild.id})]: could not clear reaction {emoji} from message {message_id}: {ex}"
             )
