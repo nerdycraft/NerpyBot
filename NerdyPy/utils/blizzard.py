@@ -433,7 +433,8 @@ async def sync_crafting_recipes(
 
         # Fetch the canonical subclass display name (e.g. "One-Handed Axe" instead of "Axe").
         # The item/item_search APIs return a short name without the 1H/2H qualifier;
-        # api.item_subclass() returns display_name with the full qualifier.
+        # api.item_subclass() returns verbose_name with the full qualifier (e.g. "One-Handed Axes").
+        # display_name is the short form ("Axe") — same as what item_search already gives us.
         # Main + locale clients are gathered in parallel; locale results are filtered after.
         if item_class_id is not None and item_subclass_id is not None:
             sc_key = (item_class_id, item_subclass_id)
@@ -449,13 +450,13 @@ async def sync_crafting_recipes(
                 canonical_sc_name: str | None = None
                 canonical_sc_locales: dict[str, str] | None = None
                 if isinstance(sc_data, dict):
-                    canonical_sc_name = sc_data.get("display_name")
+                    canonical_sc_name = sc_data.get("verbose_name") or sc_data.get("display_name")
                     if canonical_sc_name and locale_clients:
                         loc_dict = {
                             bot_lang: display
                             for bot_lang, loc_sc in zip(locale_clients.keys(), all_sc_results[1:])
                             if isinstance(loc_sc, dict)
-                            and (display := loc_sc.get("display_name"))
+                            and (display := loc_sc.get("verbose_name") or loc_sc.get("display_name"))
                             and display != canonical_sc_name
                         }
                         canonical_sc_locales = loc_dict or None
