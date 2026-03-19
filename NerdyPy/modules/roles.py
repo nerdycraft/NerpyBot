@@ -41,9 +41,6 @@ class Roles(NerpyBotCog, Cog):
 
     # ── reactionrole helpers ──────────────────────────────────────────────────
 
-    def _lang(self, guild_id: int) -> str:
-        return self.bot.get_guild_language(guild_id)
-
     async def _message_id_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         with self.bot.session_scope() as session:
             messages = ReactionRoleMessage.get_by_guild(interaction.guild.id, session)
@@ -172,7 +169,7 @@ class Roles(NerpyBotCog, Cog):
         if not await is_role_below_bot(interaction, target_role):
             return
 
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         error_msg = None
         with self.bot.session_scope() as session:
             existing = RoleMapping.get(interaction.guild.id, source_role.id, target_role.id, session)
@@ -210,7 +207,7 @@ class Roles(NerpyBotCog, Cog):
         target_role: discord.Role
             The target role
         """
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             deleted = RoleMapping.delete(interaction.guild.id, source_role.id, target_role.id, session)
 
@@ -226,7 +223,7 @@ class Roles(NerpyBotCog, Cog):
     @checks.has_permissions(manage_roles=True)
     async def _rolemanage_list(self, interaction: Interaction):
         """List all delegated role mappings for this server. [manage_roles]"""
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             mappings = RoleMapping.get_by_guild(interaction.guild.id, session)
             msg = ""
@@ -262,7 +259,7 @@ class Roles(NerpyBotCog, Cog):
         if not await is_role_below_bot(interaction, role):
             return
 
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             mappings = RoleMapping.get_by_target(interaction.guild.id, role.id, session)
 
@@ -313,7 +310,7 @@ class Roles(NerpyBotCog, Cog):
         if not await is_role_below_bot(interaction, role):
             return
 
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             mappings = RoleMapping.get_by_target(interaction.guild.id, role.id, session)
 
@@ -453,7 +450,7 @@ class Roles(NerpyBotCog, Cog):
             await interaction.response.send_message("Invalid message ID.", ephemeral=True)
             return
 
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         reply = None
         channel_id = None
         last_entry_removed = False
@@ -490,7 +487,7 @@ class Roles(NerpyBotCog, Cog):
     @checks.has_permissions(manage_roles=True)
     async def _reactionrole_list(self, interaction: Interaction):
         """List all reaction role configurations for this server."""
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             messages = ReactionRoleMessage.get_by_guild(interaction.guild.id, session)
             msg = ""
@@ -533,7 +530,7 @@ class Roles(NerpyBotCog, Cog):
             await interaction.response.send_message("Invalid message ID.", ephemeral=True)
             return
 
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         channel_id = None
         emojis = []
         with self.bot.session_scope() as session:

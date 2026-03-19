@@ -27,7 +27,7 @@ class ServerAdmin(NerpyBotCog, Cog):
     @modrole.command(name="get")
     async def _modrole_get(self, interaction: Interaction):
         """Show the currently configured bot-moderator role."""
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             entry = BotModeratorRole.get(interaction.guild.id, session)
         if entry is not None:
@@ -52,7 +52,7 @@ class ServerAdmin(NerpyBotCog, Cog):
             entry.RoleId = role.id
         # Update cache before await so any permission check in the send window sees the new role
         self.bot.guild_cache.set_modrole(interaction.guild.id, role.id)
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         await interaction.response.send_message(
             get_string(lang, "admin.modrole.set_success", role=role.name), ephemeral=True
         )
@@ -65,7 +65,7 @@ class ServerAdmin(NerpyBotCog, Cog):
             BotModeratorRole.delete(interaction.guild.id, session)
         # Update cache before await so any permission check in the send window sees the cleared role
         self.bot.guild_cache.set_modrole(interaction.guild.id, None)
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         await interaction.response.send_message(get_string(lang, "admin.modrole.delete_success"), ephemeral=True)
         self.bot.dispatch("modrole_changed", interaction.guild.id, None)
 

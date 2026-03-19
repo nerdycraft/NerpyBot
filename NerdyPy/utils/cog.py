@@ -8,3 +8,10 @@ class NerpyBotCog:
         super().__init__()
         self.bot = bot
         bot.log.info(f"loaded {self.__module__}")
+
+    def _lang(self, guild_id: int | None) -> str:
+        """Return the configured language for the given guild, defaulting to 'en'.
+
+        Uses the in-memory cache; loads from DB on first access per guild.
+        """
+        return self.bot.get_guild_language(guild_id)

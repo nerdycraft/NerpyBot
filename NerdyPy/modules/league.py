@@ -29,9 +29,6 @@ class League(NerpyBotCog, GroupCog):
         self.version = None
         self.config = self.bot.config["league"]
 
-    def _lang(self, guild_id: int) -> str:
-        return self.bot.get_guild_language(guild_id)
-
     async def _get_latest_version(self) -> str:
         if self.version is None:
             async with ClientSession() as session:

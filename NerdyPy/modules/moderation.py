@@ -47,10 +47,6 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         guild_only=True,
     )
 
-    def _lang(self, guild_id):
-        """Look up the guild's language preference."""
-        return self.bot.get_guild_language(guild_id)
-
     def __init__(self, bot):
         super().__init__(bot)
         register_before_loop(bot, self._autokicker_loop, "AutoKicker")
@@ -70,45 +66,51 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 self.bot.log.debug("Fetching configurations")
                 configurations = AutoKicker.get_all(session)
                 self.bot.log.debug(f"Fetched {len(configurations)} configurations")
-            guild_langs = {c.GuildId: self.bot.get_guild_language(c.GuildId) for c in configurations}
-
+            now = datetime.now(UTC)
             for configuration in configurations:
-                if configuration is None:
-                    continue
                 if configuration.Enabled and configuration.KickAfter > 0:
                     guild = self.bot.get_guild(configuration.GuildId)
                     if guild is None:
                         continue
                     self.bot.log.info(f"[{guild.name} ({guild.id})]: checking for members without role")
-                    lang = guild_langs.get(configuration.GuildId, "en")
+                    lang = self._lang(configuration.GuildId)
+                    kick_delta = timedelta(seconds=configuration.KickAfter)
+                    kick_after = now - kick_delta
+                    kick_reminder = now - kick_delta / 2
                     for member in guild.members:
-                        if len(member.roles) == 1:
-                            self.bot.log.debug(
-                                f"[{guild.name} ({guild.id})]: member without role: {member} ({member.id})"
-                            )
-                            kick_reminder = datetime.now(UTC) - timedelta(seconds=(configuration.KickAfter / 2))
-                            kick_reminder = kick_reminder.replace(tzinfo=UTC)
-                            kick_after = datetime.now(UTC) - timedelta(seconds=configuration.KickAfter)
-                            kick_after = kick_after.replace(tzinfo=UTC)
-
-                            if member.joined_at < kick_after:
-                                self.bot.log.debug(f"[{guild.name} ({guild.id})]: kicking {member} ({member.id})")
+                        if member.joined_at is None or len(member.roles) != 1:
+                            continue
+                        self.bot.log.debug(f"[{guild.name} ({guild.id})]: member without role: {member} ({member.id})")
+                        if member.joined_at < kick_after:
+                            self.bot.log.debug(f"[{guild.name} ({guild.id})]: kicking {member} ({member.id})")
+                            try:
                                 await member.kick()
-                            elif member.joined_at < kick_reminder:
+                            except (discord.Forbidden, discord.NotFound):
                                 self.bot.log.debug(
-                                    f"[{guild.name} ({guild.id})]: sending kick reminder to {member} ({member.id})"
+                                    f"[{guild.name} ({guild.id})]: could not kick {member} ({member.id})"
                                 )
-                                if configuration.ReminderMessage is not None:
-                                    await member.send(configuration.ReminderMessage)
-                                else:
-                                    await member.send(
-                                        get_string(
-                                            lang,
-                                            "moderation.autokicker.default_reminder",
-                                            guild=guild.name,
-                                            deadline=naturaldate(kick_after),
-                                        )
-                                    )
+                            except discord.HTTPException as ex:
+                                self.bot.log.warning(
+                                    f"[{guild.name} ({guild.id})]: failed to kick {member} ({member.id}): {ex}"
+                                )
+                        elif member.joined_at < kick_reminder:
+                            self.bot.log.debug(
+                                f"[{guild.name} ({guild.id})]: sending kick reminder to {member} ({member.id})"
+                            )
+                            reminder = configuration.ReminderMessage or get_string(
+                                lang,
+                                "moderation.autokicker.default_reminder",
+                                guild=guild.name,
+                                deadline=naturaldate(member.joined_at + kick_delta),
+                            )
+                            try:
+                                await member.send(reminder)
+                            except (discord.Forbidden, discord.NotFound):
+                                self.bot.log.debug(f"[{guild.name} ({guild.id})]: could not DM {member} ({member.id})")
+                            except discord.HTTPException as ex:
+                                self.bot.log.warning(
+                                    f"[{guild.name} ({guild.id})]: failed to DM {member} ({member.id}): {ex}"
+                                )
         except Exception as ex:
             self.bot.log.error(f"Autokicker: {ex}")
             await notify_error(self.bot, "Autokicker background loop", ex)
@@ -235,6 +237,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             )
 
     @app_commands.command()
+    @app_commands.guild_only()
     @app_commands.rename(
         kick_reminder_message="reminder_message",
         reminder_message_source="reminder-message-source",
@@ -255,7 +258,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         reminder_message_source: Optional[str] = None,
     ):
         """Activates the AutoKicker. [bot-moderator]"""
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
 
         # Fetch from a message reference if provided
         if reminder_message_source:
@@ -320,7 +323,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel_id = channel.id
         channel_name = channel.name
 
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
             if configuration is not None:
@@ -378,7 +381,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel_id = channel.id
         channel_name = channel.name
 
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
             if configuration is not None:
@@ -402,7 +405,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         interaction
         """
 
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             configurations = AutoDelete.get_by_guild(interaction.guild.id, session)
             if configurations:
@@ -444,7 +447,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel: discord.TextChannel
             The channel to pause auto-deletion for
         """
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel.id, session)
             if configuration is None:
@@ -474,7 +477,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel: discord.TextChannel
             The channel to resume auto-deletion for
         """
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel.id, session)
             if configuration is None:
@@ -520,7 +523,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel_id = channel.id
         channel_name = channel.name
 
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
             if configuration is not None:
@@ -545,7 +548,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     @checks.has_permissions(moderate_members=True)
     async def _get_user_info(self, interaction: Interaction, member: Optional[Member] = None):
         """displays information about given user [bot-moderator]"""
-        lang = self._lang(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         member = member or interaction.user
         created = member.created_at.strftime("%d. %B %Y - %H:%M")
         joined = member.joined_at.strftime("%d. %B %Y - %H:%M")
@@ -579,7 +582,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         show_only_users_without_roles: Optional[bool]
             If True shows only Users without a Role. (The role everyone is not considered a given role)
         """
-        lang = self._lang(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         msg = ""
         if show_only_users_without_roles:
             for member in interaction.guild.members:
@@ -603,7 +606,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     @app_commands.guild_only()
     async def membercount(self, interaction: Interaction):
         """displays the current membercount of the server [bot-moderator]"""
-        lang = self._lang(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         emb = Embed(
             description=get_string(lang, "moderation.membercount", count=interaction.guild.member_count),
             color=Color(0xE74C3C),
@@ -670,7 +673,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         """
         validate_channel_permissions(channel, interaction.guild, "view_channel", "send_messages")
 
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
@@ -696,7 +699,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     @checks.has_permissions(administrator=True)
     async def _leavemsg_disable(self, interaction: Interaction) -> None:
         """Disable leave messages for this server. [administrator]"""
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
@@ -739,7 +742,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         message_source: Optional[str] = None,
     ) -> None:
         """Set a custom leave message. Use {member} as placeholder. [administrator]"""
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
 
         # Path 1: fetch from an existing Discord message
         if message_source:
@@ -764,7 +767,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     @checks.has_permissions(administrator=True)
     async def _leavemsg_status(self, interaction: Interaction) -> None:
         """Show current leave message configuration. [administrator]"""
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             leave_config = LeaveMessage.get(interaction.guild.id, session)
 
