@@ -58,7 +58,10 @@ async def is_bot_moderator(interaction: Interaction) -> bool:
     if perms.mute_members or perms.manage_channels or perms.administrator or interaction.user.id in bot.ops:
         return True
 
-    role_id = bot.guild_cache.get_modrole(interaction.guild.id, bot.SESSION)
+    guild_id = interaction.guild_id
+    if guild_id is None:
+        return False
+    role_id = bot.guild_cache.get_modrole(guild_id, bot.SESSION)
     if role_id is not None:
         return any(r.id == role_id for r in interaction.user.roles)
 
