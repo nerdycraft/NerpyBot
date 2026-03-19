@@ -68,12 +68,34 @@ Returns `{"crafted": N, "housing": N, "errors": N, "duration_seconds": float}`.
 ### Order Creation — Equippable/Consumable Flow
 
 1. User clicks **"Create Crafting Order"** on the board embed
-2. If cache has `"crafted"` recipes: **Item Type Select** — dropdown with item classes (Armor, Weapon, Consumable, …)
-3. **Item Subtype Select** — dropdown with subclasses for the chosen type (Plate, Leather, Flask, Feast, …)
-4. **Item Select** — up to 24 matching recipe options + "Other". "Other" skips to free-text modal.
+2. If cache has `"crafted"` recipes: **Virtual Category Select** — dropdown with available top-level buckets (see below)
+3. Drill-down varies by bucket (see Virtual Categories)
+4. **Item Select** — up to 24 matching recipe options + "Other". "Other" skips to free-text modal
 5. On item selection: profession role is auto-resolved from the cache + `CraftingRoleMapping`; modal opens pre-filled with item name and icon
 6. Modal submit creates the `CraftingOrder` row with icon URL + Wowhead link, then posts the order embed
 7. If cache is empty at any step: graceful fallback to **Profession Select** → free-text modal
+
+### Virtual Categories
+
+The top-level dropdown groups recipes into logical buckets. Only buckets that actually have recipes appear.
+
+| Bucket         | Shown when                                  | Drill-down                                       |
+| -------------- | ------------------------------------------- | ------------------------------------------------ |
+| ⚔️ PvP         | PvP-keyword items exist                     | **Gear/Weapons** sub-picker → subtype → items    |
+| 🧪 Raid Prep   | Flask/feast/cauldron/rune items exist       | **Category** picker → items                      |
+| 🛡️ Armor       | `ItemClassName="Armor"` exists (non-PvP)    | **Subtype** picker → (optional category) → items |
+| ⚔️ Weapons     | `ItemClassName="Weapon"` exists (non-PvP)   | **Subtype** picker → (optional category) → items |
+| 🔧 Professions | Profession gear OR knowledge items exist    | **Gear/Knowledge** sub-picker                    |
+| 📦 Other       | Bound items outside the above buckets exist | **Category** picker → items                      |
+
+**Professions sub-picker:**
+
+- **Gear** — `ItemClassName="Profession"` items (tools, equipment) → subtype → items
+- **Knowledge** — `ItemClassName="Miscellaneous"` with `CategoryName` containing "Treatise" or "Profession" (e.g. 11 Thalassian Treatises, Thalassian Skinning Knife) → flat item list
+
+If only one sub-option has items, the picker is skipped and the flow goes directly to that path.
+
+**Other bucket exclusions:** Armor, Weapon, and Profession class items, PvP items, raid prep items, and profession knowledge items are all excluded. Only items with a non-null `BindType` appear.
 
 ### Order Creation — Housing Flow
 
@@ -157,22 +179,27 @@ Maps Discord role IDs to Blizzard profession IDs, per guild. Auto-populated duri
 
 Bot-global cache of craftable recipes from the Blizzard API. Keyed by `RecipeId`.
 
-| Column             | Type          | Description                                                   |
-| ------------------ | ------------- | ------------------------------------------------------------- |
-| `RecipeId`         | Integer (PK)  | Blizzard recipe or spell ID                                   |
-| `ProfessionId`     | Integer       | Blizzard profession ID                                        |
-| `ProfessionName`   | Unicode 100   | e.g. "Blacksmithing"                                          |
-| `ItemId`           | Integer (opt) | Blizzard crafted item ID                                      |
-| `ItemName`         | Unicode 200   | Display name                                                  |
-| `IconUrl`          | Unicode 500   | Icon URL from Blizzard media API                              |
-| `RecipeType`       | String 20     | `"crafted"` or `"housing"`                                    |
-| `ItemClassName`    | Unicode 100   | Blizzard item_class name (e.g. "Armor", "Weapon")             |
-| `ItemClassId`      | Integer (opt) | Blizzard item_class.id (2=Weapon, 4=Armor)                    |
-| `ItemSubClassName` | Unicode 100   | item_subclass name (e.g. "Plate", "Cloth", "Flask")           |
-| `ItemSubClassId`   | Integer (opt) | item_subclass.id                                              |
-| `ExpansionName`    | Unicode 100   | Skill tier / expansion name (e.g. "Midnight", "Dragonflight") |
-| `CategoryName`     | Unicode 200   | Category within the profession tier                           |
-| `LastSynced`       | DateTime      | UTC timestamp of last sync                                    |
+| Column                    | Type            | Description                                                        |
+| ------------------------- | --------------- | ------------------------------------------------------------------ |
+| `RecipeId`                | Integer (PK)    | Blizzard recipe or spell ID                                        |
+| `ProfessionId`            | Integer         | Blizzard profession ID                                             |
+| `ProfessionName`          | Unicode 100     | e.g. "Blacksmithing"                                               |
+| `ItemId`                  | Integer (opt)   | Blizzard crafted item ID                                           |
+| `ItemName`                | Unicode 200     | Display name                                                       |
+| `ItemNameLocales`         | JSON (opt)      | Localized item display names keyed by locale code                  |
+| `IconUrl`                 | Unicode 500     | Icon URL from Blizzard media API                                   |
+| `RecipeType`              | String 20       | `"crafted"` or `"housing"`                                         |
+| `ItemClassName`           | Unicode 100     | Blizzard item_class name (e.g. "Armor", "Weapon", "Miscellaneous") |
+| `ItemClassId`             | Integer (opt)   | Blizzard item_class.id (2=Weapon, 4=Armor)                         |
+| `ItemClassNameLocales`    | JSON (opt)      | Localized item class names keyed by locale code                    |
+| `ItemSubClassName`        | Unicode 100     | item_subclass name (e.g. "Plate", "Cloth", "Flask")                |
+| `ItemSubClassId`          | Integer (opt)   | item_subclass.id                                                   |
+| `ItemSubClassNameLocales` | JSON (opt)      | Localized item subclass names keyed by locale code                 |
+| `ExpansionName`           | Unicode 100     | Skill tier / expansion name (e.g. "Midnight", "Dragonflight")      |
+| `CategoryName`            | Unicode 200     | Category within the profession tier                                |
+| `CategoryNameLocales`     | JSON (opt)      | Localized category names keyed by locale code                      |
+| `BindType`                | String 20 (opt) | `ON_ACQUIRE`, `TO_ACCOUNT`, `ON_EQUIP`, or `None` (consumables)    |
+| `LastSynced`              | DateTime        | UTC timestamp of last sync                                         |
 
 ### CraftingOrder
 

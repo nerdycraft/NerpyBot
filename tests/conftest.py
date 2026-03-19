@@ -52,6 +52,7 @@ def db_engine():
         CraftingBoardConfig,
         CraftingRoleMapping,
         CraftingOrder,
+        CraftingRecipeCache,
     )
     from models.music import Playlist, PlaylistEntry  # noqa: F401
 

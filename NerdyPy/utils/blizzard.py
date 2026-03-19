@@ -194,6 +194,21 @@ async def sync_crafting_recipes(
         language=blizz_lang,
     )
 
+    # Extra clients for fetching localized category names from profession_skill_tier.
+    # That endpoint returns single-locale strings (unlike item_search which returns all locales),
+    # so we need one client per non-English bot language.
+    # Extend _lang_enum when adding a new language to _BOT_LANG_TO_BLIZZ.
+    _lang_enum: dict[str, Language] = {"de": Language.German}
+    locale_clients: dict[str, RetailClient] = {
+        lang: RetailClient(
+            client_id=client_id,
+            client_secret=client_secret,
+            region=Region(region),
+            language=lang_enum,
+        )
+        for lang, lang_enum in _lang_enum.items()
+    }
+
     sem = asyncio.Semaphore(15)
     errors = 0
     import datetime as _dt
@@ -229,6 +244,11 @@ async def sync_crafting_recipes(
         return result
 
     all_rows: list[dict] = []
+    # Cache canonical item-subclass display names fetched from api.item_subclass().
+    # Keyed by (item_class_id, item_subclass_id). Populated lazily on first encounter.
+    # The item/item_search APIs return short names ("Axe"); the item-subclass API returns
+    # the full qualifier ("One-Handed Axe"), which is what we want to store and display.
+    subclass_name_cache: dict[tuple[int, int], tuple[str | None, dict | None]] = {}
 
     async def _sync_profession(prof_name: str, prof_id: int):
         prof_data = await _call(api.profession, professionId=prof_id)
@@ -246,6 +266,28 @@ async def sync_crafting_recipes(
         tier_data = await _call(api.profession_skill_tier, professionId=prof_id, skillTierId=tier_id)
         if not isinstance(tier_data, dict):
             return
+
+        # Fetch localized category names from all non-English locale clients in parallel.
+        # Blizzard returns categories in the same order across locales for the same tier ID,
+        # so we can zip English and localized categories by index.
+        cat_locales: dict[str, dict[str, str]] = {}
+        if locale_clients:
+            loc_langs = list(locale_clients.keys())
+            loc_tiers = await asyncio.gather(
+                *[
+                    _call(lc.profession_skill_tier, professionId=prof_id, skillTierId=tier_id, required=False)
+                    for lc in locale_clients.values()
+                ]
+            )
+            en_cats = tier_data.get("categories", [])
+            for bot_lang, loc_tier in zip(loc_langs, loc_tiers):
+                if isinstance(loc_tier, dict):
+                    for en_cat, loc_cat in zip(en_cats, loc_tier.get("categories", [])):
+                        en_name = en_cat.get("name", "")
+                        loc_name = loc_cat.get("name", "")
+                        if en_name and loc_name and en_name != loc_name:
+                            cat_locales.setdefault(en_name, {})[bot_lang] = loc_name
+
         tasks = []
         for cat in tier_data.get("categories", []):
             cat_name = cat.get("name", "")
@@ -259,14 +301,25 @@ async def sync_crafting_recipes(
             if expansion and not is_housing_cat:
                 if expansion.lower() not in expansion_name.lower():
                     continue
+            cat_name_locales = cat_locales.get(cat_name)
             for recipe_stub in cat.get("recipes", []):
                 recipe_id = recipe_stub.get("id")
                 if recipe_id:
-                    tasks.append(_sync_recipe(prof_name, prof_id, recipe_id, expansion_name, cat_name, is_housing_cat))
+                    tasks.append(
+                        _sync_recipe(
+                            prof_name, prof_id, recipe_id, expansion_name, cat_name, is_housing_cat, cat_name_locales
+                        )
+                    )
         await asyncio.gather(*tasks)
 
     async def _sync_recipe(
-        prof_name: str, prof_id: int, recipe_id: int, expansion_name: str, category_name: str, is_housing: bool
+        prof_name: str,
+        prof_id: int,
+        recipe_id: int,
+        expansion_name: str,
+        category_name: str,
+        is_housing: bool,
+        category_name_locales: dict | None = None,
     ):
         recipe_data = await _call(api.recipe, recipeId=recipe_id)
         if not isinstance(recipe_data, dict):
@@ -378,6 +431,41 @@ async def sync_crafting_recipes(
             media = await _call(api.recipe_media, recipeId=recipe_id, required=False)
             icon_url = get_asset_url(media, "icon")
 
+        # Fetch the canonical subclass display name (e.g. "One-Handed Axe" instead of "Axe").
+        # The item/item_search APIs return a short name without the 1H/2H qualifier;
+        # api.item_subclass() returns verbose_name with the full qualifier (e.g. "One-Handed Axes").
+        # display_name is the short form ("Axe") — same as what item_search already gives us.
+        # Main + locale clients are gathered in parallel; locale results are filtered after.
+        if item_class_id is not None and item_subclass_id is not None:
+            sc_key = (item_class_id, item_subclass_id)
+            if sc_key not in subclass_name_cache:
+                all_sc_calls = [
+                    _call(api.item_subclass, itemClassId=item_class_id, itemSubclassId=item_subclass_id, required=False)
+                ] + [
+                    _call(lc.item_subclass, itemClassId=item_class_id, itemSubclassId=item_subclass_id, required=False)
+                    for lc in locale_clients.values()
+                ]
+                all_sc_results = await asyncio.gather(*all_sc_calls)
+                sc_data = all_sc_results[0]
+                canonical_sc_name: str | None = None
+                canonical_sc_locales: dict[str, str] | None = None
+                if isinstance(sc_data, dict):
+                    canonical_sc_name = sc_data.get("verbose_name") or sc_data.get("display_name")
+                    if canonical_sc_name and locale_clients:
+                        loc_dict = {
+                            bot_lang: display
+                            for bot_lang, loc_sc in zip(locale_clients.keys(), all_sc_results[1:])
+                            if isinstance(loc_sc, dict)
+                            and (display := loc_sc.get("verbose_name") or loc_sc.get("display_name"))
+                            and display != canonical_sc_name
+                        }
+                        canonical_sc_locales = loc_dict or None
+                subclass_name_cache[sc_key] = (canonical_sc_name, canonical_sc_locales)
+            cached_sc_name, cached_sc_locales = subclass_name_cache[sc_key]
+            if cached_sc_name:
+                item_subclass_name = cached_sc_name
+                item_subclass_name_locales = cached_sc_locales
+
         all_rows.append(
             {
                 "RecipeId": recipe_id,
@@ -396,6 +484,7 @@ async def sync_crafting_recipes(
                 "ItemSubClassId": item_subclass_id,
                 "ExpansionName": expansion_name,
                 "CategoryName": category_name,
+                "CategoryNameLocales": category_name_locales,
                 "BindType": bind_type,
                 "ItemQuality": item_quality,
                 "LastSynced": now,

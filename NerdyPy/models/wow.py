@@ -265,6 +265,10 @@ class CraftingOrder(db.BASE):
 RECIPE_TYPE_CRAFTED = "crafted"
 RECIPE_TYPE_HOUSING = "housing"
 
+# Sentinel for find_best_match: fetch one more than this many rows to detect ambiguity
+# without issuing a separate COUNT query.
+_BEST_MATCH_PROBE_LIMIT = 101
+
 # Blizzard API binding type values (preview_item.binding.type).
 BIND_ON_ACQUIRE = "ON_ACQUIRE"  # BoP — bind on pickup
 BIND_TO_ACCOUNT = "TO_ACCOUNT"  # BoA/Warband — bind to account
@@ -274,8 +278,15 @@ BIND_ON_EQUIP = "ON_EQUIP"  # BoE — bind on equip
 _PROF_COOKING = 185
 _PROF_ALCHEMY = 171
 _GEAR_PROFESSIONS = frozenset({164, 165, 197, 202, 333, 755, 773})
-_COOKING_CATEGORY_KEYWORDS = ("feast", "hearty", "cooking for")
+_COOKING_CATEGORY_KEYWORDS = ("feast", "cooking for")
 _ALCHEMY_CATEGORY_KEYWORDS = ("cauldron",)
+
+# Virtual category classification keywords.
+_PVP_CATEGORY_KEYWORDS = ("competitor", "pvp")
+_RAID_PREP_CATEGORY_KEYWORDS = ("flask", "phial", "potion", "feast", "rune", "tea")
+_RAID_PREP_CAULDRON_KEYWORD = "cauldron"
+# Item class names (lowercase) for the main gear buckets (used in Other exclusion filter).
+_MAIN_ITEM_CLASS_NAMES = ("armor", "weapon", "profession")
 
 
 class CraftingRecipeCache(db.BASE):
@@ -310,13 +321,14 @@ class CraftingRecipeCache(db.BASE):
     ItemSubClassId = Column(Integer, nullable=True)
     ExpansionName = Column(Unicode(100), nullable=True)
     CategoryName = Column(Unicode(200), nullable=True)
+    CategoryNameLocales = Column(JSON, nullable=True)
     BindType = Column(String(20), nullable=True)  # ON_ACQUIRE, TO_ACCOUNT, ON_EQUIP, or None
     ItemQuality = Column(String(20), nullable=True)  # EPIC, RARE, COMMON, etc.
     LastSynced = Column(DateTime, default=lambda: datetime.now(UTC))
 
     @classmethod
     def _apply_orderable_filter(cls, q, profession_ids: set[int] | None):
-        """Narrow *q* to items that require a crafting order (BoP/BoA gear, feasts, cauldrons).
+        """Narrow *q* to items that require a crafting order (BoP/BoA/BoE gear, feasts, cauldrons).
 
         Each profession group gets its own condition; a row passes if it matches any applicable rule.
         Returns the query unchanged when *profession_ids* is empty/None (no professions selected yet).
@@ -331,7 +343,7 @@ class CraftingRecipeCache(db.BASE):
             conditions.append(
                 and_(
                     cls.ProfessionId.in_(gear_ids),
-                    cls.BindType.in_((BIND_ON_ACQUIRE, BIND_TO_ACCOUNT)),
+                    cls.BindType.in_((BIND_ON_ACQUIRE, BIND_TO_ACCOUNT, BIND_ON_EQUIP)),
                 )
             )
 
@@ -346,6 +358,73 @@ class CraftingRecipeCache(db.BASE):
         if conditions:
             q = q.filter(or_(*conditions))
         return q
+
+    @classmethod
+    def _pvp_condition(cls):
+        """Return an OR condition matching PvP-related category keywords."""
+        return or_(*[func.lower(cls.CategoryName).contains(kw) for kw in _PVP_CATEGORY_KEYWORDS])
+
+    @classmethod
+    def _raid_prep_condition(cls):
+        """Return an OR condition matching consumables and cauldrons used for raid prep.
+
+        Consumables (NULL BindType): flask, phial, potion, feast, rune, tea.
+        Cauldrons: any BindType (bound or unbound).
+        """
+        consumable_cond = and_(
+            cls.BindType.is_(None),
+            or_(*[func.lower(cls.CategoryName).contains(kw) for kw in _RAID_PREP_CATEGORY_KEYWORDS]),
+        )
+        cauldron_cond = func.lower(cls.CategoryName).contains(_RAID_PREP_CAULDRON_KEYWORD)
+        return or_(consumable_cond, cauldron_cond)
+
+    @classmethod
+    def _main_class_condition(cls):
+        """Return an OR condition matching items that belong to the main gear class buckets.
+
+        Matches rows whose ItemClassName (lowercase) is one of the main class names
+        (armor, weapon, profession). Use ``~cls._main_class_condition()`` to exclude them.
+        """
+        return or_(*[func.lower(cls.ItemClassName) == name for name in _MAIN_ITEM_CLASS_NAMES])
+
+    @classmethod
+    def _prof_knowledge_condition(cls):
+        """Return an OR condition matching profession knowledge items (treatises and skinning knives).
+
+        Matches: any item with 'treatise' in CategoryName, or Miscellaneous items with 'profession'
+        in CategoryName (e.g. Thalassian Skinning Knife in "Profession Equipment").
+        """
+        return or_(
+            func.lower(cls.CategoryName).contains("treatise"),
+            and_(
+                func.lower(cls.ItemClassName) == "miscellaneous",
+                func.lower(cls.CategoryName).contains("profession"),
+            ),
+        )
+
+    @classmethod
+    def get_prof_knowledge_items(
+        cls, recipe_type, session, profession_ids: set[int] | None = None
+    ) -> list["CraftingRecipeCache"]:
+        """Return recipe rows for profession knowledge items (treatises and skinning knives)."""
+        q = session.query(cls).filter(
+            cls.RecipeType == recipe_type,
+            cls._prof_knowledge_condition(),
+        )
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        return q.order_by(asc(cls.ItemName)).all()
+
+    @classmethod
+    def has_prof_knowledge_items(cls, recipe_type, session, profession_ids: set[int] | None = None) -> bool:
+        """Return True if there are any profession knowledge items for the given filters."""
+        q = session.query(cls.RecipeId).filter(
+            cls.RecipeType == recipe_type,
+            cls._prof_knowledge_condition(),
+        )
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        return q.limit(1).scalar() is not None
 
     @classmethod
     def get_by_profession(cls, prof_id, recipe_type, session):
@@ -374,6 +453,7 @@ class CraftingRecipeCache(db.BASE):
         session,
         profession_ids: set[int] | None = None,
         orderable_only: bool = False,
+        exclude_pvp: bool = False,
     ):
         q = session.query(cls).filter(
             cls.RecipeType == recipe_type,
@@ -384,6 +464,8 @@ class CraftingRecipeCache(db.BASE):
             q = q.filter(cls.ProfessionId.in_(profession_ids))
         if orderable_only:
             q = cls._apply_orderable_filter(q, profession_ids)
+        if exclude_pvp:
+            q = q.filter(~cls._pvp_condition())
         return q.order_by(asc(cls.ItemName)).all()
 
     @classmethod
@@ -400,22 +482,52 @@ class CraftingRecipeCache(db.BASE):
 
     @staticmethod
     def _dedup_rows(q, order_col) -> list[tuple]:
-        """Deduplicate (id, name, locales) rows by id, preserving sort order.
+        """Deduplicate (id, name, locales) rows by display name, preserving sort order.
 
         SQL DISTINCT cannot be used when a JSON column is projected — PostgreSQL has no
         equality operator for json.  Instead, collect all rows ordered by name and pick
-        the first row per id using dict insertion order (Python 3.7+).
+        the first row per unique name using dict insertion order (Python 3.7+).
+
+        Deduplication is intentionally by name (not id): the Blizzard item API historically
+        returned short names ("Axe") for all hand-type variants sharing a subclass, causing
+        duplicate dropdown entries.  The sync now fetches verbose_name from the item-subclass
+        endpoint ("One-Handed Axes", "Two-Handed Axes"), but deduplication by name is kept as
+        a safety net for stale rows that predate that fix.
         """
-        return list({r[0]: (r[0], r[1], r[2]) for r in q.order_by(asc(order_col)).all()}.values())
+        seen: dict = {}
+        for r in q.order_by(asc(order_col)).all():
+            current = seen.get(r[1])
+            if current is None or (current[2] is None and r[2] is not None):
+                seen[r[1]] = (r[0], r[1], r[2])
+        return list(seen.values())
+
+    @staticmethod
+    def _dedup_category_rows(rows) -> list[tuple[str, dict | None]]:
+        """Deduplicate (CategoryName, CategoryNameLocales) rows by name, preserving insertion order.
+
+        Prefers rows with populated locale JSON over null-locale duplicates.
+        """
+        seen: dict = {}
+        for name, locales in rows:
+            current = seen.get(name)
+            if current is None or (current[1] is None and locales is not None):
+                seen[name] = (name, locales)
+        return list(seen.values())
 
     @classmethod
     def get_item_classes(
-        cls, recipe_type, session, profession_ids: set[int] | None = None, orderable_only: bool = False
+        cls,
+        recipe_type,
+        session,
+        profession_ids: set[int] | None = None,
+        orderable_only: bool = False,
+        exclude_pvp: bool = False,
     ):
         """Return distinct (ItemClassId, ItemClassName, ItemClassNameLocales) tuples for a recipe type.
 
         If profession_ids is provided, only return classes that have recipes for those professions.
         If orderable_only is True, only return classes that contain orderable items.
+        If exclude_pvp is True, exclude items whose CategoryName matches PvP keywords.
         """
         q = session.query(cls.ItemClassId, cls.ItemClassName, cls.ItemClassNameLocales).filter(
             cls.RecipeType == recipe_type, cls.ItemClassId.isnot(None)
@@ -424,16 +536,25 @@ class CraftingRecipeCache(db.BASE):
             q = q.filter(cls.ProfessionId.in_(profession_ids))
         if orderable_only:
             q = cls._apply_orderable_filter(q, profession_ids)
+        if exclude_pvp:
+            q = q.filter(~cls._pvp_condition())
         return cls._dedup_rows(q, cls.ItemClassName)
 
     @classmethod
     def get_item_subclasses(
-        cls, recipe_type, item_class_id, session, profession_ids: set[int] | None = None, orderable_only: bool = False
+        cls,
+        recipe_type,
+        item_class_id,
+        session,
+        profession_ids: set[int] | None = None,
+        orderable_only: bool = False,
+        exclude_pvp: bool = False,
     ):
         """Return distinct (ItemSubClassId, ItemSubClassName, ItemSubClassNameLocales) tuples for a class.
 
         If profession_ids is provided, only return subclasses that have recipes for those professions.
         If orderable_only is True, only return subclasses that contain orderable items.
+        If exclude_pvp is True, exclude items whose CategoryName matches PvP keywords.
         """
         q = session.query(cls.ItemSubClassId, cls.ItemSubClassName, cls.ItemSubClassNameLocales).filter(
             cls.RecipeType == recipe_type, cls.ItemClassId == item_class_id, cls.ItemSubClassId.isnot(None)
@@ -442,7 +563,172 @@ class CraftingRecipeCache(db.BASE):
             q = q.filter(cls.ProfessionId.in_(profession_ids))
         if orderable_only:
             q = cls._apply_orderable_filter(q, profession_ids)
+        if exclude_pvp:
+            q = q.filter(~cls._pvp_condition())
         return cls._dedup_rows(q, cls.ItemSubClassName)
+
+    @classmethod
+    def get_pvp_item_classes(cls, recipe_type, session, profession_ids: set[int] | None = None):
+        """Return distinct (ItemClassId, ItemClassName, locales) for PvP items (bound, PvP category)."""
+        q = session.query(cls.ItemClassId, cls.ItemClassName, cls.ItemClassNameLocales).filter(
+            cls.RecipeType == recipe_type,
+            cls.ItemClassId.isnot(None),
+            cls.BindType.isnot(None),
+            cls._pvp_condition(),
+        )
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        return cls._dedup_rows(q, cls.ItemClassName)
+
+    @classmethod
+    def get_pvp_item_subclasses(cls, recipe_type, item_class_id, session, profession_ids: set[int] | None = None):
+        """Return distinct (ItemSubClassId, ItemSubClassName, locales) for PvP items in a class."""
+        q = session.query(cls.ItemSubClassId, cls.ItemSubClassName, cls.ItemSubClassNameLocales).filter(
+            cls.RecipeType == recipe_type,
+            cls.ItemClassId == item_class_id,
+            cls.ItemSubClassId.isnot(None),
+            cls.BindType.isnot(None),
+            cls._pvp_condition(),
+        )
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        return cls._dedup_rows(q, cls.ItemSubClassName)
+
+    @classmethod
+    def get_pvp_items(
+        cls, recipe_type, item_class_id, item_subclass_id, session, profession_ids: set[int] | None = None
+    ):
+        """Return recipe rows for PvP items in a class/subclass.
+
+        item_subclass_id may be None to retrieve all subclasses within the class.
+        """
+        q = session.query(cls).filter(
+            cls.RecipeType == recipe_type,
+            cls.ItemClassId == item_class_id,
+            cls.BindType.isnot(None),
+            cls._pvp_condition(),
+        )
+        if item_subclass_id is not None:
+            q = q.filter(cls.ItemSubClassId == item_subclass_id)
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        return q.order_by(asc(cls.ItemName)).all()
+
+    @classmethod
+    def get_raid_prep_categories(
+        cls, recipe_type, session, profession_ids: set[int] | None = None
+    ) -> list[tuple[str, dict | None]]:
+        """Return distinct (CategoryName, CategoryNameLocales) tuples matching raid prep consumables and cauldrons."""
+        q = session.query(cls.CategoryName, cls.CategoryNameLocales).filter(
+            cls.RecipeType == recipe_type,
+            cls.CategoryName.isnot(None),
+            cls._raid_prep_condition(),
+        )
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        rows = q.order_by(asc(cls.CategoryName)).all()
+        return cls._dedup_category_rows(rows)
+
+    @classmethod
+    def get_raid_prep_items(cls, recipe_type, category_name, session, profession_ids: set[int] | None = None):
+        """Return recipe rows for a specific raid prep category."""
+        q = session.query(cls).filter(
+            cls.RecipeType == recipe_type,
+            cls.CategoryName == category_name,
+            cls._raid_prep_condition(),
+        )
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        return q.order_by(asc(cls.ItemName)).all()
+
+    @classmethod
+    def get_category_names(
+        cls,
+        recipe_type,
+        item_class_id,
+        item_subclass_id,
+        session,
+        profession_ids: set[int] | None = None,
+        orderable_only: bool = False,
+        exclude_pvp: bool = False,
+    ) -> list[tuple[str, dict | None]]:
+        """Return distinct (CategoryName, CategoryNameLocales) tuples for a class/subclass combination."""
+        q = session.query(cls.CategoryName, cls.CategoryNameLocales).filter(
+            cls.RecipeType == recipe_type,
+            cls.ItemClassId == item_class_id,
+            cls.ItemSubClassId == item_subclass_id,
+            cls.CategoryName.isnot(None),
+        )
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        if orderable_only:
+            q = cls._apply_orderable_filter(q, profession_ids)
+        if exclude_pvp:
+            q = q.filter(~cls._pvp_condition())
+        rows = q.order_by(asc(cls.CategoryName)).all()
+        return cls._dedup_category_rows(rows)
+
+    @classmethod
+    def get_by_type_subclass_and_category(
+        cls,
+        recipe_type,
+        item_class_id,
+        item_subclass_id,
+        category_name,
+        session,
+        profession_ids: set[int] | None = None,
+        orderable_only: bool = False,
+    ):
+        """Return recipe rows filtered by class, subclass, and category name."""
+        q = session.query(cls).filter(
+            cls.RecipeType == recipe_type,
+            cls.ItemClassId == item_class_id,
+            cls.ItemSubClassId == item_subclass_id,
+            cls.CategoryName == category_name,
+        )
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        if orderable_only:
+            q = cls._apply_orderable_filter(q, profession_ids)
+        return q.order_by(asc(cls.ItemName)).all()
+
+    @classmethod
+    def get_other_categories(
+        cls, recipe_type, session, profession_ids: set[int] | None = None
+    ) -> list[tuple[str, dict | None]]:
+        """Return distinct (CategoryName, CategoryNameLocales) tuples for bound items outside the main gear buckets.
+
+        Excludes Armor, Weapon, and Profession class items, PvP items, and raid prep items.
+        """
+        q = session.query(cls.CategoryName, cls.CategoryNameLocales).filter(
+            cls.RecipeType == recipe_type,
+            cls.CategoryName.isnot(None),
+            cls.BindType.isnot(None),
+            ~cls._main_class_condition(),
+            ~cls._pvp_condition(),
+            ~cls._raid_prep_condition(),
+            ~cls._prof_knowledge_condition(),
+        )
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        rows = q.order_by(asc(cls.CategoryName)).all()
+        return cls._dedup_category_rows(rows)
+
+    @classmethod
+    def get_other_items(cls, recipe_type, category_name, session, profession_ids: set[int] | None = None):
+        """Return recipe rows for a specific 'Other' category."""
+        q = session.query(cls).filter(
+            cls.RecipeType == recipe_type,
+            cls.CategoryName == category_name,
+            cls.BindType.isnot(None),
+            ~cls._main_class_condition(),
+            ~cls._pvp_condition(),
+            ~cls._raid_prep_condition(),
+            ~cls._prof_knowledge_condition(),
+        )
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        return q.order_by(asc(cls.ItemName)).all()
 
     @classmethod
     def get_professions_with_recipes(cls, recipe_type, session, profession_ids: set[int] | None = None):
@@ -478,6 +764,51 @@ class CraftingRecipeCache(db.BASE):
         if self.ItemId:
             return f"https://www.wowhead.com/item={self.ItemId}"
         return f"https://www.wowhead.com/spell={self.RecipeId}"
+
+    @property
+    def _dedup_key(self) -> str:
+        return f"item:{self.ItemId}" if self.ItemId is not None else f"spell:{self.RecipeId}"
+
+    @classmethod
+    def find_best_match(cls, name: str, session):
+        """Try to resolve a free-text item name against the cache.
+
+        Strategy:
+        1. Exact case-insensitive match on ItemName → return immediately.
+        2. Substring match → return the first result only if all hits refer to the
+           same item (deduplicated by _dedup_key). Multiple distinct items = ambiguous
+           → return None.
+
+        The caller should fall back to a Wowhead search URL when None is returned.
+        """
+        name_lower = name.lower()
+
+        # Exact match — fetch one more than _BEST_MATCH_PROBE_LIMIT to detect ambiguity
+        # without a separate COUNT query.
+        exact_matches = (
+            session.query(cls).filter(func.lower(cls.ItemName) == name_lower).limit(_BEST_MATCH_PROBE_LIMIT).all()
+        )
+        if exact_matches:
+            if len(exact_matches) == _BEST_MATCH_PROBE_LIMIT:
+                return None
+            exact_keys = {r._dedup_key for r in exact_matches}
+            return exact_matches[0] if len(exact_keys) == 1 else None
+
+        # Substring match — if the result is truncated we cannot prove uniqueness, treat as ambiguous.
+        matches = (
+            session.query(cls)
+            .filter(func.lower(cls.ItemName).contains(name_lower))
+            .limit(_BEST_MATCH_PROBE_LIMIT)
+            .all()
+        )
+        if not matches or len(matches) == _BEST_MATCH_PROBE_LIMIT:
+            return None
+
+        unique_ids = {r._dedup_key for r in matches}
+        if len(unique_ids) == 1:
+            return matches[0]
+
+        return None
 
     @classmethod
     def count(cls, session) -> int:
