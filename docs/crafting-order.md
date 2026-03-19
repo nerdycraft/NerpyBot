@@ -186,6 +186,7 @@ Bot-global cache of craftable recipes from the Blizzard API. Keyed by `RecipeId`
 | `ProfessionName`          | Unicode 100     | e.g. "Blacksmithing"                                               |
 | `ItemId`                  | Integer (opt)   | Blizzard crafted item ID                                           |
 | `ItemName`                | Unicode 200     | Display name                                                       |
+| `ItemNameLocales`         | JSON (opt)      | Localized item display names keyed by locale code                  |
 | `IconUrl`                 | Unicode 500     | Icon URL from Blizzard media API                                   |
 | `RecipeType`              | String 20       | `"crafted"` or `"housing"`                                         |
 | `ItemClassName`           | Unicode 100     | Blizzard item_class name (e.g. "Armor", "Weapon", "Miscellaneous") |

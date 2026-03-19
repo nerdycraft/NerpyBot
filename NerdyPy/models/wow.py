@@ -265,6 +265,10 @@ class CraftingOrder(db.BASE):
 RECIPE_TYPE_CRAFTED = "crafted"
 RECIPE_TYPE_HOUSING = "housing"
 
+# Sentinel for find_best_match: fetch one more than this many rows to detect ambiguity
+# without issuing a separate COUNT query.
+_BEST_MATCH_PROBE_LIMIT = 101
+
 # Blizzard API binding type values (preview_item.binding.type).
 BIND_ON_ACQUIRE = "ON_ACQUIRE"  # BoP — bind on pickup
 BIND_TO_ACCOUNT = "TO_ACCOUNT"  # BoA/Warband — bind to account
@@ -492,14 +496,23 @@ class CraftingRecipeCache(db.BASE):
         """
         seen: dict = {}
         for r in q.order_by(asc(order_col)).all():
-            if r[1] not in seen:
+            current = seen.get(r[1])
+            if current is None or (current[2] is None and r[2] is not None):
                 seen[r[1]] = (r[0], r[1], r[2])
         return list(seen.values())
 
     @staticmethod
     def _dedup_category_rows(rows) -> list[tuple[str, dict | None]]:
-        """Deduplicate (CategoryName, CategoryNameLocales) rows by name, preserving insertion order."""
-        return list({r[0]: (r[0], r[1]) for r in rows}.values())
+        """Deduplicate (CategoryName, CategoryNameLocales) rows by name, preserving insertion order.
+
+        Prefers rows with populated locale JSON over null-locale duplicates.
+        """
+        seen: dict = {}
+        for name, locales in rows:
+            current = seen.get(name)
+            if current is None or (current[1] is None and locales is not None):
+                seen[name] = (name, locales)
+        return list(seen.values())
 
     @classmethod
     def get_item_classes(
@@ -770,15 +783,25 @@ class CraftingRecipeCache(db.BASE):
         """
         name_lower = name.lower()
 
-        # Exact match
-        exact = session.query(cls).filter(func.lower(cls.ItemName) == name_lower).first()
-        if exact:
-            return exact
+        # Exact match — fetch one more than _BEST_MATCH_PROBE_LIMIT to detect ambiguity
+        # without a separate COUNT query.
+        exact_matches = (
+            session.query(cls).filter(func.lower(cls.ItemName) == name_lower).limit(_BEST_MATCH_PROBE_LIMIT).all()
+        )
+        if exact_matches:
+            if len(exact_matches) == _BEST_MATCH_PROBE_LIMIT:
+                return None
+            exact_keys = {r._dedup_key for r in exact_matches}
+            return exact_matches[0] if len(exact_keys) == 1 else None
 
-        # Substring match — limit to avoid loading large result sets; we only need
-        # enough rows to determine whether the match is unique or ambiguous.
-        matches = session.query(cls).filter(func.lower(cls.ItemName).contains(name_lower)).limit(100).all()
-        if not matches:
+        # Substring match — if the result is truncated we cannot prove uniqueness, treat as ambiguous.
+        matches = (
+            session.query(cls)
+            .filter(func.lower(cls.ItemName).contains(name_lower))
+            .limit(_BEST_MATCH_PROBE_LIMIT)
+            .all()
+        )
+        if not matches or len(matches) == _BEST_MATCH_PROBE_LIMIT:
             return None
 
         unique_ids = {r._dedup_key for r in matches}
