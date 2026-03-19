@@ -101,13 +101,16 @@ class GuildConfigCache:
         """
         session = session_factory()
         try:
+            from sqlalchemy import select
+
             from models.reactionrole import ReactionRoleMessage
 
             by_guild: dict[int, set[int]] = {}
             all_ids: set[int] = set()
-            for row in session.query(ReactionRoleMessage).all():
-                by_guild.setdefault(row.GuildId, set()).add(row.MessageId)
-                all_ids.add(row.MessageId)
+            rows = session.execute(select(ReactionRoleMessage.GuildId, ReactionRoleMessage.MessageId)).all()
+            for guild_id, message_id in rows:
+                by_guild.setdefault(guild_id, set()).add(message_id)
+                all_ids.add(message_id)
         finally:
             session.close()
 
@@ -140,9 +143,11 @@ class GuildConfigCache:
         """
         session = session_factory()
         try:
+            from sqlalchemy import select
+
             from models.leavemsg import LeaveMessage
 
-            ids = {row.GuildId for row in LeaveMessage.get_all_enabled(session)}
+            ids = set(session.scalars(select(LeaveMessage.GuildId).where(LeaveMessage.Enabled.is_(True))))
         finally:
             session.close()
 
