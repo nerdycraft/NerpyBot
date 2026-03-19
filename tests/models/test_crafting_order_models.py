@@ -441,11 +441,15 @@ class TestOtherQueries:
         categories = CraftingRecipeCache.get_other_categories(RECIPE_TYPE_CRAFTED, db_session)
         assert all(isinstance(t, tuple) and len(t) == 2 for t in categories)
 
-    def test_includes_bags_and_treatises(self, db_session):
+    def test_includes_bags(self, db_session):
         categories = CraftingRecipeCache.get_other_categories(RECIPE_TYPE_CRAFTED, db_session)
         names = [t[0] for t in categories]
         assert "Embroidered Bags" in names
-        assert "Profession Treatises" in names
+
+    def test_excludes_treatises(self, db_session):
+        categories = CraftingRecipeCache.get_other_categories(RECIPE_TYPE_CRAFTED, db_session)
+        names = [t[0] for t in categories]
+        assert "Profession Treatises" not in names
 
     def test_excludes_armor_class(self, db_session):
         categories = CraftingRecipeCache.get_other_categories(RECIPE_TYPE_CRAFTED, db_session)
@@ -496,6 +500,144 @@ class TestOtherQueries:
         )
         # RecipeId=60 has ProfessionId=197, so filtered out
         assert len(results) == 0
+
+
+class TestHeartyItems:
+    """Hearty items do not pass the cooking orderable filter after removing 'hearty' from keywords."""
+
+    def test_hearty_feast_not_orderable(self, db_session):
+        # Hearty Feast: unbound, Cooking profession
+        db_session.add(
+            _recipe(
+                RecipeId=70,
+                ProfessionId=185,
+                ItemClassName="Consumable",
+                ItemClassId=0,
+                ItemSubClassId=0,
+                CategoryName="Hearty",
+                BindType=None,
+            )
+        )
+        db_session.flush()
+
+        results = CraftingRecipeCache.get_by_type_and_subclass(
+            RECIPE_TYPE_CRAFTED, 0, 0, db_session, profession_ids={185}, orderable_only=True
+        )
+        assert len(results) == 0
+
+    def test_hearty_food_not_orderable(self, db_session):
+        # Hearty Food: BoA, Cooking profession
+        db_session.add(
+            _recipe(
+                RecipeId=71,
+                ProfessionId=185,
+                ItemClassName="Consumable",
+                ItemClassId=0,
+                ItemSubClassId=0,
+                CategoryName="Hearty",
+                BindType=BIND_TO_ACCOUNT,
+            )
+        )
+        db_session.flush()
+
+        results = CraftingRecipeCache.get_by_type_and_subclass(
+            RECIPE_TYPE_CRAFTED, 0, 0, db_session, profession_ids={185}, orderable_only=True
+        )
+        assert len(results) == 0
+
+    def test_named_feasts_still_orderable(self, db_session):
+        # Named feast (CategoryName="Feast"): unbound, Cooking profession — still orderable
+        db_session.add(
+            _recipe(
+                RecipeId=72,
+                ProfessionId=185,
+                ItemClassName="Consumable",
+                ItemClassId=0,
+                ItemSubClassId=0,
+                CategoryName="Feast",
+                BindType=None,
+            )
+        )
+        db_session.flush()
+
+        results = CraftingRecipeCache.get_by_type_and_subclass(
+            RECIPE_TYPE_CRAFTED, 0, 0, db_session, profession_ids={185}, orderable_only=True
+        )
+        assert len(results) == 1
+        assert results[0].RecipeId == 72
+
+
+class TestProfKnowledgeQueries:
+    """get_prof_knowledge_items and has_prof_knowledge_items."""
+
+    @pytest.fixture(autouse=True)
+    def _seed(self, db_session):
+        # Treatise: Miscellaneous class, "Profession Treatises" category
+        db_session.add(
+            _recipe(
+                RecipeId=80,
+                ProfessionId=773,
+                ItemClassName="Miscellaneous",
+                ItemClassId=15,
+                ItemSubClassId=0,
+                CategoryName="Profession Treatises",
+                BindType=BIND_TO_ACCOUNT,
+            )
+        )
+        # Skinning knife: Miscellaneous class, "Profession Equipment" category
+        db_session.add(
+            _recipe(
+                RecipeId=81,
+                ProfessionId=164,
+                ItemClassName="Miscellaneous",
+                ItemClassId=15,
+                ItemSubClassId=0,
+                CategoryName="Profession Equipment",
+                BindType=BIND_ON_ACQUIRE,
+            )
+        )
+        # Real prof gear: ItemClassName="Profession" — should NOT match
+        db_session.add(
+            _recipe(
+                RecipeId=82,
+                ProfessionId=164,
+                ItemClassName="Profession",
+                ItemClassId=19,
+                ItemSubClassId=0,
+                CategoryName="Profession Equipment",
+                BindType=BIND_ON_EQUIP,
+            )
+        )
+        db_session.flush()
+
+    def test_includes_treatises(self, db_session):
+        results = CraftingRecipeCache.get_prof_knowledge_items(RECIPE_TYPE_CRAFTED, db_session)
+        ids = {r.RecipeId for r in results}
+        assert 80 in ids
+
+    def test_includes_misc_profession_equipment(self, db_session):
+        results = CraftingRecipeCache.get_prof_knowledge_items(RECIPE_TYPE_CRAFTED, db_session)
+        ids = {r.RecipeId for r in results}
+        assert 81 in ids
+
+    def test_excludes_real_profession_gear(self, db_session):
+        results = CraftingRecipeCache.get_prof_knowledge_items(RECIPE_TYPE_CRAFTED, db_session)
+        ids = {r.RecipeId for r in results}
+        assert 82 not in ids
+
+    def test_profession_filter(self, db_session):
+        results = CraftingRecipeCache.get_prof_knowledge_items(RECIPE_TYPE_CRAFTED, db_session, profession_ids={773})
+        ids = {r.RecipeId for r in results}
+        assert 80 in ids
+        assert 81 not in ids
+
+    def test_has_items_true(self, db_session):
+        assert CraftingRecipeCache.has_prof_knowledge_items(RECIPE_TYPE_CRAFTED, db_session) is True
+
+    def test_has_items_false(self, db_session):
+        assert (
+            CraftingRecipeCache.has_prof_knowledge_items(RECIPE_TYPE_CRAFTED, db_session, profession_ids={999}) is False
+        )
 
 
 class TestCraftingRoleMapping:

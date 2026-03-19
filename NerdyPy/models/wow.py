@@ -274,7 +274,7 @@ BIND_ON_EQUIP = "ON_EQUIP"  # BoE — bind on equip
 _PROF_COOKING = 185
 _PROF_ALCHEMY = 171
 _GEAR_PROFESSIONS = frozenset({164, 165, 197, 202, 333, 755, 773})
-_COOKING_CATEGORY_KEYWORDS = ("feast", "hearty", "cooking for")
+_COOKING_CATEGORY_KEYWORDS = ("feast", "cooking for")
 _ALCHEMY_CATEGORY_KEYWORDS = ("cauldron",)
 
 # Virtual category classification keywords.
@@ -384,6 +384,45 @@ class CraftingRecipeCache(db.BASE):
         return or_(*[func.lower(cls.ItemClassName) == name for name in _MAIN_ITEM_CLASS_NAMES])
 
     @classmethod
+    def _prof_knowledge_condition(cls):
+        """Return an OR condition matching profession knowledge items (treatises and skinning knives).
+
+        Matches: any item with 'treatise' in CategoryName, or Miscellaneous items with 'profession'
+        in CategoryName (e.g. Thalassian Skinning Knife in "Profession Equipment").
+        """
+        return or_(
+            func.lower(cls.CategoryName).contains("treatise"),
+            and_(
+                func.lower(cls.ItemClassName) == "miscellaneous",
+                func.lower(cls.CategoryName).contains("profession"),
+            ),
+        )
+
+    @classmethod
+    def get_prof_knowledge_items(
+        cls, recipe_type, session, profession_ids: set[int] | None = None
+    ) -> list["CraftingRecipeCache"]:
+        """Return recipe rows for profession knowledge items (treatises and skinning knives)."""
+        q = session.query(cls).filter(
+            cls.RecipeType == recipe_type,
+            cls._prof_knowledge_condition(),
+        )
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        return q.order_by(asc(cls.ItemName)).all()
+
+    @classmethod
+    def has_prof_knowledge_items(cls, recipe_type, session, profession_ids: set[int] | None = None) -> bool:
+        """Return True if there are any profession knowledge items for the given filters."""
+        q = session.query(cls.RecipeId).filter(
+            cls.RecipeType == recipe_type,
+            cls._prof_knowledge_condition(),
+        )
+        if profession_ids:
+            q = q.filter(cls.ProfessionId.in_(profession_ids))
+        return q.limit(1).scalar() is not None
+
+    @classmethod
     def get_by_profession(cls, prof_id, recipe_type, session):
         return (
             session.query(cls)
@@ -456,6 +495,11 @@ class CraftingRecipeCache(db.BASE):
             if r[1] not in seen:
                 seen[r[1]] = (r[0], r[1], r[2])
         return list(seen.values())
+
+    @staticmethod
+    def _dedup_category_rows(rows) -> list[tuple[str, dict | None]]:
+        """Deduplicate (CategoryName, CategoryNameLocales) rows by name, preserving insertion order."""
+        return list({r[0]: (r[0], r[1]) for r in rows}.values())
 
     @classmethod
     def get_item_classes(
@@ -570,7 +614,7 @@ class CraftingRecipeCache(db.BASE):
         if profession_ids:
             q = q.filter(cls.ProfessionId.in_(profession_ids))
         rows = q.order_by(asc(cls.CategoryName)).all()
-        return list({r[0]: (r[0], r[1]) for r in rows}.values())
+        return cls._dedup_category_rows(rows)
 
     @classmethod
     def get_raid_prep_items(cls, recipe_type, category_name, session, profession_ids: set[int] | None = None):
@@ -609,7 +653,7 @@ class CraftingRecipeCache(db.BASE):
         if exclude_pvp:
             q = q.filter(~cls._pvp_condition())
         rows = q.order_by(asc(cls.CategoryName)).all()
-        return list({r[0]: (r[0], r[1]) for r in rows}.values())
+        return cls._dedup_category_rows(rows)
 
     @classmethod
     def get_by_type_subclass_and_category(
@@ -650,11 +694,12 @@ class CraftingRecipeCache(db.BASE):
             ~cls._main_class_condition(),
             ~cls._pvp_condition(),
             ~cls._raid_prep_condition(),
+            ~cls._prof_knowledge_condition(),
         )
         if profession_ids:
             q = q.filter(cls.ProfessionId.in_(profession_ids))
         rows = q.order_by(asc(cls.CategoryName)).all()
-        return list({r[0]: (r[0], r[1]) for r in rows}.values())
+        return cls._dedup_category_rows(rows)
 
     @classmethod
     def get_other_items(cls, recipe_type, category_name, session, profession_ids: set[int] | None = None):
@@ -666,6 +711,7 @@ class CraftingRecipeCache(db.BASE):
             ~cls._main_class_condition(),
             ~cls._pvp_condition(),
             ~cls._raid_prep_condition(),
+            ~cls._prof_knowledge_condition(),
         )
         if profession_ids:
             q = q.filter(cls.ProfessionId.in_(profession_ids))

@@ -31,7 +31,7 @@ _VCAT_PVP = "__pvp__"
 _VCAT_RAID_PREP = "__raid_prep__"
 _VCAT_ARMOR = "__armor__"
 _VCAT_WEAPONS = "__weapons__"
-_VCAT_PROFESSION = "__profession__"
+_VCAT_PROFESSIONS = "__professions__"
 _VCAT_OTHER = "__other_cat__"
 
 _VCAT_LABEL_KEYS = {
@@ -39,7 +39,7 @@ _VCAT_LABEL_KEYS = {
     _VCAT_RAID_PREP: ("🧪 ", "raid_prep_category"),
     _VCAT_ARMOR: ("🛡️ ", "armor_category"),
     _VCAT_WEAPONS: ("⚔️ ", "weapons_category"),
-    _VCAT_PROFESSION: ("🔧 ", "profession_gear_category"),
+    _VCAT_PROFESSIONS: ("🔧 ", "professions_category"),
     _VCAT_OTHER: ("📦 ", "other_category"),
 }
 
@@ -102,8 +102,6 @@ _EMOJI_MAP: dict[str, str] = {
     "bits": "⚙️",
     # Alchemy
     "alchemist": "⚗️",
-    # Cooking
-    "hearty": "🍲",
     # Enchanting / Inscription / Misc craft
     "illusion": "🌀",
     "shatter": "💥",
@@ -151,13 +149,15 @@ def _emoji_for(name: str) -> str:
 
 _PVP_GROUP_WEAPONS = "__pvp_weapons__"
 _PVP_GROUP_GEAR = "__pvp_gear__"
+_PROF_GROUP_GEAR = "__prof_gear__"
+_PROF_GROUP_KNOWLEDGE = "__prof_knowledge__"
 
 # Maps gear-bucket vcats to the lowercase ItemClassName used in the recipe cache.
 # Must match the Blizzard API item class names (lowercased) stored in CraftingRecipeCache.
 _VCAT_TO_CLASS_NAME: dict[str, str] = {
     _VCAT_ARMOR: "armor",
     _VCAT_WEAPONS: "weapon",
-    _VCAT_PROFESSION: "profession",
+    _VCAT_PROFESSIONS: "profession",
 }
 
 
@@ -180,13 +180,64 @@ def _build_vcat_info(recipe_type: str, session, profession_ids) -> tuple[list[st
         available.append(_VCAT_PVP)
     if CraftingRecipeCache.get_raid_prep_categories(recipe_type, session, profession_ids):
         available.append(_VCAT_RAID_PREP)
-    for vcat in (_VCAT_ARMOR, _VCAT_WEAPONS, _VCAT_PROFESSION):
+    for vcat in (_VCAT_ARMOR, _VCAT_WEAPONS):
         if _VCAT_TO_CLASS_NAME[vcat] in item_class_ids:
             available.append(vcat)
+    has_prof_gear = _VCAT_TO_CLASS_NAME[_VCAT_PROFESSIONS] in item_class_ids
+    has_prof_knowledge = CraftingRecipeCache.has_prof_knowledge_items(recipe_type, session, profession_ids)
+    if has_prof_gear or has_prof_knowledge:
+        available.append(_VCAT_PROFESSIONS)
+        if has_prof_knowledge:
+            item_class_ids[_PROF_GROUP_KNOWLEDGE] = 1  # sentinel: presence means knowledge items exist
     if CraftingRecipeCache.get_other_categories(recipe_type, session, profession_ids):
         available.append(_VCAT_OTHER)
 
     return available, item_class_ids
+
+
+async def _navigate_prof_gear(interaction: Interaction, bot, roles, guild_id, lang, item_class_ids, mapped_prof_ids):
+    """Shared navigation helper: fetch profession gear subclasses and show ItemSubTypeSelectView."""
+    class_id = item_class_ids.get(_VCAT_TO_CLASS_NAME[_VCAT_PROFESSIONS])
+    if class_id is None:
+        await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
+        return
+    with bot.session_scope() as session:
+        subclasses = CraftingRecipeCache.get_item_subclasses(
+            RECIPE_TYPE_CRAFTED,
+            class_id,
+            session,
+            profession_ids=mapped_prof_ids,
+            orderable_only=True,
+            exclude_pvp=False,
+        )
+    view = ItemSubTypeSelectView(
+        bot, roles, guild_id, lang, class_id, subclasses, mapped_prof_ids, orderable_only=True, exclude_pvp=False
+    )
+    await interaction.response.edit_message(
+        content=get_string(lang, "wow.craftingorder.item_subtype_select"), view=view
+    )
+
+
+async def _navigate_prof_knowledge(interaction: Interaction, bot, roles, guild_id, lang, mapped_prof_ids):
+    """Shared navigation helper: fetch profession knowledge items and show ItemSelectView."""
+    with bot.session_scope() as session:
+        recipes = CraftingRecipeCache.get_prof_knowledge_items(
+            RECIPE_TYPE_CRAFTED, session, profession_ids=mapped_prof_ids
+        )
+    view = ItemSelectView(bot, recipes, roles, guild_id, lang)
+    await interaction.response.edit_message(content=get_string(lang, "wow.craftingorder.item_select"), view=view)
+
+
+def _vcat_option(vcat: str, lang: str, value: str | None = None) -> discord.SelectOption:
+    """Build a localized SelectOption for a virtual category sentinel.
+
+    *value* overrides the option value (e.g. for PvP sub-groups); defaults to the vcat sentinel itself.
+    """
+    emoji, key = _VCAT_LABEL_KEYS[vcat]
+    full_key = f"wow.craftingorder.{key}"
+    label = emoji + get_string(lang, full_key)
+    description = get_string("en", full_key) if lang != "en" else None
+    return discord.SelectOption(label=label[:100], description=description, value=value or vcat)
 
 
 def _ls(interaction: Interaction, key: str, **kwargs) -> str:
@@ -637,12 +688,7 @@ class VirtualCategorySelectView(ui.View):
         self.mapped_prof_ids = mapped_prof_ids
         self.item_class_ids = item_class_ids
 
-        options = []
-        for vcat in available_vcats:
-            emoji, key = _VCAT_LABEL_KEYS[vcat]
-            label = emoji + get_string(lang, f"wow.craftingorder.{key}")
-            en_name = get_string("en", f"wow.craftingorder.{key}") if lang != "en" else None
-            options.append(discord.SelectOption(label=label[:100], description=en_name, value=vcat))
+        options = [_vcat_option(vcat, lang) for vcat in available_vcats]
 
         select = ui.Select(
             placeholder=get_string(lang, "wow.craftingorder.virtual_category_select"),
@@ -674,12 +720,11 @@ class VirtualCategorySelectView(ui.View):
                 content=get_string(self.lang, "wow.craftingorder.raid_prep_select"), view=view
             )
 
-        elif value in (_VCAT_ARMOR, _VCAT_WEAPONS, _VCAT_PROFESSION):
+        elif value in (_VCAT_ARMOR, _VCAT_WEAPONS):
             class_id = self.item_class_ids.get(_VCAT_TO_CLASS_NAME[value])
             if class_id is None:
                 await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
                 return
-            exclude_pvp = value in (_VCAT_ARMOR, _VCAT_WEAPONS)
             with self.bot.session_scope() as session:
                 subclasses = CraftingRecipeCache.get_item_subclasses(
                     RECIPE_TYPE_CRAFTED,
@@ -687,7 +732,7 @@ class VirtualCategorySelectView(ui.View):
                     session,
                     profession_ids=self.mapped_prof_ids,
                     orderable_only=True,
-                    exclude_pvp=exclude_pvp,
+                    exclude_pvp=True,
                 )
             view = ItemSubTypeSelectView(
                 self.bot,
@@ -698,11 +743,37 @@ class VirtualCategorySelectView(ui.View):
                 subclasses,
                 self.mapped_prof_ids,
                 orderable_only=True,
-                exclude_pvp=exclude_pvp,
+                exclude_pvp=True,
             )
             await interaction.response.edit_message(
                 content=get_string(self.lang, "wow.craftingorder.item_subtype_select"), view=view
             )
+
+        elif value == _VCAT_PROFESSIONS:
+            has_gear = _VCAT_TO_CLASS_NAME[_VCAT_PROFESSIONS] in self.item_class_ids
+            has_knowledge = _PROF_GROUP_KNOWLEDGE in self.item_class_ids
+
+            if has_gear and has_knowledge:
+                view = ProfessionGroupSelectView(
+                    self.bot, self.roles, self.guild_id, self.lang, self.mapped_prof_ids, self.item_class_ids
+                )
+                await interaction.response.edit_message(
+                    content=get_string(self.lang, "wow.craftingorder.prof_group_select"), view=view
+                )
+            elif has_gear:
+                await _navigate_prof_gear(
+                    interaction,
+                    self.bot,
+                    self.roles,
+                    self.guild_id,
+                    self.lang,
+                    self.item_class_ids,
+                    self.mapped_prof_ids,
+                )
+            elif has_knowledge:
+                await _navigate_prof_knowledge(
+                    interaction, self.bot, self.roles, self.guild_id, self.lang, self.mapped_prof_ids
+                )
 
         elif value == _VCAT_OTHER:
             with self.bot.session_scope() as session:
@@ -737,17 +808,10 @@ class PvPGroupSelectView(ui.View):
         self.mapped_prof_ids = mapped_prof_ids
         self.item_class_ids = item_class_ids or {}
 
-        options = []
-        for vcat, pvp_value in ((_VCAT_WEAPONS, _PVP_GROUP_WEAPONS), (_VCAT_ARMOR, _PVP_GROUP_GEAR)):
-            emoji, key = _VCAT_LABEL_KEYS[vcat]
-            full_key = f"wow.craftingorder.{key}"
-            options.append(
-                discord.SelectOption(
-                    label=emoji + get_string(lang, full_key),
-                    description=get_string("en", full_key) if lang != "en" else None,
-                    value=pvp_value,
-                )
-            )
+        options = [
+            _vcat_option(_VCAT_WEAPONS, lang, value=_PVP_GROUP_WEAPONS),
+            _vcat_option(_VCAT_ARMOR, lang, value=_PVP_GROUP_GEAR),
+        ]
         select = ui.Select(
             placeholder=get_string(lang, "wow.craftingorder.pvp_group_select"),
             options=options,
@@ -786,6 +850,72 @@ class PvPGroupSelectView(ui.View):
             )
             await interaction.response.edit_message(
                 content=get_string(self.lang, "wow.craftingorder.pvp_armor_select"), view=view
+            )
+
+
+class ProfessionGroupSelectView(ui.View):
+    """Professions flow step 1: choose Gear (by subtype) or Knowledge (flat list)."""
+
+    def __init__(
+        self,
+        bot,
+        roles: list[discord.Role],
+        guild_id: int,
+        lang: str,
+        mapped_prof_ids: set[int] | None = None,
+        item_class_ids: dict[str, int] | None = None,
+    ):
+        super().__init__(timeout=180)
+        self.bot = bot
+        self.roles = roles
+        self.guild_id = guild_id
+        self.lang = lang
+        self.mapped_prof_ids = mapped_prof_ids
+        self.item_class_ids = item_class_ids or {}
+
+        options = []
+        if _VCAT_TO_CLASS_NAME[_VCAT_PROFESSIONS] in self.item_class_ids:
+            options.append(
+                discord.SelectOption(
+                    label="🔧 " + get_string(lang, "wow.craftingorder.prof_gear_option"),
+                    description=get_string("en", "wow.craftingorder.prof_gear_option") if lang != "en" else None,
+                    value=_PROF_GROUP_GEAR,
+                )
+            )
+        if _PROF_GROUP_KNOWLEDGE in self.item_class_ids:
+            options.append(
+                discord.SelectOption(
+                    label="📚 " + get_string(lang, "wow.craftingorder.prof_knowledge_option"),
+                    description=get_string("en", "wow.craftingorder.prof_knowledge_option") if lang != "en" else None,
+                    value=_PROF_GROUP_KNOWLEDGE,
+                )
+            )
+
+        assert options, "ProfessionGroupSelectView requires at least one option (gear or knowledge)"
+        select = ui.Select(
+            placeholder=get_string(lang, "wow.craftingorder.prof_group_select"),
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+    async def _on_select(self, interaction: Interaction):
+        value = interaction.data["values"][0]
+
+        if value == _PROF_GROUP_GEAR:
+            await _navigate_prof_gear(
+                interaction,
+                self.bot,
+                self.roles,
+                self.guild_id,
+                self.lang,
+                self.item_class_ids,
+                self.mapped_prof_ids,
+            )
+
+        elif value == _PROF_GROUP_KNOWLEDGE:
+            await _navigate_prof_knowledge(
+                interaction, self.bot, self.roles, self.guild_id, self.lang, self.mapped_prof_ids
             )
 
 
