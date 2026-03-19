@@ -23,6 +23,9 @@ from utils.strings import get_string
 
 log = logging.getLogger(__name__)
 
+# Discord select menu hard limit — options beyond this index are silently dropped.
+_DISCORD_SELECT_LIMIT = 24
+
 # ---------------------------------------------------------------------------
 # Virtual category sentinel values
 # ---------------------------------------------------------------------------
@@ -234,11 +237,38 @@ async def _navigate_prof_knowledge(interaction: Interaction, bot, roles, guild_i
 
 
 async def _navigate_pvp_weapons(interaction: Interaction, bot, roles, guild_id, lang, weapon_class_id, mapped_prof_ids):
-    """Shared navigation helper: fetch PvP weapon recipes and show ItemSelectView."""
+    """Shared navigation helper: fetch PvP weapon recipes and show ItemSelectView.
+
+    If there are more than 24 weapons, routes to a weapon-subtype picker first so no
+    items are silently truncated by the Discord select menu limit.
+    """
     with bot.session_scope() as session:
         recipes = CraftingRecipeCache.get_pvp_items(
             RECIPE_TYPE_CRAFTED, weapon_class_id, None, session, profession_ids=mapped_prof_ids
         )
+        if len(recipes) > _DISCORD_SELECT_LIMIT:
+            subclasses = CraftingRecipeCache.get_pvp_item_subclasses(
+                RECIPE_TYPE_CRAFTED, weapon_class_id, session, profession_ids=mapped_prof_ids
+            )
+        else:
+            subclasses = []
+
+    if subclasses:
+        view = PvPSubTypeSelectView(
+            bot,
+            roles,
+            guild_id,
+            lang,
+            weapon_class_id,
+            subclasses,
+            mapped_prof_ids,
+            placeholder_key="pvp_weapon_select",
+        )
+        await interaction.response.edit_message(
+            content=get_string(lang, "wow.craftingorder.pvp_weapon_select"), view=view
+        )
+        return
+
     view = ItemSelectView(bot, recipes, roles, guild_id, lang)
     await interaction.response.edit_message(content=get_string(lang, "wow.craftingorder.item_select"), view=view)
 
@@ -674,7 +704,7 @@ class ItemSubTypeSelectView(ui.View):
                     orderable_only=self.orderable_only,
                     exclude_pvp=self.exclude_pvp,
                 )
-                if len(recipes) > 24
+                if len(recipes) > _DISCORD_SELECT_LIMIT
                 else []
             )
 
@@ -970,8 +1000,8 @@ class ProfessionGroupSelectView(ui.View):
             )
 
 
-class PvPArmorTypeSelectView(ui.View):
-    """PvP flow step 2 (gear path): choose armor subtype, then items."""
+class PvPSubTypeSelectView(ui.View):
+    """PvP flow: choose an item subtype (armor type or weapon type), then items."""
 
     def __init__(
         self,
@@ -979,21 +1009,22 @@ class PvPArmorTypeSelectView(ui.View):
         roles: list[discord.Role],
         guild_id: int,
         lang: str,
-        armor_class_id: int,
+        item_class_id: int,
         subclasses: list[tuple[int, str | None, dict | None]],
         mapped_prof_ids: set[int] | None = None,
+        placeholder_key: str = "pvp_armor_select",
     ):
         super().__init__(timeout=180)
         self.bot = bot
         self.roles = roles
         self.guild_id = guild_id
         self.lang = lang
-        self.armor_class_id = armor_class_id
+        self.item_class_id = item_class_id
         self.mapped_prof_ids = mapped_prof_ids
 
         options = _build_localized_options(subclasses, lang, emojis=True)
         select = ui.Select(
-            placeholder=get_string(lang, "wow.craftingorder.pvp_armor_select"),
+            placeholder=get_string(lang, f"wow.craftingorder.{placeholder_key}"),
             options=options,
         )
         select.callback = self._on_select
@@ -1003,12 +1034,22 @@ class PvPArmorTypeSelectView(ui.View):
         item_subclass_id = int(interaction.data["values"][0])
         with self.bot.session_scope() as session:
             recipes = CraftingRecipeCache.get_pvp_items(
-                RECIPE_TYPE_CRAFTED, self.armor_class_id, item_subclass_id, session, profession_ids=self.mapped_prof_ids
+                RECIPE_TYPE_CRAFTED, self.item_class_id, item_subclass_id, session, profession_ids=self.mapped_prof_ids
+            )
+        if len(recipes) > _DISCORD_SELECT_LIMIT:
+            log.warning(
+                "PvP subtype overflow: class_id=%d subclass_id=%d returned %d recipes (>24); truncating",
+                self.item_class_id,
+                item_subclass_id,
+                len(recipes),
             )
         view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
         await interaction.response.edit_message(
             content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
         )
+
+
+PvPArmorTypeSelectView = PvPSubTypeSelectView
 
 
 class RaidPrepCategorySelectView(ui.View):
@@ -1042,6 +1083,12 @@ class RaidPrepCategorySelectView(ui.View):
         with self.bot.session_scope() as session:
             recipes = CraftingRecipeCache.get_raid_prep_items(
                 RECIPE_TYPE_CRAFTED, category_name, session, profession_ids=self.mapped_prof_ids
+            )
+        if len(recipes) > _DISCORD_SELECT_LIMIT:
+            log.warning(
+                "Raid prep category overflow: category=%r returned %d recipes (>24); truncating",
+                category_name,
+                len(recipes),
             )
         view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
         await interaction.response.edit_message(
@@ -1130,6 +1177,12 @@ class OtherCategorySelectView(ui.View):
         with self.bot.session_scope() as session:
             recipes = CraftingRecipeCache.get_other_items(
                 RECIPE_TYPE_CRAFTED, category_name, session, profession_ids=self.mapped_prof_ids
+            )
+        if len(recipes) > _DISCORD_SELECT_LIMIT:
+            log.warning(
+                "Other category overflow: category=%r returned %d recipes (>24); truncating",
+                category_name,
+                len(recipes),
             )
         view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
         await interaction.response.edit_message(
