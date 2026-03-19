@@ -1325,7 +1325,12 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     async def _refresh_review_embeds(self, guild_id: int) -> None:
         """Re-render each pending review embed in the guild with the new language."""
-        from modules.views.application import _ReviewEmbedData, _update_review_embed
+        from modules.views.application import (
+            _ReviewEmbedData,
+            _RoutedReviewEmbed,
+            _extract_answers,
+            _update_review_embed,
+        )
 
         lang = self.bot.get_guild_language(guild_id)
         with self.bot.session_scope() as session:
@@ -1336,48 +1341,46 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                     s.Status == SubmissionStatus.PENDING and s.ReviewMessageId and s.form and s.form.ReviewChannelId
                 ):
                     continue
-                answers = [
-                    (a.question.QuestionText if a.question else f"Question {a.QuestionId}", a.AnswerText)
-                    for a in s.answers
-                ]
                 pending.append(
-                    _ReviewEmbedData(
-                        user_id=s.UserId,
-                        user_name=s.UserName,
-                        submitted_at=s.SubmittedAt,
-                        status=s.Status,
-                        applicant_notified=s.ApplicantNotified,
-                        form_name=s.form.Name,
-                        required_approvals=s.form.RequiredApprovals,
-                        required_denials=s.form.RequiredDenials,
-                        lang=lang,
-                        approve_count=sum(1 for v in s.votes if v.Vote == VoteType.APPROVE),
-                        deny_count=sum(1 for v in s.votes if v.Vote == VoteType.DENY),
-                        answers=answers,
-                        review_channel_id=s.form.ReviewChannelId,
-                        review_message_id=s.ReviewMessageId,
+                    _RoutedReviewEmbed(
+                        data=_ReviewEmbedData(
+                            user_id=s.UserId,
+                            user_name=s.UserName,
+                            submitted_at=s.SubmittedAt,
+                            status=s.Status,
+                            applicant_notified=s.ApplicantNotified,
+                            form_name=s.form.Name,
+                            required_approvals=s.form.RequiredApprovals,
+                            required_denials=s.form.RequiredDenials,
+                            lang=lang,
+                            approve_count=sum(1 for v in s.votes if v.Vote == VoteType.APPROVE),
+                            deny_count=sum(1 for v in s.votes if v.Vote == VoteType.DENY),
+                            answers=_extract_answers(s.answers),
+                        ),
+                        channel_id=s.form.ReviewChannelId,
+                        message_id=s.ReviewMessageId,
                     )
                 )
 
-        for i, data in enumerate(pending):
+        for i, routed in enumerate(pending):
             try:
                 await _update_review_embed(
                     self.bot,
-                    review_channel_id=data.review_channel_id,
-                    review_message_id=data.review_message_id,
-                    preloaded=data,
+                    review_channel_id=routed.channel_id,
+                    review_message_id=routed.message_id,
+                    preloaded=routed.data,
                 )
-                self.bot.log.info("application: refreshed review embed %d (guild %d)", data.review_message_id, guild_id)
+                self.bot.log.info("application: refreshed review embed %d (guild %d)", routed.message_id, guild_id)
             except (discord.NotFound, discord.Forbidden):
                 self.bot.log.warning(
                     "application: review message %d not accessible (guild %d) — skipping",
-                    data.review_message_id,
+                    routed.message_id,
                     guild_id,
                 )
             except discord.HTTPException as exc:
                 self.bot.log.warning(
                     "application: failed to refresh review embed %d (guild %d): %s",
-                    data.review_message_id,
+                    routed.message_id,
                     guild_id,
                     exc,
                 )

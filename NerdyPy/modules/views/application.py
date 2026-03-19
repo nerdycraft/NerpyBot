@@ -58,9 +58,20 @@ class _ReviewEmbedData:
     approve_count: int
     deny_count: int
     answers: list[tuple[str, str | None]]
-    # Routing — used by _refresh_review_embeds for message resolution; ignored by embed builders
-    review_channel_id: int = 0
-    review_message_id: int = 0
+
+
+@dataclass
+class _RoutedReviewEmbed:
+    """Pairs pre-extracted review embed data with its Discord message location."""
+
+    data: "_ReviewEmbedData"
+    channel_id: int
+    message_id: int
+
+
+def _extract_answers(answers) -> list[tuple[str, str | None]]:
+    """Extract (question_text, answer_text) pairs from an answer collection."""
+    return [(a.question.QuestionText if a.question else f"Question {a.QuestionId}", a.AnswerText) for a in answers]
 
 
 # ---------------------------------------------------------------------------
@@ -101,10 +112,6 @@ def check_override_permission(interaction: discord.Interaction, bot) -> bool:
 
 def build_review_embed(submission, form, session, lang: str = "en") -> discord.Embed:
     """Build the review embed shown in the review channel for a submission."""
-    answers = [
-        (a.question.QuestionText if a.question else f"Question {a.QuestionId}", a.AnswerText)
-        for a in submission.answers
-    ]
     return _build_review_embed_from_data(
         _ReviewEmbedData(
             user_id=submission.UserId,
@@ -118,7 +125,7 @@ def build_review_embed(submission, form, session, lang: str = "en") -> discord.E
             lang=lang,
             approve_count=ApplicationVote.count_by_type(submission.Id, VoteType.APPROVE, session),
             deny_count=ApplicationVote.count_by_type(submission.Id, VoteType.DENY, session),
-            answers=answers,
+            answers=_extract_answers(submission.answers),
         )
     )
 
@@ -149,7 +156,7 @@ def _build_review_embed_from_data(data: "_ReviewEmbedData") -> discord.Embed:
         text=get_string(
             data.lang,
             "application.review.footer",
-            status=data.status.value.capitalize(),
+            status=data.status.capitalize(),
             approvals=data.approve_count,
             required_approvals=data.required_approvals,
             denials=data.deny_count,
