@@ -123,8 +123,8 @@ def build_review_embed(submission, form, session, lang: str = "en") -> discord.E
             required_approvals=form.RequiredApprovals,
             required_denials=form.RequiredDenials,
             lang=lang,
-            approve_count=ApplicationVote.count_by_type(submission.Id, VoteType.APPROVE, session),
-            deny_count=ApplicationVote.count_by_type(submission.Id, VoteType.DENY, session),
+            approve_count=sum(1 for v in submission.votes if v.Vote == VoteType.APPROVE),
+            deny_count=sum(1 for v in submission.votes if v.Vote == VoteType.DENY),
             answers=_extract_answers(submission.answers),
         )
     )

@@ -16,7 +16,7 @@ from sqlalchemy import (
     UnicodeText,
 )
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.orm import joinedload, relationship
+from sqlalchemy.orm import relationship, selectinload
 from utils import database as db
 
 
@@ -229,7 +229,12 @@ class ApplicationSubmission(db.BASE):
     @classmethod
     def get_by_guild(cls, guild_id, session):
         """Returns all submissions for a guild, with the form relationship eager-loaded."""
-        return session.query(cls).options(joinedload(cls.form)).filter(cls.GuildId == guild_id).all()
+        return (
+            session.query(cls)
+            .options(selectinload(cls.form).lazyload(ApplicationForm.questions))
+            .filter(cls.GuildId == guild_id)
+            .all()
+        )
 
     @classmethod
     def get_by_user_and_form(cls, user_id: int, form_id: int, session):
