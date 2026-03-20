@@ -28,7 +28,15 @@ const health = ref<HealthResponse | null>(null);
 const healthLoading = ref(false);
 const healthError = ref<string | null>(null);
 
-const { status: liveStatus, connected: liveConnected, error: liveError, connect, disconnect } = useHealthStatus();
+const {
+  status: liveStatus,
+  connected: liveConnected,
+  error: liveError,
+  connect,
+  disconnect,
+} = useHealthStatus({
+  isActive: () => activeTab.value === "health",
+});
 
 const isOnline = computed(() => liveConnected.value || health.value?.status === "online");
 
