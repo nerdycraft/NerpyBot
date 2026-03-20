@@ -28,7 +28,9 @@ const health = ref<HealthResponse | null>(null);
 const healthLoading = ref(false);
 const healthError = ref<string | null>(null);
 
-const { status: liveStatus, connected: liveConnected, error: liveError, connect } = useHealthStatus();
+const { status: liveStatus, connected: liveConnected, error: liveError, connect, disconnect } = useHealthStatus();
+
+const isOnline = computed(() => liveConnected.value || health.value?.status === "online");
 
 const live = computed(() => {
   const src = liveConnected.value ? liveStatus.value : null;
@@ -201,6 +203,10 @@ async function toggleDebug() {
 // ── Tab lazy-load watcher ──────────────────────────────────────────────────────
 
 watch(activeTab, (tab) => {
+  if (tab === "health") {
+    fetchHealth();
+    connect();
+  } else disconnect();
   if (tab === "permissions" && !permFetched.value && !permLoading.value) fetchPermissions();
   if (tab === "error_control" && !errorStatus.value && !errorLoading.value) fetchErrorStatus();
 });
@@ -209,7 +215,7 @@ watch(activeTab, (tab) => {
 
 onMounted(() => {
   fetchHealth();
-  connect();
+  if (activeTab.value === "health") connect();
 });
 </script>
 
@@ -272,7 +278,7 @@ onMounted(() => {
       </div>
       <div v-else-if="healthError" class="text-destructive text-sm py-2">{{ healthError }}</div>
       <div
-        v-else-if="health && health.status === 'unreachable'"
+        v-else-if="!liveConnected && health?.status === 'unreachable'"
         class="flex items-center gap-2 bg-destructive/10 border border-destructive/30 rounded px-4 py-3 text-destructive text-sm mb-6"
       >
         <Icon icon="mdi:alert-circle-outline" class="w-5 h-5 flex-shrink-0" />
@@ -280,22 +286,22 @@ onMounted(() => {
       </div>
 
       <div v-if="health || liveStatus">
-        <div v-if="health" class="flex items-center gap-3 mb-6">
+        <div v-if="health || liveConnected" class="flex items-center gap-3 mb-6">
           <span class="text-sm text-muted-foreground">{{ t("tabs.operator_dashboard.status") }}</span>
           <span
             :class="[
               'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold',
-              health.status === 'online'
+              isOnline
                 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                 : 'bg-destructive/15 text-destructive border border-destructive/30',
             ]"
           >
             <Icon
-              :icon="health.status === 'online' ? 'mdi:check-circle-outline' : 'mdi:alert-circle-outline'"
+              :icon="isOnline ? 'mdi:check-circle-outline' : 'mdi:alert-circle-outline'"
               class="w-3.5 h-3.5"
             />
             {{
-              health.status === "online"
+              isOnline
                 ? t("tabs.operator_dashboard.online")
                 : t("tabs.operator_dashboard.status_unreachable")
             }}

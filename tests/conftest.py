@@ -201,6 +201,21 @@ def mock_interaction(mock_bot, mock_member, mock_guild, mock_channel):
 
 
 @pytest.fixture
+def mock_voice_client():
+    """Create a mock discord.VoiceClient connected to a guild voice channel."""
+    vc_guild = MagicMock()
+    vc_guild.id = 12345
+    vc_guild.name = "Test Guild"
+    vc_channel = MagicMock()
+    vc_channel.id = 67890
+    vc_channel.name = "General Voice"
+    vc = MagicMock()
+    vc.guild = vc_guild
+    vc.channel = vc_channel
+    return vc
+
+
+@pytest.fixture
 def mock_user():
     """Create a mock discord.User for DM conversations."""
     user = MagicMock()
