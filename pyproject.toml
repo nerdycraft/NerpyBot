@@ -38,7 +38,7 @@ test = [
     "pytest-asyncio",
     "pytest-cov",
     "pre-commit",
-    "ruff==0.15.6",
+    "ruff==0.15.7",
 ]
 web = [
     "fastapi",
