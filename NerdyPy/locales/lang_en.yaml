@@ -354,6 +354,7 @@ wow:
     item_subtype_select: "Select a subtype"
     item_select: "Select an item"
     item_select_other: "Other (free text)"
+    item_select_more: "More items →"
     expansion_select: "Select an expansion"
     virtual_category_select: "What are you looking for?"
     pvp_category: "PvP Gear"
