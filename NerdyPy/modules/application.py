@@ -29,16 +29,8 @@ from modules.conversations.application import (
 from modules.views.application import check_override_permission
 from sqlalchemy.exc import SQLAlchemyError
 from utils.cog import NerpyBotCog
-from utils.helpers import fetch_message_content
+from utils.helpers import fetch_message_content, send_hidden_message
 from utils.strings import get_raw, get_string
-
-
-async def _send_ephemeral(interaction: Interaction, msg: str) -> None:
-    """Send an ephemeral message, choosing response vs followup based on whether the response is used."""
-    if not interaction.response.is_done():
-        await interaction.response.send_message(msg, ephemeral=True)
-    else:
-        await interaction.followup.send(msg, ephemeral=True)
 
 
 def _localize_field(
@@ -237,51 +229,51 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         repost_apply = False
         edit_apply = False
         form_id = None
+        msg = None
+        changes = []
 
         with self.bot.session_scope() as session:
             form = ApplicationForm.get(name, interaction.guild.id, session)
             if not form:
                 msg = get_string(lang, "application.form_not_found", name=name)
-                await _send_ephemeral(interaction, msg)
-                return
+            else:
+                form_id = form.Id
+                if review_channel is not None:
+                    form.ReviewChannelId = review_channel.id
+                    changes.append(
+                        get_string(lang, "application.settings.change_review_channel", channel=review_channel.mention)
+                    )
+                if channel is not None:
+                    form.ApplyChannelId = channel.id
+                    changes.append(get_string(lang, "application.settings.change_channel", channel=channel.mention))
+                    repost_apply = True
+                if description is not None:
+                    form.ApplyDescription = description
+                    changes.append(get_string(lang, "application.settings.change_description"))
+                    if not repost_apply and form.ApplyMessageId:
+                        edit_apply = True
+                if approvals is not None:
+                    form.RequiredApprovals = approvals
+                    changes.append(get_string(lang, "application.settings.change_approvals", count=approvals))
+                if denials is not None:
+                    form.RequiredDenials = denials
+                    changes.append(get_string(lang, "application.settings.change_denials", count=denials))
+                if approval_message is not None:
+                    form.ApprovalMessage = approval_message
+                    changes.append(get_string(lang, "application.settings.change_approval_message"))
+                if denial_message is not None:
+                    form.DenialMessage = denial_message
+                    changes.append(get_string(lang, "application.settings.change_denial_message"))
 
-            changes = []
-            if review_channel is not None:
-                form.ReviewChannelId = review_channel.id
-                changes.append(
-                    get_string(lang, "application.settings.change_review_channel", channel=review_channel.mention)
-                )
-            if channel is not None:
-                form.ApplyChannelId = channel.id
-                changes.append(get_string(lang, "application.settings.change_channel", channel=channel.mention))
-                repost_apply = True
-            if description is not None:
-                form.ApplyDescription = description
-                changes.append(get_string(lang, "application.settings.change_description"))
-                if not repost_apply and form.ApplyMessageId:
-                    edit_apply = True
-            if approvals is not None:
-                form.RequiredApprovals = approvals
-                changes.append(get_string(lang, "application.settings.change_approvals", count=approvals))
-            if denials is not None:
-                form.RequiredDenials = denials
-                changes.append(get_string(lang, "application.settings.change_denials", count=denials))
-            if approval_message is not None:
-                form.ApprovalMessage = approval_message
-                changes.append(get_string(lang, "application.settings.change_approval_message"))
-            if denial_message is not None:
-                form.DenialMessage = denial_message
-                changes.append(get_string(lang, "application.settings.change_denial_message"))
+                if not changes:
+                    msg = get_string(lang, "application.settings.nothing_to_change")
 
-            if not changes:
-                msg = get_string(lang, "application.settings.nothing_to_change")
-                await _send_ephemeral(interaction, msg)
-                return
-
-            form_id = form.Id
+        if msg is not None:
+            await send_hidden_message(interaction, msg)
+            return
 
         msg = get_string(lang, "application.settings.success", name=name, changes=", ".join(changes))
-        await _send_ephemeral(interaction, msg)
+        await send_hidden_message(interaction, msg)
 
         if repost_apply:
             from modules.views.application import post_apply_button_message
@@ -895,24 +887,26 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         lang: str,
     ) -> None:
         """Validate and persist template message changes, then confirm."""
+        changes = []
+        msg = None
+
         with self.bot.session_scope() as session:
             tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
             if not tpl:
                 msg = get_string(lang, "application.template.not_found", name=template_name)
-                await _send_ephemeral(interaction, msg)
-                return
-            if tpl.IsBuiltIn:
+            elif tpl.IsBuiltIn:
                 msg = get_string(lang, "application.template.edit_messages.builtin_forbidden")
-                await _send_ephemeral(interaction, msg)
-                return
+            else:
+                if approval_message is not None:
+                    tpl.ApprovalMessage = approval_message
+                    changes.append(get_string(lang, "application.template.edit_messages.change_approval"))
+                if denial_message is not None:
+                    tpl.DenialMessage = denial_message
+                    changes.append(get_string(lang, "application.template.edit_messages.change_denial"))
 
-            changes = []
-            if approval_message is not None:
-                tpl.ApprovalMessage = approval_message
-                changes.append(get_string(lang, "application.template.edit_messages.change_approval"))
-            if denial_message is not None:
-                tpl.DenialMessage = denial_message
-                changes.append(get_string(lang, "application.template.edit_messages.change_denial"))
+        if msg is not None:
+            await send_hidden_message(interaction, msg)
+            return
 
         if not changes:
             msg = get_string(lang, "application.template.edit_messages.nothing_to_update")
@@ -921,7 +915,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 lang, "application.template.edit_messages.success", name=template_name, changes=", ".join(changes)
             )
 
-        await _send_ephemeral(interaction, msg)
+        await send_hidden_message(interaction, msg)
 
     @template_group.command(name="edit-messages")
     @app_commands.describe(

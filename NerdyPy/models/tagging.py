@@ -2,10 +2,9 @@
 """Tag DB Model"""
 
 from enum import Enum
-from random import randint
 
 from discord.ext.commands import Context, Converter
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Index, Integer, LargeBinary, Unicode, asc
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Index, Integer, LargeBinary, Unicode, asc, func
 from sqlalchemy.orm import relationship
 from utils import database as db
 from utils.errors import NerpyValidationError
@@ -82,9 +81,10 @@ class Tag(db.BASE):
 
     def get_random_entry(self):
         """gets a random tag entry"""
-        tag_entries = self.entries.all()
-        random_entry = tag_entries[randint(0, (len(tag_entries) - 1))]
-        return random_entry
+        entry = self.entries.order_by(func.random()).limit(1).first()
+        if entry is None:
+            raise NerpyValidationError(f"Tag '{self.Name}' has no entries.")
+        return entry
 
     def __str__(self):
         msg = f"==== {self.Name} ====\n\n"

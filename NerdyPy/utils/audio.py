@@ -213,17 +213,15 @@ class Audio:
         }
 
     async def _update_buffer(self, guild_id):
-        _index = 0
-        _tasks = []
-        for s in self.list_queue(guild_id)[: self.buffer_limit]:
-            if _index >= self.buffer_limit:
-                break
-            if s.stream is None:
-                _tasks.append(s.fetch_buffer())
-            _index = _index + 1
+        songs = [s for s in self.list_queue(guild_id) if s.stream is None][: self.buffer_limit]
 
-        if _tasks:
-            await asyncio.gather(*_tasks)
+        if songs:
+            guild = self.bot.get_guild(guild_id)
+            guild_label = f"{guild.name} ({guild_id})" if guild else f"Unknown ({guild_id})"
+            results = await asyncio.gather(*[s.fetch_buffer() for s in songs], return_exceptions=True)
+            for song, result in zip(songs, results):
+                if isinstance(result, Exception):
+                    self.bot.log.error(f"[{guild_label}]: Buffer prefetch failed for '{song.title}': {result}")
 
     def _add_to_buffer(self, guild_id, song):
         self.buffer[guild_id][BufferKey.QUEUE].put(song)
