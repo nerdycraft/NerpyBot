@@ -28,7 +28,7 @@ class TestBotCommandHandler:
         mock_proc = MagicMock()
         mock_proc.memory_info.return_value.rss = 100 * 1024 * 1024
         mock_proc.cpu_percent.return_value = 2.5
-        with patch("utils.valkey._proc", mock_proc):
+        with patch("utils.valkey._proc", mock_proc), patch("utils.valkey._cpu_percent_cached", new=2.5):
             result = await handle_valkey_command(mock_bot, "health", {})
 
         assert result["guild_count"] == 2
