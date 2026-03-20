@@ -69,7 +69,7 @@ class Operator(NerpyBotCog, Cog):
     @botpermissions.command(name="subscribe")
     async def _botpermissions_subscribe(self, interaction: Interaction) -> None:
         """Get DM notifications about missing permissions on bot restart."""
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             existing = PermissionSubscriber.get(interaction.guild.id, interaction.user.id, session)
             if existing is not None:
@@ -83,7 +83,7 @@ class Operator(NerpyBotCog, Cog):
     @botpermissions.command(name="unsubscribe")
     async def _botpermissions_unsubscribe(self, interaction: Interaction) -> None:
         """Stop receiving DM notifications about missing permissions."""
-        lang = self.bot.get_guild_language(interaction.guild_id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             existing = PermissionSubscriber.get(interaction.guild.id, interaction.user.id, session)
             if existing is None:

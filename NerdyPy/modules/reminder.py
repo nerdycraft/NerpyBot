@@ -145,10 +145,6 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
         """Restart the loop so it immediately re-evaluates timing."""
         self._reminder_loop.restart()
 
-    def _lang(self, guild_id):
-        """Look up the guild's language preference."""
-        return self.bot.get_guild_language(guild_id)
-
     # -- /reminder create ----------------------------------------------
 
     @app_commands.command(name="create")
@@ -181,7 +177,7 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
         schedule_type = "interval" if repeat else "once"
         next_fire = datetime.now(UTC) + td
 
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             reminder = ReminderMessage(
                 GuildId=interaction.guild.id,
@@ -236,7 +232,7 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
         timezone: Optional[str] = None,
     ):
         """Create a calendar-based reminder (daily, weekly, monthly)."""
-        lang = self._lang(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
 
         # Parse time
         try:
@@ -331,7 +327,7 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
     @app_commands.command(name="list")
     async def _reminder_list(self, interaction: Interaction):
         """List all current reminder messages."""
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             msgs = ReminderMessage.get_all_by_guild(interaction.guild.id, session)
             if not msgs:
@@ -443,7 +439,7 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
         timezone: Optional[str] = None,
     ):
         """Edit an existing reminder's message, channel, or timing."""
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             msg = ReminderMessage.get_by_id(reminder_id, interaction.guild.id, session)
             if msg is None:
@@ -599,7 +595,7 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
     @app_commands.autocomplete(reminder_id=_reminder_id_autocomplete)
     async def _reminder_delete(self, interaction: Interaction, reminder_id: int):
         """Delete a reminder message."""
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             ReminderMessage.delete(reminder_id, interaction.guild.id, session)
         self._reschedule()
@@ -611,7 +607,7 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
     @app_commands.autocomplete(reminder_id=_reminder_id_autocomplete)
     async def _reminder_pause(self, interaction: Interaction, reminder_id: int):
         """Pause a reminder without deleting it."""
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             msg = ReminderMessage.get_by_id(reminder_id, interaction.guild.id, session)
             if msg is None:
@@ -634,7 +630,7 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
     @app_commands.autocomplete(reminder_id=_reminder_id_autocomplete)
     async def _reminder_resume(self, interaction: Interaction, reminder_id: int):
         """Resume a paused reminder."""
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             msg = ReminderMessage.get_by_id(reminder_id, interaction.guild.id, session)
             if msg is None:

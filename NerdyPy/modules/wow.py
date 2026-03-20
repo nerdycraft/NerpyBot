@@ -72,12 +72,8 @@ STALE_DAYS = 30
 class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     """World of Warcraft API"""
 
-    guildnews = app_commands.Group(name="guildnews", description="manage WoW guild news tracking")
+    guildnews = app_commands.Group(name="guildnews", description="manage WoW guild news tracking", guild_only=True)
     craftingorder = app_commands.Group(name="craftingorder", description="manage crafting order board", guild_only=True)
-
-    def _lang(self, guild_id):
-        """Look up the guild's language preference."""
-        return self.bot.get_guild_language(guild_id)
 
     def __init__(self, bot):
         super().__init__(bot)
@@ -369,7 +365,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         """
         try:
             await interaction.response.defer()
-            lang = self._lang(interaction.guild.id)
+            lang = self._lang(interaction.guild_id)
             realm_slug, region = await self._parse_realm(realm, lang)
             name = name.lower()
             profile = f"{region}/{realm_slug}/{name}"
@@ -445,7 +441,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         """
         try:
             await interaction.response.defer(ephemeral=True)
-            lang = self._lang(interaction.guild.id)
+            lang = self._lang(interaction.guild_id)
             realm_slug, region = await self._parse_realm(realm, lang)
             name_slug = guild_name.lower().replace(" ", "-")
             realm_region = f"{realm_slug}-{region.upper()}"
@@ -524,7 +520,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     @checks.has_permissions(manage_channels=True)
     async def _guildnews_remove(self, interaction: Interaction, config: int):
         """remove a guild news tracking config [manage_channels]"""
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
             if not cfg:
@@ -540,7 +536,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     @guildnews.command(name="list")
     async def _guildnews_list(self, interaction: Interaction):
         """list all tracked WoW guilds for this server"""
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             configs = WowGuildNewsConfig.get_all_by_guild(interaction.guild.id, session)
             if not configs:
@@ -572,7 +568,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     @checks.has_permissions(manage_channels=True)
     async def _guildnews_pause(self, interaction: Interaction, config: int):
         """pause guild news tracking [manage_channels]"""
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
             if not cfg:
@@ -589,7 +585,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
     @checks.has_permissions(manage_channels=True)
     async def _guildnews_resume(self, interaction: Interaction, config: int):
         """resume guild news tracking [manage_channels]"""
-        lang = self.bot.get_guild_language(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         with self.bot.session_scope() as session:
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
             if not cfg:
@@ -617,7 +613,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
         channel: Move notifications to this channel
         active_days: Change activity window (days)
         """
-        lang = self._lang(interaction.guild.id)
+        lang = self._lang(interaction.guild_id)
         if channel is None and active_days is None:
             await interaction.response.send_message(
                 get_string(lang, "wow.guildnews.edit.nothing_to_change"), ephemeral=True
@@ -751,7 +747,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             wow_guild = config.WowGuildName
             realm = config.WowRealmSlug
             region = config.Region
-            language = self.bot.get_guild_language(config.GuildId)
+            language = self._lang(config.GuildId)
             min_level = config.MinLevel
             active_days = config.ActiveDays
             last_activity_ts = config.LastActivityTimestamp
