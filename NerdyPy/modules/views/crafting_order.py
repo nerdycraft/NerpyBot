@@ -375,13 +375,13 @@ def _build_step_embed(
     return embed
 
 
-def _add_back_button(view: ui.View, lang: str, callback) -> None:
-    """Add a secondary back button (row 4) to *view*."""
+def _add_back_button(view: ui.View, lang: str, callback, row: int = 4) -> None:
+    """Add a secondary back button to *view* on the given row (default 4)."""
     btn = ui.Button(
         label=get_string(lang, "wow.craftingorder.back_button"),
         style=discord.ButtonStyle.secondary,
         emoji="◀",
-        row=4,
+        row=row,
     )
     btn.callback = callback
     view.add_item(btn)
@@ -880,29 +880,35 @@ class VirtualCategorySelectView(ui.View):
         title = get_string(self.lang, "wow.craftingorder.virtual_category_select")
         return _build_step_embed(title, title, self._breadcrumbs)
 
+    def _make_back_closure(self):
+        """Return an async callback that navigates back to this VirtualCategorySelectView."""
+
+        async def _go_back(itx: Interaction):
+            view = VirtualCategorySelectView(
+                self.bot,
+                self.roles,
+                self.guild_id,
+                self.lang,
+                self._available_vcats,
+                self.mapped_prof_ids,
+                self.item_class_ids,
+                self.pvp_item_class_ids,
+                breadcrumbs=self._breadcrumbs,
+            )
+            embed = view._make_embed()
+            await itx.response.edit_message(embed=embed, view=view, content=None)
+
+        return _go_back
+
     async def _on_category(self, interaction: Interaction, vcat: str):
         new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, f"wow.craftingorder.{_VCAT_LABEL_KEYS[vcat][1]}")]
+        go_back = self._make_back_closure()
 
         if vcat == _VCAT_PVP:
             weapon_class_name = _VCAT_TO_CLASS_NAME[_VCAT_WEAPONS]
             armor_class_name = _VCAT_TO_CLASS_NAME[_VCAT_ARMOR]
             has_pvp_weapons = weapon_class_name in self.pvp_item_class_ids
             has_pvp_armor = armor_class_name in self.pvp_item_class_ids
-
-            async def _go_back_to_vcat(itx: Interaction):
-                view = VirtualCategorySelectView(
-                    self.bot,
-                    self.roles,
-                    self.guild_id,
-                    self.lang,
-                    self._available_vcats,
-                    self.mapped_prof_ids,
-                    self.item_class_ids,
-                    self.pvp_item_class_ids,
-                    breadcrumbs=self._breadcrumbs,
-                )
-                embed = view._make_embed()
-                await itx.response.edit_message(embed=embed, view=view, content=None)
 
             if has_pvp_weapons and not has_pvp_armor:
                 await _navigate_pvp_weapons(
@@ -914,7 +920,7 @@ class VirtualCategorySelectView(ui.View):
                     self.pvp_item_class_ids[weapon_class_name],
                     self.mapped_prof_ids,
                     breadcrumbs=new_breadcrumbs,
-                    back_factory=_go_back_to_vcat,
+                    back_factory=go_back,
                 )
             elif has_pvp_armor and not has_pvp_weapons:
                 await _navigate_pvp_armor(
@@ -926,7 +932,7 @@ class VirtualCategorySelectView(ui.View):
                     self.pvp_item_class_ids[armor_class_name],
                     self.mapped_prof_ids,
                     breadcrumbs=new_breadcrumbs,
-                    back_factory=_go_back_to_vcat,
+                    back_factory=go_back,
                 )
             else:
                 view = PvPGroupSelectView(
@@ -937,28 +943,12 @@ class VirtualCategorySelectView(ui.View):
                     self.mapped_prof_ids,
                     self.pvp_item_class_ids,
                     breadcrumbs=new_breadcrumbs,
-                    back_factory=_go_back_to_vcat,
+                    back_factory=go_back,
                 )
                 embed = view._make_embed()
                 await interaction.response.edit_message(embed=embed, view=view, content=None)
 
         elif vcat == _VCAT_RAID_PREP:
-
-            async def _go_back_raid(itx: Interaction):
-                view = VirtualCategorySelectView(
-                    self.bot,
-                    self.roles,
-                    self.guild_id,
-                    self.lang,
-                    self._available_vcats,
-                    self.mapped_prof_ids,
-                    self.item_class_ids,
-                    self.pvp_item_class_ids,
-                    breadcrumbs=self._breadcrumbs,
-                )
-                embed = view._make_embed()
-                await itx.response.edit_message(embed=embed, view=view, content=None)
-
             with self.bot.session_scope() as session:
                 categories = CraftingRecipeCache.get_raid_prep_categories(
                     RECIPE_TYPE_CRAFTED, session, profession_ids=self.mapped_prof_ids
@@ -971,7 +961,7 @@ class VirtualCategorySelectView(ui.View):
                 categories,
                 self.mapped_prof_ids,
                 breadcrumbs=new_breadcrumbs,
-                back_factory=_go_back_raid,
+                back_factory=go_back,
             )
             embed = view._make_embed()
             await interaction.response.edit_message(embed=embed, view=view, content=None)
@@ -981,21 +971,6 @@ class VirtualCategorySelectView(ui.View):
             if class_id is None:
                 await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
                 return
-
-            async def _go_back_gear(itx: Interaction):
-                view = VirtualCategorySelectView(
-                    self.bot,
-                    self.roles,
-                    self.guild_id,
-                    self.lang,
-                    self._available_vcats,
-                    self.mapped_prof_ids,
-                    self.item_class_ids,
-                    self.pvp_item_class_ids,
-                    breadcrumbs=self._breadcrumbs,
-                )
-                embed = view._make_embed()
-                await itx.response.edit_message(embed=embed, view=view, content=None)
 
             with self.bot.session_scope() as session:
                 subclasses = CraftingRecipeCache.get_item_subclasses(
@@ -1017,7 +992,7 @@ class VirtualCategorySelectView(ui.View):
                 orderable_only=True,
                 exclude_pvp=True,
                 breadcrumbs=new_breadcrumbs,
-                back_factory=_go_back_gear,
+                back_factory=go_back,
             )
             embed = view._make_embed()
             await interaction.response.edit_message(embed=embed, view=view, content=None)
@@ -1025,21 +1000,6 @@ class VirtualCategorySelectView(ui.View):
         elif vcat == _VCAT_PROFESSIONS:
             has_gear = _VCAT_TO_CLASS_NAME[_VCAT_PROFESSIONS] in self.item_class_ids
             has_knowledge = _PROF_GROUP_KNOWLEDGE in self.item_class_ids
-
-            async def _go_back_prof(itx: Interaction):
-                view = VirtualCategorySelectView(
-                    self.bot,
-                    self.roles,
-                    self.guild_id,
-                    self.lang,
-                    self._available_vcats,
-                    self.mapped_prof_ids,
-                    self.item_class_ids,
-                    self.pvp_item_class_ids,
-                    breadcrumbs=self._breadcrumbs,
-                )
-                embed = view._make_embed()
-                await itx.response.edit_message(embed=embed, view=view, content=None)
 
             if has_gear and has_knowledge:
                 view = ProfessionGroupSelectView(
@@ -1050,7 +1010,7 @@ class VirtualCategorySelectView(ui.View):
                     self.mapped_prof_ids,
                     self.item_class_ids,
                     breadcrumbs=new_breadcrumbs,
-                    back_factory=_go_back_prof,
+                    back_factory=go_back,
                 )
                 embed = view._make_embed()
                 await interaction.response.edit_message(embed=embed, view=view, content=None)
@@ -1064,7 +1024,7 @@ class VirtualCategorySelectView(ui.View):
                     self.item_class_ids,
                     self.mapped_prof_ids,
                     breadcrumbs=new_breadcrumbs,
-                    back_factory=_go_back_prof,
+                    back_factory=go_back,
                 )
             elif has_knowledge:
                 await _navigate_prof_knowledge(
@@ -1075,26 +1035,10 @@ class VirtualCategorySelectView(ui.View):
                     self.lang,
                     self.mapped_prof_ids,
                     breadcrumbs=new_breadcrumbs,
-                    back_factory=_go_back_prof,
+                    back_factory=go_back,
                 )
 
         elif vcat == _VCAT_OTHER:
-
-            async def _go_back_other(itx: Interaction):
-                view = VirtualCategorySelectView(
-                    self.bot,
-                    self.roles,
-                    self.guild_id,
-                    self.lang,
-                    self._available_vcats,
-                    self.mapped_prof_ids,
-                    self.item_class_ids,
-                    self.pvp_item_class_ids,
-                    breadcrumbs=self._breadcrumbs,
-                )
-                embed = view._make_embed()
-                await itx.response.edit_message(embed=embed, view=view, content=None)
-
             with self.bot.session_scope() as session:
                 categories = CraftingRecipeCache.get_other_categories(
                     RECIPE_TYPE_CRAFTED, session, profession_ids=self.mapped_prof_ids
@@ -1107,7 +1051,7 @@ class VirtualCategorySelectView(ui.View):
                 categories,
                 self.mapped_prof_ids,
                 breadcrumbs=new_breadcrumbs,
-                back_factory=_go_back_other,
+                back_factory=go_back,
             )
             embed = view._make_embed()
             await interaction.response.edit_message(embed=embed, view=view, content=None)
@@ -1162,12 +1106,8 @@ class PvPGroupSelectView(ui.View):
         title = get_string(self.lang, "wow.craftingorder.pvp_group_select")
         return _build_step_embed(title, title, self._breadcrumbs)
 
-    async def _on_weapons(self, interaction: Interaction):
-        weapon_class_id = self.item_class_ids.get(_VCAT_TO_CLASS_NAME[_VCAT_WEAPONS])
-        if weapon_class_id is None:
-            await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
-            return
-        new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, "wow.craftingorder.weapons_category")]
+    def _make_back_closure(self):
+        """Return an async callback that navigates back to this PvPGroupSelectView."""
 
         async def _go_back(itx: Interaction):
             view = PvPGroupSelectView(
@@ -1183,6 +1123,14 @@ class PvPGroupSelectView(ui.View):
             embed = view._make_embed()
             await itx.response.edit_message(embed=embed, view=view, content=None)
 
+        return _go_back
+
+    async def _on_weapons(self, interaction: Interaction):
+        weapon_class_id = self.item_class_ids.get(_VCAT_TO_CLASS_NAME[_VCAT_WEAPONS])
+        if weapon_class_id is None:
+            await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
+            return
+        new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, "wow.craftingorder.weapons_category")]
         await _navigate_pvp_weapons(
             interaction,
             self.bot,
@@ -1192,7 +1140,7 @@ class PvPGroupSelectView(ui.View):
             weapon_class_id,
             self.mapped_prof_ids,
             breadcrumbs=new_breadcrumbs,
-            back_factory=_go_back,
+            back_factory=self._make_back_closure(),
         )
 
     async def _on_gear(self, interaction: Interaction):
@@ -1201,21 +1149,6 @@ class PvPGroupSelectView(ui.View):
             await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
             return
         new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, "wow.craftingorder.armor_category")]
-
-        async def _go_back(itx: Interaction):
-            view = PvPGroupSelectView(
-                self.bot,
-                self.roles,
-                self.guild_id,
-                self.lang,
-                self.mapped_prof_ids,
-                self.item_class_ids,
-                breadcrumbs=self._breadcrumbs,
-                back_factory=self._back_factory,
-            )
-            embed = view._make_embed()
-            await itx.response.edit_message(embed=embed, view=view, content=None)
-
         await _navigate_pvp_armor(
             interaction,
             self.bot,
@@ -1225,7 +1158,7 @@ class PvPGroupSelectView(ui.View):
             armor_class_id,
             self.mapped_prof_ids,
             breadcrumbs=new_breadcrumbs,
-            back_factory=_go_back,
+            back_factory=self._make_back_closure(),
         )
 
 
@@ -1280,8 +1213,8 @@ class ProfessionGroupSelectView(ui.View):
         title = get_string(self.lang, "wow.craftingorder.prof_group_select")
         return _build_step_embed(title, title, self._breadcrumbs)
 
-    async def _on_gear(self, interaction: Interaction):
-        new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, "wow.craftingorder.prof_gear_option")]
+    def _make_back_closure(self):
+        """Return an async callback that navigates back to this ProfessionGroupSelectView."""
 
         async def _go_back(itx: Interaction):
             view = ProfessionGroupSelectView(
@@ -1297,6 +1230,10 @@ class ProfessionGroupSelectView(ui.View):
             embed = view._make_embed()
             await itx.response.edit_message(embed=embed, view=view, content=None)
 
+        return _go_back
+
+    async def _on_gear(self, interaction: Interaction):
+        new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, "wow.craftingorder.prof_gear_option")]
         await _navigate_prof_gear(
             interaction,
             self.bot,
@@ -1306,26 +1243,11 @@ class ProfessionGroupSelectView(ui.View):
             self.item_class_ids,
             self.mapped_prof_ids,
             breadcrumbs=new_breadcrumbs,
-            back_factory=_go_back,
+            back_factory=self._make_back_closure(),
         )
 
     async def _on_knowledge(self, interaction: Interaction):
         new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, "wow.craftingorder.prof_knowledge_option")]
-
-        async def _go_back(itx: Interaction):
-            view = ProfessionGroupSelectView(
-                self.bot,
-                self.roles,
-                self.guild_id,
-                self.lang,
-                self.mapped_prof_ids,
-                self.item_class_ids,
-                breadcrumbs=self._breadcrumbs,
-                back_factory=self._back_factory,
-            )
-            embed = view._make_embed()
-            await itx.response.edit_message(embed=embed, view=view, content=None)
-
         await _navigate_prof_knowledge(
             interaction,
             self.bot,
@@ -1334,7 +1256,7 @@ class ProfessionGroupSelectView(ui.View):
             self.lang,
             self.mapped_prof_ids,
             breadcrumbs=new_breadcrumbs,
-            back_factory=_go_back,
+            back_factory=self._make_back_closure(),
         )
 
 
@@ -1629,6 +1551,7 @@ class ItemSelectView(ui.View):
         page: int = 1,
         breadcrumbs: list[str] | None = None,
         back_factory=None,
+        _presorted: bool = False,
     ):
         super().__init__(timeout=180)
         self.bot = bot
@@ -1639,52 +1562,69 @@ class ItemSelectView(ui.View):
         self._back_factory = back_factory
         self._page = page
         self._selected_recipe = None
-        self._all_recipes = sorted(
-            recipes,
-            key=lambda r: (_get_locale(r.ItemNameLocales, lang) or r.ItemName or "").casefold(),
-        )
+        if _presorted:
+            self._all_recipes = recipes
+        else:
+            self._all_recipes = sorted(
+                recipes,
+                key=lambda r: (_get_locale(r.ItemNameLocales, lang) or r.ItemName or "").casefold(),
+            )
 
         total_items = len(self._all_recipes)
-        total_pages = max(1, (total_items + self._PAGE_SIZE - 1) // self._PAGE_SIZE)
-        self._total_pages = total_pages
+        self._total_pages = max(1, (total_items + self._PAGE_SIZE - 1) // self._PAGE_SIZE)
         offset = (page - 1) * self._PAGE_SIZE
         page_items = self._all_recipes[offset : offset + self._PAGE_SIZE]
         self._recipes_by_id = {str(r.RecipeId): r for r in page_items}
 
+        self._build_items()
+
+    def _build_items(self, include_choose: bool = False) -> None:
+        """Populate the view with select, pagination, back, choose (optional), and other buttons."""
+        total_items = len(self._all_recipes)
+        is_multipage = total_items > self._PAGE_SIZE
+        action_row = 2 if is_multipage else 1
+
+        offset = (self._page - 1) * self._PAGE_SIZE
+        page_items = self._all_recipes[offset : offset + self._PAGE_SIZE]
         items = [(r.RecipeId, r.ItemName, r.ItemNameLocales) for r in page_items]
-        options = _build_localized_options(items, lang)
+        options = _build_localized_options(items, self.lang)
         select = ui.Select(
-            placeholder=get_string(lang, "wow.craftingorder.item_select"),
+            placeholder=get_string(self.lang, "wow.craftingorder.item_select"),
             options=options,
             row=0,
         )
         select.callback = self._on_select
         self.add_item(select)
 
-        is_multipage = total_items > self._PAGE_SIZE
-        action_row = 2 if is_multipage else 1
-
         if is_multipage:
-            prev_btn = ui.Button(emoji="◀", style=discord.ButtonStyle.secondary, row=1, disabled=(page == 1))
+            prev_btn = ui.Button(emoji="◀", style=discord.ButtonStyle.secondary, row=1, disabled=(self._page == 1))
             prev_btn.callback = self._on_prev
             self.add_item(prev_btn)
 
-            next_btn = ui.Button(emoji="▶", style=discord.ButtonStyle.secondary, row=1, disabled=(page >= total_pages))
+            next_btn = ui.Button(
+                emoji="▶",
+                style=discord.ButtonStyle.secondary,
+                row=1,
+                disabled=(self._page >= self._total_pages),
+            )
             next_btn.callback = self._on_next
             self.add_item(next_btn)
 
-        if back_factory is not None:
-            back_btn = ui.Button(
-                label=get_string(lang, "wow.craftingorder.back_button"),
-                style=discord.ButtonStyle.secondary,
-                emoji="◀",
+        if self._back_factory is not None:
+            _add_back_button(self, self.lang, self._back_factory, row=action_row)
+
+        if include_choose:
+            choose_btn = ui.Button(
+                label=get_string(self.lang, "wow.craftingorder.choose_button"),
+                style=discord.ButtonStyle.success,
+                emoji="✅",
                 row=action_row,
             )
-            back_btn.callback = back_factory
-            self.add_item(back_btn)
+            choose_btn.callback = self._on_choose
+            self.add_item(choose_btn)
 
         other_btn = ui.Button(
-            label=get_string(lang, "wow.craftingorder.other_button"),
+            label=get_string(self.lang, "wow.craftingorder.other_button"),
             style=discord.ButtonStyle.secondary,
             emoji="✍️",
             row=action_row,
@@ -1734,68 +1674,8 @@ class ItemSelectView(ui.View):
             return
 
         self._selected_recipe = recipe
-
-        # Rebuild view with Choose button added
         self.clear_items()
-
-        total_items = len(self._all_recipes)
-        is_multipage = total_items > self._PAGE_SIZE
-        action_row = 2 if is_multipage else 1
-        offset = (self._page - 1) * self._PAGE_SIZE
-        page_items = self._all_recipes[offset : offset + self._PAGE_SIZE]
-
-        items = [(r.RecipeId, r.ItemName, r.ItemNameLocales) for r in page_items]
-        options = _build_localized_options(items, self.lang)
-        select = ui.Select(
-            placeholder=get_string(self.lang, "wow.craftingorder.item_select"),
-            options=options,
-            row=0,
-        )
-        select.callback = self._on_select
-        self.add_item(select)
-
-        if is_multipage:
-            prev_btn = ui.Button(emoji="◀", style=discord.ButtonStyle.secondary, row=1, disabled=(self._page == 1))
-            prev_btn.callback = self._on_prev
-            self.add_item(prev_btn)
-
-            next_btn = ui.Button(
-                emoji="▶",
-                style=discord.ButtonStyle.secondary,
-                row=1,
-                disabled=(self._page >= self._total_pages),
-            )
-            next_btn.callback = self._on_next
-            self.add_item(next_btn)
-
-        if self._back_factory is not None:
-            back_btn = ui.Button(
-                label=get_string(self.lang, "wow.craftingorder.back_button"),
-                style=discord.ButtonStyle.secondary,
-                emoji="◀",
-                row=action_row,
-            )
-            back_btn.callback = self._back_factory
-            self.add_item(back_btn)
-
-        choose_btn = ui.Button(
-            label=get_string(self.lang, "wow.craftingorder.choose_button"),
-            style=discord.ButtonStyle.success,
-            emoji="✅",
-            row=action_row,
-        )
-        choose_btn.callback = self._on_choose
-        self.add_item(choose_btn)
-
-        other_btn = ui.Button(
-            label=get_string(self.lang, "wow.craftingorder.other_button"),
-            style=discord.ButtonStyle.secondary,
-            emoji="✍️",
-            row=action_row,
-        )
-        other_btn.callback = self._on_other
-        self.add_item(other_btn)
-
+        self._build_items(include_choose=True)
         embed = self._make_embed(recipe)
         await interaction.response.edit_message(embed=embed, view=self, content=None)
 
@@ -1809,6 +1689,7 @@ class ItemSelectView(ui.View):
             page=self._page - 1,
             breadcrumbs=self._breadcrumbs,
             back_factory=self._back_factory,
+            _presorted=True,
         )
         embed = view._make_embed()
         await interaction.response.edit_message(embed=embed, view=view, content=None)
@@ -1823,6 +1704,7 @@ class ItemSelectView(ui.View):
             page=self._page + 1,
             breadcrumbs=self._breadcrumbs,
             back_factory=self._back_factory,
+            _presorted=True,
         )
         embed = view._make_embed()
         await interaction.response.edit_message(embed=embed, view=view, content=None)
