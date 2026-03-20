@@ -237,6 +237,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             if not form:
                 msg = get_string(lang, "application.form_not_found", name=name)
             else:
+                form_id = form.Id
                 if review_channel is not None:
                     form.ReviewChannelId = review_channel.id
                     changes.append(
@@ -266,8 +267,6 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
                 if not changes:
                     msg = get_string(lang, "application.settings.nothing_to_change")
-                else:
-                    form_id = form.Id
 
         if msg is not None:
             await send_hidden_message(interaction, msg)
