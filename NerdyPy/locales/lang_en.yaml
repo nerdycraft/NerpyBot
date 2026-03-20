@@ -368,6 +368,7 @@ wow:
     prof_gear_option: "Gear"
     prof_knowledge_option: "Knowledge"
     pvp_armor_select: "Pick your armor type"
+    pvp_weapon_select: "Pick your weapon type"
     raid_prep_select: "What does your raid need?"
     other_select: "Pick a category"
     category_select: "Narrow it down"
