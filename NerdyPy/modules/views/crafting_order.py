@@ -1112,8 +1112,9 @@ class OtherCategorySelectView(ui.View):
 class ItemSelectView(ui.View):
     """Shared item selection step: shows up to 24 cached recipes + 'Other' option.
 
-    When there are more than 24 items, shows 23 items + a 'More items →' sentinel +
-    'Other', so the user can page through without hitting the Discord 25-option cap.
+    When there are more than 24 items, shows 24 items + a 'More items →' sentinel,
+    with 'Other' appearing only on the last page, so pagination and the free-text
+    escape hatch are mutually exclusive and the Discord 25-option cap is never hit.
     """
 
     _OTHER_VALUE = "__other__"
