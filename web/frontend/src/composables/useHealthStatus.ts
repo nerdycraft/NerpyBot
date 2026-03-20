@@ -74,6 +74,11 @@ export function useHealthStatus() {
       onerror(err) {
         error.value = err instanceof Error ? err.message : "Stream error";
         connected.value = false;
+        // Null before throwing so connect() can be called again immediately
+        // (e.g. from a watch on error) without hitting the stale-guard early return.
+        if (abortController === controller) {
+          abortController = null;
+        }
         // Throw to stop fetchEventSource from retrying.
         throw err;
       },

@@ -61,6 +61,9 @@ async def _health_event_generator(
                 break
 
             result = await vk.send_bot_command("health_live", {}, timeout=5.0)
+            # Re-check after the potentially slow Valkey call — skip yield if already gone.
+            if await request.is_disconnected():
+                break
             if result and "error" not in result:
                 yield {"event": "health", "data": json.dumps(result)}
 
