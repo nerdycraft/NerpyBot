@@ -30,14 +30,17 @@ const healthError = ref<string | null>(null);
 
 const { status: liveStatus, connected: liveConnected, error: liveError, connect } = useHealthStatus();
 
-const live = computed(() => ({
-  uptime_seconds: liveStatus.value?.uptime_seconds ?? health.value?.uptime_seconds ?? null,
-  latency_ms: liveStatus.value?.latency_ms ?? health.value?.latency_ms ?? null,
-  memory_mb: liveStatus.value?.memory_mb ?? health.value?.memory_mb ?? null,
-  cpu_percent: liveStatus.value?.cpu_percent ?? health.value?.cpu_percent ?? null,
-  voice_connections: liveStatus.value?.voice_connections ?? health.value?.voice_connections ?? null,
-  voice_details: liveStatus.value?.voice_details ?? health.value?.voice_details ?? [],
-}));
+const live = computed(() => {
+  const src = liveConnected.value ? liveStatus.value : null;
+  return {
+    uptime_seconds: src?.uptime_seconds ?? health.value?.uptime_seconds ?? null,
+    latency_ms: src?.latency_ms ?? health.value?.latency_ms ?? null,
+    memory_mb: src?.memory_mb ?? health.value?.memory_mb ?? null,
+    cpu_percent: src?.cpu_percent ?? health.value?.cpu_percent ?? null,
+    voice_connections: src?.voice_connections ?? health.value?.voice_connections ?? null,
+    voice_details: src?.voice_details ?? health.value?.voice_details ?? [],
+  };
+});
 
 function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
