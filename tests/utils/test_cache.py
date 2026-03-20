@@ -201,12 +201,12 @@ class TestLeaveMessages:
 
     def test_set_enabled(self, cache, session_factory):
         cache.warm_leave_messages(session_factory)
-        cache.set_leave_message_guild(GUILD_ID, True)
+        cache.set_leave_message_guild(GUILD_ID, True, channel_id=111, message="bye")
         assert cache.is_leave_message_guild(GUILD_ID) is True
 
     def test_set_disabled(self, cache, session_factory):
         cache.warm_leave_messages(session_factory)
-        cache.set_leave_message_guild(GUILD_ID, True)
+        cache.set_leave_message_guild(GUILD_ID, True, channel_id=111, message="bye")
         cache.set_leave_message_guild(GUILD_ID, False)
         assert cache.is_leave_message_guild(GUILD_ID) is False
 
@@ -217,7 +217,7 @@ class TestLeaveMessages:
         db_session.commit()
 
         cache.warm_leave_messages(session_factory)
-        cache.set_leave_message_guild(GUILD_ID_2, True)  # local addition
+        cache.set_leave_message_guild(GUILD_ID_2, True, channel_id=222, message="cya")  # local addition
 
         cache.warm_leave_messages(session_factory)  # re-warm clears local addition
         assert cache.is_leave_message_guild(GUILD_ID_2) is False
@@ -242,7 +242,7 @@ class TestEviction:
 
     def test_evict_removes_from_leave_guild_set(self, cache, session_factory):
         cache.warm_leave_messages(session_factory)
-        cache.set_leave_message_guild(GUILD_ID, True)
+        cache.set_leave_message_guild(GUILD_ID, True, channel_id=111, message="bye")
         cache.evict_guild(GUILD_ID)
         assert cache.is_leave_message_guild(GUILD_ID) is False
 

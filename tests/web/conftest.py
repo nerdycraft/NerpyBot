@@ -126,6 +126,24 @@ def make_auth_header(user_id: str = "123456", username: str = "TestUser", secret
     return {"Authorization": f"Bearer {token}"}
 
 
+@pytest.fixture(autouse=True)
+def clear_web_caches():
+    """Clear all web-side in-process TTL caches before each test.
+
+    Module-level TTLCache singletons survive across tests in the same process.
+    Without this, a cache warmed by test A leaks stale entries into test B's
+    fresh DB, causing spurious 403 / permission failures.
+    """
+    from web.dependencies import invalidate_premium_cache
+    from web.routes.auth import _bot_guild_ids_cache
+    from web.routes.guilds import _guild_lang_cache
+
+    invalidate_premium_cache()
+    _bot_guild_ids_cache.clear()
+    _guild_lang_cache.clear()
+    yield
+
+
 @pytest.fixture
 def auth_header():
     """Auth header for a regular user."""

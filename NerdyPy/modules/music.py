@@ -10,6 +10,7 @@ from discord.ext.commands import Cog
 from models.music import Playlist, PlaylistEntry
 from modules.views.music import NowPlayingView, build_now_playing_embed
 from utils.audio import QueuedSong, QueueMixin
+from utils.cache import cached_autocomplete
 from utils.checks import is_connected_to_voice
 from utils.cog import NerpyBotCog
 from utils.download import download, fetch_yt_infos
@@ -178,8 +179,14 @@ class Music(NerpyBotCog, QueueMixin, Cog):
 
     async def _ac_playlist_name(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         """Autocomplete for playlist name from the user's saved playlists."""
-        with self.bot.session_scope() as session:
-            playlists = Playlist.get_by_user(interaction.guild_id, interaction.user.id, session)
+        guild_id = interaction.guild_id
+        user_id = interaction.user.id
+
+        def _fetch():
+            with self.bot.session_scope() as session:
+                return Playlist.get_by_user(guild_id, user_id, session)
+
+        playlists = cached_autocomplete(("playlists", guild_id, user_id), _fetch)
         return [app_commands.Choice(name=p.Name, value=p.Name) for p in playlists if current.lower() in p.Name.lower()][
             :25
         ]

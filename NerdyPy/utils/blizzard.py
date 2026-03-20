@@ -511,6 +511,10 @@ async def sync_crafting_recipes(
             return True
 
     cache_updated = await asyncio.to_thread(_upsert)
+    if cache_updated:
+        from models.wow import invalidate_recipe_cache
+
+        invalidate_recipe_cache()
 
     crafted_count = sum(1 for r in all_rows if r["RecipeType"] == RECIPE_TYPE_CRAFTED)
     housing_count = sum(1 for r in all_rows if r["RecipeType"] == RECIPE_TYPE_HOUSING)

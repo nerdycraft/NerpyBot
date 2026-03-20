@@ -6,6 +6,7 @@ import logging
 import secrets
 
 import httpx
+from cachetools import TTLCache
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 
@@ -15,8 +16,29 @@ from web.auth.oauth2 import build_authorize_url, exchange_code, fetch_discord_us
 from web.auth.permissions import resolve_guild_permissions
 from web.cache import PERM_CACHE_TTL, ValkeyClient
 from web.config import WebConfig
-from web.dependencies import _TEST_MODE, _TEST_USER_ID, get_config, get_current_user, get_db_session, get_valkey
+from web.dependencies import (
+    _TEST_MODE,
+    _TEST_USER_ID,
+    _get_premium_ids,
+    get_config,
+    get_current_user,
+    get_db_session,
+    get_valkey,
+)
 from web.schemas import GuildSummary, UserInfo
+
+# Cache for the set of bot guild IDs. TTL of 2 minutes; guild join/leave is rare.
+_bot_guild_ids_cache: TTLCache = TTLCache(maxsize=1, ttl=120)
+
+
+def _get_bot_guild_ids(session) -> set[str]:
+    """Return the cached set of bot guild ID strings, loading from DB on miss."""
+    if "ids" in _bot_guild_ids_cache:
+        return _bot_guild_ids_cache["ids"]
+    ids = BotGuild.get_ids(session)
+    _bot_guild_ids_cache["ids"] = ids
+    return ids
+
 
 _log = logging.getLogger(__name__)
 
@@ -182,8 +204,8 @@ async def me(
         perms = resolve_guild_permissions(guilds)
         vk.set_permissions(user_id, perms, ttl=PERM_CACHE_TTL)
         _log.debug("/me: rehydrated permissions for %d guilds after cache miss", len(perms))
-    bot_guilds = BotGuild.get_ids(session)
-    _log.debug("/me: bot_guilds from DB has %d entries", len(bot_guilds))
+    bot_guilds = _get_bot_guild_ids(session)
+    _log.debug("/me: bot_guilds (cached) has %d entries", len(bot_guilds))
 
     invite_base = (
         f"https://discord.com/oauth2/authorize"
@@ -206,13 +228,7 @@ async def me(
             )
 
     is_operator = int(user_id) in config.ops
-    is_premium: bool
-    if is_operator:
-        is_premium = True
-    else:
-        from models.admin import PremiumUser
-
-        is_premium = PremiumUser.has(int(user_id), session)
+    is_premium = is_operator or int(user_id) in _get_premium_ids(session)
 
     return UserInfo(
         id=user_id,

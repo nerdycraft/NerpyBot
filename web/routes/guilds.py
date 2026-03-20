@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from cachetools import TTLCache
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
@@ -56,6 +57,22 @@ from web.schemas import (
 
 _log = logging.getLogger(__name__)
 
+# Cache for per-guild language lookups (web-side only; bot side uses GuildConfigCache).
+# TTL of 5 minutes; guild language changes rarely.
+_guild_lang_cache: TTLCache = TTLCache(maxsize=100, ttl=300)
+
+
+def _get_guild_language_cached(guild_id: int, session) -> str:
+    """Return the guild's configured language, caching the result for 5 minutes."""
+    if guild_id in _guild_lang_cache:
+        return _guild_lang_cache[guild_id]
+    from utils.strings import get_guild_language
+
+    lang = get_guild_language(guild_id, session)
+    _guild_lang_cache[guild_id] = lang
+    return lang
+
+
 router = APIRouter(prefix="/guilds", tags=["guilds"], dependencies=[Depends(require_premium)])
 
 _REDACTED = "[redacted]"
@@ -91,12 +108,8 @@ async def get_language(
     response: Response = None,
 ):
     """Return the configured language for a guild (defaults to 'en')."""
-    from models.admin import GuildLanguageConfig
-
     _set_support_mode_header(user, response)
-    cfg = GuildLanguageConfig.get(guild_id, session)
-    lang = cfg.Language if cfg else "en"
-    return LanguageConfig(guild_id=str(guild_id), language=lang)
+    return LanguageConfig(guild_id=str(guild_id), language=_get_guild_language_cached(guild_id, session))
 
 
 @router.put("/{guild_id}/language", response_model=LanguageConfig)
@@ -116,6 +129,7 @@ async def set_language(
         session.add(cfg)
     else:
         cfg.Language = body.language
+    _guild_lang_cache.pop(guild_id, None)
     return LanguageConfig(guild_id=str(guild_id), language=cfg.Language)
 
 
@@ -1245,14 +1259,13 @@ async def create_wow_news_config(
     """Create a WoW guild news tracker for a Discord guild. Returns 409 if already tracked."""
     _deny_support_write(user)
     from models.wow import WowGuildNewsConfig
-    from utils.strings import get_guild_language
 
     normalized_name = " ".join(body.wow_guild_name.split())
     name_slug = normalized_name.lower().replace(" ", "-")
     if WowGuildNewsConfig.get_existing(guild_id, name_slug, body.wow_realm_slug, body.region, session):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already tracking this WoW guild")
 
-    lang = get_guild_language(guild_id, session)
+    lang = _get_guild_language_cached(guild_id, session)
     cfg = WowGuildNewsConfig(
         GuildId=guild_id,
         ChannelId=int(body.channel_id),

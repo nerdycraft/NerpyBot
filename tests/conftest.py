@@ -16,6 +16,24 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "NerdyPy"))
 from utils.database import BASE
 
 
+@pytest.fixture(autouse=True)
+def clear_bot_caches():
+    """Clear bot-side in-process TTL caches between tests.
+
+    Module-level TTLCache singletons live for the entire process lifetime.
+    Tests that use function-scoped DB sessions trigger rollback() on cleanup,
+    which expires SQLAlchemy ORM objects. A subsequent test that hits the warm
+    cache gets expired+detached objects, raising DetachedInstanceError or
+    "no such table" errors from lazy-load attempts on a different in-memory DB.
+    """
+    from models.wow import invalidate_recipe_cache
+    from utils.cache import _autocomplete_cache
+
+    _autocomplete_cache.clear()
+    invalidate_recipe_cache()
+    yield
+
+
 @pytest.fixture
 def db_engine():
     """Create an in-memory SQLite engine for testing."""

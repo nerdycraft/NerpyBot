@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
 """In-memory guild configuration cache to reduce redundant DB queries."""
 
+import logging
+
+from cachetools import TTLCache
+
+_log = logging.getLogger(__name__)
+
 
 class GuildConfigCache:
     """Lightweight in-memory cache for per-guild configuration that rarely changes.
@@ -9,7 +15,9 @@ class GuildConfigCache:
     - Guild language: lazy (DB on miss), invalidated by ``guild_language_changed`` event
     - Bot moderator role: lazy (DB on miss), invalidated by ``modrole_changed`` event
     - Reaction role message IDs: bulk-loaded on startup, updated on add/remove
+    - Reaction role mappings: bulk-loaded on startup, updated on add/remove entry
     - Leave message guild IDs: bulk-loaded on startup, updated on enable/disable
+    - Leave message configs: bulk-loaded on startup, updated on enable/disable/edit
     """
 
     def __init__(self):
@@ -17,8 +25,9 @@ class GuildConfigCache:
         self._modrole: dict[int, int | None] = {}
         self._rr_message_ids: set[int] = set()  # flat set for O(1) hot-path lookup
         self._rr_by_guild: dict[int, set[int]] = {}  # guild_id -> set[message_id] for eviction
+        self._rr_mappings: dict[int, dict[str, int]] = {}
         self._rr_warmed: bool = False
-        self._leave_guild_ids: set[int] = set()
+        self._leave_configs: dict[int, tuple[int, str | None]] = {}
         self._leave_warmed: bool = False
 
     # ── Language ──────────────────────────────────────────────────────────────
@@ -83,39 +92,68 @@ class GuildConfigCache:
             return True
         return message_id in self._rr_message_ids
 
+    def get_reaction_role(self, message_id: int, emoji: str) -> int | None:
+        """Return the role ID for the given message + emoji, or None if not mapped.
+
+        Returns None before warm-up completes (callers must fall back to DB).
+        """
+        if not self._rr_warmed:
+            return None
+        return self._rr_mappings.get(message_id, {}).get(emoji)
+
     def add_reaction_role_message(self, guild_id: int, message_id: int) -> None:
         """Register a new reaction role message ID in the cache."""
         self._rr_message_ids.add(message_id)
         self._rr_by_guild.setdefault(guild_id, set()).add(message_id)
 
+    def add_reaction_role_entry(self, message_id: int, emoji: str, role_id: int) -> None:
+        """Add an emoji-to-role mapping for a tracked message.
+
+        No-op before warm-up — the full mapping is loaded by warm_reaction_roles().
+        """
+        if not self._rr_warmed:
+            return
+        self._rr_mappings.setdefault(message_id, {})[emoji] = role_id
+
+    def remove_reaction_role_entry(self, message_id: int, emoji: str) -> None:
+        """Remove a single emoji-to-role mapping from a tracked message."""
+        if message_id in self._rr_mappings:
+            self._rr_mappings[message_id].pop(emoji, None)
+
     def remove_reaction_role_message(self, guild_id: int, message_id: int) -> None:
-        """Remove a reaction role message ID from the cache."""
+        """Remove a reaction role message and all its mappings from the cache."""
         self._rr_message_ids.discard(message_id)
+        self._rr_mappings.pop(message_id, None)
         if guild_id in self._rr_by_guild:
             self._rr_by_guild[guild_id].discard(message_id)
 
     def warm_reaction_roles(self, session_factory) -> None:
-        """Bulk-load all reaction role message IDs from the database.
+        """Bulk-load all reaction role message IDs and emoji mappings from the database.
 
         Idempotent — safe to call again on reconnect.
         """
         session = session_factory()
         try:
-            from sqlalchemy import select
-
             from models.reactionrole import ReactionRoleMessage
 
             by_guild: dict[int, set[int]] = {}
             all_ids: set[int] = set()
-            rows = session.execute(select(ReactionRoleMessage.GuildId, ReactionRoleMessage.MessageId)).all()
-            for guild_id, message_id in rows:
-                by_guild.setdefault(guild_id, set()).add(message_id)
-                all_ids.add(message_id)
+            mappings: dict[int, dict[str, int]] = {}
+            # entries uses lazy="joined", so this single query fetches everything
+            messages = session.query(ReactionRoleMessage).all()
+            for msg in messages:
+                by_guild.setdefault(msg.GuildId, set()).add(msg.MessageId)
+                all_ids.add(msg.MessageId)
+                mappings[msg.MessageId] = {entry.Emoji: entry.RoleId for entry in msg.entries}
+        except Exception:
+            _log.exception("warm_reaction_roles: failed to load from DB — staying in degraded mode")
+            raise
         finally:
             session.close()
 
         self._rr_by_guild = by_guild
         self._rr_message_ids = all_ids
+        self._rr_mappings = mappings
         self._rr_warmed = True
 
     # ── Leave messages ────────────────────────────────────────────────────────
@@ -127,14 +165,25 @@ class GuildConfigCache:
         """
         if not self._leave_warmed:
             return True
-        return guild_id in self._leave_guild_ids
+        return guild_id in self._leave_configs
 
-    def set_leave_message_guild(self, guild_id: int, enabled: bool) -> None:
-        """Add or remove a guild from the leave-message set."""
+    def get_leave_config(self, guild_id: int) -> tuple[int, str | None] | None:
+        """Return (channel_id, message_text) for the guild's enabled leave message, or None."""
+        return self._leave_configs.get(guild_id)
+
+    def set_leave_message_guild(
+        self,
+        guild_id: int,
+        enabled: bool,
+        channel_id: int | None = None,
+        message: str | None = None,
+    ) -> None:
+        """Add or remove a guild from the leave-message config cache."""
         if enabled:
-            self._leave_guild_ids.add(guild_id)
+            if channel_id is not None:
+                self._leave_configs[guild_id] = (channel_id, message)
         else:
-            self._leave_guild_ids.discard(guild_id)
+            self._leave_configs.pop(guild_id, None)
 
     def warm_leave_messages(self, session_factory) -> None:
         """Bulk-load all guild IDs with enabled leave messages from the database.
@@ -143,15 +192,17 @@ class GuildConfigCache:
         """
         session = session_factory()
         try:
-            from sqlalchemy import select
-
             from models.leavemsg import LeaveMessage
 
-            ids = set(session.scalars(select(LeaveMessage.GuildId).where(LeaveMessage.Enabled.is_(True))))
+            rows = session.query(LeaveMessage).filter(LeaveMessage.Enabled.is_(True)).all()
+            configs = {row.GuildId: (row.ChannelId, row.Message) for row in rows}
+        except Exception:
+            _log.exception("warm_leave_messages: failed to load from DB — staying in degraded mode")
+            raise
         finally:
             session.close()
 
-        self._leave_guild_ids = ids
+        self._leave_configs = configs
         self._leave_warmed = True
 
     # ── Eviction ──────────────────────────────────────────────────────────────
@@ -160,7 +211,33 @@ class GuildConfigCache:
         """Remove all cached entries for a guild (called when bot leaves a guild)."""
         self._lang.pop(guild_id, None)
         self._modrole.pop(guild_id, None)
-        self._leave_guild_ids.discard(guild_id)
+        self._leave_configs.pop(guild_id, None)
         guild_rr = self._rr_by_guild.pop(guild_id, None)
         if guild_rr:
             self._rr_message_ids -= guild_rr
+            for msg_id in guild_rr:
+                self._rr_mappings.pop(msg_id, None)
+
+
+# ── Autocomplete TTL cache ─────────────────────────────────────────────────────
+
+# Shared cache for autocomplete handlers. Key: (cache_key_prefix, entity_id).
+# Short TTL (30s) reduces DB hits during rapid typing while keeping results fresh.
+_autocomplete_cache: TTLCache = TTLCache(maxsize=500, ttl=30)
+
+
+def cached_autocomplete(key: tuple, fetcher):
+    """Return cached autocomplete results, calling fetcher() on miss.
+
+    Args:
+        key: A hashable tuple uniquely identifying the query (e.g. ("tags", guild_id)).
+        fetcher: Zero-argument callable that opens a DB session and returns a list.
+
+    Returns:
+        The cached or freshly fetched list.
+    """
+    if key in _autocomplete_cache:
+        return _autocomplete_cache[key]
+    result = fetcher()
+    _autocomplete_cache[key] = result
+    return result

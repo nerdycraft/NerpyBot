@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends
 from fastapi import HTTPException, status as http_status
 from sqlalchemy.orm import Session
 
-from web.dependencies import get_db_session, get_valkey, require_operator
+from web.dependencies import get_db_session, get_valkey, invalidate_premium_cache, require_operator
 from web.schemas import (
     BotGuildInfo,
     BotGuildListResponse,
@@ -96,6 +96,7 @@ async def grant_premium(
             status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail="user_id must be a valid integer"
         )
     entry = PremiumUser.grant(target_user_id, int(user["sub"]), session)
+    invalidate_premium_cache()
     return _premium_to_schema(entry)
 
 
@@ -110,6 +111,7 @@ async def revoke_premium(
 
     if not PremiumUser.revoke(user_id, session):
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="User not found in premium list")
+    invalidate_premium_cache()
 
 
 # ── Bot health and modules ──

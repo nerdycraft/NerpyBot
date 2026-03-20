@@ -622,28 +622,31 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         if not self.bot.guild_cache.is_leave_message_guild(member.guild.id):
             return
 
-        with self.bot.session_scope() as session:
-            leave_config = LeaveMessage.get(member.guild.id, session)
-
-        if leave_config is None or not leave_config.Enabled:
+        leave_config = self.bot.guild_cache.get_leave_config(member.guild.id)
+        if leave_config is None:
+            self.bot.log.debug(
+                "[%s (%d)]: on_member_remove: leave message guild set but config absent — cache not warmed?",
+                member.guild.name,
+                member.guild.id,
+            )
             return
 
-        channel = member.guild.get_channel(leave_config.ChannelId)
+        channel_id, message_text = leave_config
+        channel = member.guild.get_channel(channel_id)
         if channel is None:
             try:
-                channel = await member.guild.fetch_channel(leave_config.ChannelId)
+                channel = await member.guild.fetch_channel(channel_id)
             except (discord.NotFound, discord.Forbidden):
                 channel = None
         if channel is None or not isinstance(channel, TextChannel):
             self.bot.log.warning(
-                f"[{member.guild.name} ({member.guild.id})]: "
-                f"leave channel {leave_config.ChannelId} not found or not a text channel"
+                f"[{member.guild.name} ({member.guild.id})]: leave channel {channel_id} not found or not a text channel"
             )
             return
 
         self.bot.log.debug(f"[{member.guild.name} ({member.guild.id})]: sending leave message for {member}")
 
-        message = leave_config.Message or DEFAULT_LEAVE_MESSAGE
+        message = message_text or DEFAULT_LEAVE_MESSAGE
         member_str = f"**{member.display_name}** ({member.name})"
         formatted_message = (
             message.replace("{member}", member_str) if "{member}" in message else f"{message} — {member_str}"
@@ -687,11 +690,10 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 leave_config.Enabled = True
                 if leave_config.Message is None:
                     leave_config.Message = DEFAULT_LEAVE_MESSAGE
+            final_message = leave_config.Message  # always set in all branches above
 
-        self.bot.guild_cache.set_leave_message_guild(interaction.guild.id, True)
-        await interaction.response.send_message(
-            get_string(lang, "leavemsg.enable.success", channel=channel.mention), ephemeral=True
-        )
+        self.bot.guild_cache.set_leave_message_guild(interaction.guild.id, True, channel.id, final_message)
+        await send_hidden_message(interaction, get_string(lang, "leavemsg.enable.success", channel=channel.mention))
 
     @leavemsg.command(name="disable")
     @checks.has_permissions(administrator=True)
@@ -705,7 +707,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             leave_config.Enabled = False
 
         self.bot.guild_cache.set_leave_message_guild(interaction.guild.id, False)
-        await interaction.response.send_message(get_string(lang, "leavemsg.disable.success"), ephemeral=True)
+        await send_hidden_message(interaction, get_string(lang, "leavemsg.disable.success"))
 
     async def save_leave_message(self, interaction: Interaction, message: str, lang: str) -> None:
         """Validate and persist a leave message, then confirm to the user."""
@@ -716,15 +718,11 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             if leave_config is None:
                 raise NerpyValidationError(get_string(lang, "leavemsg.message.not_enabled"))
             leave_config.Message = message
+            channel_id = leave_config.ChannelId  # read inside scope before session closes
 
-        if not interaction.response.is_done():
-            await interaction.response.send_message(
-                get_string(lang, "leavemsg.message.success", message=message), ephemeral=True
-            )
-        else:
-            await interaction.followup.send(
-                get_string(lang, "leavemsg.message.success", message=message), ephemeral=True
-            )
+        # Update cached message text unconditionally — channel_id sourced from DB
+        self.bot.guild_cache.set_leave_message_guild(interaction.guild.id, True, channel_id, message)
+        await send_hidden_message(interaction, get_string(lang, "leavemsg.message.success", message=message))
 
     @leavemsg.command(name="message")
     @checks.has_permissions(administrator=True)
@@ -748,7 +746,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 self.bot, message_source, None, interaction, lang, key_prefix="leavemsg.fetch_message"
             )
             if error:
-                await interaction.response.send_message(error, ephemeral=True)
+                await send_hidden_message(interaction, error)
                 return
             message = content
 
@@ -770,15 +768,15 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             leave_config = LeaveMessage.get(interaction.guild.id, session)
 
         if leave_config is None or not leave_config.Enabled:
-            await interaction.response.send_message(get_string(lang, "leavemsg.status.not_enabled"), ephemeral=True)
+            await send_hidden_message(interaction, get_string(lang, "leavemsg.status.not_enabled"))
             return
 
         channel = interaction.guild.get_channel(leave_config.ChannelId)
         channel_mention = channel.mention if channel else "Unknown channel"
         message = leave_config.Message or DEFAULT_LEAVE_MESSAGE
 
-        await interaction.response.send_message(
-            get_string(lang, "leavemsg.status.enabled", channel=channel_mention, message=message), ephemeral=True
+        await send_hidden_message(
+            interaction, get_string(lang, "leavemsg.status.enabled", channel=channel_mention, message=message)
         )
 
 
@@ -801,7 +799,7 @@ class _LeaveMessageModal(discord.ui.Modal):
     async def on_submit(self, interaction: Interaction):
         cog = self.bot.get_cog("Moderation")
         if cog is None:
-            await interaction.response.send_message("Bot is reloading, please try again.", ephemeral=True)
+            await send_hidden_message(interaction, "Bot is reloading, please try again.")
             return
         await cog.save_leave_message(interaction, self.message_input.value.strip(), self.lang)
 

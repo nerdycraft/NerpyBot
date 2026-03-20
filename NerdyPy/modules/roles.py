@@ -9,6 +9,7 @@ from discord.ext.commands import Cog
 
 from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 from models.rolemanage import RoleMapping
+from utils.cache import cached_autocomplete
 from utils.checks import is_role_assignable, is_role_below_bot
 from utils.cog import NerpyBotCog
 from utils.helpers import error_context, notify_error, send_paginated
@@ -42,38 +43,48 @@ class Roles(NerpyBotCog, Cog):
     # ── reactionrole helpers ──────────────────────────────────────────────────
 
     async def _message_id_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
-        with self.bot.session_scope() as session:
-            messages = ReactionRoleMessage.get_by_guild(interaction.guild.id, session)
-            if not messages:
-                return []
-            choices = []
-            for rr_msg in messages:
-                channel = interaction.guild.get_channel(rr_msg.ChannelId)
-                channel_name = f"#{channel.name}" if channel else "Unknown"
-                entry_count = len(rr_msg.entries) if rr_msg.entries else 0
-                label = f"{channel_name} \u00b7 {rr_msg.MessageId} ({entry_count} mappings)"
-                msg_id_str = str(rr_msg.MessageId)
-                if current and current not in msg_id_str and current.lower() not in channel_name.lower():
-                    continue
-                choices.append(app_commands.Choice(name=label[:100], value=msg_id_str))
-            return choices[:25]
+        guild = interaction.guild
+        guild_id = guild.id
+
+        def _fetch():
+            with self.bot.session_scope() as session:
+                return ReactionRoleMessage.get_by_guild(guild_id, session)
+
+        messages = cached_autocomplete(("rr_msgs", guild_id), _fetch)
+        if not messages:
+            return []
+        choices = []
+        for rr_msg in messages:
+            channel = guild.get_channel(rr_msg.ChannelId)
+            channel_name = f"#{channel.name}" if channel else "Unknown"
+            entry_count = len(rr_msg.entries) if rr_msg.entries else 0
+            label = f"{channel_name} \u00b7 {rr_msg.MessageId} ({entry_count} mappings)"
+            msg_id_str = str(rr_msg.MessageId)
+            if current and current not in msg_id_str and current.lower() not in channel_name.lower():
+                continue
+            choices.append(app_commands.Choice(name=label[:100], value=msg_id_str))
+        return choices[:25]
 
     def _get_role_for_reaction(self, payload):
         """Look up the role for a given reaction event payload."""
         if not self.bot.guild_cache.is_reaction_role_message(payload.message_id):
             return None
 
-        with self.bot.session_scope() as session:
-            rr_msg = ReactionRoleMessage.get_by_message(payload.message_id, session)
-            if rr_msg is None:
-                return None
+        emoji_str = str(payload.emoji)
+        role_id = self.bot.guild_cache.get_reaction_role(payload.message_id, emoji_str)
 
-            emoji_str = str(payload.emoji)
-            entry = ReactionRoleEntry.get_by_message_and_emoji(rr_msg.Id, emoji_str, session)
-            if entry is None:
-                return None
-
-            role_id = entry.RoleId
+        if role_id is None:
+            # Cache not yet warmed or entry genuinely absent — fall back to DB
+            with self.bot.session_scope() as session:
+                rr_msg = ReactionRoleMessage.get_by_message(payload.message_id, session)
+                if rr_msg is None:
+                    return None
+                entry = ReactionRoleEntry.get_by_message_and_emoji(rr_msg.Id, emoji_str, session)
+                if entry is None:
+                    return None
+                role_id = entry.RoleId
+            # Backfill so subsequent reactions for this emoji don't re-hit the DB
+            self.bot.guild_cache.add_reaction_role_entry(payload.message_id, emoji_str, role_id)
 
         guild = self.bot.get_guild(payload.guild_id)
         if guild is None:
@@ -419,6 +430,7 @@ class Roles(NerpyBotCog, Cog):
             return
 
         self.bot.guild_cache.add_reaction_role_message(interaction.guild.id, msg_id)
+        self.bot.guild_cache.add_reaction_role_entry(msg_id, emoji, role.id)
 
         try:
             await discord_msg.add_reaction(emoji)
@@ -477,6 +489,8 @@ class Roles(NerpyBotCog, Cog):
 
         if last_entry_removed:
             self.bot.guild_cache.remove_reaction_role_message(interaction.guild.id, msg_id)
+        else:
+            self.bot.guild_cache.remove_reaction_role_entry(msg_id, emoji)
 
         await self._clear_reaction(interaction.guild, channel_id, msg_id, emoji)
         await interaction.response.send_message(

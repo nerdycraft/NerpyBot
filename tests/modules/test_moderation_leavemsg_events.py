@@ -43,6 +43,8 @@ class TestOnMemberRemove:
             )
         )
         db_session.commit()
+        # Warm the guild cache — on_member_remove now reads from cache, not DB.
+        cog.bot.guild_cache.warm_leave_messages(cog.bot.SESSION)
 
         mock_channel = MagicMock(spec=TextChannel)
         mock_channel.id = channel_id

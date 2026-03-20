@@ -28,6 +28,7 @@ from modules.conversations.application import (
 )
 from modules.views.application import check_override_permission
 from sqlalchemy.exc import SQLAlchemyError
+from utils.cache import cached_autocomplete
 from utils.cog import NerpyBotCog
 from utils.helpers import fetch_message_content, send_hidden_message
 from utils.strings import get_raw, get_string
@@ -78,39 +79,56 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     # -- Autocomplete helpers ------------------------------------------------
 
     async def _form_name_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
-        with self.bot.session_scope() as session:
-            return _filter_choices(ApplicationForm.get_all_by_guild(interaction.guild.id, session), current)
+        guild_id = interaction.guild.id
+
+        def _fetch():
+            with self.bot.session_scope() as session:
+                return ApplicationForm.get_all_by_guild(guild_id, session)
+
+        forms = cached_autocomplete(("app_forms", guild_id), _fetch)
+        return _filter_choices(forms, current)
 
     async def _template_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         lang = self._lang(interaction.guild_id)
-        with self.bot.session_scope() as session:
-            templates = ApplicationTemplate.get_available(interaction.guild.id, session)
-            choices = []
-            for tpl in templates:
-                if tpl.IsBuiltIn:
-                    yaml_key = TEMPLATE_KEY_MAP.get(tpl.Name)
-                    if yaml_key:
-                        try:
-                            localized_name = get_raw(lang, f"application.builtin_templates.{yaml_key}.name")
-                        except KeyError:
-                            localized_name = tpl.Name
-                    else:
+        guild_id = interaction.guild.id
+
+        def _fetch():
+            with self.bot.session_scope() as session:
+                return ApplicationTemplate.get_available(guild_id, session)
+
+        templates = cached_autocomplete(("app_templates", guild_id), _fetch)
+        choices = []
+        for tpl in templates:
+            if tpl.IsBuiltIn:
+                yaml_key = TEMPLATE_KEY_MAP.get(tpl.Name)
+                if yaml_key:
+                    try:
+                        localized_name = get_raw(lang, f"application.builtin_templates.{yaml_key}.name")
+                    except KeyError:
                         localized_name = tpl.Name
-                    prefix = get_string(lang, "application.template.list.prefix_builtin")
-                    label = f"{prefix} {localized_name}"
                 else:
                     localized_name = tpl.Name
-                    label = tpl.Name
-                if current and current.lower() not in localized_name.lower():
-                    continue
-                choices.append(app_commands.Choice(name=label[:100], value=tpl.Name))
-            return choices[:25]
+                prefix = get_string(lang, "application.template.list.prefix_builtin")
+                label = f"{prefix} {localized_name}"
+            else:
+                localized_name = tpl.Name
+                label = tpl.Name
+            if current and current.lower() not in localized_name.lower():
+                continue
+            choices.append(app_commands.Choice(name=label[:100], value=tpl.Name))
+        return choices[:25]
 
     async def _guild_template_autocomplete(
         self, interaction: Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
-        with self.bot.session_scope() as session:
-            return _filter_choices(ApplicationTemplate.get_guild_templates(interaction.guild.id, session), current)
+        guild_id = interaction.guild.id
+
+        def _fetch():
+            with self.bot.session_scope() as session:
+                return ApplicationTemplate.get_guild_templates(guild_id, session)
+
+        templates = cached_autocomplete(("app_guild_templates", guild_id), _fetch)
+        return _filter_choices(templates, current)
 
     # -- Permission helper ---------------------------------------------------
 
