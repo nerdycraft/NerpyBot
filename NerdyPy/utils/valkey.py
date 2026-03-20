@@ -8,6 +8,7 @@ The listener loop runs as an asyncio background task. It subscribes to the
 """
 
 import json
+import time
 from asyncio import CancelledError, ensure_future, gather, sleep, to_thread
 from datetime import UTC, datetime
 from importlib.metadata import version as pkg_version
@@ -20,6 +21,7 @@ from utils.constants import PROTECTED_MODULES
 _proc = psutil.Process()
 _recipe_sync_running = False
 _proc.cpu_percent(interval=None)  # prime the baseline; first call always returns 0.0
+_cpu_percent_cached: float = 0.0  # updated by _cpu_sampler_loop; read by health commands
 _required_permissions = None  # cached across requests; invalidated on module load/unload
 
 
@@ -39,6 +41,37 @@ def _get_guild(bot, payload: dict):
     """Extract guild_id from payload and return the Guild, or None if not found."""
     guild_id = int(payload.get("guild_id", 0))
     return bot.get_guild(guild_id)
+
+
+def _build_voice_details(bot) -> tuple[list, list]:
+    """Return (active_vcs, voice_details) from the bot's current voice clients."""
+    active_vcs = [vc for vc in bot.voice_clients if vc.guild and vc.channel]
+    voice_details = [
+        {
+            "guild_id": str(vc.guild.id),
+            "guild_name": vc.guild.name,
+            "channel_id": str(vc.channel.id),
+            "channel_name": vc.channel.name,
+        }
+        for vc in active_vcs
+    ]
+    return active_vcs, voice_details
+
+
+async def _cpu_sampler_loop() -> None:
+    """Background task that samples CPU usage every 5 s into a module-level cache.
+
+    Keeping a single caller of ``_proc.cpu_percent(interval=None)`` on a fixed
+    cadence prevents concurrent ``health`` and ``health_live`` command handlers
+    from resetting each other's measurement interval.
+    """
+    global _cpu_percent_cached
+    try:
+        while True:
+            _cpu_percent_cached = _proc.cpu_percent(interval=None)
+            await sleep(5)
+    except CancelledError:
+        pass
 
 
 async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
@@ -71,16 +104,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         import discord
 
         uptime_seconds = (datetime.now(UTC) - bot.uptime).total_seconds()
-        active_vcs = [vc for vc in bot.voice_clients if vc.guild and vc.channel]
-        voice_details = [
-            {
-                "guild_id": str(vc.guild.id),
-                "guild_name": vc.guild.name,
-                "channel_id": str(vc.channel.id),
-                "channel_name": vc.channel.name,
-            }
-            for vc in active_vcs
-        ]
+        active_vcs, voice_details = _build_voice_details(bot)
         active_reminders: int | None = None
         try:
             from models.reminder import ReminderMessage
@@ -101,10 +125,22 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             "discord_py_version": discord.__version__,
             "bot_version": pkg_version("NerpyBot"),
             "memory_mb": round(_proc.memory_info().rss / (1024 * 1024), 2),
-            "cpu_percent": round(_proc.cpu_percent(interval=None), 2),
+            "cpu_percent": round(_cpu_percent_cached, 2),
             "error_count_24h": bot.error_counter.count(),
             "active_reminders": active_reminders,
             "voice_details": voice_details,
+        }
+    elif command == "health_live":
+        uptime_seconds = (datetime.now(UTC) - bot.uptime).total_seconds()
+        active_vcs, voice_details = _build_voice_details(bot)
+        return {
+            "uptime_seconds": round(uptime_seconds, 2),
+            "latency_ms": round(bot.latency * 1000, 2),
+            "voice_connections": len(active_vcs),
+            "memory_mb": round(_proc.memory_info().rss / (1024 * 1024), 2),
+            "cpu_percent": round(_cpu_percent_cached, 2),
+            "voice_details": voice_details,
+            "ts": time.time(),  # duplicate-frame guard: frontend skips updates when ts is unchanged
         }
     elif command == "list_modules":
         loaded_names: set[str] = set()
@@ -400,6 +436,7 @@ async def valkey_listener_loop(bot, valkey_url: str) -> None:
     retry_delay = 1.0
     max_delay = 60.0
 
+    sampler = ensure_future(_cpu_sampler_loop())
     try:
         while not bot.is_closed():
             client = None
@@ -453,3 +490,5 @@ async def valkey_listener_loop(bot, valkey_url: str) -> None:
                     bot.log.debug("Valkey cleanup error: %s", e)
     except CancelledError:
         return
+    finally:
+        sampler.cancel()

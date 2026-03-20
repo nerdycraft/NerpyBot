@@ -2,6 +2,8 @@ from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from utils.valkey import handle_valkey_command
 
 
@@ -27,8 +29,7 @@ class TestBotCommandHandler:
 
         mock_proc = MagicMock()
         mock_proc.memory_info.return_value.rss = 100 * 1024 * 1024
-        mock_proc.cpu_percent.return_value = 2.5
-        with patch("utils.valkey._proc", mock_proc):
+        with patch("utils.valkey._proc", mock_proc), patch("utils.valkey._cpu_percent_cached", new=2.5):
             result = await handle_valkey_command(mock_bot, "health", {})
 
         assert result["guild_count"] == 2
@@ -44,21 +45,11 @@ class TestBotCommandHandler:
         assert result["active_reminders"] == 5
         assert result["voice_details"] == []
 
-    async def test_health_command_with_voice_clients(self, mock_bot):
+    async def test_health_command_with_voice_clients(self, mock_bot, mock_voice_client):
         """Health command includes voice connection details."""
-        mock_guild = MagicMock()
-        mock_guild.id = 12345
-        mock_guild.name = "Test Guild"
-        mock_channel = MagicMock()
-        mock_channel.id = 67890
-        mock_channel.name = "General Voice"
-        mock_vc = MagicMock()
-        mock_vc.guild = mock_guild
-        mock_vc.channel = mock_channel
-
         mock_bot.guilds = []
         mock_bot.latency = 0.01
-        mock_bot.voice_clients = [mock_vc]
+        mock_bot.voice_clients = [mock_voice_client]
         mock_bot.uptime = datetime.now(UTC) - timedelta(seconds=60)
         mock_bot.extensions = {}
         mock_bot.error_counter = MagicMock()
@@ -75,8 +66,7 @@ class TestBotCommandHandler:
 
         mock_proc = MagicMock()
         mock_proc.memory_info.return_value.rss = 50 * 1024 * 1024
-        mock_proc.cpu_percent.return_value = 1.0
-        with patch("utils.valkey._proc", mock_proc):
+        with patch("utils.valkey._proc", mock_proc), patch("utils.valkey._cpu_percent_cached", new=0.0):
             result = await handle_valkey_command(mock_bot, "health", {})
 
         assert result["active_reminders"] == 0
@@ -106,12 +96,39 @@ class TestBotCommandHandler:
 
         mock_proc = MagicMock()
         mock_proc.memory_info.return_value.rss = 50 * 1024 * 1024
-        mock_proc.cpu_percent.return_value = 0.0
         with patch("utils.valkey._proc", mock_proc):
             result = await handle_valkey_command(mock_bot, "health", {})
 
         assert result["guild_count"] == 0
         assert result["voice_connections"] == 0
+
+    async def test_health_live_command_returns_reduced_payload(self, mock_bot, mock_voice_client):
+        """health_live returns the lightweight SSE-facing payload without static fields."""
+        mock_bot.latency = 0.03
+        mock_bot.voice_clients = [mock_voice_client]
+        mock_bot.uptime = datetime.now(UTC) - timedelta(hours=2)
+
+        mock_proc = MagicMock()
+        mock_proc.memory_info.return_value.rss = 80 * 1024 * 1024
+        with patch("utils.valkey._proc", mock_proc), patch("utils.valkey._cpu_percent_cached", new=5.0):
+            result = await handle_valkey_command(mock_bot, "health_live", {})
+
+        assert result["cpu_percent"] == 5.0
+        assert result["memory_mb"] == 80.0
+        assert result["latency_ms"] == pytest.approx(30.0, abs=1)
+        assert result["uptime_seconds"] >= 7200
+        assert result["voice_connections"] == 1
+        assert isinstance(result["ts"], float)
+        assert len(result["voice_details"]) == 1
+        detail = result["voice_details"][0]
+        assert detail["guild_id"] == "12345"
+        assert detail["guild_name"] == "Test Guild"
+        assert detail["channel_id"] == "67890"
+        assert detail["channel_name"] == "General Voice"
+        # Static fields from the full health command must not appear
+        assert "guild_count" not in result
+        assert "bot_version" not in result
+        assert "active_reminders" not in result
 
     async def test_list_modules_command(self, mock_bot):
 

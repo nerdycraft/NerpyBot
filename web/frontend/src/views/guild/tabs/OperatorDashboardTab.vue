@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from "@iconify/vue";
-import { onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { api } from "@/api/client";
 import type {
   BotPermissionGuildResult,
@@ -12,6 +12,7 @@ import type {
   HealthResponse,
 } from "@/api/types";
 import SubTabBar from "@/components/SubTabBar.vue";
+import { useHealthStatus } from "@/composables/useHealthStatus";
 import { useI18n } from "@/i18n";
 
 const { t } = useI18n();
@@ -26,8 +27,30 @@ const activeTab = ref<SubTab>("health");
 const health = ref<HealthResponse | null>(null);
 const healthLoading = ref(false);
 const healthError = ref<string | null>(null);
-const autoRefresh = ref(false);
-let intervalId: ReturnType<typeof setInterval> | null = null;
+
+const {
+  status: liveStatus,
+  connected: liveConnected,
+  error: liveError,
+  connect,
+  disconnect,
+} = useHealthStatus({
+  isActive: () => activeTab.value === "health",
+});
+
+const isOnline = computed(() => liveConnected.value || health.value?.status === "online");
+
+const live = computed(() => {
+  const src = liveConnected.value ? liveStatus.value : null;
+  return {
+    uptime_seconds: src?.uptime_seconds ?? health.value?.uptime_seconds ?? null,
+    latency_ms: src?.latency_ms ?? health.value?.latency_ms ?? null,
+    memory_mb: src?.memory_mb ?? health.value?.memory_mb ?? null,
+    cpu_percent: src?.cpu_percent ?? health.value?.cpu_percent ?? null,
+    voice_connections: src?.voice_connections ?? health.value?.voice_connections ?? null,
+    voice_details: src?.voice_details ?? health.value?.voice_details ?? [],
+  };
+});
 
 function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
@@ -51,24 +74,6 @@ async function fetchHealth() {
     healthLoading.value = false;
   }
 }
-
-function toggleAutoRefresh() {
-  if (autoRefresh.value) {
-    intervalId = setInterval(fetchHealth, 30_000);
-  } else {
-    if (intervalId !== null) {
-      clearInterval(intervalId);
-      intervalId = null;
-    }
-  }
-}
-
-onUnmounted(() => {
-  if (intervalId !== null) {
-    clearInterval(intervalId);
-    intervalId = null;
-  }
-});
 
 // ── Permissions tab ───────────────────────────────────────────────────────────
 
@@ -206,13 +211,20 @@ async function toggleDebug() {
 // ── Tab lazy-load watcher ──────────────────────────────────────────────────────
 
 watch(activeTab, (tab) => {
+  if (tab === "health") {
+    fetchHealth();
+    connect();
+  } else disconnect();
   if (tab === "permissions" && !permFetched.value && !permLoading.value) fetchPermissions();
   if (tab === "error_control" && !errorStatus.value && !errorLoading.value) fetchErrorStatus();
 });
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-onMounted(fetchHealth);
+onMounted(() => {
+  fetchHealth();
+  if (activeTab.value === "health") connect();
+});
 </script>
 
 <template>
@@ -249,10 +261,15 @@ onMounted(fetchHealth);
     <!-- ── Health tab ── -->
     <template v-if="activeTab === 'health'">
       <div class="flex items-center justify-between mb-4">
-        <label class="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-          <input v-model="autoRefresh" type="checkbox" class="rounded" @change="toggleAutoRefresh" />
-          {{ t("tabs.operator_dashboard.auto_refresh") }}
-        </label>
+        <span class="flex items-center gap-2 flex-wrap">
+          <span class="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span
+              :class="['w-2 h-2 rounded-full', liveConnected ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground/40']"
+            />
+            {{ liveConnected ? t("tabs.operator_dashboard.live") : t("tabs.operator_dashboard.not_live") }}
+          </span>
+          <span v-if="liveError" class="text-xs text-destructive">{{ liveError }}</span>
+        </span>
         <button
           class="px-3 py-1.5 rounded bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 flex items-center gap-1.5 hover:bg-primary/90 transition-colors"
           :disabled="healthLoading"
@@ -269,30 +286,30 @@ onMounted(fetchHealth);
       </div>
       <div v-else-if="healthError" class="text-destructive text-sm py-2">{{ healthError }}</div>
       <div
-        v-else-if="health && health.status === 'unreachable'"
+        v-else-if="!liveConnected && health?.status === 'unreachable'"
         class="flex items-center gap-2 bg-destructive/10 border border-destructive/30 rounded px-4 py-3 text-destructive text-sm mb-6"
       >
         <Icon icon="mdi:alert-circle-outline" class="w-5 h-5 flex-shrink-0" />
         {{ t("tabs.operator_dashboard.unreachable") }}
       </div>
 
-      <div v-if="health">
-        <div class="flex items-center gap-3 mb-6">
+      <div v-if="health || liveStatus">
+        <div v-if="health || liveConnected" class="flex items-center gap-3 mb-6">
           <span class="text-sm text-muted-foreground">{{ t("tabs.operator_dashboard.status") }}</span>
           <span
             :class="[
               'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold',
-              health.status === 'online'
+              isOnline
                 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                 : 'bg-destructive/15 text-destructive border border-destructive/30',
             ]"
           >
             <Icon
-              :icon="health.status === 'online' ? 'mdi:check-circle-outline' : 'mdi:alert-circle-outline'"
+              :icon="isOnline ? 'mdi:check-circle-outline' : 'mdi:alert-circle-outline'"
               class="w-3.5 h-3.5"
             />
             {{
-              health.status === "online"
+              isOnline
                 ? t("tabs.operator_dashboard.online")
                 : t("tabs.operator_dashboard.status_unreachable")
             }}
@@ -306,7 +323,7 @@ onMounted(fetchHealth);
               {{ t("tabs.operator_dashboard.uptime") }}
             </p>
             <p class="text-sm font-medium">
-              {{ health.uptime_seconds !== null ? formatUptime(health.uptime_seconds) : "—" }}
+              {{ live.uptime_seconds !== null ? formatUptime(live.uptime_seconds) : "—" }}
             </p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
@@ -315,7 +332,7 @@ onMounted(fetchHealth);
               {{ t("tabs.operator_dashboard.latency") }}
             </p>
             <p class="text-sm font-medium">
-              {{ health.latency_ms !== null ? `${health.latency_ms} ms` : "—" }}
+              {{ live.latency_ms !== null ? `${live.latency_ms} ms` : "—" }}
             </p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
@@ -323,7 +340,7 @@ onMounted(fetchHealth);
               <Icon icon="mdi:server-outline" class="w-3.5 h-3.5" />
               {{ t("tabs.operator_dashboard.guilds") }}
             </p>
-            <p class="text-sm font-medium">{{ health.guild_count !== null ? health.guild_count : "—" }}</p>
+            <p class="text-sm font-medium">{{ health?.guild_count ?? "—" }}</p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
             <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
@@ -331,7 +348,7 @@ onMounted(fetchHealth);
               {{ t("tabs.operator_dashboard.active_reminders") }}
             </p>
             <p class="text-sm font-medium">
-              {{ health.active_reminders !== null ? health.active_reminders : "—" }}
+              {{ health?.active_reminders ?? "—" }}
             </p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
@@ -342,10 +359,10 @@ onMounted(fetchHealth);
             <p
               :class="[
                 'text-sm font-medium',
-                health.error_count_24h !== null && health.error_count_24h > 0 ? 'text-destructive' : '',
+                (health?.error_count_24h ?? 0) > 0 ? 'text-destructive' : '',
               ]"
             >
-              {{ health.error_count_24h !== null ? health.error_count_24h : "—" }}
+              {{ health?.error_count_24h ?? "—" }}
             </p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
@@ -353,14 +370,14 @@ onMounted(fetchHealth);
               <Icon icon="mdi:memory" class="w-3.5 h-3.5" />
               {{ t("tabs.operator_dashboard.memory") }}
             </p>
-            <p class="text-sm font-medium">{{ health.memory_mb !== null ? `${health.memory_mb} MB` : "—" }}</p>
+            <p class="text-sm font-medium">{{ live.memory_mb !== null ? `${live.memory_mb} MB` : "—" }}</p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
             <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
               <Icon icon="mdi:cpu-64-bit" class="w-3.5 h-3.5" />
               {{ t("tabs.operator_dashboard.cpu") }}
             </p>
-            <p class="text-sm font-medium">{{ health.cpu_percent !== null ? `${health.cpu_percent}%` : "—" }}</p>
+            <p class="text-sm font-medium">{{ live.cpu_percent !== null ? `${live.cpu_percent}%` : "—" }}</p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
             <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
@@ -368,12 +385,12 @@ onMounted(fetchHealth);
               {{ t("tabs.operator_dashboard.voice_connections") }}
             </p>
             <p class="text-sm font-medium">
-              {{ health.voice_connections !== null ? health.voice_connections : "—" }}
+              {{ live.voice_connections !== null ? live.voice_connections : "—" }}
             </p>
           </div>
         </div>
 
-        <div class="bg-card border border-border rounded px-4 py-3 mb-6 space-y-1.5">
+        <div v-if="health" class="bg-card border border-border rounded px-4 py-3 mb-6 space-y-1.5">
           <p class="text-xs text-muted-foreground font-semibold uppercase tracking-wide mb-2">
             {{ t("tabs.operator_dashboard.version_info") }}
           </p>
@@ -395,7 +412,7 @@ onMounted(fetchHealth);
           </div>
         </div>
 
-        <div v-if="health.voice_details.length > 0">
+        <div v-if="live.voice_details.length > 0">
           <h3 class="text-sm font-semibold mb-2 flex items-center gap-1.5">
             <Icon icon="mdi:microphone-outline" class="w-4 h-4 text-muted-foreground" />
             {{ t("tabs.operator_dashboard.active_voice_sessions") }}
@@ -418,7 +435,7 @@ onMounted(fetchHealth);
               </thead>
               <tbody>
                 <tr
-                  v-for="vc in health.voice_details"
+                  v-for="vc in live.voice_details"
                   :key="vc.channel_id"
                   class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
                 >
