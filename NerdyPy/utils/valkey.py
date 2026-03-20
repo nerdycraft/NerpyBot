@@ -140,7 +140,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             "memory_mb": round(_proc.memory_info().rss / (1024 * 1024), 2),
             "cpu_percent": round(_cpu_percent_cached, 2),
             "voice_details": voice_details,
-            "ts": time.time(),
+            "ts": time.time(),  # duplicate-frame guard: frontend skips updates when ts is unchanged
         }
     elif command == "list_modules":
         loaded_names: set[str] = set()
@@ -489,5 +489,6 @@ async def valkey_listener_loop(bot, valkey_url: str) -> None:
                 except Exception as e:
                     bot.log.debug("Valkey cleanup error: %s", e)
     except CancelledError:
-        sampler.cancel()
         return
+    finally:
+        sampler.cancel()
