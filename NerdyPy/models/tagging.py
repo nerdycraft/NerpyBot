@@ -83,6 +83,8 @@ class Tag(db.BASE):
     def get_random_entry(self):
         """gets a random tag entry"""
         count = self.entries.count()
+        if count == 0:
+            raise NerpyValidationError(f"Tag '{self.Name}' has no entries.")
         return self.entries.offset(randint(0, count - 1)).limit(1).first()
 
     def __str__(self):
