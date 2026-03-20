@@ -694,37 +694,6 @@ class ItemSubTypeSelectView(ui.View):
                 orderable_only=self.orderable_only,
                 exclude_pvp=self.exclude_pvp,
             )
-            category_names = (
-                CraftingRecipeCache.get_category_names(
-                    RECIPE_TYPE_CRAFTED,
-                    self.item_class_id,
-                    item_subclass_id,
-                    session,
-                    profession_ids=self.mapped_prof_ids,
-                    orderable_only=self.orderable_only,
-                    exclude_pvp=self.exclude_pvp,
-                )
-                if len(recipes) > _DISCORD_SELECT_LIMIT
-                else []
-            )
-
-        if len(category_names) > 1:
-            view = CategorySelectView(
-                self.bot,
-                self.roles,
-                self.guild_id,
-                self.lang,
-                self.item_class_id,
-                item_subclass_id,
-                category_names,
-                self.mapped_prof_ids,
-                self.orderable_only,
-            )
-            await interaction.response.edit_message(
-                content=get_string(self.lang, "wow.craftingorder.category_select"), view=view
-            )
-            return
-
         view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
         await interaction.response.edit_message(
             content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
@@ -1096,56 +1065,6 @@ class RaidPrepCategorySelectView(ui.View):
         )
 
 
-class CategorySelectView(ui.View):
-    """Generic category drill-down for armor subclass overflow (>24 items)."""
-
-    def __init__(
-        self,
-        bot,
-        roles: list[discord.Role],
-        guild_id: int,
-        lang: str,
-        item_class_id: int,
-        item_subclass_id: int,
-        category_names: list[tuple[str, dict | None]],
-        mapped_prof_ids: set[int] | None = None,
-        orderable_only: bool = False,
-    ):
-        super().__init__(timeout=180)
-        self.bot = bot
-        self.roles = roles
-        self.guild_id = guild_id
-        self.lang = lang
-        self.item_class_id = item_class_id
-        self.item_subclass_id = item_subclass_id
-        self.mapped_prof_ids = mapped_prof_ids
-        self.orderable_only = orderable_only
-
-        select = ui.Select(
-            placeholder=get_string(lang, "wow.craftingorder.category_select"),
-            options=_build_localized_category_options(category_names, lang),
-        )
-        select.callback = self._on_select
-        self.add_item(select)
-
-    async def _on_select(self, interaction: Interaction):
-        category_name = interaction.data["values"][0]
-        with self.bot.session_scope() as session:
-            recipes = CraftingRecipeCache.get_by_type_subclass_and_category(
-                RECIPE_TYPE_CRAFTED,
-                self.item_class_id,
-                self.item_subclass_id,
-                category_name,
-                session,
-                profession_ids=self.mapped_prof_ids,
-                orderable_only=self.orderable_only,
-            )
-        view = ItemSelectView(self.bot, recipes, self.roles, self.guild_id, self.lang)
-        await interaction.response.edit_message(
-            content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
-        )
-
-
 class OtherCategorySelectView(ui.View):
     """Other bucket flow: choose a category (bags, treatises, transmutations, …), then items."""
 
@@ -1191,9 +1110,15 @@ class OtherCategorySelectView(ui.View):
 
 
 class ItemSelectView(ui.View):
-    """Shared item selection step: shows up to 24 cached recipes + 'Other' option."""
+    """Shared item selection step: shows up to 24 cached recipes + 'Other' option.
+
+    When there are more than 24 items, shows 23 items + a 'More items →' sentinel +
+    'Other', so the user can page through without hitting the Discord 25-option cap.
+    """
 
     _OTHER_VALUE = "__other__"
+    _MORE_VALUE = "__more__"
+    _PAGE_SIZE = 24  # items per page; "More →" takes the 25th slot, "Other" appears only on last page
 
     def __init__(
         self,
@@ -1202,22 +1127,38 @@ class ItemSelectView(ui.View):
         roles: list[discord.Role],
         guild_id: int,
         lang: str,
+        offset: int = 0,
     ):
         super().__init__(timeout=180)
         self.bot = bot
         self.roles = roles
         self.guild_id = guild_id
         self.lang = lang
-        self._recipes_by_id = {str(r.RecipeId): r for r in recipes}
+        self._all_recipes = recipes
+        self._offset = offset
 
-        items = [(r.RecipeId, r.ItemName, r.ItemNameLocales) for r in recipes]
-        options = _build_localized_options(items, lang)[:24]  # leave room for "Other"
-        options.append(
-            discord.SelectOption(
-                label=get_string(lang, "wow.craftingorder.item_select_other"),
-                value=self._OTHER_VALUE,
+        remaining = recipes[offset:]
+        has_more = len(remaining) > self._PAGE_SIZE
+        page = remaining[: self._PAGE_SIZE]
+        self._recipes_by_id = {str(r.RecipeId): r for r in page}
+
+        items = [(r.RecipeId, r.ItemName, r.ItemNameLocales) for r in page]
+        options = _build_localized_options(items, lang)
+        if has_more:
+            options.append(
+                discord.SelectOption(
+                    label=get_string(lang, "wow.craftingorder.item_select_more"),
+                    value=self._MORE_VALUE,
+                    emoji="➡️",
+                )
             )
-        )
+        else:
+            options.append(
+                discord.SelectOption(
+                    label=get_string(lang, "wow.craftingorder.item_select_other"),
+                    value=self._OTHER_VALUE,
+                )
+            )
 
         select = ui.Select(
             placeholder=get_string(lang, "wow.craftingorder.item_select"),
@@ -1228,6 +1169,20 @@ class ItemSelectView(ui.View):
 
     async def _on_select(self, interaction: Interaction):
         value = interaction.data["values"][0]
+
+        if value == self._MORE_VALUE:
+            view = ItemSelectView(
+                self.bot,
+                self._all_recipes,
+                self.roles,
+                self.guild_id,
+                self.lang,
+                offset=self._offset + self._PAGE_SIZE,
+            )
+            await interaction.response.edit_message(
+                content=get_string(self.lang, "wow.craftingorder.item_select"), view=view
+            )
+            return
 
         if value == self._OTHER_VALUE:
             # Fall back to profession select (free-text)

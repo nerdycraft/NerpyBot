@@ -320,62 +320,6 @@ class TestRaidPrepQueries:
         assert len(results) == 0
 
 
-class TestCategoryQueries:
-    """get_category_names and get_by_type_subclass_and_category."""
-
-    @pytest.fixture(autouse=True)
-    def _seed(self, db_session):
-        db_session.add(_recipe(RecipeId=50, ItemClassId=4, ItemSubClassId=1, CategoryName="Cloth Hat"))
-        db_session.add(_recipe(RecipeId=51, ItemClassId=4, ItemSubClassId=1, CategoryName="Cloth Robe"))
-        db_session.add(_recipe(RecipeId=52, ItemClassId=4, ItemSubClassId=1, CategoryName="Competitor's Cloth"))
-        db_session.flush()
-
-    def test_get_category_names_returns_tuples(self, db_session):
-        results = CraftingRecipeCache.get_category_names(RECIPE_TYPE_CRAFTED, 4, 1, db_session)
-        assert all(isinstance(t, tuple) and len(t) == 2 for t in results)
-
-    def test_get_category_names_returns_all(self, db_session):
-        results = CraftingRecipeCache.get_category_names(RECIPE_TYPE_CRAFTED, 4, 1, db_session)
-        names = [t[0] for t in results]
-        assert sorted(names) == ["Cloth Hat", "Cloth Robe", "Competitor's Cloth"]
-
-    def test_get_category_names_excludes_pvp(self, db_session):
-        results = CraftingRecipeCache.get_category_names(RECIPE_TYPE_CRAFTED, 4, 1, db_session, exclude_pvp=True)
-        names = [t[0] for t in results]
-        assert "Competitor's Cloth" not in names
-        assert "Cloth Hat" in names
-        assert "Cloth Robe" in names
-
-    def test_get_category_names_locale_returned_when_set(self, db_session):
-        db_session.add(
-            _recipe(
-                RecipeId=53,
-                ItemClassId=4,
-                ItemSubClassId=1,
-                CategoryName="Cloth Hat",
-                CategoryNameLocales={"de": "Stoffhut"},
-            )
-        )
-        db_session.flush()
-        results = CraftingRecipeCache.get_category_names(RECIPE_TYPE_CRAFTED, 4, 1, db_session)
-        locales_map = {name: locales for name, locales in results}
-        # The dedup picks the first row by name; locale data should be present
-        assert locales_map.get("Cloth Hat") == {"de": "Stoffhut"}
-
-    def test_get_by_type_subclass_and_category(self, db_session):
-        results = CraftingRecipeCache.get_by_type_subclass_and_category(
-            RECIPE_TYPE_CRAFTED, 4, 1, "Cloth Hat", db_session
-        )
-        assert len(results) == 1
-        assert results[0].RecipeId == 50
-
-    def test_get_by_type_subclass_and_category_wrong_category(self, db_session):
-        results = CraftingRecipeCache.get_by_type_subclass_and_category(
-            RECIPE_TYPE_CRAFTED, 4, 1, "Plate Armor", db_session
-        )
-        assert len(results) == 0
-
-
 class TestOtherQueries:
     """get_other_categories and get_other_items."""
 

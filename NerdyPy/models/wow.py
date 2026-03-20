@@ -361,8 +361,16 @@ class CraftingRecipeCache(db.BASE):
 
     @classmethod
     def _pvp_condition(cls):
-        """Return an OR condition matching PvP-related category keywords."""
-        return or_(*[func.lower(cls.CategoryName).contains(kw) for kw in _PVP_CATEGORY_KEYWORDS])
+        """Return an OR condition matching PvP items by category name or item name.
+
+        Most PvP items have a "Competitor's" or "PvP" CategoryName, but some Blizzard
+        items use a generic category (e.g. "Mail Equipment") while keeping "Competitor's"
+        in the ItemName. Both columns are checked so no PvP items leak into gear buckets.
+        """
+        return or_(
+            *[func.lower(cls.CategoryName).contains(kw) for kw in _PVP_CATEGORY_KEYWORDS],
+            *[func.lower(cls.ItemName).contains(kw) for kw in _PVP_CATEGORY_KEYWORDS],
+        )
 
     @classmethod
     def _raid_prep_condition(cls):
@@ -639,57 +647,6 @@ class CraftingRecipeCache(db.BASE):
         )
         if profession_ids:
             q = q.filter(cls.ProfessionId.in_(profession_ids))
-        return q.order_by(asc(cls.ItemName)).all()
-
-    @classmethod
-    def get_category_names(
-        cls,
-        recipe_type,
-        item_class_id,
-        item_subclass_id,
-        session,
-        profession_ids: set[int] | None = None,
-        orderable_only: bool = False,
-        exclude_pvp: bool = False,
-    ) -> list[tuple[str, dict | None]]:
-        """Return distinct (CategoryName, CategoryNameLocales) tuples for a class/subclass combination."""
-        q = session.query(cls.CategoryName, cls.CategoryNameLocales).filter(
-            cls.RecipeType == recipe_type,
-            cls.ItemClassId == item_class_id,
-            cls.ItemSubClassId == item_subclass_id,
-            cls.CategoryName.isnot(None),
-        )
-        if profession_ids:
-            q = q.filter(cls.ProfessionId.in_(profession_ids))
-        if orderable_only:
-            q = cls._apply_orderable_filter(q, profession_ids)
-        if exclude_pvp:
-            q = q.filter(~cls._pvp_condition())
-        rows = q.order_by(asc(cls.CategoryName)).all()
-        return cls._dedup_category_rows(rows)
-
-    @classmethod
-    def get_by_type_subclass_and_category(
-        cls,
-        recipe_type,
-        item_class_id,
-        item_subclass_id,
-        category_name,
-        session,
-        profession_ids: set[int] | None = None,
-        orderable_only: bool = False,
-    ):
-        """Return recipe rows filtered by class, subclass, and category name."""
-        q = session.query(cls).filter(
-            cls.RecipeType == recipe_type,
-            cls.ItemClassId == item_class_id,
-            cls.ItemSubClassId == item_subclass_id,
-            cls.CategoryName == category_name,
-        )
-        if profession_ids:
-            q = q.filter(cls.ProfessionId.in_(profession_ids))
-        if orderable_only:
-            q = cls._apply_orderable_filter(q, profession_ids)
         return q.order_by(asc(cls.ItemName)).all()
 
     @classmethod
