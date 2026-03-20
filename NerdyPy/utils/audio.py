@@ -213,7 +213,7 @@ class Audio:
         }
 
     async def _update_buffer(self, guild_id):
-        songs = [s for s in self.list_queue(guild_id)[: self.buffer_limit] if s.stream is None]
+        songs = [s for s in self.list_queue(guild_id) if s.stream is None][: self.buffer_limit]
 
         if songs:
             guild = self.bot.get_guild(guild_id)
