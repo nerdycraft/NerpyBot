@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from "@iconify/vue";
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { api } from "@/api/client";
 import type {
   BotPermissionGuildResult,
@@ -28,7 +28,16 @@ const health = ref<HealthResponse | null>(null);
 const healthLoading = ref(false);
 const healthError = ref<string | null>(null);
 
-const { status: liveStatus, connected: liveConnected, connect } = useHealthStatus();
+const { status: liveStatus, connected: liveConnected, error: liveError, connect } = useHealthStatus();
+
+const live = computed(() => ({
+  uptime_seconds: liveStatus.value?.uptime_seconds ?? health.value?.uptime_seconds ?? null,
+  latency_ms: liveStatus.value?.latency_ms ?? health.value?.latency_ms ?? null,
+  memory_mb: liveStatus.value?.memory_mb ?? health.value?.memory_mb ?? null,
+  cpu_percent: liveStatus.value?.cpu_percent ?? health.value?.cpu_percent ?? null,
+  voice_connections: liveStatus.value?.voice_connections ?? health.value?.voice_connections ?? null,
+  voice_details: liveStatus.value?.voice_details ?? health.value?.voice_details ?? [],
+}));
 
 function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
@@ -235,11 +244,14 @@ onMounted(() => {
     <!-- ── Health tab ── -->
     <template v-if="activeTab === 'health'">
       <div class="flex items-center justify-between mb-4">
-        <span class="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span
-            :class="['w-2 h-2 rounded-full', liveConnected ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground/40']"
-          />
-          {{ liveConnected ? t("tabs.operator_dashboard.live") : t("tabs.operator_dashboard.not_live") }}
+        <span class="flex items-center gap-2 flex-wrap">
+          <span class="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span
+              :class="['w-2 h-2 rounded-full', liveConnected ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground/40']"
+            />
+            {{ liveConnected ? t("tabs.operator_dashboard.live") : t("tabs.operator_dashboard.not_live") }}
+          </span>
+          <span v-if="liveError" class="text-xs text-destructive">{{ liveError }}</span>
         </span>
         <button
           class="px-3 py-1.5 rounded bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 flex items-center gap-1.5 hover:bg-primary/90 transition-colors"
@@ -294,7 +306,7 @@ onMounted(() => {
               {{ t("tabs.operator_dashboard.uptime") }}
             </p>
             <p class="text-sm font-medium">
-              {{ (liveStatus?.uptime_seconds ?? health.uptime_seconds) !== null ? formatUptime((liveStatus?.uptime_seconds ?? health.uptime_seconds)!) : "—" }}
+              {{ live.uptime_seconds !== null ? formatUptime(live.uptime_seconds) : "—" }}
             </p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
@@ -303,7 +315,7 @@ onMounted(() => {
               {{ t("tabs.operator_dashboard.latency") }}
             </p>
             <p class="text-sm font-medium">
-              {{ (liveStatus?.latency_ms ?? health.latency_ms) !== null ? `${liveStatus?.latency_ms ?? health.latency_ms} ms` : "—" }}
+              {{ live.latency_ms !== null ? `${live.latency_ms} ms` : "—" }}
             </p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
@@ -341,14 +353,14 @@ onMounted(() => {
               <Icon icon="mdi:memory" class="w-3.5 h-3.5" />
               {{ t("tabs.operator_dashboard.memory") }}
             </p>
-            <p class="text-sm font-medium">{{ (liveStatus?.memory_mb ?? health.memory_mb) !== null ? `${liveStatus?.memory_mb ?? health.memory_mb} MB` : "—" }}</p>
+            <p class="text-sm font-medium">{{ live.memory_mb !== null ? `${live.memory_mb} MB` : "—" }}</p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
             <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
               <Icon icon="mdi:cpu-64-bit" class="w-3.5 h-3.5" />
               {{ t("tabs.operator_dashboard.cpu") }}
             </p>
-            <p class="text-sm font-medium">{{ (liveStatus?.cpu_percent ?? health.cpu_percent) !== null ? `${liveStatus?.cpu_percent ?? health.cpu_percent}%` : "—" }}</p>
+            <p class="text-sm font-medium">{{ live.cpu_percent !== null ? `${live.cpu_percent}%` : "—" }}</p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
             <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
@@ -356,7 +368,7 @@ onMounted(() => {
               {{ t("tabs.operator_dashboard.voice_connections") }}
             </p>
             <p class="text-sm font-medium">
-              {{ (liveStatus?.voice_connections ?? health.voice_connections) !== null ? (liveStatus?.voice_connections ?? health.voice_connections) : "—" }}
+              {{ live.voice_connections !== null ? live.voice_connections : "—" }}
             </p>
           </div>
         </div>
@@ -383,7 +395,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <div v-if="(liveStatus?.voice_details ?? health.voice_details).length > 0">
+        <div v-if="live.voice_details.length > 0">
           <h3 class="text-sm font-semibold mb-2 flex items-center gap-1.5">
             <Icon icon="mdi:microphone-outline" class="w-4 h-4 text-muted-foreground" />
             {{ t("tabs.operator_dashboard.active_voice_sessions") }}
@@ -406,7 +418,7 @@ onMounted(() => {
               </thead>
               <tbody>
                 <tr
-                  v-for="vc in (liveStatus?.voice_details ?? health.voice_details)"
+                  v-for="vc in live.voice_details"
                   :key="vc.channel_id"
                   class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
                 >
