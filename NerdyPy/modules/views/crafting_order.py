@@ -1135,10 +1135,13 @@ class ItemSelectView(ui.View):
         self.roles = roles
         self.guild_id = guild_id
         self.lang = lang
-        self._all_recipes = recipes
+        self._all_recipes = sorted(
+            recipes,
+            key=lambda r: (_get_locale(r.ItemNameLocales, lang) or r.ItemName or "").casefold(),
+        )
         self._offset = offset
 
-        remaining = recipes[offset:]
+        remaining = self._all_recipes[offset:]
         has_more = len(remaining) > self._PAGE_SIZE
         page = remaining[: self._PAGE_SIZE]
         self._recipes_by_id = {str(r.RecipeId): r for r in page}
