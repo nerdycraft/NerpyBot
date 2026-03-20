@@ -223,7 +223,10 @@ class Audio:
             _index = _index + 1
 
         if _tasks:
-            await asyncio.gather(*_tasks)
+            results = await asyncio.gather(*_tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, Exception):
+                    self.bot.log.error(f"Buffer prefetch failed: {result}")
 
     def _add_to_buffer(self, guild_id, song):
         self.buffer[guild_id][BufferKey.QUEUE].put(song)
