@@ -8,6 +8,7 @@ The listener loop runs as an asyncio background task. It subscribes to the
 """
 
 import json
+import time
 from asyncio import CancelledError, ensure_future, gather, sleep, to_thread
 from datetime import UTC, datetime
 from importlib.metadata import version as pkg_version
@@ -41,6 +42,21 @@ def _get_guild(bot, payload: dict):
     return bot.get_guild(guild_id)
 
 
+def _build_voice_details(bot) -> tuple[list, list]:
+    """Return (active_vcs, voice_details) from the bot's current voice clients."""
+    active_vcs = [vc for vc in bot.voice_clients if vc.guild and vc.channel]
+    voice_details = [
+        {
+            "guild_id": str(vc.guild.id),
+            "guild_name": vc.guild.name,
+            "channel_id": str(vc.channel.id),
+            "channel_name": vc.channel.name,
+        }
+        for vc in active_vcs
+    ]
+    return active_vcs, voice_details
+
+
 async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
     """
     Dispatches Valkey pub/sub commands from the web dashboard and returns a command-specific response dictionary.
@@ -71,16 +87,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         import discord
 
         uptime_seconds = (datetime.now(UTC) - bot.uptime).total_seconds()
-        active_vcs = [vc for vc in bot.voice_clients if vc.guild and vc.channel]
-        voice_details = [
-            {
-                "guild_id": str(vc.guild.id),
-                "guild_name": vc.guild.name,
-                "channel_id": str(vc.channel.id),
-                "channel_name": vc.channel.name,
-            }
-            for vc in active_vcs
-        ]
+        active_vcs, voice_details = _build_voice_details(bot)
         active_reminders: int | None = None
         try:
             from models.reminder import ReminderMessage
@@ -105,6 +112,18 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             "error_count_24h": bot.error_counter.count(),
             "active_reminders": active_reminders,
             "voice_details": voice_details,
+        }
+    elif command == "health_live":
+        uptime_seconds = (datetime.now(UTC) - bot.uptime).total_seconds()
+        active_vcs, voice_details = _build_voice_details(bot)
+        return {
+            "uptime_seconds": round(uptime_seconds, 2),
+            "latency_ms": round(bot.latency * 1000, 2),
+            "voice_connections": len(active_vcs),
+            "memory_mb": round(_proc.memory_info().rss / (1024 * 1024), 2),
+            "cpu_percent": round(_proc.cpu_percent(interval=None), 2),
+            "voice_details": voice_details,
+            "ts": time.time(),
         }
     elif command == "list_modules":
         loaded_names: set[str] = set()

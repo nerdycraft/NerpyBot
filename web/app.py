@@ -32,7 +32,7 @@ def create_app(
     from web.cache import ValkeyClient
     from web.config import WebConfig
     from web.dependencies import _TEST_MODE, get_config, get_db_session, get_valkey
-    from web.routes import auth, guilds, health, legal, operator, support, wow
+    from web.routes import auth, guilds, health, legal, operator, sse, support, wow
 
     if config is None:
         config = WebConfig.load(config_path)
@@ -113,6 +113,7 @@ def create_app(
     app.include_router(wow.router, prefix="/api")
     app.include_router(legal.router, prefix="/api")
     app.include_router(support.router, prefix="/api")
+    app.include_router(sse.router, prefix="/api")
 
     # Serve Vue SPA — mount assets then catch-all for client-side routing
     _dist = spa_dist or Path(__file__).parent / "frontend" / "dist"

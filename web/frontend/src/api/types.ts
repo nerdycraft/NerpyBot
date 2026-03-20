@@ -406,6 +406,16 @@ export interface HealthResponse {
   voice_details: VoiceConnectionDetail[];
 }
 
+export interface HealthLiveStatus {
+  uptime_seconds: number;
+  latency_ms: number;
+  voice_connections: number;
+  memory_mb: number;
+  cpu_percent: number;
+  voice_details: VoiceConnectionDetail[];
+  ts: number;
+}
+
 export interface ModuleInfo {
   name: string;
   loaded: boolean;

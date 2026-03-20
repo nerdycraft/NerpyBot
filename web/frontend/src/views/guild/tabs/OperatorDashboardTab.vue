@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from "@iconify/vue";
-import { onMounted, onUnmounted, ref, watch } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { api } from "@/api/client";
 import type {
   BotPermissionGuildResult,
@@ -12,6 +12,7 @@ import type {
   HealthResponse,
 } from "@/api/types";
 import SubTabBar from "@/components/SubTabBar.vue";
+import { useHealthStatus } from "@/composables/useHealthStatus";
 import { useI18n } from "@/i18n";
 
 const { t } = useI18n();
@@ -26,8 +27,8 @@ const activeTab = ref<SubTab>("health");
 const health = ref<HealthResponse | null>(null);
 const healthLoading = ref(false);
 const healthError = ref<string | null>(null);
-const autoRefresh = ref(false);
-let intervalId: ReturnType<typeof setInterval> | null = null;
+
+const { status: liveStatus, connected: liveConnected, connect } = useHealthStatus();
 
 function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
@@ -51,24 +52,6 @@ async function fetchHealth() {
     healthLoading.value = false;
   }
 }
-
-function toggleAutoRefresh() {
-  if (autoRefresh.value) {
-    intervalId = setInterval(fetchHealth, 30_000);
-  } else {
-    if (intervalId !== null) {
-      clearInterval(intervalId);
-      intervalId = null;
-    }
-  }
-}
-
-onUnmounted(() => {
-  if (intervalId !== null) {
-    clearInterval(intervalId);
-    intervalId = null;
-  }
-});
 
 // ── Permissions tab ───────────────────────────────────────────────────────────
 
@@ -212,7 +195,10 @@ watch(activeTab, (tab) => {
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-onMounted(fetchHealth);
+onMounted(() => {
+  fetchHealth();
+  connect();
+});
 </script>
 
 <template>
@@ -249,10 +235,12 @@ onMounted(fetchHealth);
     <!-- ── Health tab ── -->
     <template v-if="activeTab === 'health'">
       <div class="flex items-center justify-between mb-4">
-        <label class="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-          <input v-model="autoRefresh" type="checkbox" class="rounded" @change="toggleAutoRefresh" />
-          {{ t("tabs.operator_dashboard.auto_refresh") }}
-        </label>
+        <span class="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span
+            :class="['w-2 h-2 rounded-full', liveConnected ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground/40']"
+          />
+          {{ liveConnected ? t("tabs.operator_dashboard.live") : t("tabs.operator_dashboard.not_live") }}
+        </span>
         <button
           class="px-3 py-1.5 rounded bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50 flex items-center gap-1.5 hover:bg-primary/90 transition-colors"
           :disabled="healthLoading"
@@ -306,7 +294,7 @@ onMounted(fetchHealth);
               {{ t("tabs.operator_dashboard.uptime") }}
             </p>
             <p class="text-sm font-medium">
-              {{ health.uptime_seconds !== null ? formatUptime(health.uptime_seconds) : "—" }}
+              {{ (liveStatus?.uptime_seconds ?? health.uptime_seconds) !== null ? formatUptime((liveStatus?.uptime_seconds ?? health.uptime_seconds)!) : "—" }}
             </p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
@@ -315,7 +303,7 @@ onMounted(fetchHealth);
               {{ t("tabs.operator_dashboard.latency") }}
             </p>
             <p class="text-sm font-medium">
-              {{ health.latency_ms !== null ? `${health.latency_ms} ms` : "—" }}
+              {{ (liveStatus?.latency_ms ?? health.latency_ms) !== null ? `${liveStatus?.latency_ms ?? health.latency_ms} ms` : "—" }}
             </p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
@@ -353,14 +341,14 @@ onMounted(fetchHealth);
               <Icon icon="mdi:memory" class="w-3.5 h-3.5" />
               {{ t("tabs.operator_dashboard.memory") }}
             </p>
-            <p class="text-sm font-medium">{{ health.memory_mb !== null ? `${health.memory_mb} MB` : "—" }}</p>
+            <p class="text-sm font-medium">{{ (liveStatus?.memory_mb ?? health.memory_mb) !== null ? `${liveStatus?.memory_mb ?? health.memory_mb} MB` : "—" }}</p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
             <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
               <Icon icon="mdi:cpu-64-bit" class="w-3.5 h-3.5" />
               {{ t("tabs.operator_dashboard.cpu") }}
             </p>
-            <p class="text-sm font-medium">{{ health.cpu_percent !== null ? `${health.cpu_percent}%` : "—" }}</p>
+            <p class="text-sm font-medium">{{ (liveStatus?.cpu_percent ?? health.cpu_percent) !== null ? `${liveStatus?.cpu_percent ?? health.cpu_percent}%` : "—" }}</p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
             <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
@@ -368,7 +356,7 @@ onMounted(fetchHealth);
               {{ t("tabs.operator_dashboard.voice_connections") }}
             </p>
             <p class="text-sm font-medium">
-              {{ health.voice_connections !== null ? health.voice_connections : "—" }}
+              {{ (liveStatus?.voice_connections ?? health.voice_connections) !== null ? (liveStatus?.voice_connections ?? health.voice_connections) : "—" }}
             </p>
           </div>
         </div>
@@ -395,7 +383,7 @@ onMounted(fetchHealth);
           </div>
         </div>
 
-        <div v-if="health.voice_details.length > 0">
+        <div v-if="(liveStatus?.voice_details ?? health.voice_details).length > 0">
           <h3 class="text-sm font-semibold mb-2 flex items-center gap-1.5">
             <Icon icon="mdi:microphone-outline" class="w-4 h-4 text-muted-foreground" />
             {{ t("tabs.operator_dashboard.active_voice_sessions") }}
@@ -418,7 +406,7 @@ onMounted(fetchHealth);
               </thead>
               <tbody>
                 <tr
-                  v-for="vc in health.voice_details"
+                  v-for="vc in (liveStatus?.voice_details ?? health.voice_details)"
                   :key="vc.channel_id"
                   class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
                 >
