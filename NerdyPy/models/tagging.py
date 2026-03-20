@@ -82,9 +82,8 @@ class Tag(db.BASE):
 
     def get_random_entry(self):
         """gets a random tag entry"""
-        tag_entries = self.entries.all()
-        random_entry = tag_entries[randint(0, (len(tag_entries) - 1))]
-        return random_entry
+        count = self.entries.count()
+        return self.entries.offset(randint(0, count - 1)).limit(1).first()
 
     def __str__(self):
         msg = f"==== {self.Name} ====\n\n"

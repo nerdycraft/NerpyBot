@@ -29,16 +29,8 @@ from modules.conversations.application import (
 from modules.views.application import check_override_permission
 from sqlalchemy.exc import SQLAlchemyError
 from utils.cog import NerpyBotCog
-from utils.helpers import fetch_message_content
+from utils.helpers import fetch_message_content, send_hidden_message
 from utils.strings import get_raw, get_string
-
-
-async def _send_ephemeral(interaction: Interaction, msg: str) -> None:
-    """Send an ephemeral message, choosing response vs followup based on whether the response is used."""
-    if not interaction.response.is_done():
-        await interaction.response.send_message(msg, ephemeral=True)
-    else:
-        await interaction.followup.send(msg, ephemeral=True)
 
 
 def _localize_field(
@@ -242,7 +234,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             form = ApplicationForm.get(name, interaction.guild.id, session)
             if not form:
                 msg = get_string(lang, "application.form_not_found", name=name)
-                await _send_ephemeral(interaction, msg)
+                await send_hidden_message(interaction, msg)
                 return
 
             changes = []
@@ -275,13 +267,13 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
             if not changes:
                 msg = get_string(lang, "application.settings.nothing_to_change")
-                await _send_ephemeral(interaction, msg)
+                await send_hidden_message(interaction, msg)
                 return
 
             form_id = form.Id
 
         msg = get_string(lang, "application.settings.success", name=name, changes=", ".join(changes))
-        await _send_ephemeral(interaction, msg)
+        await send_hidden_message(interaction, msg)
 
         if repost_apply:
             from modules.views.application import post_apply_button_message
@@ -899,11 +891,11 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
             if not tpl:
                 msg = get_string(lang, "application.template.not_found", name=template_name)
-                await _send_ephemeral(interaction, msg)
+                await send_hidden_message(interaction, msg)
                 return
             if tpl.IsBuiltIn:
                 msg = get_string(lang, "application.template.edit_messages.builtin_forbidden")
-                await _send_ephemeral(interaction, msg)
+                await send_hidden_message(interaction, msg)
                 return
 
             changes = []
@@ -921,7 +913,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 lang, "application.template.edit_messages.success", name=template_name, changes=", ".join(changes)
             )
 
-        await _send_ephemeral(interaction, msg)
+        await send_hidden_message(interaction, msg)
 
     @template_group.command(name="edit-messages")
     @app_commands.describe(
