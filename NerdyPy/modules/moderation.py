@@ -17,7 +17,7 @@ from models.moderation import AutoDelete, AutoKicker
 
 from utils.cog import NerpyBotCog
 from utils.errors import NerpyValidationError
-from utils.helpers import fetch_message_content, notify_error, register_before_loop, send_paginated
+from utils.helpers import fetch_message_content, notify_error, register_before_loop, send_hidden_message, send_paginated
 from utils.permissions import validate_channel_permissions
 from utils.strings import get_string
 
@@ -271,16 +271,17 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 key_prefix="moderation.fetch_message",
             )
             if error:
-                await interaction.response.send_message(error, ephemeral=True)
+                await send_hidden_message(interaction, error)
                 return
             kick_reminder_message = content
 
+        kick_time = parse(kick_after)
+        if kick_time is None:
+            await send_hidden_message(interaction, get_string(lang, "moderation.invalid_timespan"))
+            return
+
         with self.bot.session_scope() as session:
             configuration = AutoKicker.get_by_guild(interaction.guild.id, session)
-            kick_time = parse(kick_after)
-            if kick_time is None:
-                await interaction.response.send_message(get_string(lang, "moderation.invalid_timespan"), ephemeral=True)
-                return
             if configuration is not None:
                 configuration.KickAfter = kick_time
                 configuration.Enabled = enable
@@ -294,7 +295,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 )
                 session.add(autokicker)
 
-        await interaction.response.send_message(get_string(lang, "moderation.autokicker.configured"), ephemeral=True)
+        await send_hidden_message(interaction, get_string(lang, "moderation.autokicker.configured"))
 
     @autodeleter.command(name="create")
     @checks.has_permissions(manage_messages=True)
@@ -324,35 +325,28 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel_name = channel.name
 
         lang = self._lang(interaction.guild_id)
+
+        if delete_older_than is not None:
+            delete = parse(delete_older_than)
+            if delete is None:
+                await send_hidden_message(interaction, get_string(lang, "moderation.invalid_timespan"))
+                return
+        else:
+            delete = None
+
+        validate_channel_permissions(
+            channel,
+            interaction.guild,
+            "view_channel",
+            "manage_messages",
+            "manage_threads",
+            "read_message_history",
+        )
+
         with self.bot.session_scope() as session:
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
-            if configuration is not None:
-                await interaction.response.send_message(
-                    get_string(lang, "moderation.autodeleter.create.already_exists"),
-                    ephemeral=True,
-                )
-                return
-
-            if interaction.guild.get_channel(channel_id) is not None:
-                validate_channel_permissions(
-                    channel,
-                    interaction.guild,
-                    "view_channel",
-                    "manage_messages",
-                    "manage_threads",
-                    "read_message_history",
-                )
-                if delete_older_than is None:
-                    delete = delete_older_than
-                else:
-                    delete = parse(delete_older_than)
-                    if delete is None:
-                        await interaction.response.send_message(
-                            get_string(lang, "moderation.invalid_timespan"),
-                            ephemeral=True,
-                        )
-                        return
-
+            already_exists = configuration is not None
+            if not already_exists:
                 deleter = AutoDelete(
                     GuildId=interaction.guild.id,
                     ChannelId=channel_id,
@@ -363,8 +357,12 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 )
                 session.add(deleter)
 
-        await interaction.response.send_message(
-            get_string(lang, "moderation.autodeleter.create.success", channel=channel_name), ephemeral=True
+        if already_exists:
+            await send_hidden_message(interaction, get_string(lang, "moderation.autodeleter.create.already_exists"))
+            return
+
+        await send_hidden_message(
+            interaction, get_string(lang, "moderation.autodeleter.create.success", channel=channel_name)
         )
 
     @autodeleter.command(name="delete")
@@ -386,13 +384,11 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
             if configuration is not None:
                 AutoDelete.delete(interaction.guild.id, channel_id, session)
-                await interaction.response.send_message(
-                    get_string(lang, "moderation.autodeleter.delete.success", channel=channel_name), ephemeral=True
-                )
+                msg = get_string(lang, "moderation.autodeleter.delete.success", channel=channel_name)
             else:
-                await interaction.response.send_message(
-                    get_string(lang, "moderation.autodeleter.delete.not_found", channel=channel_name), ephemeral=True
-                )
+                msg = get_string(lang, "moderation.autodeleter.delete.not_found", channel=channel_name)
+
+        await send_hidden_message(interaction, msg)
 
     @autodeleter.command(name="list")
     @checks.has_permissions(manage_messages=True)
@@ -406,10 +402,11 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         """
 
         lang = self._lang(interaction.guild_id)
+        list_msg = None
         with self.bot.session_scope() as session:
             configurations = AutoDelete.get_by_guild(interaction.guild.id, session)
             if configurations:
-                msg = ""
+                list_msg = ""
                 for configuration in configurations:
                     channel = interaction.guild.get_channel(configuration.ChannelId)
                     channel_name = channel.mention if channel else f"Unknown ({configuration.ChannelId})"
@@ -422,19 +419,19 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                         else "moderation.autodeleter.list.pinned_no"
                     )
                     pinned = get_string(lang, pinned_key)
-                    msg += f"{status} **{channel_name}**\n"
-                    msg += f"> {get_string(lang, 'moderation.autodeleter.list.entry_details', age=age, keep=keep, pinned=pinned)}\n\n"
-                await send_paginated(
-                    interaction,
-                    msg,
-                    title=get_string(lang, "moderation.autodeleter.list.title"),
-                    color=0xE74C3C,
-                    ephemeral=True,
-                )
-            else:
-                await interaction.response.send_message(
-                    get_string(lang, "moderation.autodeleter.list.empty"), ephemeral=True
-                )
+                    list_msg += f"{status} **{channel_name}**\n"
+                    list_msg += f"> {get_string(lang, 'moderation.autodeleter.list.entry_details', age=age, keep=keep, pinned=pinned)}\n\n"
+
+        if list_msg is not None:
+            await send_paginated(
+                interaction,
+                list_msg,
+                title=get_string(lang, "moderation.autodeleter.list.title"),
+                color=0xE74C3C,
+                ephemeral=True,
+            )
+        else:
+            await send_hidden_message(interaction, get_string(lang, "moderation.autodeleter.list.empty"))
 
     @autodeleter.command(name="pause")
     @checks.has_permissions(manage_messages=True)
@@ -448,22 +445,22 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             The channel to pause auto-deletion for
         """
         lang = self._lang(interaction.guild_id)
+        error_key = None
         with self.bot.session_scope() as session:
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel.id, session)
             if configuration is None:
-                await interaction.response.send_message(
-                    get_string(lang, "moderation.autodeleter.no_config", channel=channel.mention), ephemeral=True
-                )
-                return
-            if not configuration.Enabled:
-                await interaction.response.send_message(
-                    get_string(lang, "moderation.autodeleter.pause.already_paused", channel=channel.mention),
-                    ephemeral=True,
-                )
-                return
-            configuration.Enabled = False
-        await interaction.response.send_message(
-            get_string(lang, "moderation.autodeleter.pause.success", channel=channel.mention), ephemeral=True
+                error_key = "moderation.autodeleter.no_config"
+            elif not configuration.Enabled:
+                error_key = "moderation.autodeleter.pause.already_paused"
+            else:
+                configuration.Enabled = False
+
+        if error_key is not None:
+            await send_hidden_message(interaction, get_string(lang, error_key, channel=channel.mention))
+            return
+
+        await send_hidden_message(
+            interaction, get_string(lang, "moderation.autodeleter.pause.success", channel=channel.mention)
         )
 
     @autodeleter.command(name="resume")
@@ -478,22 +475,22 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             The channel to resume auto-deletion for
         """
         lang = self._lang(interaction.guild_id)
+        error_key = None
         with self.bot.session_scope() as session:
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel.id, session)
             if configuration is None:
-                await interaction.response.send_message(
-                    get_string(lang, "moderation.autodeleter.no_config", channel=channel.mention), ephemeral=True
-                )
-                return
-            if configuration.Enabled:
-                await interaction.response.send_message(
-                    get_string(lang, "moderation.autodeleter.resume.already_active", channel=channel.mention),
-                    ephemeral=True,
-                )
-                return
-            configuration.Enabled = True
-        await interaction.response.send_message(
-            get_string(lang, "moderation.autodeleter.resume.success", channel=channel.mention), ephemeral=True
+                error_key = "moderation.autodeleter.no_config"
+            elif configuration.Enabled:
+                error_key = "moderation.autodeleter.resume.already_active"
+            else:
+                configuration.Enabled = True
+
+        if error_key is not None:
+            await send_hidden_message(interaction, get_string(lang, error_key, channel=channel.mention))
+            return
+
+        await send_hidden_message(
+            interaction, get_string(lang, "moderation.autodeleter.resume.success", channel=channel.mention)
         )
 
     @autodeleter.command(name="edit")
@@ -524,25 +521,26 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         channel_name = channel.name
 
         lang = self._lang(interaction.guild_id)
+
+        if delete_older_than is not None:
+            delete_in_seconds = parse(delete_older_than)
+            if delete_in_seconds is None:
+                await send_hidden_message(interaction, get_string(lang, "moderation.invalid_timespan"))
+                return
+        else:
+            delete_in_seconds = None
+
         with self.bot.session_scope() as session:
             configuration = AutoDelete.get_by_channel(interaction.guild.id, channel_id, session)
             if configuration is not None:
-                if delete_older_than is None:
-                    configuration.DeleteOlderThan = delete_older_than
-                else:
-                    delete_in_seconds = parse(delete_older_than)
-                    configuration.DeleteOlderThan = delete_in_seconds
+                configuration.DeleteOlderThan = delete_in_seconds
                 configuration.KeepMessages = keep_messages if keep_messages is not None else 0
                 configuration.DeletePinnedMessage = delete_pinned_message
-
-                await interaction.response.send_message(
-                    get_string(lang, "moderation.autodeleter.edit.success", channel=channel_name), ephemeral=True
-                )
+                msg = get_string(lang, "moderation.autodeleter.edit.success", channel=channel_name)
             else:
-                await interaction.response.send_message(
-                    get_string(lang, "moderation.autodeleter.edit.not_found", channel=channel_name),
-                    ephemeral=True,
-                )
+                msg = get_string(lang, "moderation.autodeleter.edit.not_found", channel=channel_name)
+
+        await send_hidden_message(interaction, msg)
 
     @user_group.command(name="info")
     @checks.has_permissions(moderate_members=True)
