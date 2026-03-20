@@ -276,8 +276,8 @@ onMounted(() => {
         {{ t("tabs.operator_dashboard.unreachable") }}
       </div>
 
-      <div v-if="health">
-        <div class="flex items-center gap-3 mb-6">
+      <div v-if="health || liveStatus">
+        <div v-if="health" class="flex items-center gap-3 mb-6">
           <span class="text-sm text-muted-foreground">{{ t("tabs.operator_dashboard.status") }}</span>
           <span
             :class="[
@@ -323,7 +323,7 @@ onMounted(() => {
               <Icon icon="mdi:server-outline" class="w-3.5 h-3.5" />
               {{ t("tabs.operator_dashboard.guilds") }}
             </p>
-            <p class="text-sm font-medium">{{ health.guild_count !== null ? health.guild_count : "—" }}</p>
+            <p class="text-sm font-medium">{{ health?.guild_count ?? "—" }}</p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
             <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1">
@@ -331,7 +331,7 @@ onMounted(() => {
               {{ t("tabs.operator_dashboard.active_reminders") }}
             </p>
             <p class="text-sm font-medium">
-              {{ health.active_reminders !== null ? health.active_reminders : "—" }}
+              {{ health?.active_reminders ?? "—" }}
             </p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
@@ -342,10 +342,10 @@ onMounted(() => {
             <p
               :class="[
                 'text-sm font-medium',
-                health.error_count_24h !== null && health.error_count_24h > 0 ? 'text-destructive' : '',
+                (health?.error_count_24h ?? 0) > 0 ? 'text-destructive' : '',
               ]"
             >
-              {{ health.error_count_24h !== null ? health.error_count_24h : "—" }}
+              {{ health?.error_count_24h ?? "—" }}
             </p>
           </div>
           <div class="bg-card border border-border rounded px-4 py-3">
@@ -373,7 +373,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="bg-card border border-border rounded px-4 py-3 mb-6 space-y-1.5">
+        <div v-if="health" class="bg-card border border-border rounded px-4 py-3 mb-6 space-y-1.5">
           <p class="text-xs text-muted-foreground font-semibold uppercase tracking-wide mb-2">
             {{ t("tabs.operator_dashboard.version_info") }}
           </p>

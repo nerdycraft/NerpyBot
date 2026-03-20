@@ -42,11 +42,11 @@ export function useHealthStatus() {
       headers: {
         Authorization: `Bearer ${token}`,
       },
-      onopen(response) {
+      async onopen(response) {
         if (response.ok) {
           connected.value = true;
           error.value = null;
-          return Promise.resolve();
+          return;
         }
         // Throw on non-ok responses so fetchEventSource does not retry.
         if (response.status === 429) {

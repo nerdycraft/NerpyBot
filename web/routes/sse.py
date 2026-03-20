@@ -76,9 +76,10 @@ async def _health_event_generator(
             await asyncio.sleep(_HEALTH_POLL_INTERVAL)
 
     except asyncio.CancelledError:
+        # Expected on client disconnect or server shutdown; cleanup handled in finally.
         pass
     except Exception:
-        _log.debug("SSE health generator error for user %s", user_id, exc_info=True)
+        _log.debug("SSE health generator error for user %r", user_id, exc_info=True)
     finally:
         remaining = _active_connections.get(user_id, 0) - 1
         if remaining <= 0:
