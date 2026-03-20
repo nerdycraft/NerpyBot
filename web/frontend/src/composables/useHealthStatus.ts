@@ -35,6 +35,14 @@ export function useHealthStatus(options?: UseHealthStatusOptions) {
   // Set to true for permanent errors (auth/429) or intentional disconnect to suppress reconnect.
   let _permanentError = false;
 
+  function _cleanupConnection(controller: AbortController) {
+    connected.value = false;
+    status.value = null;
+    if (abortController === controller) {
+      abortController = null;
+    }
+  }
+
   function scheduleReconnect() {
     if (_reconnectTimer !== null || _permanentError) return;
     const delay = _reconnectDelay;
@@ -103,31 +111,19 @@ export function useHealthStatus(options?: UseHealthStatusOptions) {
       },
       onerror(err) {
         error.value = err instanceof Error ? err.message : "Stream error";
-        connected.value = false;
-        status.value = null;
-        if (abortController === controller) {
-          abortController = null;
-        }
+        _cleanupConnection(controller);
         // Schedule reconnect for transient drops; skip for auth/429/intentional disconnect.
         scheduleReconnect();
         // Throw to stop fetchEventSource from retrying — reconnect is handled by scheduleReconnect.
         throw err;
       },
       onclose() {
-        connected.value = false;
-        status.value = null;
-        if (abortController === controller) {
-          abortController = null;
-        }
+        _cleanupConnection(controller);
         // Schedule reconnect for server-side closes (e.g. server restart).
         scheduleReconnect();
       },
     }).catch(() => {
-      connected.value = false;
-      status.value = null;
-      if (abortController === controller) {
-        abortController = null;
-      }
+      _cleanupConnection(controller);
     });
   }
 
