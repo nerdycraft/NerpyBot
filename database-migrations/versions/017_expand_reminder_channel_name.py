@@ -22,18 +22,20 @@ def upgrade():
     conn = op.get_bind()
     insp = sa.inspect(conn)
 
-    # SQLite does not enforce VARCHAR length — no-op for SQLite
     if conn.dialect.name == "sqlite":
         return
 
     if insp.has_table("ReminderMessage"):
-        op.alter_column(
-            "ReminderMessage",
-            "ChannelName",
-            type_=sa.String(100),
-            existing_type=sa.String(30),
-            existing_nullable=True,
-        )
+        cols = {c["name"]: c for c in insp.get_columns("ReminderMessage")}
+        col = cols.get("ChannelName")
+        if col is not None and getattr(col["type"], "length", None) != 100:
+            op.alter_column(
+                "ReminderMessage",
+                "ChannelName",
+                type_=sa.String(100),
+                existing_type=col["type"],
+                existing_nullable=True,
+            )
 
 
 def downgrade():
@@ -44,10 +46,13 @@ def downgrade():
         return
 
     if insp.has_table("ReminderMessage"):
-        op.alter_column(
-            "ReminderMessage",
-            "ChannelName",
-            type_=sa.String(30),
-            existing_type=sa.String(100),
-            existing_nullable=True,
-        )
+        cols = {c["name"]: c for c in insp.get_columns("ReminderMessage")}
+        col = cols.get("ChannelName")
+        if col is not None and getattr(col["type"], "length", None) != 30:
+            op.alter_column(
+                "ReminderMessage",
+                "ChannelName",
+                type_=sa.String(30),
+                existing_type=col["type"],
+                existing_nullable=True,
+            )
