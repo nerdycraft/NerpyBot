@@ -436,16 +436,20 @@ class TestCachedAutocomplete:
 
     @pytest.mark.asyncio
     async def test_fetcher_error_returns_empty_list(self):
+        from sqlalchemy.exc import OperationalError
+
         from utils.cache import cached_autocomplete
 
         def bad_fetcher():
-            raise RuntimeError("DB down")
+            raise OperationalError("DB down", None, None)
 
         result = await cached_autocomplete(("test", 99), bad_fetcher)
         assert result == []
 
     @pytest.mark.asyncio
     async def test_fetcher_error_does_not_cache(self):
+        from sqlalchemy.exc import OperationalError
+
         from utils.cache import cached_autocomplete
 
         calls = []
@@ -453,7 +457,7 @@ class TestCachedAutocomplete:
         def flaky_fetcher():
             calls.append(1)
             if len(calls) == 1:
-                raise RuntimeError("first call fails")
+                raise OperationalError("first call fails", None, None)
             return ["ok"]
 
         await cached_autocomplete(("test", 42), flaky_fetcher)  # miss + error
@@ -461,6 +465,18 @@ class TestCachedAutocomplete:
 
         assert result == ["ok"]
         assert len(calls) == 2
+
+    @pytest.mark.asyncio
+    async def test_non_db_fetcher_error_propagates(self):
+        # Non-SQLAlchemyError must propagate so programming bugs surface immediately
+        # rather than silently returning [] on every keystroke.
+        from utils.cache import cached_autocomplete
+
+        def buggy_fetcher():
+            raise RuntimeError("unexpected bug")
+
+        with pytest.raises(RuntimeError, match="unexpected bug"):
+            await cached_autocomplete(("test", 77), buggy_fetcher)
 
     def test_invalidate_evicts_key(self):
         from utils.cache import _autocomplete_cache, invalidate_autocomplete

@@ -104,12 +104,13 @@ class Roles(NerpyBotCog, Cog):
         role_id = self.bot.guild_cache.get_reaction_role(payload.message_id, emoji_str)
 
         if role_id is REACTION_ROLE_CACHE_MISS:
-            # Cache not yet warmed — fall back to DB and backfill
+            # Cache not yet warmed — fall back to DB and backfill.
+            # ReactionRoleMessage uses lazy="joined" so rr_msg.entries is already loaded.
             with self.bot.session_scope() as session:
                 rr_msg = ReactionRoleMessage.get_by_message(payload.message_id, session)
                 if rr_msg is None:
                     return None
-                entry = ReactionRoleEntry.get_by_message_and_emoji(rr_msg.Id, emoji_str, session)
+                entry = next((e for e in rr_msg.entries if e.Emoji == emoji_str), None)
                 if entry is None:
                     return None
                 role_id = entry.RoleId

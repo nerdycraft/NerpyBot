@@ -51,7 +51,12 @@ class GuildConfigCache:
 
     @staticmethod
     def _run_warm(session_factory, loader_fn, error_label: str):
-        """Run a bulk DB load inside a session, logging and re-raising on failure.
+        """Run a bulk DB load inside a session.
+
+        Logs and re-raises ``SQLAlchemyError`` so callers stay in degraded mode
+        with a clear error entry. Non-SQLAlchemy exceptions (e.g. programming
+        errors in ``loader_fn``) propagate uncaught so the real exception type
+        is visible.
 
         Args:
             session_factory: Callable that returns a new SQLAlchemy session.
@@ -64,7 +69,7 @@ class GuildConfigCache:
         with _open_session(session_factory) as session:
             try:
                 return loader_fn(session)
-            except Exception:
+            except SQLAlchemyError:
                 _log.exception("%s: failed to load from DB — staying in degraded mode", error_label)
                 raise
 
@@ -189,18 +194,19 @@ class GuildConfigCache:
             by_guild: dict[int, set[int]] = {}
             all_ids: set[int] = set()
             mappings: dict[int, dict[str, int]] = {}
-            for guild_id, msg_id in session.execute(
-                select(ReactionRoleMessage.GuildId, ReactionRoleMessage.MessageId)
+            for guild_id, msg_id, emoji, role_id in session.execute(
+                select(
+                    ReactionRoleMessage.GuildId,
+                    ReactionRoleMessage.MessageId,
+                    ReactionRoleEntry.Emoji,
+                    ReactionRoleEntry.RoleId,
+                ).outerjoin(ReactionRoleEntry, ReactionRoleEntry.ReactionRoleMessageId == ReactionRoleMessage.Id)
             ).all():
-                by_guild.setdefault(guild_id, set()).add(msg_id)
-                all_ids.add(msg_id)
-                mappings[msg_id] = {}
-            for msg_id, emoji, role_id in session.execute(
-                select(ReactionRoleMessage.MessageId, ReactionRoleEntry.Emoji, ReactionRoleEntry.RoleId).join(
-                    ReactionRoleEntry, ReactionRoleEntry.ReactionRoleMessageId == ReactionRoleMessage.Id
-                )
-            ).all():
-                if msg_id in mappings:
+                if msg_id not in all_ids:
+                    by_guild.setdefault(guild_id, set()).add(msg_id)
+                    all_ids.add(msg_id)
+                    mappings[msg_id] = {}
+                if emoji is not None:
                     mappings[msg_id][emoji] = role_id
             return by_guild, all_ids, mappings
 
@@ -226,6 +232,12 @@ class GuildConfigCache:
         Returns ``None`` when the guild has no enabled leave message.
         Falls back to a direct DB read when the cache has not been warmed yet and populates
         the per-guild entry so subsequent calls are served from memory.
+
+        On ``SQLAlchemyError``, logs the error and returns ``None`` without caching — the
+        entry stays absent so the next call retries the DB. Unlike ``get_guild_language``
+        and ``get_modrole``, this intentionally swallows the error to keep ``on_member_remove``
+        non-fatal; callers must not treat ``None`` as a definitive "no config" when the cache
+        is cold.
         """
         if self._leave_warmed or guild_id in self._leave_configs:
             return self._leave_configs.get(guild_id)
@@ -233,15 +245,14 @@ class GuildConfigCache:
         try:
             with _open_session(session_factory) as session:
                 from models.leavemsg import LeaveMessage
+                from sqlalchemy import select
 
-                row = (
-                    session.query(LeaveMessage)
-                    .filter(
+                row = session.execute(
+                    select(LeaveMessage).where(
                         LeaveMessage.GuildId == guild_id,
                         LeaveMessage.Enabled.is_(True),
                     )
-                    .first()
-                )
+                ).scalar_one_or_none()
                 config = (row.ChannelId, row.Message) if row is not None else None
         except SQLAlchemyError:
             _log.exception("get_leave_config: DB read failed for guild_id=%d — returning None", guild_id)
@@ -266,7 +277,9 @@ class GuildConfigCache:
         from models.leavemsg import LeaveMessage
 
         def _load(session):
-            rows = session.query(LeaveMessage).filter(LeaveMessage.Enabled.is_(True)).all()
+            from sqlalchemy import select
+
+            rows = session.execute(select(LeaveMessage).where(LeaveMessage.Enabled.is_(True))).scalars().all()
             return {row.GuildId: (row.ChannelId, row.Message) for row in rows}
 
         self._leave_configs = self._run_warm(session_factory, _load, "warm_leave_messages")
@@ -303,6 +316,12 @@ async def cached_autocomplete(key: tuple, fetcher):
 
     Returns:
         The cached or freshly fetched list.
+
+    Error handling:
+        ``SQLAlchemyError`` is caught, logged, and returns ``[]`` without caching
+        so the next keystroke retries. Non-DB exceptions (programming errors,
+        unexpected import failures) propagate uncaught so they surface immediately
+        rather than silently returning empty results on every keystroke.
     """
     if key in _autocomplete_cache:
         return _autocomplete_cache[key]
@@ -311,7 +330,7 @@ async def cached_autocomplete(key: tuple, fetcher):
     # window makes true simultaneity rare, and the TTL window suppresses all subsequent hits.
     try:
         result = await asyncio.to_thread(fetcher)
-    except Exception:
+    except SQLAlchemyError:
         _log.exception("cached_autocomplete: fetcher for key %r raised an error", key)
         return []
     _autocomplete_cache[key] = result
