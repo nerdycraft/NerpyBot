@@ -403,7 +403,7 @@ def _get_locale(locales: dict | None, lang: str) -> str | None:
     return (locales or {}).get(lang) if lang != "en" else None
 
 
-def _find_localized_label(entries, key, lang: str) -> str | None:
+def _find_localized_label(entries: list[tuple[int | str, str, dict | None]], key: int | str, lang: str) -> str | None:
     """Find ``key`` in ``(key, name, locales)`` triples and return the localized label, or None."""
     for entry_key, name, locales in entries:
         if entry_key == key:
@@ -418,7 +418,10 @@ def _resolve_subtype_label(subclasses: list[tuple[int, str, dict | None]], item_
 
 def _resolve_category_label(categories: list[tuple[str, dict | None]], category_name: str, lang: str) -> str:
     """Return the localized label for ``category_name`` from a ``(name, locales)`` category list."""
-    return _find_localized_label([(n, n, loc) for n, loc in categories], category_name, lang) or category_name
+    for name, locales in categories:
+        if name == category_name:
+            return _get_locale(locales, lang) or name
+    return category_name
 
 
 def _build_localized_options(
@@ -821,7 +824,7 @@ class ItemSubTypeSelectView(ui.View):
                 self.mapped_prof_ids,
                 self.orderable_only,
                 self.exclude_pvp,
-                breadcrumbs=self._breadcrumbs,
+                breadcrumbs=list(self._breadcrumbs),
                 back_factory=self._back_factory,
             )
         )
@@ -919,7 +922,7 @@ class VirtualCategorySelectView(ui.View):
                 self.mapped_prof_ids,
                 self.item_class_ids,
                 self.pvp_item_class_ids,
-                breadcrumbs=self._breadcrumbs,
+                breadcrumbs=list(self._breadcrumbs),
                 back_factory=self._back_factory,
             )
         )
@@ -1141,7 +1144,7 @@ class PvPGroupSelectView(ui.View):
                 self.lang,
                 self.mapped_prof_ids,
                 self.item_class_ids,
-                breadcrumbs=self._breadcrumbs,
+                breadcrumbs=list(self._breadcrumbs),
                 back_factory=self._back_factory,
             )
         )
@@ -1245,7 +1248,7 @@ class ProfessionGroupSelectView(ui.View):
                 self.lang,
                 self.mapped_prof_ids,
                 self.item_class_ids,
-                breadcrumbs=self._breadcrumbs,
+                breadcrumbs=list(self._breadcrumbs),
                 back_factory=self._back_factory,
             )
         )
@@ -1334,7 +1337,7 @@ class PvPSubTypeSelectView(ui.View):
                 self._subclasses,
                 self.mapped_prof_ids,
                 placeholder_key=self._placeholder_key,
-                breadcrumbs=self._breadcrumbs,
+                breadcrumbs=list(self._breadcrumbs),
                 back_factory=self._back_factory,
             )
         )
@@ -1421,7 +1424,7 @@ class RaidPrepCategorySelectView(ui.View):
                 self.lang,
                 self._categories,
                 self.mapped_prof_ids,
-                breadcrumbs=self._breadcrumbs,
+                breadcrumbs=list(self._breadcrumbs),
                 back_factory=self._back_factory,
             )
         )
@@ -1504,7 +1507,7 @@ class OtherCategorySelectView(ui.View):
                 self.lang,
                 self._categories,
                 self.mapped_prof_ids,
-                breadcrumbs=self._breadcrumbs,
+                breadcrumbs=list(self._breadcrumbs),
                 back_factory=self._back_factory,
             )
         )
