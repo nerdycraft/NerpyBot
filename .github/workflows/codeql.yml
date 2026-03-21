@@ -1,6 +1,8 @@
 name: CodeQL
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, labeled, ready_for_review]
@@ -9,7 +11,7 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.labels.*.name, 'review')
+    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'review')
 
     permissions:
       actions: read
