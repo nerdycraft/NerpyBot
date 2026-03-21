@@ -884,7 +884,7 @@ class VirtualCategorySelectView(ui.View):
                 label=label,
                 emoji=emoji_str.strip() or None,
                 style=discord.ButtonStyle.primary,
-                row=i // 5,
+                row=i // 3,
             )
             btn.callback = functools.partial(self._on_category, vcat=vcat)
             self.add_item(btn)
