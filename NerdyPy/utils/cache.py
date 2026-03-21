@@ -21,6 +21,11 @@ def _open_session(session_factory):
         session.close()
 
 
+# Sentinel returned by GuildConfigCache.get_reaction_role() when the cache has not been
+# warmed yet. Distinguishes "not warmed — fall back to DB" from None ("warmed, no mapping").
+REACTION_ROLE_CACHE_MISS = object()
+
+
 class GuildConfigCache:
     """Lightweight in-memory cache for per-guild configuration that rarely changes.
 
@@ -118,13 +123,18 @@ class GuildConfigCache:
             return True
         return message_id in self._rr_message_ids
 
-    def get_reaction_role(self, message_id: int, emoji: str) -> int | None:
-        """Return the role ID for the given message + emoji, or None if not mapped.
+    def get_reaction_role(self, message_id: int, emoji: str):
+        """Return the role ID for the given message + emoji.
 
-        Returns None before warm-up completes (callers must fall back to DB).
+        Returns:
+            ``REACTION_ROLE_CACHE_MISS`` if the cache has not been warmed yet
+                (caller must fall back to DB).
+            ``None`` if the cache is warmed but the emoji has no mapping
+                (caller should skip the DB query).
+            ``int`` role ID if a mapping exists.
         """
         if not self._rr_warmed:
-            return None
+            return REACTION_ROLE_CACHE_MISS
         return self._rr_mappings.get(message_id, {}).get(emoji)
 
     def add_reaction_role_message(self, guild_id: int, message_id: int) -> None:
