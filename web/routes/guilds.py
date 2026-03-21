@@ -130,8 +130,10 @@ async def set_language(
         session.add(cfg)
     else:
         cfg.Language = body.language
-    _guild_lang_cache.pop(guild_id, None)
-    return LanguageConfig(guild_id=str(guild_id), language=cfg.Language)
+    lang = cfg.Language
+    session.commit()
+    _guild_lang_cache[guild_id] = lang
+    return LanguageConfig(guild_id=str(guild_id), language=lang)
 
 
 # ── Moderator Roles ──
