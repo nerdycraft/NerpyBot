@@ -387,25 +387,38 @@ def _add_back_button(view: ui.View, lang: str, callback, row: int = 4) -> None:
     view.add_item(btn)
 
 
+def _nav_back(make_view):
+    """Return a back-navigation callback that calls *make_view()* and edits the message."""
+
+    async def _go_back(itx: Interaction) -> None:
+        view = make_view()
+        embed = view._make_embed()
+        await itx.response.edit_message(embed=embed, view=view, content=None)
+
+    return _go_back
+
+
 def _get_locale(locales: dict | None, lang: str) -> str | None:
     """Return the localized string for ``lang`` from a locale dict, or None for English / missing."""
     return (locales or {}).get(lang) if lang != "en" else None
 
 
+def _find_localized_label(entries, key, lang: str) -> str | None:
+    """Find ``key`` in ``(key, name, locales)`` triples and return the localized label, or None."""
+    for entry_key, name, locales in entries:
+        if entry_key == key:
+            return _get_locale(locales, lang) or name
+    return None
+
+
 def _resolve_subtype_label(subclasses: list[tuple[int, str, dict | None]], item_id: int, lang: str) -> str:
     """Return the localized label for ``item_id`` from a ``(id, name, locales)`` subclass list."""
-    for sub_id, name, locales in subclasses:
-        if sub_id == item_id:
-            return _get_locale(locales, lang) or name
-    return str(item_id)
+    return _find_localized_label(subclasses, item_id, lang) or str(item_id)
 
 
 def _resolve_category_label(categories: list[tuple[str, dict | None]], category_name: str, lang: str) -> str:
     """Return the localized label for ``category_name`` from a ``(name, locales)`` category list."""
-    for name, locales in categories:
-        if name == category_name:
-            return _get_locale(locales, lang) or name
-    return category_name
+    return _find_localized_label([(n, n, loc) for n, loc in categories], category_name, lang) or category_name
 
 
 def _build_localized_options(
@@ -797,9 +810,8 @@ class ItemSubTypeSelectView(ui.View):
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this ItemSubTypeSelectView."""
-
-        async def _go_back(itx: Interaction):
-            view = ItemSubTypeSelectView(
+        return _nav_back(
+            lambda: ItemSubTypeSelectView(
                 self.bot,
                 self.roles,
                 self.guild_id,
@@ -812,10 +824,7 @@ class ItemSubTypeSelectView(ui.View):
                 breadcrumbs=self._breadcrumbs,
                 back_factory=self._back_factory,
             )
-            embed = view._make_embed()
-            await itx.response.edit_message(embed=embed, view=view, content=None)
-
-        return _go_back
+        )
 
     async def _on_select(self, interaction: Interaction):
         item_subclass_id = int(interaction.data["values"][0])
@@ -900,9 +909,8 @@ class VirtualCategorySelectView(ui.View):
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this VirtualCategorySelectView."""
-
-        async def _go_back(itx: Interaction):
-            view = VirtualCategorySelectView(
+        return _nav_back(
+            lambda: VirtualCategorySelectView(
                 self.bot,
                 self.roles,
                 self.guild_id,
@@ -914,10 +922,7 @@ class VirtualCategorySelectView(ui.View):
                 breadcrumbs=self._breadcrumbs,
                 back_factory=self._back_factory,
             )
-            embed = view._make_embed()
-            await itx.response.edit_message(embed=embed, view=view, content=None)
-
-        return _go_back
+        )
 
     async def _on_category(self, interaction: Interaction, vcat: str):
         new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, f"wow.craftingorder.{_VCAT_LABEL_KEYS[vcat][1]}")]
@@ -1128,9 +1133,8 @@ class PvPGroupSelectView(ui.View):
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this PvPGroupSelectView."""
-
-        async def _go_back(itx: Interaction):
-            view = PvPGroupSelectView(
+        return _nav_back(
+            lambda: PvPGroupSelectView(
                 self.bot,
                 self.roles,
                 self.guild_id,
@@ -1140,10 +1144,7 @@ class PvPGroupSelectView(ui.View):
                 breadcrumbs=self._breadcrumbs,
                 back_factory=self._back_factory,
             )
-            embed = view._make_embed()
-            await itx.response.edit_message(embed=embed, view=view, content=None)
-
-        return _go_back
+        )
 
     async def _on_weapons(self, interaction: Interaction):
         weapon_class_id = self.item_class_ids.get(_VCAT_TO_CLASS_NAME[_VCAT_WEAPONS])
@@ -1236,9 +1237,8 @@ class ProfessionGroupSelectView(ui.View):
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this ProfessionGroupSelectView."""
-
-        async def _go_back(itx: Interaction):
-            view = ProfessionGroupSelectView(
+        return _nav_back(
+            lambda: ProfessionGroupSelectView(
                 self.bot,
                 self.roles,
                 self.guild_id,
@@ -1248,10 +1248,7 @@ class ProfessionGroupSelectView(ui.View):
                 breadcrumbs=self._breadcrumbs,
                 back_factory=self._back_factory,
             )
-            embed = view._make_embed()
-            await itx.response.edit_message(embed=embed, view=view, content=None)
-
-        return _go_back
+        )
 
     async def _on_gear(self, interaction: Interaction):
         new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, "wow.craftingorder.prof_gear_option")]
@@ -1327,9 +1324,8 @@ class PvPSubTypeSelectView(ui.View):
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this PvPSubTypeSelectView."""
-
-        async def _go_back(itx: Interaction):
-            view = PvPSubTypeSelectView(
+        return _nav_back(
+            lambda: PvPSubTypeSelectView(
                 self.bot,
                 self.roles,
                 self.guild_id,
@@ -1341,10 +1337,7 @@ class PvPSubTypeSelectView(ui.View):
                 breadcrumbs=self._breadcrumbs,
                 back_factory=self._back_factory,
             )
-            embed = view._make_embed()
-            await itx.response.edit_message(embed=embed, view=view, content=None)
-
-        return _go_back
+        )
 
     async def _on_select(self, interaction: Interaction):
         item_subclass_id = int(interaction.data["values"][0])
@@ -1420,9 +1413,8 @@ class RaidPrepCategorySelectView(ui.View):
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this RaidPrepCategorySelectView."""
-
-        async def _go_back(itx: Interaction):
-            view = RaidPrepCategorySelectView(
+        return _nav_back(
+            lambda: RaidPrepCategorySelectView(
                 self.bot,
                 self.roles,
                 self.guild_id,
@@ -1432,10 +1424,7 @@ class RaidPrepCategorySelectView(ui.View):
                 breadcrumbs=self._breadcrumbs,
                 back_factory=self._back_factory,
             )
-            embed = view._make_embed()
-            await itx.response.edit_message(embed=embed, view=view, content=None)
-
-        return _go_back
+        )
 
     async def _on_select(self, interaction: Interaction):
         category_name = interaction.data["values"][0]
@@ -1507,9 +1496,8 @@ class OtherCategorySelectView(ui.View):
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this OtherCategorySelectView."""
-
-        async def _go_back(itx: Interaction):
-            view = OtherCategorySelectView(
+        return _nav_back(
+            lambda: OtherCategorySelectView(
                 self.bot,
                 self.roles,
                 self.guild_id,
@@ -1519,10 +1507,7 @@ class OtherCategorySelectView(ui.View):
                 breadcrumbs=self._breadcrumbs,
                 back_factory=self._back_factory,
             )
-            embed = view._make_embed()
-            await itx.response.edit_message(embed=embed, view=view, content=None)
-
-        return _go_back
+        )
 
     async def _on_select(self, interaction: Interaction):
         category_name = interaction.data["values"][0]
@@ -1876,9 +1861,8 @@ class ExpansionSelectView(ui.View):
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this ExpansionSelectView."""
-
-        async def _go_back(itx: Interaction):
-            view = ExpansionSelectView(
+        return _nav_back(
+            lambda: ExpansionSelectView(
                 self.bot,
                 self.prof_id,
                 self.guild_id,
@@ -1886,10 +1870,7 @@ class ExpansionSelectView(ui.View):
                 self._expansions,
                 back_factory=self._back_factory,
             )
-            embed = view._make_embed()
-            await itx.response.edit_message(embed=embed, view=view, content=None)
-
-        return _go_back
+        )
 
     async def _on_select(self, interaction: Interaction):
         expansion = interaction.data["values"][0]
