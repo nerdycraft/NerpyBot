@@ -158,6 +158,7 @@ export interface ReminderSchema {
 
 export interface ReminderCreate {
   channel_id: string;
+  channel_name?: string | null;
   message: string;
   schedule_type: ReminderScheduleType;
   interval_seconds?: number | null;
@@ -171,6 +172,7 @@ export interface ReminderUpdate {
   message?: string | null;
   enabled?: boolean | null;
   channel_id?: string | null;
+  channel_name?: string | null;
 }
 
 // ── Application Forms ──

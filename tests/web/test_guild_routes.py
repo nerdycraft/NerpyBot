@@ -235,6 +235,29 @@ class TestRoleMappingEndpoints:
         assert response.status_code == 404
 
 
+def _make_reminder(session, **overrides):
+    from datetime import UTC, datetime
+
+    from models.reminder import ReminderMessage
+
+    defaults = dict(
+        GuildId=GUILD_ID,
+        ChannelId=111,
+        ChannelName=None,
+        CreateDate=datetime.now(UTC),
+        Message="Test",
+        Enabled=True,
+        NextFire=datetime.now(UTC),
+        ScheduleType="interval",
+        IntervalSeconds=3600,
+    )
+    defaults.update(overrides)
+    r = ReminderMessage(**defaults)
+    session.add(r)
+    session.commit()
+    return r
+
+
 class TestReminderEndpoints:
     def test_get_empty(self, client, auth_header):
         response = client.get(f"/api/guilds/{GUILD_ID}/reminders", headers=auth_header)
@@ -266,6 +289,136 @@ class TestReminderEndpoints:
         assert len(data) == 1
         assert data[0]["message"] == "Don't forget!"
         assert data[0]["schedule_type"] == "daily"
+        assert data[0]["channel_name"] == "general"
+
+    def test_get_null_channel_name_returned_as_null(self, client, auth_header, web_db_session):
+        """GET serialises NULL ChannelName as null, not '' or a missing key."""
+        _make_reminder(web_db_session)
+        response = client.get(f"/api/guilds/{GUILD_ID}/reminders", headers=auth_header)
+        assert response.json()[0]["channel_name"] is None
+
+    def test_post_stores_channel_name(self, client, auth_header):
+        """POST with channel_name stores it and returns it in the response."""
+        response = client.post(
+            f"/api/guilds/{GUILD_ID}/reminders",
+            json={
+                "channel_id": "111",
+                "channel_name": "general",
+                "message": "Test",
+                "schedule_type": "interval",
+                "interval_seconds": 3600,
+                "timezone": "UTC",
+            },
+            headers=auth_header,
+        )
+        assert response.status_code == 201
+        assert response.json()["channel_name"] == "general"
+
+    def test_post_without_channel_name_returns_null(self, client, auth_header):
+        """POST without channel_name stores NULL — dashboard falls back to channel_id display."""
+        response = client.post(
+            f"/api/guilds/{GUILD_ID}/reminders",
+            json={
+                "channel_id": "111",
+                "message": "Test",
+                "schedule_type": "interval",
+                "interval_seconds": 3600,
+                "timezone": "UTC",
+            },
+            headers=auth_header,
+        )
+        assert response.status_code == 201
+        assert response.json()["channel_name"] is None
+
+    @pytest.mark.parametrize("channel_name", ["", "   "])
+    def test_post_empty_like_channel_name_stored_as_null(self, client, auth_header, channel_name):
+        response = client.post(
+            f"/api/guilds/{GUILD_ID}/reminders",
+            json={
+                "channel_id": "111",
+                "channel_name": channel_name,
+                "message": "Test",
+                "schedule_type": "interval",
+                "interval_seconds": 3600,
+                "timezone": "UTC",
+            },
+            headers=auth_header,
+        )
+        assert response.status_code == 201
+        assert response.json()["channel_name"] is None
+
+    def test_patch_channel_id_without_channel_name_preserves_existing_name(self, client, auth_header, web_db_session):
+        """PATCH with only channel_id must not wipe an existing ChannelName."""
+        reminder = _make_reminder(web_db_session, ChannelName="general")
+
+        response = client.patch(
+            f"/api/guilds/{GUILD_ID}/reminders/{reminder.Id}",
+            json={"channel_id": "222"},
+            headers=auth_header,
+        )
+        assert response.status_code == 200
+        assert response.json()["channel_name"] == "general"
+
+    def test_patch_explicit_null_channel_name_clears_to_null(self, client, auth_header, web_db_session):
+        """PATCH with channel_name: null explicitly clears the name (model_fields_set guard treats it as a clear, not an omission)."""
+        reminder = _make_reminder(web_db_session, ChannelName="general")
+
+        response = client.patch(
+            f"/api/guilds/{GUILD_ID}/reminders/{reminder.Id}",
+            json={"channel_name": None},
+            headers=auth_header,
+        )
+        assert response.status_code == 200
+        assert response.json()["channel_name"] is None
+
+    def test_patch_enabled_does_not_wipe_channel_name(self, client, auth_header, web_db_session):
+        """PATCH with only enabled must not touch ChannelName."""
+        reminder = _make_reminder(web_db_session, ChannelName="announcements")
+
+        response = client.patch(
+            f"/api/guilds/{GUILD_ID}/reminders/{reminder.Id}",
+            json={"enabled": False},
+            headers=auth_header,
+        )
+        assert response.status_code == 200
+        assert response.json()["channel_name"] == "announcements"
+
+    def test_post_channel_name_too_long_returns_422(self, client, auth_header):
+        response = client.post(
+            f"/api/guilds/{GUILD_ID}/reminders",
+            json={
+                "channel_id": "111",
+                "channel_name": "x" * 101,
+                "message": "Test",
+                "schedule_type": "interval",
+                "interval_seconds": 3600,
+                "timezone": "UTC",
+            },
+            headers=auth_header,
+        )
+        assert response.status_code == 422
+
+    def test_patch_channel_name_too_long_returns_422(self, client, auth_header, web_db_session):
+        reminder = _make_reminder(web_db_session)
+
+        response = client.patch(
+            f"/api/guilds/{GUILD_ID}/reminders/{reminder.Id}",
+            json={"channel_name": "x" * 101},
+            headers=auth_header,
+        )
+        assert response.status_code == 422
+
+    @pytest.mark.parametrize("channel_name", ["", "   "])
+    def test_patch_empty_like_channel_name_clears_to_null(self, client, auth_header, web_db_session, channel_name):
+        reminder = _make_reminder(web_db_session, ChannelName="general")
+
+        response = client.patch(
+            f"/api/guilds/{GUILD_ID}/reminders/{reminder.Id}",
+            json={"channel_name": channel_name},
+            headers=auth_header,
+        )
+        assert response.status_code == 200
+        assert response.json()["channel_name"] is None
 
 
 class TestApplicationFormEndpoints:

@@ -590,6 +590,7 @@ async def create_reminder(
     reminder = ReminderMessage(
         GuildId=guild_id,
         ChannelId=int(body.channel_id),
+        ChannelName=body.channel_name,
         Message=body.message,
         Enabled=True,
         CreateDate=datetime.now(UTC),
@@ -628,6 +629,8 @@ async def update_reminder(
         r.Enabled = body.enabled
     if body.channel_id is not None:
         r.ChannelId = int(body.channel_id)
+    if "channel_name" in body.model_fields_set:
+        r.ChannelName = body.channel_name
 
     return _reminder_to_schema(r, user)
 
