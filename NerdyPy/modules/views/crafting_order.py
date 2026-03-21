@@ -392,6 +392,22 @@ def _get_locale(locales: dict | None, lang: str) -> str | None:
     return (locales or {}).get(lang) if lang != "en" else None
 
 
+def _resolve_subtype_label(subclasses: list[tuple[int, str, dict | None]], item_id: int, lang: str) -> str:
+    """Return the localized label for ``item_id`` from a ``(id, name, locales)`` subclass list."""
+    for sub_id, name, locales in subclasses:
+        if sub_id == item_id:
+            return _get_locale(locales, lang) or name
+    return str(item_id)
+
+
+def _resolve_category_label(categories: list[tuple[str, dict | None]], category_name: str, lang: str) -> str:
+    """Return the localized label for ``category_name`` from a ``(name, locales)`` category list."""
+    for name, locales in categories:
+        if name == category_name:
+            return _get_locale(locales, lang) or name
+    return category_name
+
+
 def _build_localized_options(
     items: list[tuple[int | str, str | None, dict | None]], lang: str, emojis: bool = False
 ) -> list[discord.SelectOption]:
@@ -778,27 +794,8 @@ class ItemSubTypeSelectView(ui.View):
         title = get_string(self.lang, "wow.craftingorder.item_subtype_select")
         return _build_step_embed(title, title, self._breadcrumbs)
 
-    async def _on_select(self, interaction: Interaction):
-        item_subclass_id = int(interaction.data["values"][0])
-
-        # Find label for breadcrumb
-        selected_label = None
-        for sub_id, name, locales in self._subclasses:
-            if sub_id == item_subclass_id:
-                selected_label = _get_locale(locales, self.lang) or name
-                break
-        selected_label = selected_label or str(item_subclass_id)
-
-        with self.bot.session_scope() as session:
-            recipes = CraftingRecipeCache.get_by_type_and_subclass(
-                RECIPE_TYPE_CRAFTED,
-                self.item_class_id,
-                item_subclass_id,
-                session,
-                profession_ids=self.mapped_prof_ids,
-                orderable_only=self.orderable_only,
-                exclude_pvp=self.exclude_pvp,
-            )
+    def _make_back_closure(self):
+        """Return an async callback that navigates back to this ItemSubTypeSelectView."""
 
         async def _go_back(itx: Interaction):
             view = ItemSubTypeSelectView(
@@ -817,6 +814,24 @@ class ItemSubTypeSelectView(ui.View):
             embed = view._make_embed()
             await itx.response.edit_message(embed=embed, view=view, content=None)
 
+        return _go_back
+
+    async def _on_select(self, interaction: Interaction):
+        item_subclass_id = int(interaction.data["values"][0])
+
+        selected_label = _resolve_subtype_label(self._subclasses, item_subclass_id, self.lang)
+
+        with self.bot.session_scope() as session:
+            recipes = CraftingRecipeCache.get_by_type_and_subclass(
+                RECIPE_TYPE_CRAFTED,
+                self.item_class_id,
+                item_subclass_id,
+                session,
+                profession_ids=self.mapped_prof_ids,
+                orderable_only=self.orderable_only,
+                exclude_pvp=self.exclude_pvp,
+            )
+
         view = ItemSelectView(
             self.bot,
             recipes,
@@ -824,7 +839,7 @@ class ItemSubTypeSelectView(ui.View):
             self.guild_id,
             self.lang,
             breadcrumbs=self._breadcrumbs + [selected_label],
-            back_factory=_go_back,
+            back_factory=self._make_back_closure(),
         )
         embed = view._make_embed()
         await interaction.response.edit_message(embed=embed, view=view, content=None)
@@ -894,6 +909,7 @@ class VirtualCategorySelectView(ui.View):
                 self.item_class_ids,
                 self.pvp_item_class_ids,
                 breadcrumbs=self._breadcrumbs,
+                back_factory=self._back_factory,
             )
             embed = view._make_embed()
             await itx.response.edit_message(embed=embed, view=view, content=None)
@@ -1303,28 +1319,8 @@ class PvPSubTypeSelectView(ui.View):
         title = get_string(self.lang, f"wow.craftingorder.{self._placeholder_key}")
         return _build_step_embed(title, title, self._breadcrumbs)
 
-    async def _on_select(self, interaction: Interaction):
-        item_subclass_id = int(interaction.data["values"][0])
-
-        # Find label for breadcrumb
-        selected_label = None
-        for sub_id, name, locales in self._subclasses:
-            if sub_id == item_subclass_id:
-                selected_label = _get_locale(locales, self.lang) or name
-                break
-        selected_label = selected_label or str(item_subclass_id)
-
-        with self.bot.session_scope() as session:
-            recipes = CraftingRecipeCache.get_pvp_items(
-                RECIPE_TYPE_CRAFTED, self.item_class_id, item_subclass_id, session, profession_ids=self.mapped_prof_ids
-            )
-        if len(recipes) > _DISCORD_SELECT_LIMIT:
-            log.warning(
-                "PvP subtype overflow: class_id=%d subclass_id=%d returned %d recipes (>24); truncating",
-                self.item_class_id,
-                item_subclass_id,
-                len(recipes),
-            )
+    def _make_back_closure(self):
+        """Return an async callback that navigates back to this PvPSubTypeSelectView."""
 
         async def _go_back(itx: Interaction):
             view = PvPSubTypeSelectView(
@@ -1342,6 +1338,25 @@ class PvPSubTypeSelectView(ui.View):
             embed = view._make_embed()
             await itx.response.edit_message(embed=embed, view=view, content=None)
 
+        return _go_back
+
+    async def _on_select(self, interaction: Interaction):
+        item_subclass_id = int(interaction.data["values"][0])
+
+        selected_label = _resolve_subtype_label(self._subclasses, item_subclass_id, self.lang)
+
+        with self.bot.session_scope() as session:
+            recipes = CraftingRecipeCache.get_pvp_items(
+                RECIPE_TYPE_CRAFTED, self.item_class_id, item_subclass_id, session, profession_ids=self.mapped_prof_ids
+            )
+        if len(recipes) > _DISCORD_SELECT_LIMIT:
+            log.warning(
+                "PvP subtype overflow: class_id=%d subclass_id=%d returned %d recipes (>24); truncating",
+                self.item_class_id,
+                item_subclass_id,
+                len(recipes),
+            )
+
         view = ItemSelectView(
             self.bot,
             recipes,
@@ -1349,7 +1364,7 @@ class PvPSubTypeSelectView(ui.View):
             self.guild_id,
             self.lang,
             breadcrumbs=self._breadcrumbs + [selected_label],
-            back_factory=_go_back,
+            back_factory=self._make_back_closure(),
         )
         embed = view._make_embed()
         await interaction.response.edit_message(embed=embed, view=view, content=None)
@@ -1396,26 +1411,8 @@ class RaidPrepCategorySelectView(ui.View):
         title = get_string(self.lang, "wow.craftingorder.raid_prep_select")
         return _build_step_embed(title, title, self._breadcrumbs)
 
-    async def _on_select(self, interaction: Interaction):
-        category_name = interaction.data["values"][0]
-
-        # Find localized label for breadcrumb
-        selected_label = category_name
-        for name, locales in self._categories:
-            if name == category_name:
-                selected_label = _get_locale(locales, self.lang) or name
-                break
-
-        with self.bot.session_scope() as session:
-            recipes = CraftingRecipeCache.get_raid_prep_items(
-                RECIPE_TYPE_CRAFTED, category_name, session, profession_ids=self.mapped_prof_ids
-            )
-        if len(recipes) > _DISCORD_SELECT_LIMIT:
-            log.warning(
-                "Raid prep category overflow: category=%r returned %d recipes (>24); truncating",
-                category_name,
-                len(recipes),
-            )
+    def _make_back_closure(self):
+        """Return an async callback that navigates back to this RaidPrepCategorySelectView."""
 
         async def _go_back(itx: Interaction):
             view = RaidPrepCategorySelectView(
@@ -1431,6 +1428,24 @@ class RaidPrepCategorySelectView(ui.View):
             embed = view._make_embed()
             await itx.response.edit_message(embed=embed, view=view, content=None)
 
+        return _go_back
+
+    async def _on_select(self, interaction: Interaction):
+        category_name = interaction.data["values"][0]
+
+        selected_label = _resolve_category_label(self._categories, category_name, self.lang)
+
+        with self.bot.session_scope() as session:
+            recipes = CraftingRecipeCache.get_raid_prep_items(
+                RECIPE_TYPE_CRAFTED, category_name, session, profession_ids=self.mapped_prof_ids
+            )
+        if len(recipes) > _DISCORD_SELECT_LIMIT:
+            log.warning(
+                "Raid prep category overflow: category=%r returned %d recipes (>24); truncating",
+                category_name,
+                len(recipes),
+            )
+
         view = ItemSelectView(
             self.bot,
             recipes,
@@ -1438,7 +1453,7 @@ class RaidPrepCategorySelectView(ui.View):
             self.guild_id,
             self.lang,
             breadcrumbs=self._breadcrumbs + [selected_label],
-            back_factory=_go_back,
+            back_factory=self._make_back_closure(),
         )
         embed = view._make_embed()
         await interaction.response.edit_message(embed=embed, view=view, content=None)
@@ -1482,26 +1497,8 @@ class OtherCategorySelectView(ui.View):
         title = get_string(self.lang, "wow.craftingorder.other_select")
         return _build_step_embed(title, title, self._breadcrumbs)
 
-    async def _on_select(self, interaction: Interaction):
-        category_name = interaction.data["values"][0]
-
-        # Find localized label for breadcrumb
-        selected_label = category_name
-        for name, locales in self._categories:
-            if name == category_name:
-                selected_label = _get_locale(locales, self.lang) or name
-                break
-
-        with self.bot.session_scope() as session:
-            recipes = CraftingRecipeCache.get_other_items(
-                RECIPE_TYPE_CRAFTED, category_name, session, profession_ids=self.mapped_prof_ids
-            )
-        if len(recipes) > _DISCORD_SELECT_LIMIT:
-            log.warning(
-                "Other category overflow: category=%r returned %d recipes (>24); truncating",
-                category_name,
-                len(recipes),
-            )
+    def _make_back_closure(self):
+        """Return an async callback that navigates back to this OtherCategorySelectView."""
 
         async def _go_back(itx: Interaction):
             view = OtherCategorySelectView(
@@ -1517,6 +1514,24 @@ class OtherCategorySelectView(ui.View):
             embed = view._make_embed()
             await itx.response.edit_message(embed=embed, view=view, content=None)
 
+        return _go_back
+
+    async def _on_select(self, interaction: Interaction):
+        category_name = interaction.data["values"][0]
+
+        selected_label = _resolve_category_label(self._categories, category_name, self.lang)
+
+        with self.bot.session_scope() as session:
+            recipes = CraftingRecipeCache.get_other_items(
+                RECIPE_TYPE_CRAFTED, category_name, session, profession_ids=self.mapped_prof_ids
+            )
+        if len(recipes) > _DISCORD_SELECT_LIMIT:
+            log.warning(
+                "Other category overflow: category=%r returned %d recipes (>24); truncating",
+                category_name,
+                len(recipes),
+            )
+
         view = ItemSelectView(
             self.bot,
             recipes,
@@ -1524,7 +1539,7 @@ class OtherCategorySelectView(ui.View):
             self.guild_id,
             self.lang,
             breadcrumbs=self._breadcrumbs + [selected_label],
-            back_factory=_go_back,
+            back_factory=self._make_back_closure(),
         )
         embed = view._make_embed()
         await interaction.response.edit_message(embed=embed, view=view, content=None)
@@ -1648,7 +1663,7 @@ class ItemSelectView(ui.View):
                 desc_parts.append(recipe.ProfessionName)
             description = " · ".join(desc_parts) if desc_parts else title
             embed = _build_step_embed(title, description, self._breadcrumbs)
-            embed.url = recipe.wowhead_url if hasattr(recipe, "wowhead_url") else None
+            embed.url = recipe.wowhead_url
             if recipe.IconUrl:
                 embed.set_thumbnail(url=recipe.IconUrl)
         else:
@@ -1710,7 +1725,6 @@ class ItemSelectView(ui.View):
         await interaction.response.edit_message(embed=embed, view=view, content=None)
 
     async def _on_other(self, interaction: Interaction):
-        lang = self.bot.get_guild_language(interaction.guild_id)
         with self.bot.session_scope() as session:
             mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
         roles_found = [r for m in mappings if (r := interaction.guild.get_role(m.RoleId))]
@@ -1719,7 +1733,7 @@ class ItemSelectView(ui.View):
                 content=get_string(self.lang, "wow.craftingorder.create.no_roles"), view=None, embed=None
             )
             return
-        view = ProfessionSelectView(self.bot, roles_found, interaction.guild_id, lang)
+        view = ProfessionSelectView(self.bot, roles_found, interaction.guild_id, self.lang)
         await interaction.response.edit_message(
             content=get_string(self.lang, "wow.craftingorder.profession_select"), view=view, embed=None
         )
@@ -1807,11 +1821,11 @@ class HousingProfessionSelectView(ui.View):
         prof_id = int(interaction.data["values"][0])
         with self.bot.session_scope() as session:
             expansions = CraftingRecipeCache.get_expansions_for_profession(prof_id, RECIPE_TYPE_HOUSING, session)
+            recipes = (
+                CraftingRecipeCache.get_by_profession(prof_id, RECIPE_TYPE_HOUSING, session) if not expansions else None
+            )
 
         if not expansions:
-            # No expansion data — go straight to items
-            with self.bot.session_scope() as session:
-                recipes = CraftingRecipeCache.get_by_profession(prof_id, RECIPE_TYPE_HOUSING, session)
             view = ItemSelectView(self.bot, recipes, [], self.guild_id, self.lang)
             embed = view._make_embed()
             await interaction.response.edit_message(embed=embed, view=view, content=None)
@@ -1857,12 +1871,8 @@ class ExpansionSelectView(ui.View):
         title = get_string(self.lang, "wow.craftingorder.expansion_select")
         return _build_step_embed(title, title, None)
 
-    async def _on_select(self, interaction: Interaction):
-        expansion = interaction.data["values"][0]
-        with self.bot.session_scope() as session:
-            recipes = CraftingRecipeCache.get_by_profession_and_expansion(
-                self.prof_id, RECIPE_TYPE_HOUSING, expansion, session
-            )
+    def _make_back_closure(self):
+        """Return an async callback that navigates back to this ExpansionSelectView."""
 
         async def _go_back(itx: Interaction):
             view = ExpansionSelectView(
@@ -1876,6 +1886,15 @@ class ExpansionSelectView(ui.View):
             embed = view._make_embed()
             await itx.response.edit_message(embed=embed, view=view, content=None)
 
+        return _go_back
+
+    async def _on_select(self, interaction: Interaction):
+        expansion = interaction.data["values"][0]
+        with self.bot.session_scope() as session:
+            recipes = CraftingRecipeCache.get_by_profession_and_expansion(
+                self.prof_id, RECIPE_TYPE_HOUSING, expansion, session
+            )
+
         view = ItemSelectView(
             self.bot,
             recipes,
@@ -1883,7 +1902,7 @@ class ExpansionSelectView(ui.View):
             self.guild_id,
             self.lang,
             breadcrumbs=[expansion],
-            back_factory=_go_back,
+            back_factory=self._make_back_closure(),
         )
         embed = view._make_embed()
         await interaction.response.edit_message(embed=embed, view=view, content=None)
