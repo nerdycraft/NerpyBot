@@ -75,7 +75,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             with self.bot.session_scope() as session:
                 return [f.Name for f in ApplicationForm.get_all_by_guild(guild_id, session)]
 
-        return build_name_choices(cached_autocomplete(("app_forms", guild_id), _fetch), current)
+        return build_name_choices(await cached_autocomplete(("app_forms", guild_id), _fetch), current)
 
     async def _template_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         lang = self._lang(interaction.guild_id)
@@ -85,7 +85,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             with self.bot.session_scope() as session:
                 return [(tpl.Name, tpl.IsBuiltIn) for tpl in ApplicationTemplate.get_available(guild_id, session)]
 
-        templates = cached_autocomplete(("app_templates", guild_id), _fetch)
+        templates = await cached_autocomplete(("app_templates", guild_id), _fetch)
         choices = []
         for name, is_built_in in templates:
             if is_built_in:
@@ -116,7 +116,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             with self.bot.session_scope() as session:
                 return [t.Name for t in ApplicationTemplate.get_guild_templates(guild_id, session)]
 
-        return build_name_choices(cached_autocomplete(("app_guild_templates", guild_id), _fetch), current)
+        return build_name_choices(await cached_autocomplete(("app_guild_templates", guild_id), _fetch), current)
 
     # -- Permission helper ---------------------------------------------------
 

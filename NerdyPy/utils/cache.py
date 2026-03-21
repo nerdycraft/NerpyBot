@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """In-memory guild configuration cache to reduce redundant DB queries."""
 
+import asyncio
 import logging
 from contextlib import contextmanager
 
@@ -269,19 +270,20 @@ class GuildConfigCache:
 _autocomplete_cache: TTLCache = TTLCache(maxsize=500, ttl=30)
 
 
-def cached_autocomplete(key: tuple, fetcher):
+async def cached_autocomplete(key: tuple, fetcher):
     """Return cached autocomplete results, calling fetcher() on miss.
 
     Args:
         key: A hashable tuple uniquely identifying the query (e.g. ("tags", guild_id)).
         fetcher: Zero-argument callable that opens a DB session and returns a list.
+            Run in a thread pool on cache miss to avoid blocking the event loop.
 
     Returns:
         The cached or freshly fetched list.
     """
     if key in _autocomplete_cache:
         return _autocomplete_cache[key]
-    result = fetcher()
+    result = await asyncio.to_thread(fetcher)
     _autocomplete_cache[key] = result
     return result
 

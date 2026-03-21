@@ -38,7 +38,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
             with self.bot.session_scope() as session:
                 return [t.Name for t in Tag.get_all_from_guild(guild_id, session)]
 
-        return build_name_choices(cached_autocomplete(("tags", guild_id), _fetch), current)
+        return build_name_choices(await cached_autocomplete(("tags", guild_id), _fetch), current)
 
     @app_commands.command(name="get")
     @app_commands.check(is_connected_to_voice)

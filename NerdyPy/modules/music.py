@@ -186,7 +186,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
             with self.bot.session_scope() as session:
                 return [p.Name for p in Playlist.get_by_user(guild_id, user_id, session)]
 
-        return build_name_choices(cached_autocomplete(("playlists", guild_id, user_id), _fetch), current)
+        return build_name_choices(await cached_autocomplete(("playlists", guild_id, user_id), _fetch), current)
 
     async def _ac_playlist_url(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         """Autocomplete for song URL within a named playlist (reads sibling `name` field)."""

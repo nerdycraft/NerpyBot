@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 # Add NerdyPy to path so we can import modules
 sys.path.insert(0, str(Path(__file__).parent.parent / "NerdyPy"))
@@ -37,7 +38,12 @@ def clear_bot_caches():
 @pytest.fixture
 def db_engine():
     """Create an in-memory SQLite engine for testing."""
-    engine = create_engine("sqlite:///:memory:", echo=False)
+    engine = create_engine(
+        "sqlite:///:memory:",
+        echo=False,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
 
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_conn, _connection_record):

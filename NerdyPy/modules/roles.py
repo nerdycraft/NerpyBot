@@ -50,7 +50,7 @@ class Roles(NerpyBotCog, Cog):
             with self.bot.session_scope() as session:
                 return ReactionRoleMessage.get_by_guild(guild_id, session)
 
-        messages = cached_autocomplete(("rr_msgs", guild_id), _fetch)
+        messages = await cached_autocomplete(("rr_msgs", guild_id), _fetch)
         if not messages:
             return []
         choices = []
