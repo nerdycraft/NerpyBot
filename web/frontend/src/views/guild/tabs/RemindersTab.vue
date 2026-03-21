@@ -358,7 +358,7 @@ async function createReminder() {
         <div class="flex-1 min-w-0 space-y-0.5">
           <div class="font-medium text-sm truncate">{{ r.message ?? t("tabs.reminders.no_message") }}</div>
           <div class="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5">
-            <span>#{{ r.channel_name ?? r.channel_id }}</span>
+            <span>{{ r.channel_name != null ? '#' + r.channel_name : r.channel_id }}</span>
             <span>{{ scheduleLabel(r) }}</span>
             <span v-if="r.timezone">{{ r.timezone }}</span>
             <span>{{ t("tabs.reminders.next_fire", { datetime: formatNextFire(r.next_fire) }) }}</span>

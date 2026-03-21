@@ -289,6 +289,7 @@ class TestReminderEndpoints:
         assert len(data) == 1
         assert data[0]["message"] == "Don't forget!"
         assert data[0]["schedule_type"] == "daily"
+        assert data[0]["channel_name"] == "general"
 
     def test_post_stores_channel_name(self, client, auth_header):
         """POST with channel_name stores it and returns it in the response."""
@@ -363,6 +364,43 @@ class TestReminderEndpoints:
         )
         assert response.status_code == 200
         assert response.json()["channel_name"] == "announcements"
+
+    def test_post_channel_name_too_long_returns_422(self, client, auth_header):
+        response = client.post(
+            f"/api/guilds/{GUILD_ID}/reminders",
+            json={
+                "channel_id": "111",
+                "channel_name": "x" * 101,
+                "message": "Test",
+                "schedule_type": "interval",
+                "interval_seconds": 3600,
+                "timezone": "UTC",
+            },
+            headers=auth_header,
+        )
+        assert response.status_code == 422
+
+    def test_patch_channel_name_too_long_returns_422(self, client, auth_header, web_db_session):
+        reminder = _make_reminder(web_db_session)
+
+        response = client.patch(
+            f"/api/guilds/{GUILD_ID}/reminders/{reminder.Id}",
+            json={"channel_name": "x" * 101},
+            headers=auth_header,
+        )
+        assert response.status_code == 422
+
+    def test_patch_empty_channel_name_clears_to_null(self, client, auth_header, web_db_session):
+        """PATCH with channel_name="" normalises to NULL (bot-offline raw-ID scenario)."""
+        reminder = _make_reminder(web_db_session, ChannelName="general")
+
+        response = client.patch(
+            f"/api/guilds/{GUILD_ID}/reminders/{reminder.Id}",
+            json={"channel_name": ""},
+            headers=auth_header,
+        )
+        assert response.status_code == 200
+        assert response.json()["channel_name"] is None
 
 
 class TestApplicationFormEndpoints:

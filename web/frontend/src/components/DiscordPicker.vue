@@ -45,14 +45,16 @@ async function loadItems() {
       if (seq !== _loadSeq) return;
       items.value = data.roles.map((r) => ({ id: r.id, name: r.name }));
     }
-  } catch {
-    // bot offline or error — fall back to plain text input
+  } catch (e) {
+    console.warn("DiscordPicker: failed to load items:", e);
   } finally {
     if (seq === _loadSeq) loading.value = false;
   }
 }
 
-watch(() => [props.guildId, props.kind] as const, loadItems, { immediate: true });
+watch(() => [props.guildId, props.kind] as const, loadItems, {
+  immediate: true,
+});
 
 const selectedName = computed(() => items.value.find((i) => i.id === props.modelValue)?.name ?? props.modelValue ?? "");
 
@@ -108,7 +110,9 @@ function onInputManual(e: Event) {
       <input
         ref="inputEl"
         :value="open ? query : selectedName"
-        :placeholder="loading ? 'Loading…' : (placeholder ?? defaultPlaceholder)"
+        :placeholder="
+          loading ? 'Loading…' : (placeholder ?? defaultPlaceholder)
+        "
         :disabled="loading"
         class="bg-input border border-border rounded pl-7 pr-3 py-2 text-sm w-full disabled:opacity-50"
         @focus="onFocus"
@@ -138,7 +142,10 @@ function onInputManual(e: Event) {
       </button>
     </div>
 
-    <p v-if="open && !loading && items.length === 0" class="mt-1 text-xs text-muted-foreground">
+    <p
+      v-if="open && !loading && items.length === 0"
+      class="mt-1 text-xs text-muted-foreground"
+    >
       Bot offline — enter ID manually
     </p>
   </div>

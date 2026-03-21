@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
 
 
 # ── Auth ──
@@ -144,6 +144,15 @@ class RoleMappingCreate(BaseModel):
 # ── Reminders ──
 
 
+def _normalise_channel_name(v: object) -> object:
+    if isinstance(v, str) and not v.strip():
+        return None
+    return v
+
+
+_ChannelName = Annotated[Annotated[str, Field(max_length=100)] | None, BeforeValidator(_normalise_channel_name)]
+
+
 class ReminderSchema(BaseModel):
     id: int
     channel_id: str
@@ -166,7 +175,7 @@ ReminderScheduleType = Literal["interval", "daily", "weekly", "monthly"]
 
 class ReminderCreate(BaseModel):
     channel_id: str
-    channel_name: Annotated[str, Field(max_length=100)] | None = None
+    channel_name: _ChannelName = None
     message: str
     schedule_type: ReminderScheduleType
     interval_seconds: Annotated[int, Field(ge=60)] | None = None
@@ -180,7 +189,7 @@ class ReminderUpdate(BaseModel):
     message: str | None = None
     enabled: bool | None = None
     channel_id: str | None = None
-    channel_name: Annotated[str, Field(max_length=100)] | None = None
+    channel_name: _ChannelName = None
 
 
 # ── Application Forms ──
