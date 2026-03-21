@@ -10,7 +10,7 @@ from discord.ext.commands import Cog
 from models.music import Playlist, PlaylistEntry
 from modules.views.music import NowPlayingView, build_now_playing_embed
 from utils.audio import QueuedSong, QueueMixin
-from utils.cache import cached_autocomplete
+from utils.cache import build_name_choices, cached_autocomplete
 from utils.checks import is_connected_to_voice
 from utils.cog import NerpyBotCog
 from utils.download import download, fetch_yt_infos
@@ -186,8 +186,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
             with self.bot.session_scope() as session:
                 return [p.Name for p in Playlist.get_by_user(guild_id, user_id, session)]
 
-        playlist_names = cached_autocomplete(("playlists", guild_id, user_id), _fetch)
-        return [app_commands.Choice(name=n, value=n) for n in playlist_names if current.lower() in n.lower()][:25]
+        return build_name_choices(cached_autocomplete(("playlists", guild_id, user_id), _fetch), current)
 
     async def _ac_playlist_url(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         """Autocomplete for song URL within a named playlist (reads sibling `name` field)."""

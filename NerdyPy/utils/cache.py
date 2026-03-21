@@ -4,6 +4,7 @@
 import logging
 
 from cachetools import TTLCache
+from discord import app_commands
 
 _log = logging.getLogger(__name__)
 
@@ -241,3 +242,12 @@ def cached_autocomplete(key: tuple, fetcher):
     result = fetcher()
     _autocomplete_cache[key] = result
     return result
+
+
+def build_name_choices(names: list[str], current: str) -> list[app_commands.Choice[str]]:
+    """Filter a list of names by the current autocomplete input and return up to 25 choices.
+
+    Companion to ``cached_autocomplete`` for the common case where the cache stores
+    plain name strings and Discord choices have name == value.
+    """
+    return [app_commands.Choice(name=n[:100], value=n) for n in names if current.lower() in n.lower()][:25]

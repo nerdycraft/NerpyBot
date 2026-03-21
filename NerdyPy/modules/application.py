@@ -28,7 +28,7 @@ from modules.conversations.application import (
 )
 from modules.views.application import check_override_permission
 from sqlalchemy.exc import SQLAlchemyError
-from utils.cache import cached_autocomplete
+from utils.cache import build_name_choices, cached_autocomplete
 from utils.cog import NerpyBotCog
 from utils.helpers import fetch_message_content, send_hidden_message
 from utils.strings import get_raw, get_string
@@ -75,12 +75,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             with self.bot.session_scope() as session:
                 return [f.Name for f in ApplicationForm.get_all_by_guild(guild_id, session)]
 
-        form_names = cached_autocomplete(("app_forms", guild_id), _fetch)
-        return [
-            app_commands.Choice(name=n[:100], value=n)
-            for n in form_names
-            if not current or current.lower() in n.lower()
-        ][:25]
+        return build_name_choices(cached_autocomplete(("app_forms", guild_id), _fetch), current)
 
     async def _template_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         lang = self._lang(interaction.guild_id)
@@ -121,12 +116,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             with self.bot.session_scope() as session:
                 return [t.Name for t in ApplicationTemplate.get_guild_templates(guild_id, session)]
 
-        template_names = cached_autocomplete(("app_guild_templates", guild_id), _fetch)
-        return [
-            app_commands.Choice(name=n[:100], value=n)
-            for n in template_names
-            if not current or current.lower() in n.lower()
-        ][:25]
+        return build_name_choices(cached_autocomplete(("app_guild_templates", guild_id), _fetch), current)
 
     # -- Permission helper ---------------------------------------------------
 

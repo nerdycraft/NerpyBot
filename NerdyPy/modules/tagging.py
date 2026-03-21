@@ -14,7 +14,7 @@ from utils.checks import can_stop_playback, is_connected_to_voice
 from utils.cog import NerpyBotCog
 from utils.download import download
 from utils.errors import NerpyNotFoundError
-from utils.cache import cached_autocomplete
+from utils.cache import build_name_choices, cached_autocomplete
 from utils.helpers import error_context, send_paginated
 from utils.strings import get_string
 
@@ -38,8 +38,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
             with self.bot.session_scope() as session:
                 return [t.Name for t in Tag.get_all_from_guild(guild_id, session)]
 
-        tag_names = cached_autocomplete(("tags", guild_id), _fetch)
-        return [app_commands.Choice(name=n, value=n) for n in tag_names if current.lower() in n.lower()][:25]
+        return build_name_choices(cached_autocomplete(("tags", guild_id), _fetch), current)
 
     @app_commands.command(name="get")
     @app_commands.check(is_connected_to_voice)
