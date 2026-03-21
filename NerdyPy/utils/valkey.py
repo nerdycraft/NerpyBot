@@ -267,7 +267,16 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         if not guild_id:
             bot.log.warning("invalidate_leave_config: received invalid guild_id=%r", payload.get("guild_id"))
             return {"ok": False, "error": "invalid guild_id"}
-        bot.guild_cache.evict_leave_config(guild_id)
+        await to_thread(bot.guild_cache.reload_leave_config, guild_id, bot.SESSION)
+        return {"ok": True}
+    elif command == "invalidate_modrole":
+        guild_id = int(payload.get("guild_id", 0))
+        if not guild_id:
+            bot.log.warning("invalidate_modrole: received invalid guild_id=%r", payload.get("guild_id"))
+            return {"ok": False, "error": "invalid guild_id"}
+        # Evict so the next get_modrole re-reads from DB — avoids trusting the web-tier
+        # value under concurrent updates and stays consistent with the leave-config pattern.
+        bot.guild_cache.delete_modrole(guild_id)
         return {"ok": True}
     elif command == "list_guilds":
         return {

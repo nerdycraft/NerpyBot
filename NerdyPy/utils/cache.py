@@ -46,7 +46,7 @@ class GuildConfigCache:
         self._rr_by_guild: dict[int, set[int]] = {}  # guild_id -> set[message_id] for eviction
         self._rr_mappings: dict[int, dict[str, int]] = {}
         self._rr_warmed: bool = False
-        self._leave_configs: dict[int, tuple[int, str | None]] = {}
+        self._leave_configs: dict[int, tuple[int, str | None] | None] = {}
         self._leave_warmed: bool = False
 
     @staticmethod
@@ -226,6 +226,19 @@ class GuildConfigCache:
             return True
         return guild_id in self._leave_configs
 
+    @staticmethod
+    def _query_leave_row(guild_id: int, session):
+        """Return the enabled LeaveMessage row for a guild, or None if not found."""
+        from models.leavemsg import LeaveMessage
+        from sqlalchemy import select
+
+        return session.execute(
+            select(LeaveMessage).where(
+                LeaveMessage.GuildId == guild_id,
+                LeaveMessage.Enabled.is_(True),
+            )
+        ).scalar_one_or_none()
+
     def get_leave_config(self, guild_id: int, session_factory) -> tuple[int, str | None] | None:
         """Return ``(channel_id, message_text)`` for the guild's enabled leave message.
 
@@ -244,15 +257,7 @@ class GuildConfigCache:
 
         try:
             with _open_session(session_factory) as session:
-                from models.leavemsg import LeaveMessage
-                from sqlalchemy import select
-
-                row = session.execute(
-                    select(LeaveMessage).where(
-                        LeaveMessage.GuildId == guild_id,
-                        LeaveMessage.Enabled.is_(True),
-                    )
-                ).scalar_one_or_none()
+                row = self._query_leave_row(guild_id, session)
                 config = (row.ChannelId, row.Message) if row is not None else None
         except SQLAlchemyError:
             _log.exception("get_leave_config: DB read failed for guild_id=%d — returning None", guild_id)
@@ -268,6 +273,31 @@ class GuildConfigCache:
     def evict_leave_config(self, guild_id: int) -> None:
         """Remove the leave message config for a guild."""
         self._leave_configs.pop(guild_id, None)
+
+    def reload_leave_config(self, guild_id: int, session_factory) -> None:
+        """Force a fresh DB read for a guild's leave config and update the cache.
+
+        Unlike ``get_leave_config``, this bypasses the ``_leave_warmed`` short-circuit
+        and always hits the DB. Use after an external mutation (e.g. web dashboard
+        enable/disable) so ``is_leave_message_guild`` reflects the new state immediately
+        rather than waiting for an eviction-triggered cold miss that would never arrive
+        when ``_leave_warmed=True``.
+
+        On ``SQLAlchemyError``, logs the error and falls back to eviction so the next
+        ``on_member_remove`` retries the DB read via the cold-miss path.
+        """
+        try:
+            with _open_session(session_factory) as session:
+                row = self._query_leave_row(guild_id, session)
+        except SQLAlchemyError:
+            _log.exception("reload_leave_config: DB read failed for guild_id=%d — evicting instead", guild_id)
+            self.evict_leave_config(guild_id)
+            return
+
+        if row is not None:
+            self._leave_configs[guild_id] = (row.ChannelId, row.Message)
+        else:
+            self.evict_leave_config(guild_id)
 
     def warm_leave_messages(self, session_factory) -> None:
         """Bulk-load full leave message configs (channel_id, message) for all enabled guilds.

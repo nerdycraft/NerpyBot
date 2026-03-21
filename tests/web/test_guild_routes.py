@@ -74,6 +74,57 @@ class TestModeratorRoleEndpoints:
         response = client.delete(f"/api/guilds/{GUILD_ID}/moderator-roles/999", headers=auth_header)
         assert response.status_code == 404
 
+    def test_post_notifies_bot_to_invalidate_cache(self, client, fake_valkey, auth_header):
+        """POST moderator-roles must publish an invalidate_modrole command with the new role_id."""
+        import json
+        from unittest.mock import patch
+
+        published = []
+
+        def capture(channel, message):
+            published.append((channel, message))
+
+        with patch.object(fake_valkey._client, "publish", side_effect=capture):
+            response = client.post(
+                f"/api/guilds/{GUILD_ID}/moderator-roles",
+                json={"role_id": "555666777"},
+                headers=auth_header,
+            )
+
+        assert response.status_code == 201
+        bot_cmds = [json.loads(msg) for ch, msg in published if ch == "nerpybot:cmd"]
+        invalidations = [c for c in bot_cmds if c.get("command") == "invalidate_modrole"]
+        assert len(invalidations) == 1
+        assert invalidations[0]["guild_id"] == str(GUILD_ID)
+
+    def test_delete_notifies_bot_to_invalidate_cache(self, client, fake_valkey, auth_header):
+        """DELETE moderator-roles must publish an invalidate_modrole command with null role_id."""
+        import json
+        from unittest.mock import patch
+
+        client.post(
+            f"/api/guilds/{GUILD_ID}/moderator-roles",
+            json={"role_id": "555666777"},
+            headers=auth_header,
+        )
+
+        published = []
+
+        def capture(channel, message):
+            published.append((channel, message))
+
+        with patch.object(fake_valkey._client, "publish", side_effect=capture):
+            response = client.delete(
+                f"/api/guilds/{GUILD_ID}/moderator-roles/555666777",
+                headers=auth_header,
+            )
+
+        assert response.status_code == 204
+        bot_cmds = [json.loads(msg) for ch, msg in published if ch == "nerpybot:cmd"]
+        invalidations = [c for c in bot_cmds if c.get("command") == "invalidate_modrole"]
+        assert len(invalidations) == 1
+        assert invalidations[0]["guild_id"] == str(GUILD_ID)
+
 
 class TestLeaveMessageEndpoints:
     def test_get_default(self, client, auth_header):

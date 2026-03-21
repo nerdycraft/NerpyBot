@@ -310,6 +310,51 @@ class TestLeaveMessages:
         cache.warm_leave_messages(session_factory)
         assert cache._leave_warmed is True
 
+    def test_reload_leave_config_populates_when_enabled(self, cache, session_factory, db_session):
+        from models.leavemsg import LeaveMessage
+
+        db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye {member}", Enabled=True))
+        db_session.commit()
+
+        cache.warm_leave_messages(session_factory)  # warm — guild not yet in configs
+        # Simulate external enable: evict then reload
+        cache.evict_leave_config(GUILD_ID)
+        cache.reload_leave_config(GUILD_ID, session_factory)
+
+        assert cache.is_leave_message_guild(GUILD_ID) is True
+        assert cache.get_leave_config(GUILD_ID, session_factory) == (111, "bye {member}")
+
+    def test_reload_leave_config_evicts_when_disabled(self, cache, session_factory, db_session):
+        from models.leavemsg import LeaveMessage
+
+        db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye {member}", Enabled=True))
+        db_session.commit()
+        cache.warm_leave_messages(session_factory)
+
+        # Simulate disable via web: mark disabled in DB, then reload cache
+        db_session.query(LeaveMessage).filter_by(GuildId=GUILD_ID).update({"Enabled": False})
+        db_session.commit()
+        cache.reload_leave_config(GUILD_ID, session_factory)
+
+        assert cache.is_leave_message_guild(GUILD_ID) is False
+
+    def test_reload_leave_config_fixes_broken_eviction(self, cache, session_factory, db_session):
+        # Regression: after evict_leave_config with _leave_warmed=True, is_leave_message_guild
+        # returns False, so get_leave_config is never called to repopulate.
+        # reload_leave_config must restore the entry so is_leave_message_guild returns True.
+        from models.leavemsg import LeaveMessage
+
+        db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye {member}", Enabled=True))
+        db_session.commit()
+        cache.warm_leave_messages(session_factory)
+        cache.evict_leave_config(GUILD_ID)
+
+        assert cache.is_leave_message_guild(GUILD_ID) is False  # broken state before fix
+
+        cache.reload_leave_config(GUILD_ID, session_factory)
+
+        assert cache.is_leave_message_guild(GUILD_ID) is True  # restored
+
 
 # ── Eviction ──────────────────────────────────────────────────────────────────
 

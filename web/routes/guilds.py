@@ -163,17 +163,20 @@ async def add_moderator_role(
     body: ModeratorRoleCreate,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    vk: ValkeyClient = Depends(get_valkey),
 ):
     """Set or replace the moderator role for a guild."""
     _deny_support_write(user)
     from models.admin import BotModeratorRole
 
+    new_role_id = int(body.role_id)
     existing = BotModeratorRole.get(guild_id, session)
     if existing:
-        existing.RoleId = int(body.role_id)
+        existing.RoleId = new_role_id
     else:
-        role = BotModeratorRole(GuildId=guild_id, RoleId=int(body.role_id))
-        session.add(role)
+        session.add(BotModeratorRole(GuildId=guild_id, RoleId=new_role_id))
+    session.commit()
+    vk.notify_bot("invalidate_modrole", {"guild_id": str(guild_id)})
     return {"status": "created"}
 
 
@@ -183,6 +186,7 @@ async def delete_moderator_role(
     role_id: int,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    vk: ValkeyClient = Depends(get_valkey),
 ):
     """Remove the moderator role for a guild. Returns 404 if the role is not configured."""
     _deny_support_write(user)
@@ -192,6 +196,8 @@ async def delete_moderator_role(
     if existing is None or existing.RoleId != role_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
     BotModeratorRole.delete(guild_id, session)
+    session.commit()
+    vk.notify_bot("invalidate_modrole", {"guild_id": str(guild_id)})
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
