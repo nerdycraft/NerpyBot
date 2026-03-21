@@ -5,6 +5,8 @@ import asyncio
 import logging
 from contextlib import contextmanager
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from cachetools import TTLCache
 from discord import app_commands
 
@@ -34,7 +36,7 @@ class GuildConfigCache:
     - Bot moderator role: lazy (DB on miss), invalidated by ``modrole_changed`` event
     - Reaction role message IDs: bulk-loaded on startup, updated on add/remove
     - Reaction role mappings: bulk-loaded on startup, updated on add/remove entry
-    - Leave message configs: bulk-loaded on startup, updated on enable/disable/edit
+    - Leave message configs: bulk-loaded on startup, lazy-loaded on cold miss, updated on enable/disable/edit
     """
 
     def __init__(self):
@@ -233,34 +235,20 @@ class GuildConfigCache:
                     .first()
                 )
                 config = (row.ChannelId, row.Message) if row is not None else None
-        except Exception:
+        except SQLAlchemyError:
             _log.exception("get_leave_config: DB read failed for guild_id=%d — returning None", guild_id)
             return None
 
         self._leave_configs[guild_id] = config
         return config
 
-    def set_leave_message_guild(
-        self,
-        guild_id: int,
-        enabled: bool,
-        channel_id: int | None = None,
-        message: str | None = None,
-    ) -> None:
-        """Add or remove a guild from the leave-message config cache.
+    def set_leave_config(self, guild_id: int, channel_id: int, message: str | None) -> None:
+        """Upsert the leave message config for a guild."""
+        self._leave_configs[guild_id] = (channel_id, message)
 
-        When ``enabled=True``, ``channel_id`` must be provided; passing ``None`` raises
-        ``ValueError`` to surface caller bugs early.
-        When ``enabled=False``, the guild is evicted regardless of channel_id.
-        """
-        if enabled:
-            if channel_id is None:
-                raise ValueError(
-                    f"set_leave_message_guild: channel_id is required when enabled=True (guild_id={guild_id})"
-                )
-            self._leave_configs[guild_id] = (channel_id, message)
-        else:
-            self._leave_configs.pop(guild_id, None)
+    def evict_leave_config(self, guild_id: int) -> None:
+        """Remove the leave message config for a guild."""
+        self._leave_configs.pop(guild_id, None)
 
     def warm_leave_messages(self, session_factory) -> None:
         """Bulk-load full leave message configs (channel_id, message) for all enabled guilds.
@@ -282,7 +270,7 @@ class GuildConfigCache:
         """Remove all cached entries for a guild (called when bot leaves a guild)."""
         self._lang.pop(guild_id, None)
         self._modrole.pop(guild_id, None)
-        self._leave_configs.pop(guild_id, None)
+        self.evict_leave_config(guild_id)
         guild_rr = self._rr_by_guild.pop(guild_id, None)
         if guild_rr:
             self._rr_message_ids -= guild_rr

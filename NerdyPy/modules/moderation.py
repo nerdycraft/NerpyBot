@@ -14,7 +14,6 @@ from pytimeparse2 import parse
 
 from models.leavemsg import LeaveMessage
 from models.moderation import AutoDelete, AutoKicker
-from sqlalchemy.exc import SQLAlchemyError
 
 from utils.cog import NerpyBotCog
 from utils.errors import NerpyValidationError
@@ -625,45 +624,43 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
 
         try:
             leave_config = self.bot.guild_cache.get_leave_config(member.guild.id, self.bot.SESSION)
-        except SQLAlchemyError as ex:
-            self.bot.log.error(
-                f"[{member.guild.name} ({member.guild.id})]: on_member_remove: DB error fetching leave config for {member}: {ex}"
+            if leave_config is None:
+                self.bot.log.debug(
+                    "[%s (%d)]: on_member_remove: leave message guild set but config absent — cache not warmed?",
+                    member.guild.name,
+                    member.guild.id,
+                )
+                return
+
+            channel_id, message_text = leave_config
+            channel = member.guild.get_channel(channel_id)
+            if channel is None:
+                try:
+                    channel = await member.guild.fetch_channel(channel_id)
+                except (discord.NotFound, discord.Forbidden):
+                    channel = None
+            if channel is None or not isinstance(channel, TextChannel):
+                self.bot.log.warning(
+                    f"[{member.guild.name} ({member.guild.id})]: leave channel {channel_id} not found or not a text channel"
+                )
+                return
+
+            self.bot.log.debug(f"[{member.guild.name} ({member.guild.id})]: sending leave message for {member}")
+
+            message = message_text or DEFAULT_LEAVE_MESSAGE
+            member_str = f"**{member.display_name}** ({member.name})"
+            formatted_message = (
+                message.replace("{member}", member_str) if "{member}" in message else f"{message} — {member_str}"
             )
-            return
-        if leave_config is None:
-            self.bot.log.debug(
-                "[%s (%d)]: on_member_remove: leave message guild set but config absent — cache not warmed?",
-                member.guild.name,
-                member.guild.id,
-            )
-            return
 
-        channel_id, message_text = leave_config
-        channel = member.guild.get_channel(channel_id)
-        if channel is None:
-            try:
-                channel = await member.guild.fetch_channel(channel_id)
-            except (discord.NotFound, discord.Forbidden):
-                channel = None
-        if channel is None or not isinstance(channel, TextChannel):
-            self.bot.log.warning(
-                f"[{member.guild.name} ({member.guild.id})]: leave channel {channel_id} not found or not a text channel"
-            )
-            return
-
-        self.bot.log.debug(f"[{member.guild.name} ({member.guild.id})]: sending leave message for {member}")
-
-        message = message_text or DEFAULT_LEAVE_MESSAGE
-        member_str = f"**{member.display_name}** ({member.name})"
-        formatted_message = (
-            message.replace("{member}", member_str) if "{member}" in message else f"{message} — {member_str}"
-        )
-
-        try:
             await channel.send(formatted_message)
         except discord.HTTPException as ex:
             self.bot.log.error(
                 f"[{member.guild.name} ({member.guild.id})]: failed to send leave message for {member}: {ex}"
+            )
+        except Exception:
+            self.bot.log.exception(
+                "[%s (%d)]: on_member_remove: unexpected error for %s", member.guild.name, member.guild.id, member
             )
 
     # ── /moderation leavemsg commands ────────────────────────────────────────
@@ -699,7 +696,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                     leave_config.Message = DEFAULT_LEAVE_MESSAGE
             final_message = leave_config.Message  # always set in all branches above
 
-        self.bot.guild_cache.set_leave_message_guild(interaction.guild.id, True, channel.id, final_message)
+        self.bot.guild_cache.set_leave_config(interaction.guild.id, channel.id, final_message)
         await send_hidden_message(interaction, get_string(lang, "leavemsg.enable.success", channel=channel.mention))
 
     @leavemsg.command(name="disable")
@@ -713,7 +710,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 raise NerpyValidationError(get_string(lang, "leavemsg.disable.not_configured"))
             leave_config.Enabled = False
 
-        self.bot.guild_cache.set_leave_message_guild(interaction.guild.id, False)
+        self.bot.guild_cache.evict_leave_config(interaction.guild.id)
         await send_hidden_message(interaction, get_string(lang, "leavemsg.disable.success"))
 
     async def save_leave_message(self, interaction: Interaction, message: str, lang: str) -> None:
@@ -730,7 +727,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
 
         # Only update cache when enabled — disabled state is already reflected (evicted by /leavemsg disable)
         if enabled:
-            self.bot.guild_cache.set_leave_message_guild(interaction.guild.id, True, channel_id, message)
+            self.bot.guild_cache.set_leave_config(interaction.guild.id, channel_id, message)
         await send_hidden_message(interaction, get_string(lang, "leavemsg.message.success", message=message))
 
     @leavemsg.command(name="message")

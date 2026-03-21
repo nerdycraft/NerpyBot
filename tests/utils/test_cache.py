@@ -226,13 +226,13 @@ class TestLeaveMessages:
 
     def test_set_enabled(self, cache, session_factory):
         cache.warm_leave_messages(session_factory)
-        cache.set_leave_message_guild(GUILD_ID, True, channel_id=111, message="bye")
+        cache.set_leave_config(GUILD_ID, 111, "bye")
         assert cache.is_leave_message_guild(GUILD_ID) is True
 
     def test_set_disabled(self, cache, session_factory):
         cache.warm_leave_messages(session_factory)
-        cache.set_leave_message_guild(GUILD_ID, True, channel_id=111, message="bye")
-        cache.set_leave_message_guild(GUILD_ID, False)
+        cache.set_leave_config(GUILD_ID, 111, "bye")
+        cache.evict_leave_config(GUILD_ID)
         assert cache.is_leave_message_guild(GUILD_ID) is False
 
     def test_warm_is_idempotent(self, cache, session_factory, db_session):
@@ -242,7 +242,7 @@ class TestLeaveMessages:
         db_session.commit()
 
         cache.warm_leave_messages(session_factory)
-        cache.set_leave_message_guild(GUILD_ID_2, True, channel_id=222, message="cya")  # local addition
+        cache.set_leave_config(GUILD_ID_2, 222, "cya")  # local addition
 
         cache.warm_leave_messages(session_factory)  # re-warm clears local addition
         assert cache.is_leave_message_guild(GUILD_ID_2) is False
@@ -287,9 +287,8 @@ class TestLeaveMessages:
         result = cache.get_leave_config(GUILD_ID, session_factory)
         assert result == (111, "bye")
 
-    def test_set_enabled_without_channel_raises(self, cache):
-        with pytest.raises(ValueError, match="channel_id is required"):
-            cache.set_leave_message_guild(GUILD_ID, True, channel_id=None)
+    def test_evict_nonexistent_is_safe(self, cache):
+        cache.evict_leave_config(GUILD_ID)  # must not raise
 
     def test_db_failure_leaves_flag_unset(self, cache):
         def failing_factory():
@@ -330,7 +329,7 @@ class TestEviction:
 
     def test_evict_removes_from_leave_guild_set(self, cache, session_factory):
         cache.warm_leave_messages(session_factory)
-        cache.set_leave_message_guild(GUILD_ID, True, channel_id=111, message="bye")
+        cache.set_leave_config(GUILD_ID, 111, "bye")
         cache.evict_guild(GUILD_ID)
         assert cache.is_leave_message_guild(GUILD_ID) is False
 

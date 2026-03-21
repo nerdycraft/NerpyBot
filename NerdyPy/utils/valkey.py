@@ -264,7 +264,10 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             return {"valid": False, "display_name": None, "error": str(e)}
     elif command == "invalidate_leave_config":
         guild_id = int(payload.get("guild_id", 0))
-        bot.guild_cache._leave_configs.pop(guild_id, None)
+        if not guild_id:
+            bot.log.warning("invalidate_leave_config: received invalid guild_id=%r", payload.get("guild_id"))
+            return {"ok": False, "error": "invalid guild_id"}
+        bot.guild_cache.evict_leave_config(guild_id)
         return {"ok": True}
     elif command == "list_guilds":
         return {

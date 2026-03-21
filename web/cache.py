@@ -133,8 +133,6 @@ class ValkeyClient:
 
         Failures are logged as warnings — callers must not rely on delivery.
         """
-        import json
-
         message = json.dumps({"command": command, **payload})
         try:
             self._client.publish(self._key("cmd"), message)

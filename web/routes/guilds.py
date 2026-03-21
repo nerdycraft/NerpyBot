@@ -245,6 +245,7 @@ async def set_leave_message(
         cfg.Message = body.message
     if body.enabled is not None:
         cfg.Enabled = body.enabled
+    session.commit()  # commit before notifying bot so it re-reads the updated row
     vk.notify_bot("invalidate_leave_config", {"guild_id": str(guild_id)})
     return LeaveMessageConfig(
         guild_id=str(guild_id),

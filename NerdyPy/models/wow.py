@@ -3,6 +3,7 @@
 
 import functools
 import inspect
+import logging
 from datetime import UTC, datetime
 
 from cachetools import TTLCache
@@ -25,6 +26,8 @@ from sqlalchemy import (
     or_,
 )
 from utils import database as db
+
+_log = logging.getLogger(__name__)
 
 # ── CraftingRecipeCache query cache ───────────────────────────────────────────
 # Recipe data changes only on operator-triggered sync (daily/weekly at most).
@@ -50,26 +53,21 @@ def _cache_recipe_query(method):
     def wrapper(*args, **kwargs):
         bound = sig.bind(*args, **kwargs)
         bound.apply_defaults()
-        key_parts = [method.__name__]
-        for name, val in bound.arguments.items():
-            if name in ("cls", "session"):
-                continue
-            if isinstance(val, set):
-                val = frozenset(val)
-            key_parts.append(val)
-        key = tuple(key_parts)
+        key = (
+            method.__name__,
+            *(
+                frozenset(val) if isinstance(val, set) else val
+                for name, val in bound.arguments.items()
+                if name not in ("cls", "session")
+            ),
+        )
         if key in _recipe_cache:
             return _recipe_cache[key]
         try:
             result = method(*args, **kwargs)
         except Exception:
-            import logging
-
-            logging.getLogger(__name__).exception("_cache_recipe_query: %s raised an error", method.__name__)
+            _log.exception("_cache_recipe_query: %s raised an error", method.__name__)
             raise
-        # Detach ORM instances from the session so they remain accessible after the
-        # session closes. Only column-level data is safe; lazy relationships raise
-        # DetachedInstanceError if accessed after expunge.
         session = bound.arguments.get("session")
         if session is not None and isinstance(result, list):
             for item in result:

@@ -111,6 +111,29 @@ class TestLeaveMessageEndpoints:
         )
         assert response.status_code == 422
 
+    def test_put_notifies_bot_to_invalidate_cache(self, client, fake_valkey, auth_header):
+        """PUT leave-messages must publish an invalidate_leave_config command to the bot."""
+        import json
+        from unittest.mock import patch
+
+        published = []
+
+        def capture(channel, message):
+            published.append((channel, message))
+
+        with patch.object(fake_valkey._client, "publish", side_effect=capture):
+            response = client.put(
+                f"/api/guilds/{GUILD_ID}/leave-messages",
+                json={"channel_id": "111222333", "message": "Bye {member}!", "enabled": True},
+                headers=auth_header,
+            )
+
+        assert response.status_code == 200
+        bot_cmds = [json.loads(msg) for ch, msg in published if ch == "nerpybot:cmd"]
+        invalidations = [c for c in bot_cmds if c.get("command") == "invalidate_leave_config"]
+        assert len(invalidations) == 1
+        assert invalidations[0]["guild_id"] == str(GUILD_ID)
+
 
 class TestAutoDeleteEndpoints:
     def test_get_empty_list(self, client, auth_header):
