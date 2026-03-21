@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from utils.cache import GuildConfigCache
+from utils.cache import GuildConfigCache, build_name_choices
 
 
 GUILD_ID = 987654321
@@ -169,6 +169,26 @@ class TestReactionRoles:
         assert cache.is_reaction_role_message(99) is False
         assert cache.is_reaction_role_message(42) is True
 
+    def test_db_failure_leaves_flag_unset(self, cache):
+        def failing_factory():
+            raise Exception("DB down")
+
+        with pytest.raises(Exception, match="DB down"):
+            cache.warm_reaction_roles(failing_factory)
+
+        assert cache._rr_warmed is False
+        assert cache.is_reaction_role_message(99999) is True
+
+    def test_can_rewarm_after_failure(self, cache, session_factory):
+        def failing_factory():
+            raise Exception("DB down")
+
+        with pytest.raises(Exception):
+            cache.warm_reaction_roles(failing_factory)
+
+        cache.warm_reaction_roles(session_factory)
+        assert cache._rr_warmed is True
+
 
 # ── Leave messages ────────────────────────────────────────────────────────────
 
@@ -266,6 +286,26 @@ class TestLeaveMessages:
         with pytest.raises(ValueError, match="channel_id is required"):
             cache.set_leave_message_guild(GUILD_ID, True, channel_id=None)
 
+    def test_db_failure_leaves_flag_unset(self, cache):
+        def failing_factory():
+            raise Exception("DB down")
+
+        with pytest.raises(Exception, match="DB down"):
+            cache.warm_leave_messages(failing_factory)
+
+        assert cache._leave_warmed is False
+        assert cache.is_leave_message_guild(GUILD_ID) is True
+
+    def test_can_rewarm_after_failure(self, cache, session_factory):
+        def failing_factory():
+            raise Exception("DB down")
+
+        with pytest.raises(Exception):
+            cache.warm_leave_messages(failing_factory)
+
+        cache.warm_leave_messages(session_factory)
+        assert cache._leave_warmed is True
+
 
 # ── Eviction ──────────────────────────────────────────────────────────────────
 
@@ -307,3 +347,31 @@ class TestEviction:
         lang = cache.get_guild_language(GUILD_ID_2, session_factory)
         assert lang == "fr"
         session_factory.assert_not_called()
+
+
+# ── build_name_choices ────────────────────────────────────────────────────────
+
+
+class TestBuildNameChoices:
+    def test_empty_current_returns_all(self):
+        names = ["Alpha", "Beta", "Gamma"]
+        choices = build_name_choices(names, "")
+        assert [c.name for c in choices] == ["Alpha", "Beta", "Gamma"]
+        assert [c.value for c in choices] == ["Alpha", "Beta", "Gamma"]
+
+    def test_filters_case_insensitively(self):
+        names = ["Alpha", "ALPHA", "Beta"]
+        choices = build_name_choices(names, "alpha")
+        assert len(choices) == 2
+        assert all("alpha" in c.name.lower() for c in choices)
+
+    def test_returns_at_most_25(self):
+        names = [f"Item {i}" for i in range(30)]
+        choices = build_name_choices(names, "")
+        assert len(choices) == 25
+
+    def test_truncates_long_names_to_100_chars(self):
+        long_name = "x" * 150
+        choices = build_name_choices([long_name], "")
+        assert len(choices[0].name) == 100
+        assert len(choices[0].value) == 100

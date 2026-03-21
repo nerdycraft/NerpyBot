@@ -78,6 +78,51 @@ class TestOnRawReactionAdd:
     """Tests for the on_raw_reaction_add listener."""
 
     @pytest.mark.asyncio
+    async def test_reaction_add_warm_cache_assigns_role(
+        self, cog, db_with_reaction_role, guild_id, message_id, mock_role
+    ):
+        """Warm cache + correct emoji → role assigned without fallback DB hit."""
+        cog.bot.guild_cache.warm_reaction_roles(cog.bot.SESSION)
+
+        member = MagicMock()
+        member.bot = False
+        member.add_roles = AsyncMock()
+
+        payload = _make_payload(message_id, guild_id, "👍", member=member)
+
+        mock_guild = MagicMock()
+        mock_guild.id = guild_id
+        mock_guild.name = "Test Guild"
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+        cog.bot.get_guild = MagicMock(return_value=mock_guild)
+
+        await cog.on_raw_reaction_add(payload)
+
+        member.add_roles.assert_awaited_once_with(mock_role, reason="Reaction role")
+
+    @pytest.mark.asyncio
+    async def test_reaction_add_warm_cache_no_mapping_skips_role(
+        self, cog, db_with_reaction_role, guild_id, message_id
+    ):
+        """Warm cache + unmapped emoji → add_roles never called."""
+        cog.bot.guild_cache.warm_reaction_roles(cog.bot.SESSION)
+
+        member = MagicMock()
+        member.bot = False
+        member.add_roles = AsyncMock()
+
+        payload = _make_payload(message_id, guild_id, "👎", member=member)
+
+        mock_guild = MagicMock()
+        mock_guild.id = guild_id
+        mock_guild.name = "Test Guild"
+        cog.bot.get_guild = MagicMock(return_value=mock_guild)
+
+        await cog.on_raw_reaction_add(payload)
+
+        member.add_roles.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_reaction_add_assigns_role(self, cog, db_with_reaction_role, guild_id, message_id, mock_role):
         """Adding a known reaction should assign the mapped role to the member."""
         member = MagicMock()

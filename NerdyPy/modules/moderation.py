@@ -14,6 +14,7 @@ from pytimeparse2 import parse
 
 from models.leavemsg import LeaveMessage
 from models.moderation import AutoDelete, AutoKicker
+from sqlalchemy.exc import SQLAlchemyError
 
 from utils.cog import NerpyBotCog
 from utils.errors import NerpyValidationError
@@ -622,7 +623,13 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         if not self.bot.guild_cache.is_leave_message_guild(member.guild.id):
             return
 
-        leave_config = self.bot.guild_cache.get_leave_config(member.guild.id, self.bot.SESSION)
+        try:
+            leave_config = self.bot.guild_cache.get_leave_config(member.guild.id, self.bot.SESSION)
+        except SQLAlchemyError as ex:
+            self.bot.log.error(
+                f"[{member.guild.name} ({member.guild.id})]: on_member_remove: DB error fetching leave config for {member}: {ex}"
+            )
+            return
         if leave_config is None:
             self.bot.log.debug(
                 "[%s (%d)]: on_member_remove: leave message guild set but config absent — cache not warmed?",
