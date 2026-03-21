@@ -6,6 +6,7 @@ import type { DiscordChannel, DiscordRole } from "@/api/types";
 
 const props = defineProps<{
   modelValue: string;
+  modelName?: string;
   guildId: string;
   kind: "channel" | "role";
   placeholder?: string;

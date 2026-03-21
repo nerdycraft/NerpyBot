@@ -359,6 +359,18 @@ class TestReminderEndpoints:
         assert response.status_code == 200
         assert response.json()["channel_name"] == "general"
 
+    def test_patch_explicit_null_channel_name_clears_to_null(self, client, auth_header, web_db_session):
+        """PATCH with channel_name: null explicitly clears the name (model_fields_set guard treats it as a clear, not an omission)."""
+        reminder = _make_reminder(web_db_session, ChannelName="general")
+
+        response = client.patch(
+            f"/api/guilds/{GUILD_ID}/reminders/{reminder.Id}",
+            json={"channel_name": None},
+            headers=auth_header,
+        )
+        assert response.status_code == 200
+        assert response.json()["channel_name"] is None
+
     def test_patch_enabled_does_not_wipe_channel_name(self, client, auth_header, web_db_session):
         """PATCH with only enabled must not touch ChannelName."""
         reminder = _make_reminder(web_db_session, ChannelName="announcements")

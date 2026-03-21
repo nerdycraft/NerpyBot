@@ -6,7 +6,8 @@ Create Date: 2026-03-21
 
 Discord channel names can be up to 100 characters. The original String(30) was
 too short and would cause IntegrityErrors on PostgreSQL for long channel names.
-SQLite does not enforce VARCHAR length limits, so this migration skips it.
+SQLite is skipped for two reasons: it does not enforce VARCHAR length limits, and
+op.alter_column() outside a batch_alter_table context crashes on SQLite.
 """
 
 import sqlalchemy as sa

@@ -145,9 +145,11 @@ class RoleMappingCreate(BaseModel):
 
 
 def _normalise_channel_name(v: object) -> object:
-    if isinstance(v, str) and not v.strip():
+    if v is None:
         return None
-    return v
+    if isinstance(v, str):
+        return v.strip() or None
+    return v  # let Pydantic's type system reject it with a proper error
 
 
 ChannelName = Annotated[Annotated[str, Field(max_length=100)] | None, BeforeValidator(_normalise_channel_name)]
