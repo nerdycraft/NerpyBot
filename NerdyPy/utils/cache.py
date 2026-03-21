@@ -394,6 +394,16 @@ def invalidate_autocomplete(key: tuple) -> None:
     _autocomplete_cache.pop(key, None)
 
 
+def invalidate_autocomplete_app_templates(guild_id: int) -> None:
+    """Evict both app template autocomplete caches for a guild.
+
+    ``app_templates`` and ``app_guild_templates`` share the same mutation sites
+    (save, delete, create-from-template), so they are always invalidated together.
+    """
+    invalidate_autocomplete(("app_templates", guild_id))
+    invalidate_autocomplete(("app_guild_templates", guild_id))
+
+
 def build_name_choices(names: list[str], current: str) -> list[app_commands.Choice[str]]:
     """Filter a list of names by the current autocomplete input and return up to 25 choices.
 
