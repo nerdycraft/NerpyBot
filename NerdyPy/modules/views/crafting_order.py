@@ -1609,15 +1609,8 @@ class ItemSelectView(ui.View):
             next_btn.callback = self._on_next
             self.add_item(next_btn)
 
-        if include_choose:
-            choose_btn = ui.Button(
-                label=get_string(self.lang, "wow.craftingorder.choose_button"),
-                style=discord.ButtonStyle.success,
-                emoji="✅",
-                row=action_row,
-            )
-            choose_btn.callback = self._on_choose
-            self.add_item(choose_btn)
+        if self._back_factory is not None:
+            _add_back_button(self, self.lang, self._back_factory, row=action_row)
 
         other_btn = ui.Button(
             label=get_string(self.lang, "wow.craftingorder.other_button"),
@@ -1628,8 +1621,15 @@ class ItemSelectView(ui.View):
         other_btn.callback = self._on_other
         self.add_item(other_btn)
 
-        if self._back_factory is not None:
-            _add_back_button(self, self.lang, self._back_factory, row=action_row)
+        if include_choose:
+            choose_btn = ui.Button(
+                label=get_string(self.lang, "wow.craftingorder.choose_button"),
+                style=discord.ButtonStyle.success,
+                emoji="✅",
+                row=action_row,
+            )
+            choose_btn.callback = self._on_choose
+            self.add_item(choose_btn)
 
     def _make_embed(self, recipe=None) -> discord.Embed:
         total_items = len(self._all_recipes)
