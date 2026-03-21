@@ -49,6 +49,17 @@ def downgrade():
         cols = {c["name"]: c for c in insp.get_columns("ReminderMessage")}
         col = cols.get("ChannelName")
         if col is not None and getattr(col["type"], "length", None) != 30:
+            too_long = conn.execute(
+                sa.text(
+                    'SELECT COUNT(*) FROM "ReminderMessage" '
+                    'WHERE "ChannelName" IS NOT NULL AND char_length("ChannelName") > 30'
+                )
+            ).scalar_one()
+            if too_long:
+                raise RuntimeError(
+                    "Cannot downgrade ReminderMessage.ChannelName to VARCHAR(30): "
+                    f"{too_long} row(s) exceed 30 characters."
+                )
             op.alter_column(
                 "ReminderMessage",
                 "ChannelName",
