@@ -75,11 +75,15 @@ class GuildConfigCache:
         if guild_id in self._lang:
             return self._lang[guild_id]
 
-        with _open_session(session_factory) as session:
-            from models.admin import GuildLanguageConfig
+        try:
+            with _open_session(session_factory) as session:
+                from models.admin import GuildLanguageConfig
 
-            config = GuildLanguageConfig.get(guild_id, session)
-            lang = config.Language if config is not None else "en"
+                config = GuildLanguageConfig.get(guild_id, session)
+                lang = config.Language if config is not None else "en"
+        except SQLAlchemyError:
+            _log.exception("get_guild_language: DB read failed for guild_id=%d", guild_id)
+            raise
 
         self._lang[guild_id] = lang
         return lang
@@ -95,11 +99,15 @@ class GuildConfigCache:
         if guild_id in self._modrole:
             return self._modrole[guild_id]
 
-        with _open_session(session_factory) as session:
-            from models.admin import BotModeratorRole
+        try:
+            with _open_session(session_factory) as session:
+                from models.admin import BotModeratorRole
 
-            entry = BotModeratorRole.get(guild_id, session)
-            role_id = entry.RoleId if entry is not None else None
+                entry = BotModeratorRole.get(guild_id, session)
+                role_id = entry.RoleId if entry is not None else None
+        except SQLAlchemyError:
+            _log.exception("get_modrole: DB read failed for guild_id=%d", guild_id)
+            raise
 
         self._modrole[guild_id] = role_id
         return role_id

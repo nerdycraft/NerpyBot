@@ -35,7 +35,13 @@ def _get_bot_guild_ids(session) -> set[str]:
     """Return the cached set of bot guild ID strings, loading from DB on miss."""
     if "ids" in _bot_guild_ids_cache:
         return _bot_guild_ids_cache["ids"]
-    ids = BotGuild.get_ids(session)
+    from sqlalchemy.exc import SQLAlchemyError
+
+    try:
+        ids = BotGuild.get_ids(session)
+    except SQLAlchemyError:
+        _log.exception("_get_bot_guild_ids: DB read failed")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Service temporarily unavailable")
     _bot_guild_ids_cache["ids"] = ids
     return ids
 

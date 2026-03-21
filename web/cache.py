@@ -137,7 +137,7 @@ class ValkeyClient:
         try:
             self._client.publish(self._key("cmd"), message)
         except Exception as exc:
-            _log.warning("notify_bot: failed to publish %r: %s", command, exc)
+            _log.error("notify_bot: failed to publish %r: %s", command, exc)
 
     def push_reply(self, request_id: str, data: dict) -> None:
         """Push a reply to a waiting command (used by bot side)."""

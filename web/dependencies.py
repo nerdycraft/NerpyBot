@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import TYPE_CHECKING
 
@@ -15,6 +16,8 @@ if TYPE_CHECKING:
     from web.config import WebConfig
     from web.cache import ValkeyClient
 
+_log = logging.getLogger(__name__)
+
 # ── PremiumUser in-process cache ──────────────────────────────────────────────
 # Caches the full set of premium user IDs for 5 minutes.
 # Tiny dataset (single-digit users); changes only on operator grant/revoke.
@@ -25,9 +28,15 @@ def _get_premium_ids(session: Session) -> set[int]:
     """Return the cached set of premium user IDs, loading from DB on miss."""
     if "ids" in _premium_ids_cache:
         return _premium_ids_cache["ids"]
+    from sqlalchemy.exc import SQLAlchemyError
+
     from models.admin import PremiumUser
 
-    ids = {u.UserId for u in PremiumUser.get_all(session)}
+    try:
+        ids = {u.UserId for u in PremiumUser.get_all(session)}
+    except SQLAlchemyError:
+        _log.exception("_get_premium_ids: DB read failed")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Service temporarily unavailable")
     _premium_ids_cache["ids"] = ids
     return ids
 

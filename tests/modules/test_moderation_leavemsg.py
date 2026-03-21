@@ -55,6 +55,13 @@ class TestLeavemsgEnable:
         assert config.Enabled is True
         assert config.ChannelId == 111
 
+        # Cache must reflect the new config so on_member_remove can read it without a DB hit.
+        # enable always initialises Message to DEFAULT_LEAVE_MESSAGE when no message exists.
+        from modules.moderation import DEFAULT_LEAVE_MESSAGE
+
+        cached = cog.bot.guild_cache.get_leave_config(987654321, cog.bot.SESSION)
+        assert cached == (111, DEFAULT_LEAVE_MESSAGE)
+
     async def test_enable_updates_existing(self, cog, interaction, db_session):
         db_session.add(LeaveMessage(GuildId=987654321, ChannelId=222, Enabled=False))
         db_session.commit()
@@ -69,6 +76,11 @@ class TestLeavemsgEnable:
         config = db_session.query(LeaveMessage).filter_by(GuildId=987654321).first()
         assert config.ChannelId == 333
         assert config.Enabled is True
+
+        from modules.moderation import DEFAULT_LEAVE_MESSAGE
+
+        cached = cog.bot.guild_cache.get_leave_config(987654321, cog.bot.SESSION)
+        assert cached == (333, DEFAULT_LEAVE_MESSAGE)
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +97,10 @@ class TestLeavemsgDisable:
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "disabled" in msg.lower() or "deaktiviert" in msg.lower()
+
+        # Cache entry must be removed so on_member_remove skips the leave message.
+        cached = cog.bot.guild_cache.get_leave_config(987654321, cog.bot.SESSION)
+        assert cached is None
 
     async def test_disable_not_configured(self, cog, interaction):
         with pytest.raises(NerpyValidationError, match="not configured|nicht konfiguriert"):
@@ -108,6 +124,10 @@ class TestLeavemsgMessage:
 
         config = db_session.query(LeaveMessage).filter_by(GuildId=987654321).first()
         assert config.Message == "Goodbye {member}!"
+
+        # Cache must reflect the updated message text.
+        cached = cog.bot.guild_cache.get_leave_config(987654321, cog.bot.SESSION)
+        assert cached == (111, "Goodbye {member}!")
 
     async def test_set_message_missing_placeholder(self, cog, interaction, db_session):
         db_session.add(LeaveMessage(GuildId=987654321, ChannelId=111, Enabled=True))
