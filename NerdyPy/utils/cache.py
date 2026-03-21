@@ -272,6 +272,7 @@ class GuildConfigCache:
     def set_leave_config(self, guild_id: int, channel_id: int, message: str | None) -> None:
         """Upsert the leave message config for a guild."""
         self._leave_configs[guild_id] = (channel_id, message)
+        self._leave_evicted.discard(guild_id)
 
     def evict_leave_config(self, guild_id: int) -> None:
         """Remove the leave message config for a guild (definitively disabled)."""
