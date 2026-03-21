@@ -37,10 +37,17 @@ def _discover_available_modules(loaded_names: set[str]) -> list[str]:
     return sorted(discovered - loaded_names - PROTECTED_MODULES)
 
 
+def _parse_guild_id(payload: dict) -> int:
+    """Safely extract guild_id from a payload dict. Returns 0 on missing or non-numeric input."""
+    try:
+        return int(payload.get("guild_id", 0) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _get_guild(bot, payload: dict):
     """Extract guild_id from payload and return the Guild, or None if not found."""
-    guild_id = int(payload.get("guild_id", 0))
-    return bot.get_guild(guild_id)
+    return bot.get_guild(_parse_guild_id(payload))
 
 
 def _build_voice_details(bot) -> tuple[list, list]:
@@ -263,10 +270,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             bot.log.warning("validate_wow_guild failed: %s", e)
             return {"valid": False, "display_name": None, "error": str(e)}
     elif command == "invalidate_leave_config":
-        try:
-            guild_id = int(payload.get("guild_id", 0) or 0)
-        except (TypeError, ValueError):
-            guild_id = 0
+        guild_id = _parse_guild_id(payload)
         if not guild_id:
             bot.log.warning("invalidate_leave_config: received invalid guild_id=%r", payload.get("guild_id"))
             return {"ok": False, "error": "invalid guild_id"}
@@ -277,10 +281,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             return {"ok": False, "error": "cache reload failed — see bot logs"}
         return {"ok": True}
     elif command == "invalidate_modrole":
-        try:
-            guild_id = int(payload.get("guild_id", 0) or 0)
-        except (TypeError, ValueError):
-            guild_id = 0
+        guild_id = _parse_guild_id(payload)
         if not guild_id:
             bot.log.warning("invalidate_modrole: received invalid guild_id=%r", payload.get("guild_id"))
             return {"ok": False, "error": "invalid guild_id"}
@@ -289,10 +290,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         bot.guild_cache.delete_modrole(guild_id)
         return {"ok": True}
     elif command == "set_guild_language":
-        try:
-            guild_id = int(payload.get("guild_id", 0) or 0)
-        except (TypeError, ValueError):
-            guild_id = 0
+        guild_id = _parse_guild_id(payload)
         language = payload.get("language", "")
         if not guild_id:
             bot.log.warning("set_guild_language: received invalid guild_id=%r", payload.get("guild_id"))
