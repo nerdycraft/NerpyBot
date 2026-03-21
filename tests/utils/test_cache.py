@@ -248,8 +248,6 @@ class TestLeaveMessages:
         assert result == (111, "bye")
 
     def test_set_enabled_without_channel_raises(self, cache):
-        import pytest
-
         with pytest.raises(ValueError, match="channel_id is required"):
             cache.set_leave_message_guild(GUILD_ID, True, channel_id=None)
 

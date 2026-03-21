@@ -171,8 +171,9 @@ class GuildConfigCache:
     def get_leave_config(self, guild_id: int, session_factory) -> tuple[int, str | None] | None:
         """Return (channel_id, message_text) for the guild's enabled leave message, or None.
 
-        Falls back to a direct DB read when the cache has not been warmed yet, matching
-        the lazy-load pattern used by ``get_guild_language`` and ``get_modrole``.
+        Falls back to a direct DB read when the cache has not been warmed yet and populates
+        the per-guild entry, matching the lazy-load pattern of ``get_guild_language`` and
+        ``get_modrole``.
         """
         if self._leave_warmed:
             return self._leave_configs.get(guild_id)
@@ -189,9 +190,13 @@ class GuildConfigCache:
                 )
                 .first()
             )
-            return (row.ChannelId, row.Message) if row is not None else None
+            config = (row.ChannelId, row.Message) if row is not None else None
         finally:
             session.close()
+
+        if config is not None:
+            self._leave_configs[guild_id] = config
+        return config
 
     def set_leave_message_guild(
         self,
