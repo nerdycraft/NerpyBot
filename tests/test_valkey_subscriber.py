@@ -476,3 +476,58 @@ class TestBotCommandHandler:
         mock_bot.guilds = []
         result = await handle_valkey_command(mock_bot, "list_guilds", {})
         assert result["guilds"] == []
+
+    # ── set_guild_language ──────────────────────────────────────────────────
+
+    async def test_set_guild_language_valid(self, mock_bot):
+        """Valid payload updates the cache and dispatches guild_language_changed."""
+        mock_bot.guild_cache = MagicMock()
+        mock_bot.dispatch = MagicMock()
+        result = await handle_valkey_command(mock_bot, "set_guild_language", {"guild_id": "42", "language": "de"})
+        assert result == {"ok": True}
+        mock_bot.guild_cache.set_guild_language.assert_called_once_with(42, "de")
+        mock_bot.dispatch.assert_called_once_with("guild_language_changed", 42, "de")
+
+    async def test_set_guild_language_missing_guild_id(self, mock_bot):
+        """Missing guild_id returns ok=False without touching the cache."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "set_guild_language", {"language": "fr"})
+        assert result["ok"] is False
+        mock_bot.guild_cache.set_guild_language.assert_not_called()
+
+    async def test_set_guild_language_empty_string(self, mock_bot):
+        """Empty language string returns ok=False without touching the cache."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "set_guild_language", {"guild_id": "42", "language": ""})
+        assert result["ok"] is False
+        mock_bot.guild_cache.set_guild_language.assert_not_called()
+
+    async def test_set_guild_language_non_string(self, mock_bot):
+        """Non-string language value returns ok=False without touching the cache."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "set_guild_language", {"guild_id": "42", "language": 99})
+        assert result["ok"] is False
+        mock_bot.guild_cache.set_guild_language.assert_not_called()
+
+    # ── invalidate_modrole ─────────────────────────────────────────────────
+
+    async def test_invalidate_modrole_valid(self, mock_bot):
+        """Valid guild_id evicts the modrole cache entry."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "invalidate_modrole", {"guild_id": "77"})
+        assert result == {"ok": True}
+        mock_bot.guild_cache.delete_modrole.assert_called_once_with(77)
+
+    async def test_invalidate_modrole_invalid_guild_id(self, mock_bot):
+        """Zero or non-numeric guild_id returns ok=False without touching the cache."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "invalidate_modrole", {"guild_id": "abc"})
+        assert result["ok"] is False
+        mock_bot.guild_cache.delete_modrole.assert_not_called()
+
+    async def test_invalidate_modrole_missing_guild_id(self, mock_bot):
+        """Missing guild_id returns ok=False without touching the cache."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "invalidate_modrole", {})
+        assert result["ok"] is False
+        mock_bot.guild_cache.delete_modrole.assert_not_called()

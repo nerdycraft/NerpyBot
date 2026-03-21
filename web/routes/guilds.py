@@ -6,7 +6,7 @@ import logging
 
 from cachetools import TTLCache
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from web.cache import ValkeyClient
@@ -67,11 +67,17 @@ _guild_lang_cache: TTLCache = TTLCache(maxsize=100, ttl=300)
 
 def _get_guild_language_cached(guild_id: int, session) -> str:
     """Return the guild's configured language, caching the result for 5 minutes."""
-    if guild_id in _guild_lang_cache:
+    try:
         return _guild_lang_cache[guild_id]
+    except KeyError:
+        pass
     from models.admin import GuildLanguageConfig
 
-    config = GuildLanguageConfig.get(guild_id, session)
+    try:
+        config = GuildLanguageConfig.get(guild_id, session)
+    except SQLAlchemyError:
+        _log.exception("_get_guild_language_cached: DB read failed for guild_id=%d", guild_id)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Service temporarily unavailable")
     lang = config.Language if config is not None else "en"
     _guild_lang_cache[guild_id] = lang
     return lang

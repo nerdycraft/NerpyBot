@@ -106,6 +106,66 @@ class TestOnMemberRemove:
         mock_channel.send.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_cold_cache_with_config_sends_message(self, cog, db_session):
+        """Cold cache (not warmed) falls back to DB; if config exists the message is sent."""
+        guild_id = 111000111
+        channel_id = 222000222
+
+        db_session.add(
+            LeaveMessage(
+                GuildId=guild_id,
+                ChannelId=channel_id,
+                Message="See you {member}!",
+                Enabled=True,
+            )
+        )
+        db_session.commit()
+        # Intentionally do NOT warm the cache — exercises the cold-miss DB path.
+
+        mock_channel = MagicMock(spec=TextChannel)
+        mock_channel.id = channel_id
+        mock_channel.send = AsyncMock()
+
+        mock_guild = MagicMock()
+        mock_guild.id = guild_id
+        mock_guild.name = "Cold Guild"
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        member = MagicMock()
+        member.bot = False
+        member.display_name = "Bob"
+        member.name = "bob456"
+        member.guild = mock_guild
+
+        await cog.on_member_remove(member)
+
+        mock_channel.send.assert_awaited_once()
+        assert "Bob" in mock_channel.send.call_args[0][0]
+
+    @pytest.mark.asyncio
+    async def test_cold_cache_without_config_does_not_send(self, cog, db_session):
+        """Cold cache (not warmed), no config in DB — no message sent, no exception."""
+        guild_id = 333000333
+
+        mock_channel = MagicMock(spec=TextChannel)
+        mock_channel.send = AsyncMock()
+
+        mock_guild = MagicMock()
+        mock_guild.id = guild_id
+        mock_guild.name = "Empty Guild"
+        mock_guild.get_channel = MagicMock(return_value=mock_channel)
+
+        member = MagicMock()
+        member.bot = False
+        member.display_name = "Carol"
+        member.name = "carol789"
+        member.guild = mock_guild
+
+        await cog.on_member_remove(member)
+
+        mock_channel.send.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_channel_not_found_does_not_crash(self, cog, db_session):
         """When the channel no longer exists, on_member_remove should not raise."""
         guild_id = 987654321

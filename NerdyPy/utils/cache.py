@@ -54,9 +54,9 @@ class GuildConfigCache:
     def _run_warm(session_factory, loader_fn, error_label: str):
         """Run a bulk DB load inside a session.
 
-        Logs and re-raises ``SQLAlchemyError`` so callers stay in degraded mode
-        with a clear error entry. Non-SQLAlchemy exceptions (e.g. programming
-        errors in ``loader_fn``) propagate uncaught so the real exception type
+        Re-raises ``SQLAlchemyError`` so callers stay in degraded mode. Logging
+        is left to the caller, which has richer context (cache name, strategy).
+        Non-SQLAlchemy exceptions propagate uncaught so the real exception type
         is visible.
 
         Args:
@@ -71,7 +71,6 @@ class GuildConfigCache:
             try:
                 return loader_fn(session)
             except SQLAlchemyError:
-                _log.exception("%s: failed to load from DB — staying in degraded mode", error_label)
                 raise
 
     # ── Language ──────────────────────────────────────────────────────────────
