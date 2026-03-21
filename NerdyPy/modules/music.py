@@ -184,12 +184,10 @@ class Music(NerpyBotCog, QueueMixin, Cog):
 
         def _fetch():
             with self.bot.session_scope() as session:
-                return Playlist.get_by_user(guild_id, user_id, session)
+                return [p.Name for p in Playlist.get_by_user(guild_id, user_id, session)]
 
-        playlists = cached_autocomplete(("playlists", guild_id, user_id), _fetch)
-        return [app_commands.Choice(name=p.Name, value=p.Name) for p in playlists if current.lower() in p.Name.lower()][
-            :25
-        ]
+        playlist_names = cached_autocomplete(("playlists", guild_id, user_id), _fetch)
+        return [app_commands.Choice(name=n, value=n) for n in playlist_names if current.lower() in n.lower()][:25]
 
     async def _ac_playlist_url(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         """Autocomplete for song URL within a named playlist (reads sibling `name` field)."""

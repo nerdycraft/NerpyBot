@@ -96,6 +96,7 @@ async def grant_premium(
             status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail="user_id must be a valid integer"
         )
     entry = PremiumUser.grant(target_user_id, int(user["sub"]), session)
+    session.commit()  # commit before cache eviction so refills see the new row
     invalidate_premium_cache()
     return _premium_to_schema(entry)
 
@@ -111,6 +112,7 @@ async def revoke_premium(
 
     if not PremiumUser.revoke(user_id, session):
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="User not found in premium list")
+    session.commit()  # commit before cache eviction so refills see the updated rows
     invalidate_premium_cache()
 
 

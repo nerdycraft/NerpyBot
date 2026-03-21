@@ -719,9 +719,10 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 raise NerpyValidationError(get_string(lang, "leavemsg.message.not_enabled"))
             leave_config.Message = message
             channel_id = leave_config.ChannelId  # read inside scope before session closes
+            enabled = leave_config.Enabled  # read inside scope before session closes
 
-        # Update cached message text unconditionally — channel_id sourced from DB
-        self.bot.guild_cache.set_leave_message_guild(interaction.guild.id, True, channel_id, message)
+        # Update cached message text — preserve actual Enabled state from DB
+        self.bot.guild_cache.set_leave_message_guild(interaction.guild.id, enabled, channel_id, message)
         await send_hidden_message(interaction, get_string(lang, "leavemsg.message.success", message=message))
 
     @leavemsg.command(name="message")

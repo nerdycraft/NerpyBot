@@ -43,16 +43,6 @@ def _localize_field(
     modal.add_item(discord.ui.Label(text=get_string(lang, f"{key_prefix}_label"), component=field))
 
 
-def _filter_choices(items, current: str) -> list[app_commands.Choice[str]]:
-    """Build autocomplete choices from items with a .Name attribute, filtering by current input."""
-    choices = []
-    for item in items:
-        if current and current.lower() not in item.Name.lower():
-            continue
-        choices.append(app_commands.Choice(name=item.Name[:100], value=item.Name))
-    return choices[:25]
-
-
 @app_commands.default_permissions(administrator=True)
 @app_commands.guild_only()
 class Application(NerpyBotCog, GroupCog, group_name="application"):
@@ -83,10 +73,14 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         def _fetch():
             with self.bot.session_scope() as session:
-                return ApplicationForm.get_all_by_guild(guild_id, session)
+                return [f.Name for f in ApplicationForm.get_all_by_guild(guild_id, session)]
 
-        forms = cached_autocomplete(("app_forms", guild_id), _fetch)
-        return _filter_choices(forms, current)
+        form_names = cached_autocomplete(("app_forms", guild_id), _fetch)
+        return [
+            app_commands.Choice(name=n[:100], value=n)
+            for n in form_names
+            if not current or current.lower() in n.lower()
+        ][:25]
 
     async def _template_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         lang = self._lang(interaction.guild_id)
@@ -94,28 +88,28 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         def _fetch():
             with self.bot.session_scope() as session:
-                return ApplicationTemplate.get_available(guild_id, session)
+                return [(tpl.Name, tpl.IsBuiltIn) for tpl in ApplicationTemplate.get_available(guild_id, session)]
 
         templates = cached_autocomplete(("app_templates", guild_id), _fetch)
         choices = []
-        for tpl in templates:
-            if tpl.IsBuiltIn:
-                yaml_key = TEMPLATE_KEY_MAP.get(tpl.Name)
+        for name, is_built_in in templates:
+            if is_built_in:
+                yaml_key = TEMPLATE_KEY_MAP.get(name)
                 if yaml_key:
                     try:
                         localized_name = get_raw(lang, f"application.builtin_templates.{yaml_key}.name")
                     except KeyError:
-                        localized_name = tpl.Name
+                        localized_name = name
                 else:
-                    localized_name = tpl.Name
+                    localized_name = name
                 prefix = get_string(lang, "application.template.list.prefix_builtin")
                 label = f"{prefix} {localized_name}"
             else:
-                localized_name = tpl.Name
-                label = tpl.Name
+                localized_name = name
+                label = name
             if current and current.lower() not in localized_name.lower():
                 continue
-            choices.append(app_commands.Choice(name=label[:100], value=tpl.Name))
+            choices.append(app_commands.Choice(name=label[:100], value=name))
         return choices[:25]
 
     async def _guild_template_autocomplete(
@@ -125,10 +119,14 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         def _fetch():
             with self.bot.session_scope() as session:
-                return ApplicationTemplate.get_guild_templates(guild_id, session)
+                return [t.Name for t in ApplicationTemplate.get_guild_templates(guild_id, session)]
 
-        templates = cached_autocomplete(("app_guild_templates", guild_id), _fetch)
-        return _filter_choices(templates, current)
+        template_names = cached_autocomplete(("app_guild_templates", guild_id), _fetch)
+        return [
+            app_commands.Choice(name=n[:100], value=n)
+            for n in template_names
+            if not current or current.lower() in n.lower()
+        ][:25]
 
     # -- Permission helper ---------------------------------------------------
 

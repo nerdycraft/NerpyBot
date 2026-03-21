@@ -83,6 +83,9 @@ class TestOnMemberRemove:
             )
         )
         db_session.commit()
+        # Warm the cache: Enabled=False configs are intentionally excluded, so the
+        # cache stays empty — on_member_remove correctly skips this guild.
+        cog.bot.guild_cache.warm_leave_messages(cog.bot.SESSION)
 
         mock_channel = MagicMock(spec=TextChannel)
         mock_channel.send = AsyncMock()
@@ -117,6 +120,9 @@ class TestOnMemberRemove:
             )
         )
         db_session.commit()
+        # Warm the cache so on_member_remove actually attempts the send and exercises
+        # the fetch_channel fallback path.
+        cog.bot.guild_cache.warm_leave_messages(cog.bot.SESSION)
 
         mock_guild = MagicMock()
         mock_guild.id = guild_id

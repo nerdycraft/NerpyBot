@@ -36,10 +36,10 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
 
         def _fetch():
             with self.bot.session_scope() as session:
-                return Tag.get_all_from_guild(guild_id, session)
+                return [t.Name for t in Tag.get_all_from_guild(guild_id, session)]
 
-        tags = cached_autocomplete(("tags", guild_id), _fetch)
-        return [app_commands.Choice(name=t.Name, value=t.Name) for t in tags if current.lower() in t.Name.lower()][:25]
+        tag_names = cached_autocomplete(("tags", guild_id), _fetch)
+        return [app_commands.Choice(name=n, value=n) for n in tag_names if current.lower() in n.lower()][:25]
 
     @app_commands.command(name="get")
     @app_commands.check(is_connected_to_voice)
