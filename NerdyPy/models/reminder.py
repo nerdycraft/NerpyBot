@@ -22,7 +22,7 @@ class ReminderMessage(db.BASE):
     Id = Column(Integer, primary_key=True)
     GuildId = Column(BigInteger)
     ChannelId = Column(BigInteger)
-    ChannelName = Column(String(30))
+    ChannelName = Column(String(100))
     CreateDate = Column(DateTime, nullable=False)
     Author = Column(Unicode(30))
     Message = Column(UnicodeText)
