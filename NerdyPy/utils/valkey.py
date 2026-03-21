@@ -114,8 +114,8 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                     return session.query(ReminderMessage).filter(ReminderMessage.Enabled == True).count()  # noqa: E712
 
             active_reminders = await to_thread(_count_reminders)
-        except Exception as e:
-            bot.log.warning("Failed to count active reminders for health response: %s", e)
+        except Exception:
+            bot.log.exception("Failed to count active reminders for health response")
         return {
             "guild_count": len(bot.guilds),
             "voice_connections": len(active_vcs),
@@ -267,7 +267,11 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         if not guild_id:
             bot.log.warning("invalidate_leave_config: received invalid guild_id=%r", payload.get("guild_id"))
             return {"ok": False, "error": "invalid guild_id"}
-        await to_thread(bot.guild_cache.reload_leave_config, guild_id, bot.SESSION)
+        try:
+            await to_thread(bot.guild_cache.reload_leave_config, guild_id, bot.SESSION)
+        except Exception:
+            bot.log.exception("invalidate_leave_config: reload failed for guild_id=%d", guild_id)
+            return {"ok": False, "error": "cache reload failed — see bot logs"}
         return {"ok": True}
     elif command == "invalidate_modrole":
         guild_id = int(payload.get("guild_id", 0))

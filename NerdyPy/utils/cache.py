@@ -290,7 +290,10 @@ class GuildConfigCache:
             with _open_session(session_factory) as session:
                 row = self._query_leave_row(guild_id, session)
         except SQLAlchemyError:
-            _log.exception("reload_leave_config: DB read failed for guild_id=%d — evicting instead", guild_id)
+            _log.exception(
+                "reload_leave_config: DB read failed for guild_id=%d — evicting so cold-miss retries on next member-remove",
+                guild_id,
+            )
             self.evict_leave_config(guild_id)
             return
 
