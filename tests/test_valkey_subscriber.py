@@ -531,3 +531,33 @@ class TestBotCommandHandler:
         result = await handle_valkey_command(mock_bot, "invalidate_modrole", {})
         assert result["ok"] is False
         mock_bot.guild_cache.delete_modrole.assert_not_called()
+
+    # ── invalidate_leave_config ─────────────────────────────────────────────
+
+    async def test_invalidate_leave_config_valid(self, mock_bot):
+        """Valid guild_id calls reload_leave_config on the guild cache."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "invalidate_leave_config", {"guild_id": "55"})
+        assert result == {"ok": True}
+        mock_bot.guild_cache.reload_leave_config.assert_called_once_with(55, mock_bot.SESSION)
+
+    async def test_invalidate_leave_config_missing_guild_id(self, mock_bot):
+        """Missing or non-numeric guild_id returns ok=False without calling reload."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "invalidate_leave_config", {})
+        assert result["ok"] is False
+        mock_bot.guild_cache.reload_leave_config.assert_not_called()
+
+    async def test_invalidate_leave_config_invalid_guild_id(self, mock_bot):
+        """Non-numeric guild_id returns ok=False without calling reload."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "invalidate_leave_config", {"guild_id": "bad"})
+        assert result["ok"] is False
+        mock_bot.guild_cache.reload_leave_config.assert_not_called()
+
+    async def test_invalidate_leave_config_reload_failure(self, mock_bot):
+        """reload_leave_config raising an exception returns ok=False with error message."""
+        mock_bot.guild_cache = MagicMock()
+        mock_bot.guild_cache.reload_leave_config.side_effect = RuntimeError("DB down")
+        result = await handle_valkey_command(mock_bot, "invalidate_leave_config", {"guild_id": "55"})
+        assert result == {"ok": False, "error": "cache reload failed — see bot logs"}

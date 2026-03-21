@@ -1293,10 +1293,7 @@ async def create_wow_news_config(
     if WowGuildNewsConfig.get_existing(guild_id, name_slug, body.wow_realm_slug, body.region, session):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already tracking this WoW guild")
 
-    from models.admin import GuildLanguageConfig
-
-    _lang_config = GuildLanguageConfig.get(guild_id, session)
-    lang = _lang_config.Language if _lang_config is not None else "en"
+    lang = _get_guild_language_cached(guild_id, session)
     cfg = WowGuildNewsConfig(
         GuildId=guild_id,
         ChannelId=int(body.channel_id),

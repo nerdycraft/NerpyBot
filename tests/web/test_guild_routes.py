@@ -43,6 +43,35 @@ class TestLanguageEndpoints:
         response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=auth_header)
         assert response.json()["language"] == "fr"
 
+    def test_put_language_write_through_and_notifies_bot(self, client, fake_valkey, auth_header):
+        """PUT language must populate _guild_lang_cache and publish set_guild_language to the bot."""
+        import json
+        from unittest.mock import patch
+        from web.routes.guilds import _guild_lang_cache
+
+        # Pre-populate cache with stale value to confirm write-through replaces it.
+        _guild_lang_cache[GUILD_ID] = "stale"
+
+        published = []
+
+        def capture(channel, message):
+            published.append((channel, message))
+
+        with patch.object(fake_valkey._client, "publish", side_effect=capture):
+            response = client.put(
+                f"/api/guilds/{GUILD_ID}/language",
+                json={"language": "de"},
+                headers=auth_header,
+            )
+
+        assert response.status_code == 200
+        assert _guild_lang_cache[GUILD_ID] == "de"
+        bot_cmds = [json.loads(msg) for ch, msg in published if ch == "nerpybot:cmd"]
+        lang_cmds = [c for c in bot_cmds if c.get("command") == "set_guild_language"]
+        assert len(lang_cmds) == 1
+        assert lang_cmds[0]["guild_id"] == str(GUILD_ID)
+        assert lang_cmds[0]["language"] == "de"
+
 
 class TestModeratorRoleEndpoints:
     def test_get_empty_roles(self, client, auth_header):

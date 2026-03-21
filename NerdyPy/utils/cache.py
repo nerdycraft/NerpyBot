@@ -51,7 +51,7 @@ class GuildConfigCache:
         self._leave_evicted: set[int] = set()  # guilds evicted after warm-up; need DB re-read on next access
 
     @staticmethod
-    def _run_warm(session_factory, loader_fn, error_label: str):
+    def _run_warm(session_factory, loader_fn):
         """Run a bulk DB load inside a session.
 
         Re-raises ``SQLAlchemyError`` so callers stay in degraded mode. Logging
@@ -62,7 +62,6 @@ class GuildConfigCache:
         Args:
             session_factory: Callable that returns a new SQLAlchemy session.
             loader_fn: ``(session) -> T`` — performs the query and returns data.
-            error_label: Prefix used in the error log message.
 
         Returns:
             Whatever ``loader_fn`` returns.
@@ -210,9 +209,7 @@ class GuildConfigCache:
                     mappings[msg_id][emoji] = role_id
             return by_guild, all_ids, mappings
 
-        self._rr_by_guild, self._rr_message_ids, self._rr_mappings = self._run_warm(
-            session_factory, _load, "warm_reaction_roles"
-        )
+        self._rr_by_guild, self._rr_message_ids, self._rr_mappings = self._run_warm(session_factory, _load)
         self._rr_warmed = True
 
     # ── Leave messages ────────────────────────────────────────────────────────
@@ -325,7 +322,7 @@ class GuildConfigCache:
             rows = session.execute(select(LeaveMessage).where(LeaveMessage.Enabled.is_(True))).scalars().all()
             return {row.GuildId: (row.ChannelId, row.Message) for row in rows}
 
-        self._leave_configs = self._run_warm(session_factory, _load, "warm_leave_messages")
+        self._leave_configs = self._run_warm(session_factory, _load)
         self._leave_warmed = True
         self._leave_evicted.clear()
 
