@@ -91,6 +91,7 @@ function onInputManual(e: Event) {
   query.value = val;
   if (items.value.length === 0) {
     emit("update:modelValue", val);
+    emit("update:modelName", "");
   } else {
     open.value = true;
   }

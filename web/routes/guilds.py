@@ -629,6 +629,7 @@ async def update_reminder(
         r.Enabled = body.enabled
     if body.channel_id is not None:
         r.ChannelId = int(body.channel_id)
+    if body.channel_name is not None:
         r.ChannelName = body.channel_name or None
 
     return _reminder_to_schema(r, user)

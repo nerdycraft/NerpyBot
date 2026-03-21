@@ -172,6 +172,7 @@ export interface ReminderUpdate {
   message?: string | null;
   enabled?: boolean | null;
   channel_id?: string | null;
+  channel_name?: string | null;
 }
 
 // ── Application Forms ──

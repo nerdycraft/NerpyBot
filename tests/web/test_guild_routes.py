@@ -267,6 +267,112 @@ class TestReminderEndpoints:
         assert data[0]["message"] == "Don't forget!"
         assert data[0]["schedule_type"] == "daily"
 
+    def test_post_stores_channel_name(self, client, auth_header):
+        """POST with channel_name stores it and returns it in the response."""
+        response = client.post(
+            f"/api/guilds/{GUILD_ID}/reminders",
+            json={
+                "channel_id": "111",
+                "channel_name": "general",
+                "message": "Test",
+                "schedule_type": "interval",
+                "interval_seconds": 3600,
+                "timezone": "UTC",
+            },
+            headers=auth_header,
+        )
+        assert response.status_code == 201
+        assert response.json()["channel_name"] == "general"
+
+    def test_post_without_channel_name_returns_null(self, client, auth_header):
+        """POST without channel_name stores NULL — dashboard falls back to channel_id display."""
+        response = client.post(
+            f"/api/guilds/{GUILD_ID}/reminders",
+            json={
+                "channel_id": "111",
+                "message": "Test",
+                "schedule_type": "interval",
+                "interval_seconds": 3600,
+                "timezone": "UTC",
+            },
+            headers=auth_header,
+        )
+        assert response.status_code == 201
+        assert response.json()["channel_name"] is None
+
+    def test_post_empty_string_channel_name_stored_as_null(self, client, auth_header):
+        """POST with channel_name='' is normalised to NULL."""
+        response = client.post(
+            f"/api/guilds/{GUILD_ID}/reminders",
+            json={
+                "channel_id": "111",
+                "channel_name": "",
+                "message": "Test",
+                "schedule_type": "interval",
+                "interval_seconds": 3600,
+                "timezone": "UTC",
+            },
+            headers=auth_header,
+        )
+        assert response.status_code == 201
+        assert response.json()["channel_name"] is None
+
+    def test_patch_channel_id_without_channel_name_preserves_existing_name(self, client, auth_header, web_db_session):
+        """PATCH with only channel_id must not wipe an existing ChannelName."""
+        from datetime import UTC, datetime
+
+        from models.reminder import ReminderMessage
+
+        reminder = ReminderMessage(
+            GuildId=GUILD_ID,
+            ChannelId=111,
+            ChannelName="general",
+            CreateDate=datetime.now(UTC),
+            Message="Test",
+            Enabled=True,
+            NextFire=datetime.now(UTC),
+            ScheduleType="interval",
+            IntervalSeconds=3600,
+        )
+        web_db_session.add(reminder)
+        web_db_session.commit()
+
+        response = client.patch(
+            f"/api/guilds/{GUILD_ID}/reminders/{reminder.Id}",
+            json={"channel_id": "222"},
+            headers=auth_header,
+        )
+        assert response.status_code == 200
+        assert response.json()["channel_name"] == "general"
+
+    def test_patch_enabled_does_not_wipe_channel_name(self, client, auth_header, web_db_session):
+        """PATCH with only enabled must not touch ChannelName."""
+        from datetime import UTC, datetime
+
+        from models.reminder import ReminderMessage
+
+        reminder = ReminderMessage(
+            GuildId=GUILD_ID,
+            ChannelId=111,
+            ChannelName="announcements",
+            CreateDate=datetime.now(UTC),
+            Message="Test",
+            Enabled=True,
+            NextFire=datetime.now(UTC),
+            ScheduleType="interval",
+            IntervalSeconds=3600,
+        )
+        web_db_session.add(reminder)
+        web_db_session.commit()
+
+        response = client.patch(
+            f"/api/guilds/{GUILD_ID}/reminders/{reminder.Id}",
+            json={"enabled": False},
+            headers=auth_header,
+        )
+        assert response.status_code == 200
+        assert response.json()["channel_name"] == "announcements"
+
 
 class TestApplicationFormEndpoints:
     def test_get_empty(self, client, auth_header):
