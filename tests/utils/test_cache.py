@@ -237,6 +237,21 @@ class TestLeaveMessages:
         result = cache.get_leave_config(GUILD_ID, session_factory)
         assert result is None
 
+    def test_get_leave_config_unwarmed_caches_none_result(self, cache, session_factory):
+        # First call hits DB (no row), stores None; second call must not hit DB again.
+        cache.get_leave_config(GUILD_ID, session_factory)
+
+        # Patch session_factory to detect a second DB call
+        db_called = []
+        original = session_factory
+
+        def spy_factory():
+            db_called.append(True)
+            return original()
+
+        cache.get_leave_config(GUILD_ID, spy_factory)
+        assert not db_called, "second call for same guild should not open a DB session"
+
     def test_get_leave_config_warmed_uses_cache(self, cache, session_factory, db_session):
         from models.leavemsg import LeaveMessage
 

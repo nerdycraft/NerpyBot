@@ -175,7 +175,7 @@ class GuildConfigCache:
         the per-guild entry, matching the lazy-load pattern of ``get_guild_language`` and
         ``get_modrole``.
         """
-        if self._leave_warmed:
+        if self._leave_warmed or guild_id in self._leave_configs:
             return self._leave_configs.get(guild_id)
 
         session = session_factory()
@@ -194,8 +194,7 @@ class GuildConfigCache:
         finally:
             session.close()
 
-        if config is not None:
-            self._leave_configs[guild_id] = config
+        self._leave_configs[guild_id] = config
         return config
 
     def set_leave_message_guild(
