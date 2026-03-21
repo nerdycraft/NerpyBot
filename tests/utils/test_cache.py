@@ -223,6 +223,36 @@ class TestLeaveMessages:
         assert cache.is_leave_message_guild(GUILD_ID_2) is False
         assert cache.is_leave_message_guild(GUILD_ID) is True
 
+    def test_get_leave_config_unwarmed_hits_db(self, cache, session_factory, db_session):
+        from models.leavemsg import LeaveMessage
+
+        db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye {member}", Enabled=True))
+        db_session.commit()
+
+        # cache is cold — should fall back to DB
+        result = cache.get_leave_config(GUILD_ID, session_factory)
+        assert result == (111, "bye {member}")
+
+    def test_get_leave_config_unwarmed_returns_none_when_absent(self, cache, session_factory):
+        result = cache.get_leave_config(GUILD_ID, session_factory)
+        assert result is None
+
+    def test_get_leave_config_warmed_uses_cache(self, cache, session_factory, db_session):
+        from models.leavemsg import LeaveMessage
+
+        db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye", Enabled=True))
+        db_session.commit()
+
+        cache.warm_leave_messages(session_factory)
+        result = cache.get_leave_config(GUILD_ID, session_factory)
+        assert result == (111, "bye")
+
+    def test_set_enabled_without_channel_raises(self, cache):
+        import pytest
+
+        with pytest.raises(ValueError, match="channel_id is required"):
+            cache.set_leave_message_guild(GUILD_ID, True, channel_id=None)
+
 
 # ── Eviction ──────────────────────────────────────────────────────────────────
 

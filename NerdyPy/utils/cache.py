@@ -168,9 +168,30 @@ class GuildConfigCache:
             return True
         return guild_id in self._leave_configs
 
-    def get_leave_config(self, guild_id: int) -> tuple[int, str | None] | None:
-        """Return (channel_id, message_text) for the guild's enabled leave message, or None."""
-        return self._leave_configs.get(guild_id)
+    def get_leave_config(self, guild_id: int, session_factory) -> tuple[int, str | None] | None:
+        """Return (channel_id, message_text) for the guild's enabled leave message, or None.
+
+        Falls back to a direct DB read when the cache has not been warmed yet, matching
+        the lazy-load pattern used by ``get_guild_language`` and ``get_modrole``.
+        """
+        if self._leave_warmed:
+            return self._leave_configs.get(guild_id)
+
+        session = session_factory()
+        try:
+            from models.leavemsg import LeaveMessage
+
+            row = (
+                session.query(LeaveMessage)
+                .filter(
+                    LeaveMessage.GuildId == guild_id,
+                    LeaveMessage.Enabled.is_(True),
+                )
+                .first()
+            )
+            return (row.ChannelId, row.Message) if row is not None else None
+        finally:
+            session.close()
 
     def set_leave_message_guild(
         self,
@@ -181,13 +202,16 @@ class GuildConfigCache:
     ) -> None:
         """Add or remove a guild from the leave-message config cache.
 
-        When ``enabled=True``, the guild is stored only if ``channel_id`` is not None;
-        passing ``enabled=True`` without a channel_id is a no-op.
+        When ``enabled=True``, ``channel_id`` must be provided; passing ``None`` raises
+        ``ValueError`` to surface caller bugs early.
         When ``enabled=False``, the guild is evicted regardless of channel_id.
         """
         if enabled:
-            if channel_id is not None:
-                self._leave_configs[guild_id] = (channel_id, message)
+            if channel_id is None:
+                raise ValueError(
+                    f"set_leave_message_guild: channel_id is required when enabled=True (guild_id={guild_id})"
+                )
+            self._leave_configs[guild_id] = (channel_id, message)
         else:
             self._leave_configs.pop(guild_id, None)
 

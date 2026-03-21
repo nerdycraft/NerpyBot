@@ -622,7 +622,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         if not self.bot.guild_cache.is_leave_message_guild(member.guild.id):
             return
 
-        leave_config = self.bot.guild_cache.get_leave_config(member.guild.id)
+        leave_config = self.bot.guild_cache.get_leave_config(member.guild.id, self.bot.SESSION)
         if leave_config is None:
             self.bot.log.debug(
                 "[%s (%d)]: on_member_remove: leave message guild set but config absent — cache not warmed?",
