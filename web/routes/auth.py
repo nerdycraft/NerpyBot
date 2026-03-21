@@ -9,6 +9,7 @@ import httpx
 from cachetools import TTLCache
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from models.admin import BotGuild
 from web.auth.jwt import create_access_token
@@ -27,6 +28,8 @@ from web.dependencies import (
 )
 from web.schemas import GuildSummary, UserInfo
 
+_log = logging.getLogger(__name__)
+
 # Cache for the set of bot guild IDs. TTL of 2 minutes; guild join/leave is rare.
 _bot_guild_ids_cache: TTLCache = TTLCache(maxsize=1, ttl=120)
 
@@ -35,8 +38,6 @@ def _get_bot_guild_ids(session) -> set[str]:
     """Return the cached set of bot guild ID strings, loading from DB on miss."""
     if "ids" in _bot_guild_ids_cache:
         return _bot_guild_ids_cache["ids"]
-    from sqlalchemy.exc import SQLAlchemyError
-
     try:
         ids = BotGuild.get_ids(session)
     except SQLAlchemyError:
@@ -45,8 +46,6 @@ def _get_bot_guild_ids(session) -> set[str]:
     _bot_guild_ids_cache["ids"] = ids
     return ids
 
-
-_log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 _TEST_GUILDS = [

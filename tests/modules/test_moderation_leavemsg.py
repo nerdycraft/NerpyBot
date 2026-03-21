@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from models.leavemsg import LeaveMessage
-from modules.moderation import Moderation
+from modules.moderation import DEFAULT_LEAVE_MESSAGE, Moderation
 from utils.errors import NerpyValidationError
 from utils.strings import load_strings
 
@@ -57,8 +57,6 @@ class TestLeavemsgEnable:
 
         # Cache must reflect the new config so on_member_remove can read it without a DB hit.
         # enable always initialises Message to DEFAULT_LEAVE_MESSAGE when no message exists.
-        from modules.moderation import DEFAULT_LEAVE_MESSAGE
-
         cached = cog.bot.guild_cache.get_leave_config(987654321, cog.bot.SESSION)
         assert cached == (111, DEFAULT_LEAVE_MESSAGE)
 
@@ -76,8 +74,6 @@ class TestLeavemsgEnable:
         config = db_session.query(LeaveMessage).filter_by(GuildId=987654321).first()
         assert config.ChannelId == 333
         assert config.Enabled is True
-
-        from modules.moderation import DEFAULT_LEAVE_MESSAGE
 
         cached = cog.bot.guild_cache.get_leave_config(987654321, cog.bot.SESSION)
         assert cached == (333, DEFAULT_LEAVE_MESSAGE)

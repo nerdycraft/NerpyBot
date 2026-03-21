@@ -10,6 +10,7 @@ from cachetools import TTLCache
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWTError as JWTError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 if TYPE_CHECKING:
@@ -28,8 +29,6 @@ def _get_premium_ids(session: Session) -> set[int]:
     """Return the cached set of premium user IDs, loading from DB on miss."""
     if "ids" in _premium_ids_cache:
         return _premium_ids_cache["ids"]
-    from sqlalchemy.exc import SQLAlchemyError
-
     from models.admin import PremiumUser
 
     try:
