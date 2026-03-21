@@ -406,10 +406,7 @@ def _resolve_subtype_label(subclasses: list[tuple[int, str, dict | None]], item_
 
 def _resolve_category_label(categories: list[tuple[str, dict | None]], category_name: str, lang: str) -> str:
     """Return the localized label for ``category_name`` from a ``(name, locales)`` category list."""
-    for name, locales in categories:
-        if name == category_name:
-            return _get_locale(locales, lang) or name
-    return category_name
+    return _find_localized_label([(n, n, loc) for n, loc in categories], category_name, lang) or category_name
 
 
 def _build_localized_options(
@@ -1577,6 +1574,9 @@ class ItemSelectView(ui.View):
         self._page_items = self._all_recipes[offset : offset + self._PAGE_SIZE]
         self._recipes_by_id = {str(r.RecipeId): r for r in self._page_items}
 
+        items = [(r.RecipeId, r.ItemName, r.ItemNameLocales) for r in self._page_items]
+        self._select_options = _build_localized_options(items, self.lang)
+
         self._build_items()
 
     def _build_items(self, include_choose: bool = False) -> None:
@@ -1585,11 +1585,9 @@ class ItemSelectView(ui.View):
         is_multipage = total_items > self._PAGE_SIZE
         action_row = 2 if is_multipage else 1
 
-        items = [(r.RecipeId, r.ItemName, r.ItemNameLocales) for r in self._page_items]
-        options = _build_localized_options(items, self.lang)
         select = ui.Select(
             placeholder=get_string(self.lang, "wow.craftingorder.item_select"),
-            options=options,
+            options=self._select_options,
             row=0,
         )
         select.callback = self._on_select
@@ -1679,33 +1677,24 @@ class ItemSelectView(ui.View):
         embed = self._make_embed(recipe)
         await interaction.response.edit_message(embed=embed, view=self, content=None)
 
-    async def _on_prev(self, interaction: Interaction):
+    async def _navigate_to_page(self, interaction: Interaction, page: int) -> None:
         view = ItemSelectView(
             self.bot,
             self._all_recipes,
             self.roles,
             self.guild_id,
             self.lang,
-            page=self._page - 1,
+            page=page,
             breadcrumbs=list(self._breadcrumbs),
             back_factory=self._back_factory,
         )
-        embed = view._make_embed()
-        await interaction.response.edit_message(embed=embed, view=view, content=None)
+        await interaction.response.edit_message(embed=view._make_embed(), view=view, content=None)
+
+    async def _on_prev(self, interaction: Interaction):
+        await self._navigate_to_page(interaction, self._page - 1)
 
     async def _on_next(self, interaction: Interaction):
-        view = ItemSelectView(
-            self.bot,
-            self._all_recipes,
-            self.roles,
-            self.guild_id,
-            self.lang,
-            page=self._page + 1,
-            breadcrumbs=list(self._breadcrumbs),
-            back_factory=self._back_factory,
-        )
-        embed = view._make_embed()
-        await interaction.response.edit_message(embed=embed, view=view, content=None)
+        await self._navigate_to_page(interaction, self._page + 1)
 
     async def _on_other(self, interaction: Interaction):
         with self.bot.session_scope() as session:
@@ -1814,14 +1803,13 @@ class HousingProfessionSelectView(ui.View):
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this HousingProfessionSelectView."""
-        crumbs = list(self._breadcrumbs)
         return _nav_back(
             lambda: HousingProfessionSelectView(
                 self.bot,
                 self.guild_id,
                 self.lang,
                 list(self._housing_professions),
-                breadcrumbs=crumbs,
+                breadcrumbs=list(self._breadcrumbs),
             )
         )
 
