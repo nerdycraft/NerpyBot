@@ -142,7 +142,7 @@ async function createReminder() {
   try {
     const payload: ReminderCreate = {
       channel_id: draft.value.channel_id,
-      channel_name: draft.value.channel_name || undefined,
+      channel_name: draft.value.channel_name || null,
       message: draft.value.message,
       schedule_type: draft.value.schedule_type,
       timezone: tzQuery.value || "UTC",

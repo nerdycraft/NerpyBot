@@ -235,6 +235,29 @@ class TestRoleMappingEndpoints:
         assert response.status_code == 404
 
 
+def _make_reminder(session, **overrides):
+    from datetime import UTC, datetime
+
+    from models.reminder import ReminderMessage
+
+    defaults = dict(
+        GuildId=GUILD_ID,
+        ChannelId=111,
+        ChannelName=None,
+        CreateDate=datetime.now(UTC),
+        Message="Test",
+        Enabled=True,
+        NextFire=datetime.now(UTC),
+        ScheduleType="interval",
+        IntervalSeconds=3600,
+    )
+    defaults.update(overrides)
+    r = ReminderMessage(**defaults)
+    session.add(r)
+    session.commit()
+    return r
+
+
 class TestReminderEndpoints:
     def test_get_empty(self, client, auth_header):
         response = client.get(f"/api/guilds/{GUILD_ID}/reminders", headers=auth_header)
@@ -319,23 +342,7 @@ class TestReminderEndpoints:
 
     def test_patch_channel_id_without_channel_name_preserves_existing_name(self, client, auth_header, web_db_session):
         """PATCH with only channel_id must not wipe an existing ChannelName."""
-        from datetime import UTC, datetime
-
-        from models.reminder import ReminderMessage
-
-        reminder = ReminderMessage(
-            GuildId=GUILD_ID,
-            ChannelId=111,
-            ChannelName="general",
-            CreateDate=datetime.now(UTC),
-            Message="Test",
-            Enabled=True,
-            NextFire=datetime.now(UTC),
-            ScheduleType="interval",
-            IntervalSeconds=3600,
-        )
-        web_db_session.add(reminder)
-        web_db_session.commit()
+        reminder = _make_reminder(web_db_session, ChannelName="general")
 
         response = client.patch(
             f"/api/guilds/{GUILD_ID}/reminders/{reminder.Id}",
@@ -347,23 +354,7 @@ class TestReminderEndpoints:
 
     def test_patch_enabled_does_not_wipe_channel_name(self, client, auth_header, web_db_session):
         """PATCH with only enabled must not touch ChannelName."""
-        from datetime import UTC, datetime
-
-        from models.reminder import ReminderMessage
-
-        reminder = ReminderMessage(
-            GuildId=GUILD_ID,
-            ChannelId=111,
-            ChannelName="announcements",
-            CreateDate=datetime.now(UTC),
-            Message="Test",
-            Enabled=True,
-            NextFire=datetime.now(UTC),
-            ScheduleType="interval",
-            IntervalSeconds=3600,
-        )
-        web_db_session.add(reminder)
-        web_db_session.commit()
+        reminder = _make_reminder(web_db_session, ChannelName="announcements")
 
         response = client.patch(
             f"/api/guilds/{GUILD_ID}/reminders/{reminder.Id}",
