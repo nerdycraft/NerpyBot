@@ -38,7 +38,12 @@ def _discover_available_modules(loaded_names: set[str]) -> list[str]:
 
 
 def _parse_guild_id(payload: dict) -> int:
-    """Safely extract guild_id from a payload dict. Returns 0 on missing or non-numeric input."""
+    """Safely extract guild_id from a payload dict.
+
+    Returns 0 on missing, explicit ``None``, or non-numeric input.
+    The ``or 0`` handles the case where the key is present but set to ``None``
+    (``payload.get("guild_id", 0)`` returns ``None`` in that case, not the default).
+    """
     try:
         return int(payload.get("guild_id", 0) or 0)
     except (TypeError, ValueError):
@@ -46,8 +51,18 @@ def _parse_guild_id(payload: dict) -> int:
 
 
 def _get_guild(bot, payload: dict):
-    """Extract guild_id from payload and return the Guild, or None if not found."""
-    return bot.get_guild(_parse_guild_id(payload))
+    """Extract guild_id from payload and return the Guild, or None if not found.
+
+    Returns None both when the guild is not in the bot's cache and when the payload
+    carries an invalid guild_id. Callers are responsible for handling the None case;
+    this function emits a debug log when guild_id parses to 0 so malformed payloads
+    leave a trace.
+    """
+    guild_id = _parse_guild_id(payload)
+    if not guild_id:
+        bot.log.debug("_get_guild: payload missing or invalid guild_id=%r", payload.get("guild_id"))
+        return None
+    return bot.get_guild(guild_id)
 
 
 def _build_voice_details(bot) -> tuple[list, list]:
