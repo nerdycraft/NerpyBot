@@ -54,8 +54,7 @@ def _cache_recipe_query(method):
             key_parts.append(val)
         key = tuple(key_parts)
         if key in _recipe_cache:
-            cached = _recipe_cache[key]
-            return list(cached) if isinstance(cached, list) else cached
+            return _recipe_cache[key]
         result = method(*args, **kwargs)
         _recipe_cache[key] = result
         return result

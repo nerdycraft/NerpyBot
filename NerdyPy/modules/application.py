@@ -104,7 +104,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 label = name
             if current and current.lower() not in localized_name.lower():
                 continue
-            choices.append(app_commands.Choice(name=label[:100], value=name))
+            choices.append(app_commands.Choice(name=label[:100], value=name[:100]))
         return choices[:25]
 
     async def _guild_template_autocomplete(

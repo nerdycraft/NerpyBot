@@ -9,7 +9,7 @@ from discord.ext.commands import Cog
 
 from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 from models.rolemanage import RoleMapping
-from utils.cache import cached_autocomplete
+from utils.cache import REACTION_ROLE_CACHE_MISS, cached_autocomplete
 from utils.checks import is_role_assignable, is_role_below_bot
 from utils.cog import NerpyBotCog
 from utils.helpers import error_context, notify_error, send_paginated
@@ -48,18 +48,34 @@ class Roles(NerpyBotCog, Cog):
 
         def _fetch():
             with self.bot.session_scope() as session:
-                return ReactionRoleMessage.get_by_guild(guild_id, session)
+                return [
+                    {"channel_id": msg.ChannelId, "message_id": msg.MessageId, "entry_count": len(msg.entries)}
+                    for msg in ReactionRoleMessage.get_by_guild(guild_id, session)
+                ]
 
         messages = await cached_autocomplete(("rr_msgs", guild_id), _fetch)
         if not messages:
             return []
+
+        # Fetch all channels not in the Discord cache in parallel to stay within the 3s autocomplete timeout.
+        missing_ids = {m["channel_id"] for m in messages if guild.get_channel(m["channel_id"]) is None}
+
+        async def _fetch_channel(cid):
+            try:
+                return await guild.fetch_channel(cid)
+            except (discord.NotFound, discord.Forbidden):
+                return None
+
+        fetched = await asyncio.gather(*(_fetch_channel(cid) for cid in missing_ids))
+        channel_lookup = dict(zip(missing_ids, fetched))
+
         choices = []
         for rr_msg in messages:
-            channel = guild.get_channel(rr_msg.ChannelId)
+            channel = guild.get_channel(rr_msg["channel_id"]) or channel_lookup.get(rr_msg["channel_id"])
             channel_name = f"#{channel.name}" if channel else "Unknown"
-            entry_count = len(rr_msg.entries) if rr_msg.entries else 0
-            label = f"{channel_name} \u00b7 {rr_msg.MessageId} ({entry_count} mappings)"
-            msg_id_str = str(rr_msg.MessageId)
+            entry_count = rr_msg["entry_count"]
+            label = f"{channel_name} \u00b7 {rr_msg['message_id']} ({entry_count} mappings)"
+            msg_id_str = str(rr_msg["message_id"])
             if current and current not in msg_id_str and current.lower() not in channel_name.lower():
                 continue
             choices.append(app_commands.Choice(name=label[:100], value=msg_id_str))
@@ -73,8 +89,8 @@ class Roles(NerpyBotCog, Cog):
         emoji_str = str(payload.emoji)
         role_id = self.bot.guild_cache.get_reaction_role(payload.message_id, emoji_str)
 
-        if role_id is None:
-            # Cache not yet warmed or entry genuinely absent — fall back to DB
+        if role_id is REACTION_ROLE_CACHE_MISS:
+            # Cache not yet warmed — fall back to DB and backfill
             with self.bot.session_scope() as session:
                 rr_msg = ReactionRoleMessage.get_by_message(payload.message_id, session)
                 if rr_msg is None:
@@ -83,8 +99,9 @@ class Roles(NerpyBotCog, Cog):
                 if entry is None:
                     return None
                 role_id = entry.RoleId
-            # Backfill so subsequent reactions for this emoji don't re-hit the DB
             self.bot.guild_cache.add_reaction_role_entry(payload.message_id, emoji_str, role_id)
+        elif role_id is None:
+            return None
 
         guild = self.bot.get_guild(payload.guild_id)
         if guild is None:
