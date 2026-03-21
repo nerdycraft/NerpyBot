@@ -197,6 +197,12 @@ Copy `NerdyPy/config.yaml.template` to `NerdyPy/config.yaml` and fill in:
 - Database connection settings
 - API keys for external services (Riot, Blizzard, YouTube, etc.)
 
+## Code Review Workflow
+
+- **Always surface noticed issues** — when implementing or fixing anything, if something else is spotted that could need fixing, rewriting, or improvement (even if out of scope), report it at the end of the response. One line per item is enough. Never silently drop a finding.
+- **User decides what gets fixed** — don't silently skip issues; present them and let the user make the call.
+- **On feature branches, lean towards fixing** — the code hasn't been merged yet and the cost of change is lowest now. Only skip if the refactor is disproportionately large relative to the benefit.
+
 ## Code Style
 
 - **Line length**: 120 characters
