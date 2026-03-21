@@ -179,7 +179,12 @@ class GuildConfigCache:
         channel_id: int | None = None,
         message: str | None = None,
     ) -> None:
-        """Add or remove a guild from the leave-message config cache."""
+        """Add or remove a guild from the leave-message config cache.
+
+        When ``enabled=True``, the guild is stored only if ``channel_id`` is not None;
+        passing ``enabled=True`` without a channel_id is a no-op.
+        When ``enabled=False``, the guild is evicted regardless of channel_id.
+        """
         if enabled:
             if channel_id is not None:
                 self._leave_configs[guild_id] = (channel_id, message)
