@@ -189,6 +189,11 @@ class TestReactionRoles:
         cache.warm_reaction_roles(session_factory)
         assert cache._rr_warmed is True
 
+    def test_add_reaction_role_entry_before_warm_is_noop(self, cache):
+        # Before warm-up, add_reaction_role_entry must not raise and must not populate mappings.
+        cache.add_reaction_role_entry(42, "👍", 777)
+        assert 42 not in cache._rr_mappings
+
 
 # ── Leave messages ────────────────────────────────────────────────────────────
 
@@ -347,6 +352,129 @@ class TestEviction:
         lang = cache.get_guild_language(GUILD_ID_2, session_factory)
         assert lang == "fr"
         session_factory.assert_not_called()
+
+
+# ── build_name_choices ────────────────────────────────────────────────────────
+
+
+# ── get_reaction_role ─────────────────────────────────────────────────────────
+
+
+class TestGetReactionRole:
+    def test_returns_cache_miss_before_warm(self, cache):
+        from utils.cache import REACTION_ROLE_CACHE_MISS
+
+        assert cache.get_reaction_role(99, "👍") is REACTION_ROLE_CACHE_MISS
+
+    def test_returns_role_id_after_warm(self, cache, session_factory, db_session):
+        from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
+        from utils.cache import REACTION_ROLE_CACHE_MISS
+
+        msg = ReactionRoleMessage(GuildId=GUILD_ID, ChannelId=111, MessageId=42)
+        db_session.add(msg)
+        db_session.flush()
+        db_session.add(ReactionRoleEntry(ReactionRoleMessageId=msg.Id, Emoji="👍", RoleId=777))
+        db_session.commit()
+
+        cache.warm_reaction_roles(session_factory)
+
+        result = cache.get_reaction_role(42, "👍")
+        assert result is not REACTION_ROLE_CACHE_MISS
+        assert result == 777
+
+    def test_returns_none_for_unknown_emoji_after_warm(self, cache, session_factory, db_session):
+        from models.reactionrole import ReactionRoleMessage
+        from utils.cache import REACTION_ROLE_CACHE_MISS
+
+        db_session.add(ReactionRoleMessage(GuildId=GUILD_ID, ChannelId=111, MessageId=42))
+        db_session.commit()
+
+        cache.warm_reaction_roles(session_factory)
+
+        result = cache.get_reaction_role(42, "🔥")
+        assert result is not REACTION_ROLE_CACHE_MISS
+        assert result is None
+
+
+# ── cached_autocomplete ────────────────────────────────────────────────────────
+
+
+class TestCachedAutocomplete:
+    @pytest.fixture(autouse=True)
+    def _clear_cache(self):
+        from utils.cache import _autocomplete_cache
+
+        _autocomplete_cache.clear()
+        yield
+        _autocomplete_cache.clear()
+
+    @pytest.mark.asyncio
+    async def test_hit_returns_cached_result(self):
+        from utils.cache import cached_autocomplete
+
+        calls = []
+
+        def fetcher():
+            calls.append(1)
+            return ["a", "b"]
+
+        r1 = await cached_autocomplete(("test", 1), fetcher)
+        r2 = await cached_autocomplete(("test", 1), fetcher)
+
+        assert r1 == ["a", "b"]
+        assert r2 == ["a", "b"]
+        assert len(calls) == 1  # fetcher called only once
+
+    @pytest.mark.asyncio
+    async def test_different_keys_produce_separate_entries(self):
+        from utils.cache import cached_autocomplete
+
+        r1 = await cached_autocomplete(("test", 1), lambda: ["x"])
+        r2 = await cached_autocomplete(("test", 2), lambda: ["y"])
+
+        assert r1 == ["x"]
+        assert r2 == ["y"]
+
+    @pytest.mark.asyncio
+    async def test_fetcher_error_returns_empty_list(self):
+        from utils.cache import cached_autocomplete
+
+        def bad_fetcher():
+            raise RuntimeError("DB down")
+
+        result = await cached_autocomplete(("test", 99), bad_fetcher)
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_fetcher_error_does_not_cache(self):
+        from utils.cache import cached_autocomplete
+
+        calls = []
+
+        def flaky_fetcher():
+            calls.append(1)
+            if len(calls) == 1:
+                raise RuntimeError("first call fails")
+            return ["ok"]
+
+        await cached_autocomplete(("test", 42), flaky_fetcher)  # miss + error
+        result = await cached_autocomplete(("test", 42), flaky_fetcher)  # should retry
+
+        assert result == ["ok"]
+        assert len(calls) == 2
+
+    def test_invalidate_evicts_key(self):
+        from utils.cache import _autocomplete_cache, invalidate_autocomplete
+
+        _autocomplete_cache[("test", 5)] = ["cached"]
+        invalidate_autocomplete(("test", 5))
+
+        assert ("test", 5) not in _autocomplete_cache
+
+    def test_invalidate_nonexistent_is_safe(self):
+        from utils.cache import invalidate_autocomplete
+
+        invalidate_autocomplete(("test", 999))  # must not raise
 
 
 # ── build_name_choices ────────────────────────────────────────────────────────

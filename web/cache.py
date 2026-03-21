@@ -128,6 +128,19 @@ class ValkeyClient:
             _log.warning("Unexpected error waiting for bot command reply: %s", exc)
         return None
 
+    def notify_bot(self, command: str, payload: dict) -> None:
+        """Publish a fire-and-forget command to the bot (no reply expected).
+
+        Failures are logged as warnings — callers must not rely on delivery.
+        """
+        import json
+
+        message = json.dumps({"command": command, **payload})
+        try:
+            self._client.publish(self._key("cmd"), message)
+        except Exception as exc:
+            _log.warning("notify_bot: failed to publish %r: %s", command, exc)
+
     def push_reply(self, request_id: str, data: dict) -> None:
         """Push a reply to a waiting command (used by bot side)."""
         key = self._key("reply", request_id)

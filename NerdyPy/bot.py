@@ -361,7 +361,7 @@ class NerpyBot(Bot):
             try:
                 warm(self.SESSION)
             except Exception as e:
-                self.log.warning(f"Failed to warm {cache_name} cache: {e}", exc_info=True)
+                self.log.error(f"Failed to warm {cache_name} cache: {e}", exc_info=True)
         self.log.debug("Guild config cache warm-up finished.")
 
         required = required_permissions_for(self.modules)

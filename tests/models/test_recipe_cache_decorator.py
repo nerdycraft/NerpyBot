@@ -59,3 +59,29 @@ class TestCacheRecipeQueryDecorator:
         r2 = CraftingRecipeCache.get_by_profession(164, RECIPE_TYPE_CRAFTED, db_session)
         assert len(r2) == 2
         assert r1 is not r2
+
+    def test_set_args_are_coerced_to_frozenset_for_cache_key(self, db_session):
+        db_session.add(_recipe(RecipeId=1, ProfessionId=164))
+        db_session.add(_recipe(RecipeId=2, ProfessionId=333))
+        db_session.commit()
+
+        # Passing same profession IDs as a set vs frozenset should produce the same cache entry.
+        from models.wow import RECIPE_TYPE_CRAFTED, CraftingRecipeCache, invalidate_recipe_cache
+
+        invalidate_recipe_cache()
+        r1 = CraftingRecipeCache.get_by_type_and_subclass(RECIPE_TYPE_CRAFTED, 4, 4, db_session, profession_ids={164})
+        r2 = CraftingRecipeCache.get_by_type_and_subclass(RECIPE_TYPE_CRAFTED, 4, 4, db_session, profession_ids={164})
+        assert r1 is r2
+
+    def test_cached_results_are_session_detached(self, db_session):
+        from sqlalchemy import inspect as sa_inspect
+
+        db_session.add(_recipe(RecipeId=1, ProfessionId=164))
+        db_session.commit()
+
+        results = CraftingRecipeCache.get_by_profession(164, RECIPE_TYPE_CRAFTED, db_session)
+        assert len(results) == 1
+
+        # Object must be detached (not bound to the session).
+        state = sa_inspect(results[0])
+        assert state.detached

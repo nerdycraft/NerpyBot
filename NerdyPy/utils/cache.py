@@ -34,7 +34,6 @@ class GuildConfigCache:
     - Bot moderator role: lazy (DB on miss), invalidated by ``modrole_changed`` event
     - Reaction role message IDs: bulk-loaded on startup, updated on add/remove
     - Reaction role mappings: bulk-loaded on startup, updated on add/remove entry
-    - Leave message guild IDs: bulk-loaded on startup, updated on enable/disable
     - Leave message configs: bulk-loaded on startup, updated on enable/disable/edit
     """
 
@@ -152,7 +151,10 @@ class GuildConfigCache:
         self._rr_mappings.setdefault(message_id, {})[emoji] = role_id
 
     def remove_reaction_role_entry(self, message_id: int, emoji: str) -> None:
-        """Remove a single emoji-to-role mapping from a tracked message."""
+        """Remove a single emoji-to-role mapping from a tracked message.
+
+        No-op before warm-up — pre-warm the cache has no mappings to remove.
+        """
         if message_id in self._rr_mappings:
             self._rr_mappings[message_id].pop(emoji, None)
 
@@ -209,26 +211,31 @@ class GuildConfigCache:
         return guild_id in self._leave_configs
 
     def get_leave_config(self, guild_id: int, session_factory) -> tuple[int, str | None] | None:
-        """Return (channel_id, message_text) for the guild's enabled leave message, or None.
+        """Return ``(channel_id, message_text)`` for the guild's enabled leave message.
 
+        Returns ``None`` when the guild has no enabled leave message.
         Falls back to a direct DB read when the cache has not been warmed yet and populates
         the per-guild entry so subsequent calls are served from memory.
         """
         if self._leave_warmed or guild_id in self._leave_configs:
             return self._leave_configs.get(guild_id)
 
-        with _open_session(session_factory) as session:
-            from models.leavemsg import LeaveMessage
+        try:
+            with _open_session(session_factory) as session:
+                from models.leavemsg import LeaveMessage
 
-            row = (
-                session.query(LeaveMessage)
-                .filter(
-                    LeaveMessage.GuildId == guild_id,
-                    LeaveMessage.Enabled.is_(True),
+                row = (
+                    session.query(LeaveMessage)
+                    .filter(
+                        LeaveMessage.GuildId == guild_id,
+                        LeaveMessage.Enabled.is_(True),
+                    )
+                    .first()
                 )
-                .first()
-            )
-            config = (row.ChannelId, row.Message) if row is not None else None
+                config = (row.ChannelId, row.Message) if row is not None else None
+        except Exception:
+            _log.exception("get_leave_config: DB read failed for guild_id=%d — returning None", guild_id)
+            return None
 
         self._leave_configs[guild_id] = config
         return config
@@ -256,7 +263,7 @@ class GuildConfigCache:
             self._leave_configs.pop(guild_id, None)
 
     def warm_leave_messages(self, session_factory) -> None:
-        """Bulk-load all guild IDs with enabled leave messages from the database.
+        """Bulk-load full leave message configs (channel_id, message) for all enabled guilds.
 
         Idempotent — safe to call again on reconnect.
         """
@@ -306,7 +313,11 @@ async def cached_autocomplete(key: tuple, fetcher):
     # No lock: two concurrent keystrokes for the same key can both miss and fire parallel DB
     # fetches. Both write the same result, so this is benign — Discord's 3s autocomplete
     # window makes true simultaneity rare, and the TTL window suppresses all subsequent hits.
-    result = await asyncio.to_thread(fetcher)
+    try:
+        result = await asyncio.to_thread(fetcher)
+    except Exception:
+        _log.exception("cached_autocomplete: fetcher for key %r raised an error", key)
+        return []
     _autocomplete_cache[key] = result
     return result
 

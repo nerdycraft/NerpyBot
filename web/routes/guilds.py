@@ -59,6 +59,9 @@ _log = logging.getLogger(__name__)
 
 # Cache for per-guild language lookups (web-side only; bot side uses GuildConfigCache).
 # TTL of 5 minutes; guild language changes rarely.
+# Cross-process note: this cache is NOT shared with the bot process. If the bot updates
+# the language via /language set, the web process will serve stale data for up to 5 minutes.
+# This is acceptable — language is low-frequency and the TTL is short.
 _guild_lang_cache: TTLCache = TTLCache(maxsize=100, ttl=300)
 
 
@@ -221,6 +224,7 @@ async def set_leave_message(
     body: LeaveMessageUpdate,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    vk: ValkeyClient = Depends(get_valkey),
 ):
     """Create or update the leave message configuration for a guild."""
     _deny_support_write(user)
@@ -241,6 +245,7 @@ async def set_leave_message(
         cfg.Message = body.message
     if body.enabled is not None:
         cfg.Enabled = body.enabled
+    vk.notify_bot("invalidate_leave_config", {"guild_id": str(guild_id)})
     return LeaveMessageConfig(
         guild_id=str(guild_id),
         channel_id=str(cfg.ChannelId) if cfg.ChannelId else None,

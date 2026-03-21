@@ -262,6 +262,10 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         except Exception as e:
             bot.log.warning("validate_wow_guild failed: %s", e)
             return {"valid": False, "display_name": None, "error": str(e)}
+    elif command == "invalidate_leave_config":
+        guild_id = int(payload.get("guild_id", 0))
+        bot.guild_cache._leave_configs.pop(guild_id, None)
+        return {"ok": True}
     elif command == "list_guilds":
         return {
             "guilds": [

@@ -39,9 +39,10 @@ def _cache_recipe_query(method):
     Builds a key from the method name + all arguments except ``cls`` and ``session``.
     ``set`` arguments are converted to ``frozenset`` for hashability.
 
-    Warning: cached results are session-detached ORM instances. Callers must not
-    access lazy-loaded relationships on returned objects — only eagerly-loaded columns
-    are safe. Accessing a lazy attribute raises ``DetachedInstanceError``.
+    Warning: methods that return ``list[CraftingRecipeCache]`` yield session-detached
+    ORM instances. Callers must not access lazy-loaded relationships on those objects —
+    only eagerly-loaded columns are safe. Methods returning scalars or plain tuples are
+    unaffected.
     """
     sig = inspect.signature(method)
 
@@ -59,7 +60,21 @@ def _cache_recipe_query(method):
         key = tuple(key_parts)
         if key in _recipe_cache:
             return _recipe_cache[key]
-        result = method(*args, **kwargs)
+        try:
+            result = method(*args, **kwargs)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception("_cache_recipe_query: %s raised an error", method.__name__)
+            raise
+        # Detach ORM instances from the session so they remain accessible after the
+        # session closes. Only column-level data is safe; lazy relationships raise
+        # DetachedInstanceError if accessed after expunge.
+        session = bound.arguments.get("session")
+        if session is not None and isinstance(result, list):
+            for item in result:
+                if isinstance(item, db.BASE):
+                    session.expunge(item)
         _recipe_cache[key] = result
         return result
 
