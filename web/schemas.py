@@ -150,7 +150,7 @@ def _normalise_channel_name(v: object) -> object:
     return v
 
 
-_ChannelName = Annotated[Annotated[str, Field(max_length=100)] | None, BeforeValidator(_normalise_channel_name)]
+ChannelName = Annotated[Annotated[str, Field(max_length=100)] | None, BeforeValidator(_normalise_channel_name)]
 
 
 class ReminderSchema(BaseModel):
@@ -175,7 +175,7 @@ ReminderScheduleType = Literal["interval", "daily", "weekly", "monthly"]
 
 class ReminderCreate(BaseModel):
     channel_id: str
-    channel_name: _ChannelName = None
+    channel_name: ChannelName = None
     message: str
     schedule_type: ReminderScheduleType
     interval_seconds: Annotated[int, Field(ge=60)] | None = None
@@ -189,7 +189,7 @@ class ReminderUpdate(BaseModel):
     message: str | None = None
     enabled: bool | None = None
     channel_id: str | None = None
-    channel_name: _ChannelName = None
+    channel_name: ChannelName = None
 
 
 # ── Application Forms ──

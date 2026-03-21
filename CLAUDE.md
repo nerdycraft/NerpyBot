@@ -188,7 +188,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **`GET /api/branding` is intentionally unauthenticated** — Any endpoint that provides pre-login UI data (bot name, description) must not have a JWT dependency. Users hit this endpoint before they have a token.
 - **Pinia one-shot load dedup: reset `_loadPromise = null` in outer `.catch()`** — If the reset is inside the async IIFE's `catch`, a concurrent caller can bypass the guard mid-flight. Attach `.catch(() => { _loadPromise = null; })` to the IIFE result before returning, so the guard stays valid for the full request lifetime.
 - **`model_fields_set` for nullable PATCH fields with normalizing validators** — if a `BeforeValidator` converts `""` → `None`, then `if body.field is not None` cannot distinguish "field omitted" from "field explicitly cleared". Use `if "field_name" in body.model_fields_set` to check whether the client sent the field at all, then assign `body.field` (already normalized) directly.
-- **Scoping `max_length` to `str` in `Annotated[str | None, ...]`** — `Annotated[str | None, Field(max_length=100)]` raises `TypeError` when the value is `None` because Pydantic applies the constraint to the whole union. Use `Annotated[Annotated[str, Field(max_length=100)] | None, BeforeValidator(...)]` to scope the length constraint to the `str` branch only.
+- **Scoping `max_length` to `str` in `Annotated[str | None, ...]`** — The flat form `Annotated[str | None, Field(max_length=100)]` works in Pydantic v2, but the nested form `Annotated[Annotated[str, Field(max_length=100)] | None, BeforeValidator(...)]` makes the str-only scoping visually explicit — prefer it for clarity when using `BeforeValidator` on the same field.
 
 ## Configuration
 

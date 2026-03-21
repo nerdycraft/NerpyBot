@@ -291,6 +291,12 @@ class TestReminderEndpoints:
         assert data[0]["schedule_type"] == "daily"
         assert data[0]["channel_name"] == "general"
 
+    def test_get_null_channel_name_returned_as_null(self, client, auth_header, web_db_session):
+        """GET serialises NULL ChannelName as null, not '' or a missing key."""
+        _make_reminder(web_db_session)
+        response = client.get(f"/api/guilds/{GUILD_ID}/reminders", headers=auth_header)
+        assert response.json()[0]["channel_name"] is None
+
     def test_post_stores_channel_name(self, client, auth_header):
         """POST with channel_name stores it and returns it in the response."""
         response = client.post(
@@ -324,13 +330,13 @@ class TestReminderEndpoints:
         assert response.status_code == 201
         assert response.json()["channel_name"] is None
 
-    def test_post_empty_string_channel_name_stored_as_null(self, client, auth_header):
-        """POST with channel_name='' is normalised to NULL."""
+    @pytest.mark.parametrize("channel_name", ["", "   "])
+    def test_post_empty_like_channel_name_stored_as_null(self, client, auth_header, channel_name):
         response = client.post(
             f"/api/guilds/{GUILD_ID}/reminders",
             json={
                 "channel_id": "111",
-                "channel_name": "",
+                "channel_name": channel_name,
                 "message": "Test",
                 "schedule_type": "interval",
                 "interval_seconds": 3600,
@@ -390,13 +396,13 @@ class TestReminderEndpoints:
         )
         assert response.status_code == 422
 
-    def test_patch_empty_channel_name_clears_to_null(self, client, auth_header, web_db_session):
-        """PATCH with channel_name="" normalises to NULL (bot-offline raw-ID scenario)."""
+    @pytest.mark.parametrize("channel_name", ["", "   "])
+    def test_patch_empty_like_channel_name_clears_to_null(self, client, auth_header, web_db_session, channel_name):
         reminder = _make_reminder(web_db_session, ChannelName="general")
 
         response = client.patch(
             f"/api/guilds/{GUILD_ID}/reminders/{reminder.Id}",
-            json={"channel_name": ""},
+            json={"channel_name": channel_name},
             headers=auth_header,
         )
         assert response.status_code == 200
