@@ -292,4 +292,4 @@ def build_name_choices(names: list[str], current: str) -> list[app_commands.Choi
     Companion to ``cached_autocomplete`` for the common case where the cache stores
     plain name strings and Discord choices have name == value.
     """
-    return [app_commands.Choice(name=n[:100], value=n) for n in names if current.lower() in n.lower()][:25]
+    return [app_commands.Choice(name=n[:100], value=n[:100]) for n in names if current.lower() in n.lower()][:25]
