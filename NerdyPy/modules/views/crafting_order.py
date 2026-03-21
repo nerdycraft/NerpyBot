@@ -22,6 +22,7 @@ from models.wow import (
     CraftingRoleMapping,
 )
 from utils.blizzard import CRAFTING_PROFESSIONS
+from utils.errors import NerpyInfraException
 from utils.strings import get_string
 
 log = logging.getLogger(__name__)
@@ -236,6 +237,8 @@ _KEY_MANUAL_MAP_NO_SELECTIONS = "wow.craftingorder.manual_map.no_selections"
 _KEY_MANUAL_MAP_NEXT_BATCH = "wow.craftingorder.manual_map.next_batch"
 _KEY_MANUAL_MAP_DESCRIPTION = "wow.craftingorder.manual_map.description"
 _KEY_MANUAL_MAP_SUCCESS = "wow.craftingorder.manual_map.success"
+_KEY_MANUAL_MAP_PARTIAL = "wow.craftingorder.manual_map.partial"
+_KEY_PAGE_INFO = "wow.craftingorder.page_info"
 
 
 def _build_vcat_info(recipe_type: str, session, profession_ids) -> tuple[list[str], dict[str, int], dict[str, int]]:
@@ -1685,7 +1688,7 @@ class ItemSelectView(ui.View):
         if is_multipage:
             footer = get_string(
                 self.lang,
-                "wow.craftingorder.page_info",
+                _KEY_PAGE_INFO,
                 page=self._page,
                 total=self._total_pages,
                 items=total_items,
@@ -2185,6 +2188,9 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
     async def callback(self, interaction: Interaction):
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
+            if order is None:
+                await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+                return
             order.Status = "open"
             order.CrafterId = None
             order.CrafterName = None
@@ -2224,6 +2230,9 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
     async def callback(self, interaction: Interaction):
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
+            if order is None:
+                await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+                return
             order.Status = "completed"
             item_name = _display_item_name(order)
             creator_id = order.CreatorId
@@ -2245,13 +2254,18 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
             )
 
         if used_thread:
-            with interaction.client.session_scope() as session:
-                config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
-                delay = config.ThreadCleanupDelayHours if config else 24
-                session.execute(
-                    sa_update(CraftingOrder)
-                    .where(CraftingOrder.Id == self.order_id)
-                    .values(MessageDeleteAt=datetime.now(UTC) + timedelta(hours=delay))
+            try:
+                with interaction.client.session_scope() as session:
+                    config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+                    delay = config.ThreadCleanupDelayHours if config else 24
+                    session.execute(
+                        sa_update(CraftingOrder)
+                        .where(CraftingOrder.Id == self.order_id)
+                        .values(MessageDeleteAt=datetime.now(UTC) + timedelta(hours=delay))
+                    )
+            except NerpyInfraException:
+                log.error(
+                    "Failed to schedule thread cleanup for order %s; thread may not be auto-deleted", self.order_id
                 )
 
         await interaction.response.edit_message(content=_ls(interaction, "complete.done"), embed=None, view=None)
@@ -2299,6 +2313,9 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
     async def callback(self, interaction: Interaction):
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
+            if order is None:
+                await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+                return
             order.Status = "cancelled"
             item_name = _display_item_name(order)
             creator_id = order.CreatorId
@@ -2317,13 +2334,18 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
                 )
 
         if used_thread:
-            with interaction.client.session_scope() as session:
-                config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
-                delay = config.ThreadCleanupDelayHours if config else 24
-                session.execute(
-                    sa_update(CraftingOrder)
-                    .where(CraftingOrder.Id == self.order_id)
-                    .values(MessageDeleteAt=datetime.now(UTC) + timedelta(hours=delay))
+            try:
+                with interaction.client.session_scope() as session:
+                    config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+                    delay = config.ThreadCleanupDelayHours if config else 24
+                    session.execute(
+                        sa_update(CraftingOrder)
+                        .where(CraftingOrder.Id == self.order_id)
+                        .values(MessageDeleteAt=datetime.now(UTC) + timedelta(hours=delay))
+                    )
+            except NerpyInfraException:
+                log.error(
+                    "Failed to schedule thread cleanup for order %s; thread may not be auto-deleted", self.order_id
                 )
 
         await interaction.response.edit_message(content=_ls(interaction, "cancel.done"), embed=None, view=None)
@@ -2554,9 +2576,7 @@ class ManualProfessionMappingView(ui.View):
             num_selects = sum(1 for item in self.children if isinstance(item, ui.Select))
             skipped = num_selects - len(self.selections)
             if skipped > 0:
-                reply = get_string(
-                    self.lang, "wow.craftingorder.manual_map.partial", count=len(self.selections), skipped=skipped
-                )
+                reply = get_string(self.lang, _KEY_MANUAL_MAP_PARTIAL, count=len(self.selections), skipped=skipped)
             else:
                 reply = get_string(self.lang, _KEY_MANUAL_MAP_SUCCESS)
             await interaction.response.edit_message(content=reply, view=None)
