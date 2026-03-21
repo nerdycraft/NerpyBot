@@ -13,6 +13,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "update:modelValue": [value: string];
+  "update:modelName": [name: string];
 }>();
 
 type Item = { id: string; name: string };
@@ -78,6 +79,7 @@ function onContainerFocusOut(e: FocusEvent) {
 
 function select(item: Item) {
   emit("update:modelValue", item.id);
+  emit("update:modelName", item.name);
   open.value = false;
   query.value = "";
   inputEl.value?.blur();

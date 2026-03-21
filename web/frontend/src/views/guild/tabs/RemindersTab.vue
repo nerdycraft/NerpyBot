@@ -73,6 +73,7 @@ function closeTzDropdown() {
 function blankDraft() {
   return {
     channel_id: "",
+    channel_name: "",
     message: "",
     schedule_type: "interval" as ReminderCreate["schedule_type"],
     schedule_time: "09:00",
@@ -141,6 +142,7 @@ async function createReminder() {
   try {
     const payload: ReminderCreate = {
       channel_id: draft.value.channel_id,
+      channel_name: draft.value.channel_name || undefined,
       message: draft.value.message,
       schedule_type: draft.value.schedule_type,
       timezone: tzQuery.value || "UTC",
@@ -197,7 +199,7 @@ async function createReminder() {
             {{ t("tabs.reminders.channel_label") }}
             <InfoTooltip :text="t('tabs.reminders.channel_tooltip')" />
           </label>
-          <DiscordPicker v-model="draft.channel_id" :guild-id="guildId" kind="channel" />
+          <DiscordPicker v-model="draft.channel_id" v-model:model-name="draft.channel_name" :guild-id="guildId" kind="channel" />
         </div>
 
         <!-- Schedule type -->
