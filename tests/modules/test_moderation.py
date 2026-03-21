@@ -165,6 +165,19 @@ class TestAutodeleterEdit:
         msg = interaction.response.send_message.call_args[0][0]
         assert "Updated configuration" in msg
 
+    async def test_edit_invalid_timespan_english(self, cog, interaction, db_session):
+        db_session.add(AutoDelete(GuildId=987654321, ChannelId=555, Enabled=True, DeleteOlderThan=3600))
+        db_session.commit()
+        channel = _make_channel_mock()
+        await Moderation._autodeleter_modify.callback(
+            cog, interaction, channel=channel, delete_older_than="not-a-duration"
+        )
+        msg = interaction.response.send_message.call_args[0][0]
+        assert "Only timespans" in msg
+        db_session.expire_all()
+        configuration = AutoDelete.get_by_channel(987654321, 555, db_session)
+        assert configuration.DeleteOlderThan == 3600
+
 
 # ---------------------------------------------------------------------------
 # /moderation membercount
