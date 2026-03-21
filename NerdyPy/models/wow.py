@@ -38,6 +38,10 @@ def _cache_recipe_query(method):
 
     Builds a key from the method name + all arguments except ``cls`` and ``session``.
     ``set`` arguments are converted to ``frozenset`` for hashability.
+
+    Warning: cached results are session-detached ORM instances. Callers must not
+    access lazy-loaded relationships on returned objects — only eagerly-loaded columns
+    are safe. Accessing a lazy attribute raises ``DetachedInstanceError``.
     """
     sig = inspect.signature(method)
 

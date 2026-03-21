@@ -728,8 +728,9 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             channel_id = leave_config.ChannelId  # read inside scope before session closes
             enabled = leave_config.Enabled  # read inside scope before session closes
 
-        # Update cached message text — preserve actual Enabled state from DB
-        self.bot.guild_cache.set_leave_message_guild(interaction.guild.id, enabled, channel_id, message)
+        # Only update cache when enabled — disabled state is already reflected (evicted by /leavemsg disable)
+        if enabled:
+            self.bot.guild_cache.set_leave_message_guild(interaction.guild.id, True, channel_id, message)
         await send_hidden_message(interaction, get_string(lang, "leavemsg.message.success", message=message))
 
     @leavemsg.command(name="message")

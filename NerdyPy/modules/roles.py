@@ -9,7 +9,7 @@ from discord.ext.commands import Cog
 
 from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 from models.rolemanage import RoleMapping
-from utils.cache import REACTION_ROLE_CACHE_MISS, cached_autocomplete
+from utils.cache import REACTION_ROLE_CACHE_MISS, cached_autocomplete, invalidate_autocomplete
 from utils.checks import is_role_assignable, is_role_below_bot
 from utils.cog import NerpyBotCog
 from utils.helpers import error_context, notify_error, send_paginated
@@ -49,7 +49,12 @@ class Roles(NerpyBotCog, Cog):
         def _fetch():
             with self.bot.session_scope() as session:
                 return [
-                    {"channel_id": msg.ChannelId, "message_id": msg.MessageId, "entry_count": len(msg.entries)}
+                    {
+                        "channel_id": msg.ChannelId,
+                        "message_id": msg.MessageId,
+                        "entry_count": len(msg.entries),
+                        "channel_name": None,  # resolved below; None entries are updated in-place to avoid re-fetching within TTL
+                    }
                     for msg in ReactionRoleMessage.get_by_guild(guild_id, session)
                 ]
 
@@ -57,22 +62,31 @@ class Roles(NerpyBotCog, Cog):
         if not messages:
             return []
 
-        # Fetch all channels not in the Discord cache in parallel to stay within the 3s autocomplete timeout.
-        missing_ids = {m["channel_id"] for m in messages if guild.get_channel(m["channel_id"]) is None}
+        # Fill channel names from Discord's internal cache (fast dict lookup).
+        for m in messages:
+            if m["channel_name"] is None:
+                ch = guild.get_channel(m["channel_id"])
+                if ch:
+                    m["channel_name"] = f"#{ch.name}"
 
-        async def _fetch_channel(cid):
-            try:
-                return await guild.fetch_channel(cid)
-            except (discord.NotFound, discord.Forbidden):
-                return None
+        # For channels still unresolved, fetch in parallel. Mutate cached entries in-place so
+        # subsequent calls within the 30s TTL window skip these HTTP round-trips.
+        still_missing = [m for m in messages if m["channel_name"] is None]
+        if still_missing:
 
-        fetched = await asyncio.gather(*(_fetch_channel(cid) for cid in missing_ids))
-        channel_lookup = dict(zip(missing_ids, fetched))
+            async def _fetch_channel(cid):
+                try:
+                    return await guild.fetch_channel(cid)
+                except (discord.NotFound, discord.Forbidden):
+                    return None
+
+            fetched = await asyncio.gather(*(_fetch_channel(m["channel_id"]) for m in still_missing))
+            for m, ch in zip(still_missing, fetched):
+                m["channel_name"] = f"#{ch.name}" if ch else "Unknown"
 
         choices = []
         for rr_msg in messages:
-            channel = guild.get_channel(rr_msg["channel_id"]) or channel_lookup.get(rr_msg["channel_id"])
-            channel_name = f"#{channel.name}" if channel else "Unknown"
+            channel_name = rr_msg["channel_name"] or "Unknown"
             entry_count = rr_msg["entry_count"]
             label = f"{channel_name} \u00b7 {rr_msg['message_id']} ({entry_count} mappings)"
             msg_id_str = str(rr_msg["message_id"])
@@ -448,6 +462,7 @@ class Roles(NerpyBotCog, Cog):
 
         self.bot.guild_cache.add_reaction_role_message(interaction.guild.id, msg_id)
         self.bot.guild_cache.add_reaction_role_entry(msg_id, emoji, role.id)
+        invalidate_autocomplete(("rr_msgs", interaction.guild.id))
 
         try:
             await discord_msg.add_reaction(emoji)
@@ -508,6 +523,7 @@ class Roles(NerpyBotCog, Cog):
             self.bot.guild_cache.remove_reaction_role_message(interaction.guild.id, msg_id)
         else:
             self.bot.guild_cache.remove_reaction_role_entry(msg_id, emoji)
+        invalidate_autocomplete(("rr_msgs", interaction.guild.id))
 
         await self._clear_reaction(interaction.guild, channel_id, msg_id, emoji)
         await interaction.response.send_message(
@@ -579,6 +595,7 @@ class Roles(NerpyBotCog, Cog):
             return
 
         self.bot.guild_cache.remove_reaction_role_message(interaction.guild.id, msg_id)
+        invalidate_autocomplete(("rr_msgs", interaction.guild.id))
 
         await asyncio.gather(
             *[self._clear_reaction(interaction.guild, channel_id, msg_id, emoji) for emoji in emojis],

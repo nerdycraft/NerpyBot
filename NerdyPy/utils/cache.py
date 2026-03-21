@@ -171,14 +171,25 @@ class GuildConfigCache:
         from models.reactionrole import ReactionRoleMessage
 
         def _load(session):
+            from models.reactionrole import ReactionRoleEntry
+            from sqlalchemy import select
+
             by_guild: dict[int, set[int]] = {}
             all_ids: set[int] = set()
             mappings: dict[int, dict[str, int]] = {}
-            # entries uses lazy="joined", so this single query fetches everything
-            for msg in session.query(ReactionRoleMessage).all():
-                by_guild.setdefault(msg.GuildId, set()).add(msg.MessageId)
-                all_ids.add(msg.MessageId)
-                mappings[msg.MessageId] = {entry.Emoji: entry.RoleId for entry in msg.entries}
+            for guild_id, msg_id in session.execute(
+                select(ReactionRoleMessage.GuildId, ReactionRoleMessage.MessageId)
+            ).all():
+                by_guild.setdefault(guild_id, set()).add(msg_id)
+                all_ids.add(msg_id)
+                mappings[msg_id] = {}
+            for msg_id, emoji, role_id in session.execute(
+                select(ReactionRoleMessage.MessageId, ReactionRoleEntry.Emoji, ReactionRoleEntry.RoleId).join(
+                    ReactionRoleEntry, ReactionRoleEntry.ReactionRoleMessageId == ReactionRoleMessage.Id
+                )
+            ).all():
+                if msg_id in mappings:
+                    mappings[msg_id][emoji] = role_id
             return by_guild, all_ids, mappings
 
         self._rr_by_guild, self._rr_message_ids, self._rr_mappings = self._run_warm(
@@ -201,8 +212,7 @@ class GuildConfigCache:
         """Return (channel_id, message_text) for the guild's enabled leave message, or None.
 
         Falls back to a direct DB read when the cache has not been warmed yet and populates
-        the per-guild entry, matching the lazy-load pattern of ``get_guild_language`` and
-        ``get_modrole``.
+        the per-guild entry so subsequent calls are served from memory.
         """
         if self._leave_warmed or guild_id in self._leave_configs:
             return self._leave_configs.get(guild_id)
@@ -293,9 +303,22 @@ async def cached_autocomplete(key: tuple, fetcher):
     """
     if key in _autocomplete_cache:
         return _autocomplete_cache[key]
+    # No lock: two concurrent keystrokes for the same key can both miss and fire parallel DB
+    # fetches. Both write the same result, so this is benign — Discord's 3s autocomplete
+    # window makes true simultaneity rare, and the TTL window suppresses all subsequent hits.
     result = await asyncio.to_thread(fetcher)
     _autocomplete_cache[key] = result
     return result
+
+
+def invalidate_autocomplete(key: tuple) -> None:
+    """Evict a single key from the autocomplete cache.
+
+    Call after mutations that change the result set (e.g. adding/removing a reaction role
+    message), so the next autocomplete call fetches fresh data rather than serving stale
+    labels for up to 30 seconds.
+    """
+    _autocomplete_cache.pop(key, None)
 
 
 def build_name_choices(names: list[str], current: str) -> list[app_commands.Choice[str]]:
