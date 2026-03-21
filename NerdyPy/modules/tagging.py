@@ -14,7 +14,7 @@ from utils.checks import can_stop_playback, is_connected_to_voice
 from utils.cog import NerpyBotCog
 from utils.download import download
 from utils.errors import NerpyNotFoundError
-from utils.cache import build_name_choices, cached_autocomplete
+from utils.cache import build_name_choices, cached_autocomplete, invalidate_autocomplete
 from utils.helpers import error_context, send_paginated
 from utils.strings import get_string
 
@@ -103,6 +103,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
             self._add_tag_entries(session, _tag, content)
 
         self.bot.log.info(f'{error_context(interaction)}: tag "{name}" created')
+        invalidate_autocomplete(("tags", interaction.guild.id))
         await interaction.followup.send(get_string(lang, "tagging.create.success", name=name), ephemeral=True)
 
     @app_commands.command(name="add")
@@ -162,6 +163,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
                 return
 
             Tag.delete(name, interaction.guild.id, session)
+        invalidate_autocomplete(("tags", interaction.guild.id))
         await interaction.response.send_message(get_string(lang, "tagging.delete.success", name=name), ephemeral=True)
 
     _TAG_TYPE_EMOJI = {

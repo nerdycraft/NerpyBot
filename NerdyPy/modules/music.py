@@ -10,7 +10,7 @@ from discord.ext.commands import Cog
 from models.music import Playlist, PlaylistEntry
 from modules.views.music import NowPlayingView, build_now_playing_embed
 from utils.audio import QueuedSong, QueueMixin
-from utils.cache import build_name_choices, cached_autocomplete
+from utils.cache import build_name_choices, cached_autocomplete, invalidate_autocomplete
 from utils.checks import is_connected_to_voice
 from utils.cog import NerpyBotCog
 from utils.download import download, fetch_yt_infos
@@ -23,7 +23,7 @@ from utils.strings import get_string
 class Music(NerpyBotCog, QueueMixin, Cog):
     """Music playback and playlist management."""
 
-    playlist = app_commands.Group(name="playlist", description="Manage your saved playlists")
+    playlist = app_commands.Group(name="playlist", description="Manage your saved playlists", guild_only=True)
 
     def __init__(self, bot):
         super().__init__(bot)
@@ -247,6 +247,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                     Name=name,
                 )
             )
+        invalidate_autocomplete(("playlists", interaction.guild_id, interaction.user.id))
         await interaction.followup.send(get_string(lang, "music.playlist.created", name=name), ephemeral=True)
 
     @playlist.command(name="list")
@@ -358,6 +359,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                     )
                 )
 
+        invalidate_autocomplete(("playlists", interaction.guild_id, interaction.user.id))
         await interaction.followup.send(
             get_string(lang, "music.playlist.saved", count=len(songs), name=name), ephemeral=True
         )
@@ -393,6 +395,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                 await interaction.followup.send(get_string(lang, "music.playlist.not_found", name=name), ephemeral=True)
                 return
             session.delete(pl)
+        invalidate_autocomplete(("playlists", interaction.guild_id, interaction.user.id))
         await interaction.followup.send(get_string(lang, "music.playlist.deleted", name=name), ephemeral=True)
 
     @playlist.command(name="load")

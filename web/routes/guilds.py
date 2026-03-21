@@ -122,6 +122,7 @@ async def set_language(
     body: LanguageUpdate,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    vk: ValkeyClient = Depends(get_valkey),
 ):
     """Set or update the bot language for a guild."""
     _deny_support_write(user)
@@ -136,6 +137,7 @@ async def set_language(
     lang = cfg.Language
     session.commit()
     _guild_lang_cache[guild_id] = lang
+    vk.notify_bot("set_guild_language", {"guild_id": str(guild_id), "language": lang})
     return LanguageConfig(guild_id=str(guild_id), language=lang)
 
 
@@ -251,6 +253,11 @@ async def set_leave_message(
         cfg.Message = body.message
     if body.enabled is not None:
         cfg.Enabled = body.enabled
+    if cfg.Enabled and cfg.ChannelId is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="channel_id is required when leave messages are enabled",
+        )
     session.commit()  # commit before notifying bot so it re-reads the updated row
     vk.notify_bot("invalidate_leave_config", {"guild_id": str(guild_id)})
     return LeaveMessageConfig(
@@ -1280,7 +1287,10 @@ async def create_wow_news_config(
     if WowGuildNewsConfig.get_existing(guild_id, name_slug, body.wow_realm_slug, body.region, session):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already tracking this WoW guild")
 
-    lang = _get_guild_language_cached(guild_id, session)
+    from models.admin import GuildLanguageConfig
+
+    _lang_config = GuildLanguageConfig.get(guild_id, session)
+    lang = _lang_config.Language if _lang_config is not None else "en"
     cfg = WowGuildNewsConfig(
         GuildId=guild_id,
         ChannelId=int(body.channel_id),

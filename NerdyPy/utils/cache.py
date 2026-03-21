@@ -48,6 +48,7 @@ class GuildConfigCache:
         self._rr_warmed: bool = False
         self._leave_configs: dict[int, tuple[int, str | None] | None] = {}
         self._leave_warmed: bool = False
+        self._leave_evicted: set[int] = set()  # guilds evicted after warm-up; need DB re-read on next access
 
     @staticmethod
     def _run_warm(session_factory, loader_fn, error_label: str):
@@ -221,10 +222,14 @@ class GuildConfigCache:
         """Return True if the guild has leave messages enabled.
 
         Returns True unconditionally before warm-up completes (conservative).
+        Also returns True for guilds evicted via ``evict_guild`` after warm-up —
+        they are re-checked via ``get_leave_config`` rather than treated as absent.
         """
         if not self._leave_warmed:
             return True
-        return guild_id in self._leave_configs
+        if guild_id in self._leave_evicted:
+            return True
+        return self._leave_configs.get(guild_id) is not None
 
     @staticmethod
     def _query_leave_row(guild_id: int, session):
@@ -252,8 +257,9 @@ class GuildConfigCache:
         non-fatal; callers must not treat ``None`` as a definitive "no config" when the cache
         is cold.
         """
-        if self._leave_warmed or guild_id in self._leave_configs:
-            return self._leave_configs.get(guild_id)
+        if guild_id not in self._leave_evicted:
+            if self._leave_warmed or guild_id in self._leave_configs:
+                return self._leave_configs.get(guild_id)
 
         try:
             with _open_session(session_factory) as session:
@@ -264,6 +270,7 @@ class GuildConfigCache:
             return None
 
         self._leave_configs[guild_id] = config
+        self._leave_evicted.discard(guild_id)
         return config
 
     def set_leave_config(self, guild_id: int, channel_id: int, message: str | None) -> None:
@@ -271,8 +278,9 @@ class GuildConfigCache:
         self._leave_configs[guild_id] = (channel_id, message)
 
     def evict_leave_config(self, guild_id: int) -> None:
-        """Remove the leave message config for a guild."""
+        """Remove the leave message config for a guild (definitively disabled)."""
         self._leave_configs.pop(guild_id, None)
+        self._leave_evicted.discard(guild_id)  # cancel any pending re-read
 
     def reload_leave_config(self, guild_id: int, session_factory) -> None:
         """Force a fresh DB read for a guild's leave config and update the cache.
@@ -294,13 +302,16 @@ class GuildConfigCache:
                 "reload_leave_config: DB read failed for guild_id=%d — evicting so cold-miss retries on next member-remove",
                 guild_id,
             )
-            self.evict_leave_config(guild_id)
+            self._leave_configs.pop(guild_id, None)
+            if self._leave_warmed:
+                self._leave_evicted.add(guild_id)
             return
 
         if row is not None:
             self._leave_configs[guild_id] = (row.ChannelId, row.Message)
         else:
-            self.evict_leave_config(guild_id)
+            self._leave_configs.pop(guild_id, None)
+        self._leave_evicted.discard(guild_id)
 
     def warm_leave_messages(self, session_factory) -> None:
         """Bulk-load full leave message configs (channel_id, message) for all enabled guilds.
@@ -317,6 +328,7 @@ class GuildConfigCache:
 
         self._leave_configs = self._run_warm(session_factory, _load, "warm_leave_messages")
         self._leave_warmed = True
+        self._leave_evicted.clear()
 
     # ── Eviction ──────────────────────────────────────────────────────────────
 
@@ -324,7 +336,9 @@ class GuildConfigCache:
         """Remove all cached entries for a guild (called when bot leaves a guild)."""
         self._lang.pop(guild_id, None)
         self._modrole.pop(guild_id, None)
-        self.evict_leave_config(guild_id)
+        self._leave_configs.pop(guild_id, None)
+        if self._leave_warmed:
+            self._leave_evicted.add(guild_id)  # guild may rejoin with existing config — re-check on next access
         guild_rr = self._rr_by_guild.pop(guild_id, None)
         if guild_rr:
             self._rr_message_ids -= guild_rr

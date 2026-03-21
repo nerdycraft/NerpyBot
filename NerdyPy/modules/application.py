@@ -28,7 +28,7 @@ from modules.conversations.application import (
 )
 from modules.views.application import check_override_permission
 from sqlalchemy.exc import SQLAlchemyError
-from utils.cache import build_name_choices, cached_autocomplete
+from utils.cache import build_name_choices, cached_autocomplete, invalidate_autocomplete
 from utils.cog import NerpyBotCog
 from utils.helpers import fetch_message_content, send_hidden_message
 from utils.strings import get_raw, get_string
@@ -384,6 +384,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             apply_message_id = form.ApplyMessageId
             session.delete(form)
 
+        invalidate_autocomplete(("app_forms", interaction.guild.id))
         await interaction.response.send_message(
             get_string(lang, "application.delete.success", name=name), ephemeral=True
         )
@@ -783,6 +784,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                         )
                 form_id = form.Id
 
+            invalidate_autocomplete(("app_forms", guild_id))
             await modal_interaction.response.send_message(
                 get_string(lang, "application.template.use.success", name=name, template=template), ephemeral=True
             )
@@ -847,6 +849,8 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                     ApplicationTemplateQuestion(TemplateId=tpl.Id, QuestionText=q.QuestionText, SortOrder=q.SortOrder)
                 )
 
+        invalidate_autocomplete(("app_templates", interaction.guild.id))
+        invalidate_autocomplete(("app_guild_templates", interaction.guild.id))
         await interaction.response.send_message(
             get_string(lang, "application.template.save.success", template_name=template_name, form=form),
             ephemeral=True,
@@ -878,6 +882,8 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 return
             session.delete(tpl)
 
+        invalidate_autocomplete(("app_templates", interaction.guild.id))
+        invalidate_autocomplete(("app_guild_templates", interaction.guild.id))
         await interaction.response.send_message(
             get_string(lang, "application.template.delete.success", name=template_name), ephemeral=True
         )

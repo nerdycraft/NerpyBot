@@ -56,7 +56,7 @@ def _cache_recipe_query(method):
         key = (
             method.__name__,
             *(
-                frozenset(val) if isinstance(val, set) else val
+                None if (isinstance(val, set) and not val) else (frozenset(val) if isinstance(val, set) else val)
                 for name, val in bound.arguments.items()
                 if name not in ("cls", "session")
             ),

@@ -36,8 +36,9 @@ _bot_guild_ids_cache: TTLCache = TTLCache(maxsize=1, ttl=120)
 
 def _get_bot_guild_ids(session) -> set[str]:
     """Return the cached set of bot guild ID strings, loading from DB on miss."""
-    if "ids" in _bot_guild_ids_cache:
-        return _bot_guild_ids_cache["ids"]
+    ids = _bot_guild_ids_cache.get("ids")
+    if ids is not None:
+        return ids
     try:
         ids = BotGuild.get_ids(session)
     except SQLAlchemyError:

@@ -338,9 +338,8 @@ class TestLeaveMessages:
 
         assert cache.is_leave_message_guild(GUILD_ID) is False
 
-    def test_reload_leave_config_fixes_broken_eviction(self, cache, session_factory, db_session):
-        # Regression: after evict_leave_config with _leave_warmed=True, is_leave_message_guild
-        # returns False, so get_leave_config is never called to repopulate.
+    def test_reload_leave_config_restores_evicted_entry(self, cache, session_factory, db_session):
+        # After evict_leave_config (explicit disable), is_leave_message_guild returns False.
         # reload_leave_config must restore the entry so is_leave_message_guild returns True.
         from models.leavemsg import LeaveMessage
 
@@ -349,11 +348,11 @@ class TestLeaveMessages:
         cache.warm_leave_messages(session_factory)
         cache.evict_leave_config(GUILD_ID)
 
-        assert cache.is_leave_message_guild(GUILD_ID) is False  # broken state before fix
+        assert cache.is_leave_message_guild(GUILD_ID) is False
 
         cache.reload_leave_config(GUILD_ID, session_factory)
 
-        assert cache.is_leave_message_guild(GUILD_ID) is True  # restored
+        assert cache.is_leave_message_guild(GUILD_ID) is True
 
 
 # ── Eviction ──────────────────────────────────────────────────────────────────
@@ -372,10 +371,15 @@ class TestEviction:
         cache.get_modrole(GUILD_ID, session_factory)
         session_factory.assert_called_once()
 
-    def test_evict_removes_from_leave_guild_set(self, cache, session_factory):
+    def test_evict_marks_guild_for_recheck(self, cache, session_factory):
+        # After eviction from a warmed cache, is_leave_message_guild returns True
+        # (conservative — guild was evicted, state unknown until next DB re-read).
         cache.warm_leave_messages(session_factory)
         cache.set_leave_config(GUILD_ID, 111, "bye")
         cache.evict_guild(GUILD_ID)
+        assert cache.is_leave_message_guild(GUILD_ID) is True
+        # get_leave_config re-reads DB (no row in test DB) and clears the evicted marker.
+        assert cache.get_leave_config(GUILD_ID, session_factory) is None
         assert cache.is_leave_message_guild(GUILD_ID) is False
 
     def test_evict_removes_reaction_role_messages(self, cache, session_factory):

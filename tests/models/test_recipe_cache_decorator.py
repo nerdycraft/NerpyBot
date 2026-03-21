@@ -73,6 +73,34 @@ class TestCacheRecipeQueryDecorator:
         r2 = CraftingRecipeCache.get_by_type_and_subclass(RECIPE_TYPE_CRAFTED, 4, 4, db_session, profession_ids={164})
         assert r1 is r2
 
+    def test_frozenset_and_set_produce_same_cache_key(self, db_session):
+        db_session.add(_recipe(RecipeId=1, ProfessionId=164))
+        db_session.commit()
+
+        from models.wow import RECIPE_TYPE_CRAFTED, CraftingRecipeCache, invalidate_recipe_cache
+
+        invalidate_recipe_cache()
+        # First call with a plain set populates the cache.
+        r1 = CraftingRecipeCache.get_by_type_and_subclass(RECIPE_TYPE_CRAFTED, 4, 4, db_session, profession_ids={164})
+        # Second call with a frozenset of the same values should hit the same cache entry.
+        r2 = CraftingRecipeCache.get_by_type_and_subclass(
+            RECIPE_TYPE_CRAFTED, 4, 4, db_session, profession_ids=frozenset({164})
+        )
+        assert r1 is r2
+
+    def test_none_and_empty_set_produce_same_cache_key(self, db_session):
+        db_session.add(_recipe(RecipeId=1, ProfessionId=164))
+        db_session.commit()
+
+        from models.wow import RECIPE_TYPE_CRAFTED, CraftingRecipeCache, invalidate_recipe_cache
+
+        invalidate_recipe_cache()
+        # First call with None populates the cache.
+        r1 = CraftingRecipeCache.get_by_type_and_subclass(RECIPE_TYPE_CRAFTED, 4, 4, db_session, profession_ids=None)
+        # Second call with an empty set should normalize to the same key and hit the cache.
+        r2 = CraftingRecipeCache.get_by_type_and_subclass(RECIPE_TYPE_CRAFTED, 4, 4, db_session, profession_ids=set())
+        assert r1 is r2
+
     def test_cached_results_are_session_detached(self, db_session):
         from sqlalchemy import inspect as sa_inspect
 

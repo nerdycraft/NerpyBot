@@ -27,8 +27,9 @@ _premium_ids_cache: TTLCache = TTLCache(maxsize=1, ttl=300)
 
 def _get_premium_ids(session: Session) -> set[int]:
     """Return the cached set of premium user IDs, loading from DB on miss."""
-    if "ids" in _premium_ids_cache:
-        return _premium_ids_cache["ids"]
+    ids = _premium_ids_cache.get("ids")
+    if ids is not None:
+        return ids
     from models.admin import PremiumUser
 
     try:
