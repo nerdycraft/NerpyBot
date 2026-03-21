@@ -370,8 +370,10 @@ async def cached_autocomplete(key: tuple, fetcher):
         unexpected import failures) propagate uncaught so they surface immediately
         rather than silently returning empty results on every keystroke.
     """
-    if key in _autocomplete_cache:
+    try:
         return _autocomplete_cache[key]
+    except KeyError:
+        pass
     # No lock: two concurrent keystrokes for the same key can both miss and fire parallel DB
     # fetches. Both write the same result, so this is benign — Discord's 3s autocomplete
     # window makes true simultaneity rare, and the TTL window suppresses all subsequent hits.

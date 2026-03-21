@@ -1142,6 +1142,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                     ApplicationQuestion(FormId=form.Id, QuestionText=q["text"].strip(), SortOrder=q.get("order", i + 1))
                 )
 
+        invalidate_autocomplete(("app_forms", interaction.guild.id))
         await interaction.user.send(
             get_string(lang, "application.import.success", name=form_name, count=len(questions))
         )

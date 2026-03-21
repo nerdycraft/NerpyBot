@@ -310,6 +310,9 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         if not guild_id:
             bot.log.warning("set_guild_language: received invalid guild_id=%r", payload.get("guild_id"))
             return {"ok": False, "error": "invalid guild_id"}
+        if not isinstance(language, str):
+            bot.log.warning("set_guild_language: received invalid language=%r for guild_id=%d", language, guild_id)
+            return {"ok": False, "error": "invalid language"}
         bot.guild_cache.set_guild_language(guild_id, language)
         bot.dispatch("guild_language_changed", guild_id, language)
         return {"ok": True}
