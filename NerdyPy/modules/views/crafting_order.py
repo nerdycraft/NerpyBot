@@ -890,7 +890,8 @@ class VirtualCategorySelectView(ui.View):
             self.add_item(btn)
 
         if back_factory is not None:
-            _add_back_button(self, lang, back_factory)
+            back_row = (len(available_vcats) - 1) // 3 + 1 if available_vcats else 1
+            _add_back_button(self, lang, back_factory, row=back_row)
 
     def _make_embed(self) -> discord.Embed:
         title = get_string(self.lang, "wow.craftingorder.virtual_category_select")
@@ -1573,7 +1574,6 @@ class ItemSelectView(ui.View):
         page: int = 1,
         breadcrumbs: list[str] | None = None,
         back_factory=None,
-        _presorted: bool = False,
     ):
         super().__init__(timeout=180)
         self.bot = bot
@@ -1584,19 +1584,16 @@ class ItemSelectView(ui.View):
         self._back_factory = back_factory
         self._page = page
         self._selected_recipe = None
-        if _presorted:
-            self._all_recipes = recipes
-        else:
-            self._all_recipes = sorted(
-                recipes,
-                key=lambda r: (_get_locale(r.ItemNameLocales, lang) or r.ItemName or "").casefold(),
-            )
+        self._all_recipes = sorted(
+            recipes,
+            key=lambda r: (_get_locale(r.ItemNameLocales, lang) or r.ItemName or "").casefold(),
+        )
 
         total_items = len(self._all_recipes)
         self._total_pages = max(1, (total_items + self._PAGE_SIZE - 1) // self._PAGE_SIZE)
         offset = (page - 1) * self._PAGE_SIZE
-        page_items = self._all_recipes[offset : offset + self._PAGE_SIZE]
-        self._recipes_by_id = {str(r.RecipeId): r for r in page_items}
+        self._page_items = self._all_recipes[offset : offset + self._PAGE_SIZE]
+        self._recipes_by_id = {str(r.RecipeId): r for r in self._page_items}
 
         self._build_items()
 
@@ -1606,9 +1603,7 @@ class ItemSelectView(ui.View):
         is_multipage = total_items > self._PAGE_SIZE
         action_row = 2 if is_multipage else 1
 
-        offset = (self._page - 1) * self._PAGE_SIZE
-        page_items = self._all_recipes[offset : offset + self._PAGE_SIZE]
-        items = [(r.RecipeId, r.ItemName, r.ItemNameLocales) for r in page_items]
+        items = [(r.RecipeId, r.ItemName, r.ItemNameLocales) for r in self._page_items]
         options = _build_localized_options(items, self.lang)
         select = ui.Select(
             placeholder=get_string(self.lang, "wow.craftingorder.item_select"),
@@ -1712,7 +1707,6 @@ class ItemSelectView(ui.View):
             page=self._page - 1,
             breadcrumbs=self._breadcrumbs,
             back_factory=self._back_factory,
-            _presorted=True,
         )
         embed = view._make_embed()
         await interaction.response.edit_message(embed=embed, view=view, content=None)
@@ -1727,7 +1721,6 @@ class ItemSelectView(ui.View):
             page=self._page + 1,
             breadcrumbs=self._breadcrumbs,
             back_factory=self._back_factory,
-            _presorted=True,
         )
         embed = view._make_embed()
         await interaction.response.edit_message(embed=embed, view=view, content=None)
