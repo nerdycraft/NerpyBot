@@ -66,9 +66,10 @@ def _get_guild_language_cached(guild_id: int, session) -> str:
     """Return the guild's configured language, caching the result for 5 minutes."""
     if guild_id in _guild_lang_cache:
         return _guild_lang_cache[guild_id]
-    from utils.strings import get_guild_language
+    from models.admin import GuildLanguageConfig
 
-    lang = get_guild_language(guild_id, session)
+    config = GuildLanguageConfig.get(guild_id, session)
+    lang = config.Language if config is not None else "en"
     _guild_lang_cache[guild_id] = lang
     return lang
 
