@@ -45,10 +45,10 @@ class NavContext:
     """Bundles the stable navigation parameters shared by all _navigate_* helpers."""
 
     bot: Any
-    roles: list
+    roles: list[discord.Role]
     guild_id: int
     lang: str
-    mapped_prof_ids: set | list
+    mapped_prof_ids: set[int] | None
 
 
 # ---------------------------------------------------------------------------
