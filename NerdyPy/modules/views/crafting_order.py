@@ -346,18 +346,6 @@ async def _navigate_pvp_armor(
     await interaction.response.edit_message(embed=embed, view=view, content=None)
 
 
-def _vcat_option(vcat: str, lang: str, value: str | None = None) -> discord.SelectOption:
-    """Build a localized SelectOption for a virtual category sentinel.
-
-    *value* overrides the option value (e.g. for PvP sub-groups); defaults to the vcat sentinel itself.
-    """
-    emoji, key = _VCAT_LABEL_KEYS[vcat]
-    full_key = f"wow.craftingorder.{key}"
-    label = emoji + get_string(lang, full_key)
-    description = get_string("en", full_key) if lang != "en" else None
-    return discord.SelectOption(label=label[:100], description=description, value=value or vcat)
-
-
 def _ls(interaction: Interaction, key: str, **kwargs) -> str:
     """Shorthand for localized string lookup."""
     return interaction.client.get_localized_string(interaction.guild_id, f"wow.craftingorder.{key}", **kwargs)
@@ -649,7 +637,13 @@ class CraftingBoardView(ui.View):
             await interaction.response.send_message(_ls(interaction, "profession_select"), view=view, ephemeral=True)
             return
 
-        view = HousingProfessionSelectView(self.bot, interaction.guild_id, lang, housing_professions)
+        view = HousingProfessionSelectView(
+            self.bot,
+            interaction.guild_id,
+            lang,
+            housing_professions,
+            breadcrumbs=[get_string(lang, "wow.craftingorder.board_title")],
+        )
         embed = view._make_embed()
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
@@ -1353,7 +1347,7 @@ class PvPSubTypeSelectView(ui.View):
             )
         if len(recipes) > _DISCORD_SELECT_LIMIT:
             log.warning(
-                "PvP subtype overflow: class_id=%d subclass_id=%d returned %d recipes (>24); truncating",
+                "PvP subtype overflow: class_id=%d subclass_id=%d returned %d recipes (>24); paginating",
                 self.item_class_id,
                 item_subclass_id,
                 len(recipes),
@@ -1440,7 +1434,7 @@ class RaidPrepCategorySelectView(ui.View):
             )
         if len(recipes) > _DISCORD_SELECT_LIMIT:
             log.warning(
-                "Raid prep category overflow: category=%r returned %d recipes (>24); truncating",
+                "Raid prep category overflow: category=%r returned %d recipes (>24); paginating",
                 category_name,
                 len(recipes),
             )
@@ -1523,7 +1517,7 @@ class OtherCategorySelectView(ui.View):
             )
         if len(recipes) > _DISCORD_SELECT_LIMIT:
             log.warning(
-                "Other category overflow: category=%r returned %d recipes (>24); truncating",
+                "Other category overflow: category=%r returned %d recipes (>24); paginating",
                 category_name,
                 len(recipes),
             )
@@ -1615,9 +1609,6 @@ class ItemSelectView(ui.View):
             next_btn.callback = self._on_next
             self.add_item(next_btn)
 
-        if self._back_factory is not None:
-            _add_back_button(self, self.lang, self._back_factory, row=action_row)
-
         if include_choose:
             choose_btn = ui.Button(
                 label=get_string(self.lang, "wow.craftingorder.choose_button"),
@@ -1636,6 +1627,9 @@ class ItemSelectView(ui.View):
         )
         other_btn.callback = self._on_other
         self.add_item(other_btn)
+
+        if self._back_factory is not None:
+            _add_back_button(self, self.lang, self._back_factory, row=action_row)
 
     def _make_embed(self, recipe=None) -> discord.Embed:
         total_items = len(self._all_recipes)
@@ -1693,7 +1687,7 @@ class ItemSelectView(ui.View):
             self.guild_id,
             self.lang,
             page=self._page - 1,
-            breadcrumbs=self._breadcrumbs,
+            breadcrumbs=list(self._breadcrumbs),
             back_factory=self._back_factory,
         )
         embed = view._make_embed()
@@ -1707,7 +1701,7 @@ class ItemSelectView(ui.View):
             self.guild_id,
             self.lang,
             page=self._page + 1,
-            breadcrumbs=self._breadcrumbs,
+            breadcrumbs=list(self._breadcrumbs),
             back_factory=self._back_factory,
         )
         embed = view._make_embed()
@@ -1716,7 +1710,16 @@ class ItemSelectView(ui.View):
     async def _on_other(self, interaction: Interaction):
         with self.bot.session_scope() as session:
             mappings = CraftingRoleMapping.get_by_guild(interaction.guild_id, session)
-        roles_found = [r for m in mappings if (r := interaction.guild.get_role(m.RoleId))]
+        roles_found = []
+        for m in mappings:
+            role = interaction.guild.get_role(m.RoleId)
+            if role is None:
+                try:
+                    role = await interaction.guild.fetch_role(m.RoleId)
+                except discord.HTTPException:
+                    role = None
+            if role is not None:
+                roles_found.append(role)
         if not roles_found:
             await interaction.response.edit_message(
                 content=get_string(self.lang, "wow.craftingorder.create.no_roles"), view=None, embed=None
@@ -1787,12 +1790,14 @@ class HousingProfessionSelectView(ui.View):
         guild_id: int,
         lang: str,
         housing_professions: list[tuple[int, str]],
+        breadcrumbs: list[str] | None = None,
     ):
         super().__init__(timeout=180)
         self.bot = bot
         self.guild_id = guild_id
         self.lang = lang
         self._housing_professions = housing_professions
+        self._breadcrumbs = breadcrumbs or []
 
         options = [discord.SelectOption(label=name, value=str(prof_id)) for prof_id, name in housing_professions[:25]]
         select = ui.Select(
@@ -1805,23 +1810,44 @@ class HousingProfessionSelectView(ui.View):
     def _make_embed(self) -> discord.Embed:
         title = get_string(self.lang, "wow.craftingorder.housing_profession_select")
         desc = get_string(self.lang, "wow.craftingorder.housing_profession_select_desc")
-        return _build_step_embed(title, desc, None)
+        return _build_step_embed(title, desc, self._breadcrumbs)
+
+    def _make_back_closure(self):
+        """Return an async callback that navigates back to this HousingProfessionSelectView."""
+        crumbs = list(self._breadcrumbs)
+        return _nav_back(
+            lambda: HousingProfessionSelectView(
+                self.bot,
+                self.guild_id,
+                self.lang,
+                list(self._housing_professions),
+                breadcrumbs=crumbs,
+            )
+        )
 
     async def _on_select(self, interaction: Interaction):
         prof_id = int(interaction.data["values"][0])
+        prof_name = next((name for pid, name in self._housing_professions if pid == prof_id), str(prof_id))
+        child_crumbs = self._breadcrumbs + [prof_name]
+
         with self.bot.session_scope() as session:
             expansions = CraftingRecipeCache.get_expansions_for_profession(prof_id, RECIPE_TYPE_HOUSING, session)
             recipes = (
                 CraftingRecipeCache.get_by_profession(prof_id, RECIPE_TYPE_HOUSING, session) if not expansions else None
             )
 
+        go_back = self._make_back_closure()
         if not expansions:
-            view = ItemSelectView(self.bot, recipes, [], self.guild_id, self.lang)
+            view = ItemSelectView(
+                self.bot, recipes, [], self.guild_id, self.lang, breadcrumbs=child_crumbs, back_factory=go_back
+            )
             embed = view._make_embed()
             await interaction.response.edit_message(embed=embed, view=view, content=None)
             return
 
-        view = ExpansionSelectView(self.bot, prof_id, self.guild_id, self.lang, expansions)
+        view = ExpansionSelectView(
+            self.bot, prof_id, self.guild_id, self.lang, expansions, breadcrumbs=child_crumbs, back_factory=go_back
+        )
         embed = view._make_embed()
         await interaction.response.edit_message(embed=embed, view=view, content=None)
 
@@ -1836,6 +1862,7 @@ class ExpansionSelectView(ui.View):
         guild_id: int,
         lang: str,
         expansions: list[str],
+        breadcrumbs: list[str] | None = None,
         back_factory=None,
     ):
         super().__init__(timeout=180)
@@ -1844,6 +1871,7 @@ class ExpansionSelectView(ui.View):
         self.guild_id = guild_id
         self.lang = lang
         self._expansions = expansions
+        self._breadcrumbs = breadcrumbs or []
         self._back_factory = back_factory
 
         options = [discord.SelectOption(label=exp, value=exp) for exp in expansions[:25]]
@@ -1860,10 +1888,11 @@ class ExpansionSelectView(ui.View):
     def _make_embed(self) -> discord.Embed:
         title = get_string(self.lang, "wow.craftingorder.expansion_select")
         desc = get_string(self.lang, "wow.craftingorder.expansion_select_desc")
-        return _build_step_embed(title, desc, None)
+        return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this ExpansionSelectView."""
+        crumbs = list(self._breadcrumbs)
         return _nav_back(
             lambda: ExpansionSelectView(
                 self.bot,
@@ -1871,6 +1900,7 @@ class ExpansionSelectView(ui.View):
                 self.guild_id,
                 self.lang,
                 self._expansions,
+                breadcrumbs=crumbs,
                 back_factory=self._back_factory,
             )
         )
@@ -1888,7 +1918,7 @@ class ExpansionSelectView(ui.View):
             [],
             self.guild_id,
             self.lang,
-            breadcrumbs=[expansion],
+            breadcrumbs=self._breadcrumbs + [expansion],
             back_factory=self._make_back_closure(),
         )
         embed = view._make_embed()
