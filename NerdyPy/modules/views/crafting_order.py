@@ -792,7 +792,8 @@ class ItemSubTypeSelectView(ui.View):
 
     def _make_embed(self) -> discord.Embed:
         title = get_string(self.lang, "wow.craftingorder.item_subtype_select")
-        return _build_step_embed(title, title, self._breadcrumbs)
+        desc = get_string(self.lang, "wow.craftingorder.item_subtype_select_desc")
+        return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this ItemSubTypeSelectView."""
@@ -893,7 +894,8 @@ class VirtualCategorySelectView(ui.View):
 
     def _make_embed(self) -> discord.Embed:
         title = get_string(self.lang, "wow.craftingorder.virtual_category_select")
-        return _build_step_embed(title, title, self._breadcrumbs)
+        desc = get_string(self.lang, "wow.craftingorder.virtual_category_select_desc")
+        return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this VirtualCategorySelectView."""
@@ -1120,7 +1122,8 @@ class PvPGroupSelectView(ui.View):
 
     def _make_embed(self) -> discord.Embed:
         title = get_string(self.lang, "wow.craftingorder.pvp_group_select")
-        return _build_step_embed(title, title, self._breadcrumbs)
+        desc = get_string(self.lang, "wow.craftingorder.pvp_group_select_desc")
+        return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this PvPGroupSelectView."""
@@ -1227,7 +1230,8 @@ class ProfessionGroupSelectView(ui.View):
 
     def _make_embed(self) -> discord.Embed:
         title = get_string(self.lang, "wow.craftingorder.prof_group_select")
-        return _build_step_embed(title, title, self._breadcrumbs)
+        desc = get_string(self.lang, "wow.craftingorder.prof_group_select_desc")
+        return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this ProfessionGroupSelectView."""
@@ -1317,7 +1321,8 @@ class PvPSubTypeSelectView(ui.View):
 
     def _make_embed(self) -> discord.Embed:
         title = get_string(self.lang, f"wow.craftingorder.{self._placeholder_key}")
-        return _build_step_embed(title, title, self._breadcrumbs)
+        desc = get_string(self.lang, f"wow.craftingorder.{self._placeholder_key}_desc")
+        return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this PvPSubTypeSelectView."""
@@ -1409,7 +1414,8 @@ class RaidPrepCategorySelectView(ui.View):
 
     def _make_embed(self) -> discord.Embed:
         title = get_string(self.lang, "wow.craftingorder.raid_prep_select")
-        return _build_step_embed(title, title, self._breadcrumbs)
+        desc = get_string(self.lang, "wow.craftingorder.raid_prep_select_desc")
+        return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this RaidPrepCategorySelectView."""
@@ -1495,7 +1501,8 @@ class OtherCategorySelectView(ui.View):
 
     def _make_embed(self) -> discord.Embed:
         title = get_string(self.lang, "wow.craftingorder.other_select")
-        return _build_step_embed(title, title, self._breadcrumbs)
+        desc = get_string(self.lang, "wow.craftingorder.other_select_desc")
+        return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this OtherCategorySelectView."""
@@ -1668,7 +1675,8 @@ class ItemSelectView(ui.View):
                 embed.set_thumbnail(url=recipe.IconUrl)
         else:
             title = get_string(self.lang, "wow.craftingorder.item_select")
-            embed = _build_step_embed(title, title, self._breadcrumbs)
+            desc = get_string(self.lang, "wow.craftingorder.item_select_desc")
+            embed = _build_step_embed(title, desc, self._breadcrumbs)
 
         if is_multipage:
             footer = get_string(
@@ -1815,7 +1823,8 @@ class HousingProfessionSelectView(ui.View):
 
     def _make_embed(self) -> discord.Embed:
         title = get_string(self.lang, "wow.craftingorder.housing_profession_select")
-        return _build_step_embed(title, title, None)
+        desc = get_string(self.lang, "wow.craftingorder.housing_profession_select_desc")
+        return _build_step_embed(title, desc, None)
 
     async def _on_select(self, interaction: Interaction):
         prof_id = int(interaction.data["values"][0])
@@ -1869,7 +1878,8 @@ class ExpansionSelectView(ui.View):
 
     def _make_embed(self) -> discord.Embed:
         title = get_string(self.lang, "wow.craftingorder.expansion_select")
-        return _build_step_embed(title, title, None)
+        desc = get_string(self.lang, "wow.craftingorder.expansion_select_desc")
+        return _build_step_embed(title, desc, None)
 
     def _make_back_closure(self):
         """Return an async callback that navigates back to this ExpansionSelectView."""
