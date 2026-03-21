@@ -2,11 +2,22 @@
 """In-memory guild configuration cache to reduce redundant DB queries."""
 
 import logging
+from contextlib import contextmanager
 
 from cachetools import TTLCache
 from discord import app_commands
 
 _log = logging.getLogger(__name__)
+
+
+@contextmanager
+def _open_session(session_factory):
+    """Open a SQLAlchemy session and ensure it is closed on exit."""
+    session = session_factory()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 class GuildConfigCache:
@@ -31,6 +42,25 @@ class GuildConfigCache:
         self._leave_configs: dict[int, tuple[int, str | None]] = {}
         self._leave_warmed: bool = False
 
+    @staticmethod
+    def _run_warm(session_factory, loader_fn, error_label: str):
+        """Run a bulk DB load inside a session, logging and re-raising on failure.
+
+        Args:
+            session_factory: Callable that returns a new SQLAlchemy session.
+            loader_fn: ``(session) -> T`` — performs the query and returns data.
+            error_label: Prefix used in the error log message.
+
+        Returns:
+            Whatever ``loader_fn`` returns.
+        """
+        with _open_session(session_factory) as session:
+            try:
+                return loader_fn(session)
+            except Exception:
+                _log.exception("%s: failed to load from DB — staying in degraded mode", error_label)
+                raise
+
     # ── Language ──────────────────────────────────────────────────────────────
 
     def get_guild_language(self, guild_id: int, session_factory) -> str:
@@ -38,14 +68,11 @@ class GuildConfigCache:
         if guild_id in self._lang:
             return self._lang[guild_id]
 
-        session = session_factory()
-        try:
+        with _open_session(session_factory) as session:
             from models.admin import GuildLanguageConfig
 
             config = GuildLanguageConfig.get(guild_id, session)
             lang = config.Language if config is not None else "en"
-        finally:
-            session.close()
 
         self._lang[guild_id] = lang
         return lang
@@ -61,14 +88,11 @@ class GuildConfigCache:
         if guild_id in self._modrole:
             return self._modrole[guild_id]
 
-        session = session_factory()
-        try:
+        with _open_session(session_factory) as session:
             from models.admin import BotModeratorRole
 
             entry = BotModeratorRole.get(guild_id, session)
             role_id = entry.RoleId if entry is not None else None
-        finally:
-            session.close()
 
         self._modrole[guild_id] = role_id
         return role_id
@@ -133,28 +157,22 @@ class GuildConfigCache:
 
         Idempotent — safe to call again on reconnect.
         """
-        session = session_factory()
-        try:
-            from models.reactionrole import ReactionRoleMessage
+        from models.reactionrole import ReactionRoleMessage
 
+        def _load(session):
             by_guild: dict[int, set[int]] = {}
             all_ids: set[int] = set()
             mappings: dict[int, dict[str, int]] = {}
             # entries uses lazy="joined", so this single query fetches everything
-            messages = session.query(ReactionRoleMessage).all()
-            for msg in messages:
+            for msg in session.query(ReactionRoleMessage).all():
                 by_guild.setdefault(msg.GuildId, set()).add(msg.MessageId)
                 all_ids.add(msg.MessageId)
                 mappings[msg.MessageId] = {entry.Emoji: entry.RoleId for entry in msg.entries}
-        except Exception:
-            _log.exception("warm_reaction_roles: failed to load from DB — staying in degraded mode")
-            raise
-        finally:
-            session.close()
+            return by_guild, all_ids, mappings
 
-        self._rr_by_guild = by_guild
-        self._rr_message_ids = all_ids
-        self._rr_mappings = mappings
+        self._rr_by_guild, self._rr_message_ids, self._rr_mappings = self._run_warm(
+            session_factory, _load, "warm_reaction_roles"
+        )
         self._rr_warmed = True
 
     # ── Leave messages ────────────────────────────────────────────────────────
@@ -178,8 +196,7 @@ class GuildConfigCache:
         if self._leave_warmed or guild_id in self._leave_configs:
             return self._leave_configs.get(guild_id)
 
-        session = session_factory()
-        try:
+        with _open_session(session_factory) as session:
             from models.leavemsg import LeaveMessage
 
             row = (
@@ -191,8 +208,6 @@ class GuildConfigCache:
                 .first()
             )
             config = (row.ChannelId, row.Message) if row is not None else None
-        finally:
-            session.close()
 
         self._leave_configs[guild_id] = config
         return config
@@ -224,19 +239,13 @@ class GuildConfigCache:
 
         Idempotent — safe to call again on reconnect.
         """
-        session = session_factory()
-        try:
-            from models.leavemsg import LeaveMessage
+        from models.leavemsg import LeaveMessage
 
+        def _load(session):
             rows = session.query(LeaveMessage).filter(LeaveMessage.Enabled.is_(True)).all()
-            configs = {row.GuildId: (row.ChannelId, row.Message) for row in rows}
-        except Exception:
-            _log.exception("warm_leave_messages: failed to load from DB — staying in degraded mode")
-            raise
-        finally:
-            session.close()
+            return {row.GuildId: (row.ChannelId, row.Message) for row in rows}
 
-        self._leave_configs = configs
+        self._leave_configs = self._run_warm(session_factory, _load, "warm_leave_messages")
         self._leave_warmed = True
 
     # ── Eviction ──────────────────────────────────────────────────────────────
