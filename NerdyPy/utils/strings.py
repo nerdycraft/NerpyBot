@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Localized string lookup — loads YAML templates and resolves per-guild language."""
+"""Localized string lookup — loads YAML templates and formats per-language strings."""
 
 from pathlib import Path
 
 import yaml
-from models.admin import GuildLanguageConfig
 
 # Module-level state, populated by load_strings()
 _strings: dict[str, dict] = {}
@@ -109,15 +108,3 @@ def get_raw(lang: str, key: str):
             return result
 
     raise KeyError(f"Missing localization key: {key}")
-
-
-def get_guild_language(guild_id: int, session) -> str:
-    """Get the configured language for a guild, defaulting to 'en'."""
-    config = GuildLanguageConfig.get(guild_id, session)
-    return config.Language if config is not None else "en"
-
-
-def get_localized_string(guild_id: int, key: str, session, **kwargs) -> str:
-    """Convenience: resolve guild language, then look up and format a string."""
-    lang = get_guild_language(guild_id, session)
-    return get_string(lang, key, **kwargs)
