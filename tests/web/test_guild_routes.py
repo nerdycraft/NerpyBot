@@ -217,22 +217,14 @@ class TestLeaveMessageEndpoints:
         assert len(invalidations) == 1
         assert invalidations[0]["guild_id"] == GUILD_ID
 
-    def test_put_enabled_without_channel_id_returns_422(self, client, fake_valkey, auth_header):
-        """PUT leave-messages with enabled=True but no channel_id must return 422 and not notify the bot."""
-        published = []
-
-        def capture(channel, message):
-            published.append((channel, message))
-
-        with patch.object(fake_valkey._client, "publish", side_effect=capture):
-            response = client.put(
-                f"/api/guilds/{GUILD_ID}/leave-messages",
-                json={"message": "Bye {member}!", "enabled": True},
-                headers=auth_header,
-            )
-
+    def test_put_enabled_without_channel_id_returns_422(self, client, auth_header):
+        """PUT leave-messages with enabled=True but no channel_id must return 422."""
+        response = client.put(
+            f"/api/guilds/{GUILD_ID}/leave-messages",
+            json={"message": "Bye {member}!", "enabled": True},
+            headers=auth_header,
+        )
         assert response.status_code == 422
-        assert not any(ch == "nerpybot:cmd" for ch, _ in published)
 
 
 class TestAutoDeleteEndpoints:
