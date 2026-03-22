@@ -2264,19 +2264,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
             )
 
         if used_thread:
-            try:
-                with interaction.client.session_scope() as session:
-                    config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
-                    delay = config.ThreadCleanupDelayHours if config else 24
-                    session.execute(
-                        sa_update(CraftingOrder)
-                        .where(CraftingOrder.Id == self.order_id)
-                        .values(MessageDeleteAt=datetime.now(UTC) + timedelta(hours=delay))
-                    )
-            except NerpyInfraException:
-                log.error(
-                    "Failed to schedule thread cleanup for order %s; thread may not be auto-deleted", self.order_id
-                )
+            _schedule_thread_cleanup(interaction, self.order_id)
 
         await interaction.response.edit_message(content=_ls(interaction, "complete.done"), embed=None, view=None)
         if not used_thread:
@@ -2350,19 +2338,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
                 )
 
         if used_thread:
-            try:
-                with interaction.client.session_scope() as session:
-                    config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
-                    delay = config.ThreadCleanupDelayHours if config else 24
-                    session.execute(
-                        sa_update(CraftingOrder)
-                        .where(CraftingOrder.Id == self.order_id)
-                        .values(MessageDeleteAt=datetime.now(UTC) + timedelta(hours=delay))
-                    )
-            except NerpyInfraException:
-                log.error(
-                    "Failed to schedule thread cleanup for order %s; thread may not be auto-deleted", self.order_id
-                )
+            _schedule_thread_cleanup(interaction, self.order_id)
 
         await interaction.response.edit_message(content=_ls(interaction, "cancel.done"), embed=None, view=None)
         if not used_thread:
@@ -2456,6 +2432,25 @@ class AskQuestionModal(ui.Modal):
 # ---------------------------------------------------------------------------
 # DM Thread Fallback
 # ---------------------------------------------------------------------------
+
+
+def _schedule_thread_cleanup(interaction: Interaction, order_id: int) -> None:
+    """Write MessageDeleteAt for the order so the background task auto-deletes the thread.
+
+    Called when DM delivery failed and a thread was used as fallback. The write is advisory —
+    a failure here is logged but never propagates to the user.
+    """
+    try:
+        with interaction.client.session_scope() as session:
+            config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+            delay = config.ThreadCleanupDelayHours if config else 24
+            session.execute(
+                sa_update(CraftingOrder)
+                .where(CraftingOrder.Id == order_id)
+                .values(MessageDeleteAt=datetime.now(UTC) + timedelta(hours=delay))
+            )
+    except NerpyInfraException:
+        log.error("Failed to schedule thread cleanup for order %s; thread may not be auto-deleted", order_id)
 
 
 async def _thread_fallback(interaction: Interaction, order_id: int, message: str, creator_id: int) -> bool:
