@@ -55,10 +55,8 @@ class GuildConfigCache:
     def _run_warm(session_factory, loader_fn):
         """Run a bulk DB load inside a session.
 
-        Re-raises ``SQLAlchemyError`` so callers stay in degraded mode. Logging
-        is left to the caller, which has richer context (cache name, strategy).
-        Non-SQLAlchemy exceptions propagate uncaught so the real exception type
-        is visible.
+        Any exception from ``loader_fn`` propagates to the caller. Logging is
+        left to the caller, which has richer context (cache name, strategy).
 
         Args:
             session_factory: Callable that returns a new SQLAlchemy session.
@@ -68,10 +66,7 @@ class GuildConfigCache:
             Whatever ``loader_fn`` returns.
         """
         with _open_session(session_factory) as session:
-            try:
-                return loader_fn(session)
-            except SQLAlchemyError:
-                raise
+            return loader_fn(session)
 
     # ── Language ──────────────────────────────────────────────────────────────
 
@@ -163,6 +158,7 @@ class GuildConfigCache:
         """Register a new reaction role message ID in the cache."""
         self._rr_message_ids.add(message_id)
         self._rr_by_guild.setdefault(guild_id, set()).add(message_id)
+        self._rr_evicted_msgs.discard(message_id)  # heal eviction sentinel if guild rejoined
 
     def add_reaction_role_entry(self, message_id: int, emoji: str, role_id: int) -> None:
         """Add an emoji-to-role mapping for a tracked message.
@@ -185,6 +181,7 @@ class GuildConfigCache:
         """Remove a reaction role message and all its mappings from the cache."""
         self._rr_message_ids.discard(message_id)
         self._rr_mappings.pop(message_id, None)
+        self._rr_evicted_msgs.discard(message_id)  # cancel re-check sentinel: message is definitively removed
         if guild_id in self._rr_by_guild:
             self._rr_by_guild[guild_id].discard(message_id)
 

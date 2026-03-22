@@ -4,8 +4,19 @@
 from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy.exc import OperationalError
 
-from utils.cache import GuildConfigCache, build_name_choices
+from models.admin import BotModeratorRole, GuildLanguageConfig
+from models.leavemsg import LeaveMessage
+from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
+from utils.cache import (
+    REACTION_ROLE_CACHE_MISS,
+    GuildConfigCache,
+    _autocomplete_cache,
+    build_name_choices,
+    cached_autocomplete,
+    invalidate_autocomplete,
+)
 
 
 GUILD_ID = 987654321
@@ -37,8 +48,6 @@ class TestGuildLanguage:
         session_factory.assert_called_once()
 
     def test_miss_loads_from_db(self, cache, session_factory, db_session):
-        from models.admin import GuildLanguageConfig
-
         db_session.add(GuildLanguageConfig(GuildId=GUILD_ID, Language="de"))
         db_session.commit()
 
@@ -59,8 +68,6 @@ class TestGuildLanguage:
         session_factory.assert_not_called()
 
     def test_second_call_uses_cache(self, cache, session_factory, db_session):
-        from models.admin import GuildLanguageConfig
-
         db_session.add(GuildLanguageConfig(GuildId=GUILD_ID, Language="de"))
         db_session.commit()
 
@@ -70,8 +77,6 @@ class TestGuildLanguage:
         assert session_factory.call_count == 1
 
     def test_different_guilds_are_independent(self, cache, session_factory, db_session):
-        from models.admin import GuildLanguageConfig
-
         db_session.add(GuildLanguageConfig(GuildId=GUILD_ID, Language="de"))
         db_session.add(GuildLanguageConfig(GuildId=GUILD_ID_2, Language="fr"))
         db_session.commit()
@@ -90,8 +95,6 @@ class TestModrole:
         session_factory.assert_called_once()
 
     def test_miss_loads_from_db(self, cache, session_factory, db_session):
-        from models.admin import BotModeratorRole
-
         db_session.add(BotModeratorRole(GuildId=GUILD_ID, RoleId=555))
         db_session.commit()
 
@@ -133,8 +136,6 @@ class TestReactionRoles:
         assert cache.is_reaction_role_message(999999) is False
 
     def test_warmed_returns_true_for_known(self, cache, session_factory, db_session):
-        from models.reactionrole import ReactionRoleMessage
-
         db_session.add(ReactionRoleMessage(GuildId=GUILD_ID, ChannelId=111, MessageId=42))
         db_session.commit()
 
@@ -147,6 +148,27 @@ class TestReactionRoles:
         cache.add_reaction_role_message(GUILD_ID, 77)
         assert cache.is_reaction_role_message(77) is True
 
+    def test_add_after_evict_heals_sentinel(self, cache, session_factory):
+        # After evict_guild, add_reaction_role_message must clear the re-check sentinel so
+        # get_reaction_role returns None (not CACHE_MISS) for the freshly registered message.
+        cache.warm_reaction_roles(session_factory)
+        cache.add_reaction_role_message(GUILD_ID, 77)
+        cache.evict_guild(GUILD_ID)
+        assert cache.get_reaction_role(77, "👍") is REACTION_ROLE_CACHE_MISS  # sentinel active
+        cache.add_reaction_role_message(GUILD_ID, 77)  # re-register after rejoin
+        assert cache.get_reaction_role(77, "👍") is None  # sentinel healed; None = warmed, no mapping
+
+    def test_remove_after_evict_clears_sentinel(self, cache, session_factory):
+        # After evict_guild, remove_reaction_role_message must clear the re-check sentinel so
+        # get_reaction_role returns None (not CACHE_MISS) — the message is definitively gone.
+        cache.warm_reaction_roles(session_factory)
+        cache.add_reaction_role_message(GUILD_ID, 77)
+        cache.evict_guild(GUILD_ID)
+        assert cache.get_reaction_role(77, "👍") is REACTION_ROLE_CACHE_MISS  # sentinel active
+        cache.remove_reaction_role_message(GUILD_ID, 77)
+        assert cache.is_reaction_role_message(77) is False  # hot-path guard: message is gone
+        assert cache.get_reaction_role(77, "👍") is None  # sentinel cleared; None = warmed, no mapping
+
     def test_remove_after_add(self, cache, session_factory):
         cache.warm_reaction_roles(session_factory)
         cache.add_reaction_role_message(GUILD_ID, 77)
@@ -157,8 +179,6 @@ class TestReactionRoles:
         cache.remove_reaction_role_message(GUILD_ID, 999)  # must not raise
 
     def test_warm_is_idempotent(self, cache, session_factory, db_session):
-        from models.reactionrole import ReactionRoleMessage
-
         db_session.add(ReactionRoleMessage(GuildId=GUILD_ID, ChannelId=111, MessageId=42))
         db_session.commit()
 
@@ -207,8 +227,6 @@ class TestLeaveMessages:
         assert cache.is_leave_message_guild(GUILD_ID) is False
 
     def test_warmed_returns_true_for_enabled_guild(self, cache, session_factory, db_session):
-        from models.leavemsg import LeaveMessage
-
         db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye", Enabled=True))
         db_session.commit()
 
@@ -216,8 +234,6 @@ class TestLeaveMessages:
         assert cache.is_leave_message_guild(GUILD_ID) is True
 
     def test_disabled_guild_not_in_cache(self, cache, session_factory, db_session):
-        from models.leavemsg import LeaveMessage
-
         db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye", Enabled=False))
         db_session.commit()
 
@@ -236,8 +252,6 @@ class TestLeaveMessages:
         assert cache.is_leave_message_guild(GUILD_ID) is False
 
     def test_warm_is_idempotent(self, cache, session_factory, db_session):
-        from models.leavemsg import LeaveMessage
-
         db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye", Enabled=True))
         db_session.commit()
 
@@ -249,8 +263,6 @@ class TestLeaveMessages:
         assert cache.is_leave_message_guild(GUILD_ID) is True
 
     def test_get_leave_config_unwarmed_hits_db(self, cache, session_factory, db_session):
-        from models.leavemsg import LeaveMessage
-
         db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye {member}", Enabled=True))
         db_session.commit()
 
@@ -278,8 +290,6 @@ class TestLeaveMessages:
         assert not db_called, "second call for same guild should not open a DB session"
 
     def test_get_leave_config_warmed_uses_cache(self, cache, session_factory, db_session):
-        from models.leavemsg import LeaveMessage
-
         db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye", Enabled=True))
         db_session.commit()
 
@@ -311,8 +321,6 @@ class TestLeaveMessages:
         assert cache._leave_warmed is True
 
     def test_reload_leave_config_populates_when_enabled(self, cache, session_factory, db_session):
-        from models.leavemsg import LeaveMessage
-
         db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye {member}", Enabled=True))
         db_session.commit()
 
@@ -325,8 +333,6 @@ class TestLeaveMessages:
         assert cache.get_leave_config(GUILD_ID, session_factory) == (111, "bye {member}")
 
     def test_reload_leave_config_evicts_when_disabled(self, cache, session_factory, db_session):
-        from models.leavemsg import LeaveMessage
-
         db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye {member}", Enabled=True))
         db_session.commit()
         cache.warm_leave_messages(session_factory)
@@ -341,8 +347,6 @@ class TestLeaveMessages:
     def test_reload_leave_config_restores_evicted_entry(self, cache, session_factory, db_session):
         # After evict_leave_config (explicit disable), is_leave_message_guild returns False.
         # reload_leave_config must restore the entry so is_leave_message_guild returns True.
-        from models.leavemsg import LeaveMessage
-
         db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye {member}", Enabled=True))
         db_session.commit()
         cache.warm_leave_messages(session_factory)
@@ -393,8 +397,6 @@ class TestEviction:
         assert cache.is_reaction_role_message(42) is True  # evicted but treated as possible
         assert cache.is_reaction_role_message(99) is True  # other guild unaffected
         # get_reaction_role must return CACHE_MISS (not None) so callers fall back to DB.
-        from utils.cache import REACTION_ROLE_CACHE_MISS
-
         assert cache.get_reaction_role(42, "👍") is REACTION_ROLE_CACHE_MISS
 
     def test_evict_reaction_role_messages_cleared_on_re_warm(self, cache, session_factory):
@@ -418,22 +420,14 @@ class TestEviction:
         session_factory.assert_not_called()
 
 
-# ── build_name_choices ────────────────────────────────────────────────────────
-
-
 # ── get_reaction_role ─────────────────────────────────────────────────────────
 
 
 class TestGetReactionRole:
     def test_returns_cache_miss_before_warm(self, cache):
-        from utils.cache import REACTION_ROLE_CACHE_MISS
-
         assert cache.get_reaction_role(99, "👍") is REACTION_ROLE_CACHE_MISS
 
     def test_returns_role_id_after_warm(self, cache, session_factory, db_session):
-        from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
-        from utils.cache import REACTION_ROLE_CACHE_MISS
-
         msg = ReactionRoleMessage(GuildId=GUILD_ID, ChannelId=111, MessageId=42)
         db_session.add(msg)
         db_session.flush()
@@ -447,9 +441,6 @@ class TestGetReactionRole:
         assert result == 777
 
     def test_returns_none_for_unknown_emoji_after_warm(self, cache, session_factory, db_session):
-        from models.reactionrole import ReactionRoleMessage
-        from utils.cache import REACTION_ROLE_CACHE_MISS
-
         db_session.add(ReactionRoleMessage(GuildId=GUILD_ID, ChannelId=111, MessageId=42))
         db_session.commit()
 
@@ -466,16 +457,12 @@ class TestGetReactionRole:
 class TestCachedAutocomplete:
     @pytest.fixture(autouse=True)
     def _clear_cache(self):
-        from utils.cache import _autocomplete_cache
-
         _autocomplete_cache.clear()
         yield
         _autocomplete_cache.clear()
 
     @pytest.mark.asyncio
     async def test_hit_returns_cached_result(self):
-        from utils.cache import cached_autocomplete
-
         calls = []
 
         def fetcher():
@@ -491,8 +478,6 @@ class TestCachedAutocomplete:
 
     @pytest.mark.asyncio
     async def test_different_keys_produce_separate_entries(self):
-        from utils.cache import cached_autocomplete
-
         r1 = await cached_autocomplete(("test", 1), lambda: ["x"])
         r2 = await cached_autocomplete(("test", 2), lambda: ["y"])
 
@@ -501,10 +486,6 @@ class TestCachedAutocomplete:
 
     @pytest.mark.asyncio
     async def test_fetcher_error_returns_empty_list(self):
-        from sqlalchemy.exc import OperationalError
-
-        from utils.cache import cached_autocomplete
-
         def bad_fetcher():
             raise OperationalError("DB down", None, None)
 
@@ -513,10 +494,6 @@ class TestCachedAutocomplete:
 
     @pytest.mark.asyncio
     async def test_fetcher_error_does_not_cache(self):
-        from sqlalchemy.exc import OperationalError
-
-        from utils.cache import cached_autocomplete
-
         calls = []
 
         def flaky_fetcher():
@@ -535,8 +512,6 @@ class TestCachedAutocomplete:
     async def test_non_db_fetcher_error_propagates(self):
         # Non-SQLAlchemyError must propagate so programming bugs surface immediately
         # rather than silently returning [] on every keystroke.
-        from utils.cache import cached_autocomplete
-
         def buggy_fetcher():
             raise RuntimeError("unexpected bug")
 
@@ -544,16 +519,12 @@ class TestCachedAutocomplete:
             await cached_autocomplete(("test", 77), buggy_fetcher)
 
     def test_invalidate_evicts_key(self):
-        from utils.cache import _autocomplete_cache, invalidate_autocomplete
-
         _autocomplete_cache[("test", 5)] = ["cached"]
         invalidate_autocomplete(("test", 5))
 
         assert ("test", 5) not in _autocomplete_cache
 
     def test_invalidate_nonexistent_is_safe(self):
-        from utils.cache import invalidate_autocomplete
-
         invalidate_autocomplete(("test", 999))  # must not raise
 
 
