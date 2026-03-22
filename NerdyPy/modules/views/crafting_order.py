@@ -2437,7 +2437,7 @@ class AskQuestionModal(ui.Modal):
 def _schedule_thread_cleanup(interaction: Interaction, order_id: int) -> None:
     """Write MessageDeleteAt for the order so the background task auto-deletes the thread.
 
-    Called when DM delivery failed and a thread was used as fallback. The write is advisory —
+    Called after a thread was successfully used as a DM fallback. The write is advisory —
     a failure here is logged but never propagates to the user.
     """
     try:
