@@ -2186,17 +2186,22 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
         return True
 
     async def callback(self, interaction: Interaction):
+        embed = view = None
+        order_not_found = False
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
-                return
-            order.Status = "open"
-            order.CrafterId = None
-            order.CrafterName = None
-            lang = interaction.client.get_guild_language(interaction.guild_id)
-            embed = build_order_embed(order, interaction.guild, lang)
-            view = build_order_view(order.Id, "open", lang)
+                order_not_found = True
+            else:
+                order.Status = "open"
+                order.CrafterId = None
+                order.CrafterName = None
+                lang = interaction.client.get_guild_language(interaction.guild_id)
+                embed = build_order_embed(order, interaction.guild, lang)
+                view = build_order_view(order.Id, "open", lang)
+        if order_not_found:
+            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            return
         await interaction.response.edit_message(embed=embed, view=view)
 
 
@@ -2228,16 +2233,21 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         return True
 
     async def callback(self, interaction: Interaction):
+        order_not_found = False
+        item_name = creator_id = crafter_id = thread_id = None
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
-                return
-            order.Status = "completed"
-            item_name = _display_item_name(order)
-            creator_id = order.CreatorId
-            crafter_id = order.CrafterId
-            thread_id = order.ThreadId
+                order_not_found = True
+            else:
+                order.Status = "completed"
+                item_name = _display_item_name(order)
+                creator_id = order.CreatorId
+                crafter_id = order.CrafterId
+                thread_id = order.ThreadId
+        if order_not_found:
+            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            return
 
         crafter_mention = f"<@{crafter_id}>" if crafter_id else interaction.user.mention
         # DM the creator; fall back to thread if DM fails
@@ -2311,16 +2321,22 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
         return True
 
     async def callback(self, interaction: Interaction):
+        order_not_found = False
+        item_name = creator_id = thread_id = None
+        cancelled_by_creator = False
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
-                return
-            order.Status = "cancelled"
-            item_name = _display_item_name(order)
-            creator_id = order.CreatorId
-            cancelled_by_creator = interaction.user.id == creator_id
-            thread_id = order.ThreadId
+                order_not_found = True
+            else:
+                order.Status = "cancelled"
+                item_name = _display_item_name(order)
+                creator_id = order.CreatorId
+                cancelled_by_creator = interaction.user.id == creator_id
+                thread_id = order.ThreadId
+        if order_not_found:
+            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            return
 
         # DM only if cancelled by admin (not by creator); fall back to thread if DM fails
         used_thread = False
