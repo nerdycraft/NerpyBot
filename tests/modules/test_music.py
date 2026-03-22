@@ -5,7 +5,9 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from models.music import Playlist, PlaylistEntry
 from modules.music import Music
+from utils.cache import _autocomplete_cache
 from utils.strings import load_strings
 
 
@@ -178,15 +180,18 @@ class TestPlayCommand:
         assert mock_interaction.followup.send.call_args[1].get("ephemeral") is True
 
 
-from models.music import Playlist  # noqa: E402
-
-
 class TestPlaylistCreate:
     @pytest.mark.asyncio
     async def test_create_stores_playlist(self, music_cog_new, mock_interaction, db_session):
+        guild_id = mock_interaction.guild_id
+        user_id = mock_interaction.user.id
+        _autocomplete_cache[("playlists", guild_id, user_id)] = ["stale"]
+
         await Music.playlist._children["create"].callback(music_cog_new, mock_interaction, name="bops")
-        p = Playlist.get_by_name(mock_interaction.guild_id, mock_interaction.user.id, "bops", db_session)
+
+        p = Playlist.get_by_name(guild_id, user_id, "bops", db_session)
         assert p is not None
+        assert ("playlists", guild_id, user_id) not in _autocomplete_cache
 
     @pytest.mark.asyncio
     async def test_create_duplicate_sends_error(self, music_cog_new, mock_interaction, db_session):
@@ -237,9 +242,6 @@ class TestPlaylistShow:
         if mock_interaction.followup.send.called:
             msg = mock_interaction.followup.send.call_args[0][0]
             assert "missing" in msg.lower() or "not found" in msg.lower()
-
-
-from models.music import PlaylistEntry  # noqa: E402
 
 
 class TestPlaylistAdd:

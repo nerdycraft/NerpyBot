@@ -476,3 +476,94 @@ class TestBotCommandHandler:
         mock_bot.guilds = []
         result = await handle_valkey_command(mock_bot, "list_guilds", {})
         assert result["guilds"] == []
+
+    # ── set_guild_language ──────────────────────────────────────────────────
+
+    async def test_set_guild_language_valid(self, mock_bot):
+        """Valid payload updates the cache and dispatches guild_language_changed."""
+        mock_bot.guild_cache = MagicMock()
+        mock_bot.dispatch = MagicMock()
+        result = await handle_valkey_command(mock_bot, "set_guild_language", {"guild_id": "42", "language": "de"})
+        assert result == {"ok": True}
+        mock_bot.guild_cache.set_guild_language.assert_called_once_with(42, "de")
+        mock_bot.dispatch.assert_called_once_with("guild_language_changed", 42, "de")
+
+    async def test_set_guild_language_missing_guild_id(self, mock_bot):
+        """Missing guild_id returns ok=False without touching the cache."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "set_guild_language", {"language": "fr"})
+        assert result["ok"] is False
+        mock_bot.guild_cache.set_guild_language.assert_not_called()
+
+    async def test_set_guild_language_empty_string(self, mock_bot):
+        """Empty language string returns ok=False without touching the cache."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "set_guild_language", {"guild_id": "42", "language": ""})
+        assert result["ok"] is False
+        mock_bot.guild_cache.set_guild_language.assert_not_called()
+
+    async def test_set_guild_language_non_string(self, mock_bot):
+        """Non-string language value returns ok=False without touching the cache."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "set_guild_language", {"guild_id": "42", "language": 99})
+        assert result["ok"] is False
+        mock_bot.guild_cache.set_guild_language.assert_not_called()
+
+    # ── invalidate_modrole ─────────────────────────────────────────────────
+
+    async def test_invalidate_modrole_valid(self, mock_bot):
+        """Valid guild_id evicts the modrole cache entry."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "invalidate_modrole", {"guild_id": "77"})
+        assert result == {"ok": True}
+        mock_bot.guild_cache.delete_modrole.assert_called_once_with(77)
+
+    async def test_invalidate_modrole_invalid_guild_id(self, mock_bot):
+        """Zero or non-numeric guild_id returns ok=False without touching the cache."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "invalidate_modrole", {"guild_id": "abc"})
+        assert result["ok"] is False
+        mock_bot.guild_cache.delete_modrole.assert_not_called()
+
+    async def test_invalidate_modrole_missing_guild_id(self, mock_bot):
+        """Missing guild_id returns ok=False without touching the cache."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "invalidate_modrole", {})
+        assert result["ok"] is False
+        mock_bot.guild_cache.delete_modrole.assert_not_called()
+
+    # ── invalidate_leave_config ─────────────────────────────────────────────
+
+    async def test_invalidate_leave_config_valid(self, mock_bot):
+        """Valid guild_id: DB loaded in thread, then apply_leave_config called on event-loop."""
+        sentinel = (123, "bye")
+        mock_bot.guild_cache = MagicMock()
+        mock_bot.guild_cache._load_leave_config_from_db.return_value = sentinel
+        result = await handle_valkey_command(mock_bot, "invalidate_leave_config", {"guild_id": "55"})
+        assert result == {"ok": True}
+        mock_bot.guild_cache._load_leave_config_from_db.assert_called_once_with(55, mock_bot.SESSION)
+        mock_bot.guild_cache.apply_leave_config.assert_called_once_with(55, sentinel)
+
+    async def test_invalidate_leave_config_missing_guild_id(self, mock_bot):
+        """Missing or non-numeric guild_id returns ok=False without hitting the DB."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "invalidate_leave_config", {})
+        assert result["ok"] is False
+        mock_bot.guild_cache._load_leave_config_from_db.assert_not_called()
+
+    async def test_invalidate_leave_config_invalid_guild_id(self, mock_bot):
+        """Non-numeric guild_id returns ok=False without hitting the DB."""
+        mock_bot.guild_cache = MagicMock()
+        result = await handle_valkey_command(mock_bot, "invalidate_leave_config", {"guild_id": "bad"})
+        assert result["ok"] is False
+        mock_bot.guild_cache._load_leave_config_from_db.assert_not_called()
+
+    async def test_invalidate_leave_config_reload_failure(self, mock_bot):
+        """SQLAlchemyError from DB read calls mark_leave_config_for_recheck and returns ok=False."""
+        from sqlalchemy.exc import SQLAlchemyError
+
+        mock_bot.guild_cache = MagicMock()
+        mock_bot.guild_cache._load_leave_config_from_db.side_effect = SQLAlchemyError("DB down")
+        result = await handle_valkey_command(mock_bot, "invalidate_leave_config", {"guild_id": "55"})
+        assert result == {"ok": False, "error": "cache reload failed — see bot logs"}
+        mock_bot.guild_cache.mark_leave_config_for_recheck.assert_called_once_with(55)

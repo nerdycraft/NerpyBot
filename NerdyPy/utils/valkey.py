@@ -10,6 +10,8 @@ The listener loop runs as an asyncio background task. It subscribes to the
 import json
 import time
 from asyncio import CancelledError, ensure_future, gather, sleep, to_thread
+
+from sqlalchemy.exc import SQLAlchemyError
 from datetime import UTC, datetime
 from importlib.metadata import version as pkg_version
 from pathlib import Path
@@ -37,9 +39,35 @@ def _discover_available_modules(loaded_names: set[str]) -> list[str]:
     return sorted(discovered - loaded_names - PROTECTED_MODULES)
 
 
+def _parse_guild_id(payload: dict) -> int:
+    """Safely extract guild_id from a payload dict.
+
+    Returns 0 on missing, explicit ``None``, non-numeric input, booleans, or non-positive values.
+    The ``or 0`` handles the case where the key is present but set to ``None``
+    (``payload.get("guild_id", 0)`` returns ``None`` in that case, not the default).
+    """
+    raw = payload.get("guild_id", 0)
+    if isinstance(raw, bool):
+        return 0
+    try:
+        guild_id = int(raw or 0)
+    except (TypeError, ValueError):
+        return 0
+    return guild_id if guild_id > 0 else 0
+
+
 def _get_guild(bot, payload: dict):
-    """Extract guild_id from payload and return the Guild, or None if not found."""
-    guild_id = int(payload.get("guild_id", 0))
+    """Extract guild_id from payload and return the Guild, or None if not found.
+
+    Returns None both when the guild is not in the bot's cache and when the payload
+    carries an invalid guild_id. Callers are responsible for handling the None case;
+    this function emits a debug log when guild_id parses to 0 so malformed payloads
+    leave a trace.
+    """
+    guild_id = _parse_guild_id(payload)
+    if not guild_id:
+        bot.log.debug("_get_guild: payload missing or invalid guild_id=%r", payload.get("guild_id"))
+        return None
     return bot.get_guild(guild_id)
 
 
@@ -114,8 +142,8 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                     return session.query(ReminderMessage).filter(ReminderMessage.Enabled == True).count()  # noqa: E712
 
             active_reminders = await to_thread(_count_reminders)
-        except Exception as e:
-            bot.log.warning("Failed to count active reminders for health response: %s", e)
+        except Exception:
+            bot.log.exception("Failed to count active reminders for health response")
         return {
             "guild_count": len(bot.guilds),
             "voice_connections": len(active_vcs),
@@ -262,6 +290,41 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         except Exception as e:
             bot.log.warning("validate_wow_guild failed: %s", e)
             return {"valid": False, "display_name": None, "error": str(e)}
+    elif command == "invalidate_leave_config":
+        guild_id = _parse_guild_id(payload)
+        if not guild_id:
+            bot.log.warning("invalidate_leave_config: received invalid guild_id=%r", payload.get("guild_id"))
+            return {"ok": False, "error": "invalid guild_id"}
+        try:
+            config = await to_thread(bot.guild_cache._load_leave_config_from_db, guild_id, bot.SESSION)
+        except SQLAlchemyError:
+            bot.guild_cache.mark_leave_config_for_recheck(guild_id)
+            bot.log.exception("invalidate_leave_config: reload failed for guild_id=%d", guild_id)
+            return {"ok": False, "error": "cache reload failed — see bot logs"}
+        bot.guild_cache.apply_leave_config(guild_id, config)
+        return {"ok": True}
+    elif command == "invalidate_modrole":
+        guild_id = _parse_guild_id(payload)
+        if not guild_id:
+            bot.log.warning("invalidate_modrole: received invalid guild_id=%r", payload.get("guild_id"))
+            return {"ok": False, "error": "invalid guild_id"}
+        # Evict so the next get_modrole re-reads from DB — avoids trusting the web-tier
+        # value under concurrent updates and stays consistent with the leave-config pattern.
+        bot.guild_cache.delete_modrole(guild_id)
+        return {"ok": True}
+    elif command == "set_guild_language":
+        guild_id = _parse_guild_id(payload)
+        language = payload.get("language", "")
+        if not guild_id:
+            bot.log.warning("set_guild_language: received invalid guild_id=%r", payload.get("guild_id"))
+            return {"ok": False, "error": "invalid guild_id"}
+        if not isinstance(language, str) or not language.strip():
+            bot.log.warning("set_guild_language: received invalid language=%r for guild_id=%d", language, guild_id)
+            return {"ok": False, "error": "invalid language"}
+        language = language.strip()
+        bot.guild_cache.set_guild_language(guild_id, language)
+        bot.dispatch("guild_language_changed", guild_id, language)
+        return {"ok": True}
     elif command == "list_guilds":
         return {
             "guilds": [

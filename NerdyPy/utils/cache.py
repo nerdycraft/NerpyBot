@@ -1,5 +1,47 @@
 # -*- coding: utf-8 -*-
-"""In-memory guild configuration cache to reduce redundant DB queries."""
+"""In-memory guild configuration and autocomplete TTL cache."""
+
+import asyncio
+import logging
+import time
+from contextlib import contextmanager
+
+from sqlalchemy.exc import SQLAlchemyError
+
+from cachetools import TTLCache
+from discord import app_commands
+
+_log = logging.getLogger(__name__)
+
+
+@contextmanager
+def _open_session(session_factory):
+    """Open a SQLAlchemy session and ensure it is closed on exit."""
+    session = session_factory()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+# Sentinel returned by GuildConfigCache.get_reaction_role() when the cache has not been
+# warmed yet or when the message was evicted after warm-up. Distinguishes "must fall back
+# to DB" (not yet warmed, or evicted after warm-up) from None ("warmed, emoji has no mapping").
+REACTION_ROLE_CACHE_MISS = object()
+
+
+class _LeaveConfigDbError:
+    """Typed sentinel returned by GuildConfigCache.get_leave_config() on DB failure.
+
+    Distinct from ``None`` ("no leave config found") so callers can narrow the
+    return type statically. Use ``result is LEAVE_CONFIG_DB_ERROR`` for identity checks.
+    """
+
+
+LEAVE_CONFIG_DB_ERROR = _LeaveConfigDbError()
+
+# Minimum seconds between lazy re-warm attempts after a failed startup warm-up.
+_REWARM_COOLDOWN = 60.0
 
 
 class GuildConfigCache:
@@ -9,7 +51,8 @@ class GuildConfigCache:
     - Guild language: lazy (DB on miss), invalidated by ``guild_language_changed`` event
     - Bot moderator role: lazy (DB on miss), invalidated by ``modrole_changed`` event
     - Reaction role message IDs: bulk-loaded on startup, updated on add/remove
-    - Leave message guild IDs: bulk-loaded on startup, updated on enable/disable
+    - Reaction role mappings: bulk-loaded on startup, updated on add/remove entry
+    - Leave message configs: bulk-loaded on startup, lazy-loaded on cold miss, updated on enable/disable/edit
     """
 
     def __init__(self):
@@ -17,9 +60,31 @@ class GuildConfigCache:
         self._modrole: dict[int, int | None] = {}
         self._rr_message_ids: set[int] = set()  # flat set for O(1) hot-path lookup
         self._rr_by_guild: dict[int, set[int]] = {}  # guild_id -> set[message_id] for eviction
+        self._rr_mappings: dict[int, dict[str, int]] = {}
         self._rr_warmed: bool = False
-        self._leave_guild_ids: set[int] = set()
+        self._rr_evicted_msgs: set[int] = set()  # evicted after warm; return CACHE_MISS until re-warmed
+        self._rr_last_rewarm_attempt: float = 0.0
+        self._leave_configs: dict[int, tuple[int, str | None] | None] = {}
         self._leave_warmed: bool = False
+        self._leave_evicted: set[int] = set()  # guilds evicted after warm-up; need DB re-read on next access
+        self._leave_last_rewarm_attempt: float = 0.0
+
+    @staticmethod
+    def _run_warm(session_factory, loader_fn):
+        """Run a bulk DB load inside a session.
+
+        Any exception from ``loader_fn`` propagates to the caller. Logging is
+        left to the caller, which has richer context (cache name, strategy).
+
+        Args:
+            session_factory: Callable that returns a new SQLAlchemy session.
+            loader_fn: ``(session) -> T`` — performs the query and returns data.
+
+        Returns:
+            Whatever ``loader_fn`` returns.
+        """
+        with _open_session(session_factory) as session:
+            return loader_fn(session)
 
     # ── Language ──────────────────────────────────────────────────────────────
 
@@ -28,14 +93,15 @@ class GuildConfigCache:
         if guild_id in self._lang:
             return self._lang[guild_id]
 
-        session = session_factory()
         try:
-            from models.admin import GuildLanguageConfig
+            with _open_session(session_factory) as session:
+                from models.admin import GuildLanguageConfig
 
-            config = GuildLanguageConfig.get(guild_id, session)
-            lang = config.Language if config is not None else "en"
-        finally:
-            session.close()
+                config = GuildLanguageConfig.get(guild_id, session)
+                lang = config.Language if config is not None else "en"
+        except SQLAlchemyError:
+            _log.exception("get_guild_language: DB read failed for guild_id=%d", guild_id)
+            raise
 
         self._lang[guild_id] = lang
         return lang
@@ -51,14 +117,15 @@ class GuildConfigCache:
         if guild_id in self._modrole:
             return self._modrole[guild_id]
 
-        session = session_factory()
         try:
-            from models.admin import BotModeratorRole
+            with _open_session(session_factory) as session:
+                from models.admin import BotModeratorRole
 
-            entry = BotModeratorRole.get(guild_id, session)
-            role_id = entry.RoleId if entry is not None else None
-        finally:
-            session.close()
+                entry = BotModeratorRole.get(guild_id, session)
+                role_id = entry.RoleId if entry is not None else None
+        except SQLAlchemyError:
+            _log.exception("get_modrole: DB read failed for guild_id=%d", guild_id)
+            raise
 
         self._modrole[guild_id] = role_id
         return role_id
@@ -78,45 +145,133 @@ class GuildConfigCache:
 
         Returns True unconditionally before warm-up completes (conservative: always
         falls through to the DB query so no reactions are missed).
+        Also returns True for messages evicted via ``evict_guild`` after warm-up —
+        they are re-checked via ``get_reaction_role`` rather than treated as absent.
         """
         if not self._rr_warmed:
             return True
+        if message_id in self._rr_evicted_msgs:
+            return True
         return message_id in self._rr_message_ids
+
+    def get_reaction_role(self, message_id: int, emoji: str):
+        """Return the role ID for the given message + emoji.
+
+        Returns:
+            ``REACTION_ROLE_CACHE_MISS`` if the cache has not been warmed yet
+                (caller must fall back to DB).
+            ``REACTION_ROLE_CACHE_MISS`` if the message was evicted after warm-up
+                (caller must fall back to DB — data may have changed since eviction).
+            ``None`` if the cache is warmed but the emoji has no mapping
+                (caller should skip the DB query).
+            ``int`` role ID if a mapping exists.
+        """
+        if not self._rr_warmed:
+            return REACTION_ROLE_CACHE_MISS
+        if message_id in self._rr_evicted_msgs:
+            return REACTION_ROLE_CACHE_MISS
+        return self._rr_mappings.get(message_id, {}).get(emoji)
 
     def add_reaction_role_message(self, guild_id: int, message_id: int) -> None:
         """Register a new reaction role message ID in the cache."""
         self._rr_message_ids.add(message_id)
         self._rr_by_guild.setdefault(guild_id, set()).add(message_id)
+        self._rr_evicted_msgs.discard(message_id)  # heal eviction sentinel if guild rejoined
+
+    def add_reaction_role_entry(self, message_id: int, emoji: str, role_id: int) -> None:
+        """Add an emoji-to-role mapping for a tracked message.
+
+        No-op before warm-up — the full mapping is loaded by warm_reaction_roles().
+        """
+        if not self._rr_warmed:
+            return
+        self._rr_mappings.setdefault(message_id, {})[emoji] = role_id
+
+    def remove_reaction_role_entry(self, message_id: int, emoji: str) -> None:
+        """Remove a single emoji-to-role mapping from a tracked message.
+
+        No-op before warm-up — pre-warm the cache has no mappings to remove.
+        """
+        if message_id in self._rr_mappings:
+            self._rr_mappings[message_id].pop(emoji, None)
 
     def remove_reaction_role_message(self, guild_id: int, message_id: int) -> None:
-        """Remove a reaction role message ID from the cache."""
+        """Remove a reaction role message and all its mappings from the cache."""
         self._rr_message_ids.discard(message_id)
+        self._rr_mappings.pop(message_id, None)
+        self._rr_evicted_msgs.discard(message_id)  # cancel re-check sentinel: message is definitively removed
         if guild_id in self._rr_by_guild:
             self._rr_by_guild[guild_id].discard(message_id)
 
+    @property
+    def rr_warmed(self) -> bool:
+        """Return True once the reaction-role cache has been successfully warmed."""
+        return self._rr_warmed
+
+    @property
+    def leave_warmed(self) -> bool:
+        """Return True once the leave-message cache has been successfully warmed."""
+        return self._leave_warmed
+
     def warm_reaction_roles(self, session_factory) -> None:
-        """Bulk-load all reaction role message IDs from the database.
+        """Bulk-load all reaction role message IDs and emoji mappings from the database.
 
         Idempotent — safe to call again on reconnect.
         """
-        session = session_factory()
-        try:
-            from sqlalchemy import select
+        from models.reactionrole import ReactionRoleMessage
 
-            from models.reactionrole import ReactionRoleMessage
+        def _load(session):
+            from models.reactionrole import ReactionRoleEntry
+            from sqlalchemy import select
 
             by_guild: dict[int, set[int]] = {}
             all_ids: set[int] = set()
-            rows = session.execute(select(ReactionRoleMessage.GuildId, ReactionRoleMessage.MessageId)).all()
-            for guild_id, message_id in rows:
-                by_guild.setdefault(guild_id, set()).add(message_id)
-                all_ids.add(message_id)
-        finally:
-            session.close()
+            mappings: dict[int, dict[str, int]] = {}
+            for guild_id, msg_id, emoji, role_id in session.execute(
+                select(
+                    ReactionRoleMessage.GuildId,
+                    ReactionRoleMessage.MessageId,
+                    ReactionRoleEntry.Emoji,
+                    ReactionRoleEntry.RoleId,
+                ).outerjoin(ReactionRoleEntry, ReactionRoleEntry.ReactionRoleMessageId == ReactionRoleMessage.Id)
+            ).all():
+                if msg_id not in all_ids:
+                    by_guild.setdefault(guild_id, set()).add(msg_id)
+                    all_ids.add(msg_id)
+                    mappings[msg_id] = {}
+                if emoji is not None:
+                    mappings[msg_id][emoji] = role_id
+            return by_guild, all_ids, mappings
 
-        self._rr_by_guild = by_guild
-        self._rr_message_ids = all_ids
+        self._rr_by_guild, self._rr_message_ids, self._rr_mappings = self._run_warm(session_factory, _load)
         self._rr_warmed = True
+        self._rr_evicted_msgs.clear()
+
+    async def _try_rewarm(self, warmed_attr: str, last_attempt_attr: str, warm_fn, label: str, session_factory) -> None:
+        """Shared backoff-guarded re-warm logic for any sub-cache.
+
+        Only triggers a warm when ``warmed_attr`` is False and ``_REWARM_COOLDOWN`` seconds have
+        elapsed since the last attempt, preventing DB floods when the DB is persistently down.
+        The blocking ``warm_fn`` call is offloaded via ``asyncio.to_thread`` so the event loop
+        is not blocked during the DB table scan.
+        """
+        if getattr(self, warmed_attr):
+            return
+        now = time.monotonic()
+        if now - getattr(self, last_attempt_attr) < _REWARM_COOLDOWN:
+            return
+        setattr(self, last_attempt_attr, now)
+        try:
+            await asyncio.to_thread(warm_fn, session_factory)
+            _log.info("GuildConfigCache: %s cache lazily re-warmed", label)
+        except Exception:
+            _log.exception("GuildConfigCache: lazy %s re-warm failed", label)
+
+    async def try_rewarm_reaction_roles(self, session_factory) -> None:
+        """Called from the on_raw_reaction_add hot path after a failed startup warm-up."""
+        await self._try_rewarm(
+            "_rr_warmed", "_rr_last_rewarm_attempt", self.warm_reaction_roles, "reaction-role", session_factory
+        )
 
     # ── Leave messages ────────────────────────────────────────────────────────
 
@@ -124,35 +279,146 @@ class GuildConfigCache:
         """Return True if the guild has leave messages enabled.
 
         Returns True unconditionally before warm-up completes (conservative).
+        Also returns True for guilds evicted via ``evict_guild`` after warm-up —
+        they are re-checked via ``get_leave_config`` rather than treated as absent.
         """
         if not self._leave_warmed:
             return True
-        return guild_id in self._leave_guild_ids
+        if guild_id in self._leave_evicted:
+            return True
+        return self._leave_configs.get(guild_id) is not None
 
-    def set_leave_message_guild(self, guild_id: int, enabled: bool) -> None:
-        """Add or remove a guild from the leave-message set."""
-        if enabled:
-            self._leave_guild_ids.add(guild_id)
+    @staticmethod
+    def _query_leave_row(guild_id: int, session):
+        """Return the enabled LeaveMessage row for a guild, or None if not found."""
+        from models.leavemsg import LeaveMessage
+        from sqlalchemy import select
+
+        return session.execute(
+            select(LeaveMessage).where(
+                LeaveMessage.GuildId == guild_id,
+                LeaveMessage.Enabled.is_(True),
+            )
+        ).scalar_one_or_none()
+
+    def _load_leave_config_from_db(self, guild_id: int, session_factory) -> tuple[int, str | None] | None:
+        """Read the leave config for *guild_id* from the DB.
+
+        Returns ``(channel_id, message)`` or ``None`` (no enabled leave message).
+        Pure I/O — does **not** mutate any cache state. Safe to call from a worker thread.
+        Raises ``SQLAlchemyError`` on DB failure.
+        """
+        with _open_session(session_factory) as session:
+            row = self._query_leave_row(guild_id, session)
+        return (row.ChannelId, row.Message) if row is not None else None
+
+    def apply_leave_config(self, guild_id: int, config: tuple[int, str | None] | None) -> None:
+        """Write a freshly loaded leave config into the in-memory cache.
+
+        Must be called from the event-loop thread.
+        ``config`` is ``(channel_id, message)`` or ``None`` (no enabled leave message).
+        """
+        if config is not None:
+            self._leave_configs[guild_id] = config
         else:
-            self._leave_guild_ids.discard(guild_id)
+            self._leave_configs.pop(guild_id, None)
+        self._leave_evicted.discard(guild_id)
+
+    def mark_leave_config_for_recheck(self, guild_id: int) -> None:
+        """On DB error: evict stale data and flag the guild for re-read on the next member-remove."""
+        self._leave_configs.pop(guild_id, None)
+        if self._leave_warmed:
+            self._leave_evicted.add(guild_id)
+
+    def get_leave_config(self, guild_id: int, session_factory) -> tuple[int, str | None] | None | _LeaveConfigDbError:
+        """Return ``(channel_id, message_text)`` for the guild's enabled leave message.
+
+        Returns ``None`` when the guild has no enabled leave message.
+        Returns :data:`LEAVE_CONFIG_DB_ERROR` when a DB read failed — callers must log at
+        warning level to distinguish this from a legitimately absent config.
+        Falls back to a direct DB read when the cache has not been warmed yet or when
+        ``guild_id in self._leave_evicted`` (guild evicted after warm-up, e.g. via
+        ``evict_guild`` or a prior DB error flagged by ``mark_leave_config_for_recheck``).
+        On success the per-guild entry is populated and the eviction sentinel cleared so
+        subsequent calls are served from memory.
+
+        On ``SQLAlchemyError``, logs the error and returns :data:`LEAVE_CONFIG_DB_ERROR`
+        without caching — the entry stays absent so the next call retries the DB. Unlike
+        ``get_guild_language`` and ``get_modrole``, this intentionally swallows the error
+        to keep ``on_member_remove`` non-fatal.
+        """
+        if guild_id not in self._leave_evicted:
+            if self._leave_warmed or guild_id in self._leave_configs:
+                return self._leave_configs.get(guild_id)
+
+        try:
+            config = self._load_leave_config_from_db(guild_id, session_factory)
+        except SQLAlchemyError:
+            _log.exception("get_leave_config: DB read failed for guild_id=%d", guild_id)
+            return LEAVE_CONFIG_DB_ERROR
+
+        # Store None explicitly as a sentinel so repeated cold-cache misses for the same guild
+        # don't each re-hit the DB.  (apply_leave_config pops on None, which is the right
+        # behaviour for the reload/eviction path but not here.)
+        self._leave_configs[guild_id] = config
+        self._leave_evicted.discard(guild_id)
+        return config
+
+    def set_leave_config(self, guild_id: int, channel_id: int, message: str | None) -> None:
+        """Upsert the leave message config for a guild."""
+        self._leave_configs[guild_id] = (channel_id, message)
+        self._leave_evicted.discard(guild_id)
+
+    def evict_leave_config(self, guild_id: int) -> None:
+        """Remove the leave message config for a guild (definitively disabled)."""
+        self._leave_configs.pop(guild_id, None)
+        self._leave_evicted.discard(guild_id)  # cancel any pending re-read
+
+    def reload_leave_config(self, guild_id: int, session_factory) -> None:
+        """Force a fresh DB read for a guild's leave config and update the cache.
+
+        Unlike ``get_leave_config``, this bypasses the ``_leave_warmed`` short-circuit
+        and always hits the DB. Use after an external mutation (e.g. web dashboard
+        enable/disable) so ``is_leave_message_guild`` reflects the new state immediately
+        rather than waiting for an eviction-triggered cold miss that would never arrive
+        when ``_leave_warmed=True``.
+
+        On ``SQLAlchemyError``, logs the error and falls back to eviction so the next
+        ``on_member_remove`` retries the DB read via the cold-miss path.
+        """
+        try:
+            config = self._load_leave_config_from_db(guild_id, session_factory)
+        except SQLAlchemyError:
+            _log.exception(
+                "reload_leave_config: DB read failed for guild_id=%d — evicting so cold-miss retries on next member-remove",
+                guild_id,
+            )
+            self.mark_leave_config_for_recheck(guild_id)
+            return
+        self.apply_leave_config(guild_id, config)
 
     def warm_leave_messages(self, session_factory) -> None:
-        """Bulk-load all guild IDs with enabled leave messages from the database.
+        """Bulk-load full leave message configs (channel_id, message) for all enabled guilds.
 
         Idempotent — safe to call again on reconnect.
         """
-        session = session_factory()
-        try:
+        from models.leavemsg import LeaveMessage
+
+        def _load(session):
             from sqlalchemy import select
 
-            from models.leavemsg import LeaveMessage
+            rows = session.execute(select(LeaveMessage).where(LeaveMessage.Enabled.is_(True))).scalars().all()
+            return {row.GuildId: (row.ChannelId, row.Message) for row in rows}
 
-            ids = set(session.scalars(select(LeaveMessage.GuildId).where(LeaveMessage.Enabled.is_(True))))
-        finally:
-            session.close()
-
-        self._leave_guild_ids = ids
+        self._leave_configs = self._run_warm(session_factory, _load)
         self._leave_warmed = True
+        self._leave_evicted.clear()
+
+    async def try_rewarm_leave_messages(self, session_factory) -> None:
+        """Called from the on_member_remove hot path after a failed startup warm-up."""
+        await self._try_rewarm(
+            "_leave_warmed", "_leave_last_rewarm_attempt", self.warm_leave_messages, "leave-message", session_factory
+        )
 
     # ── Eviction ──────────────────────────────────────────────────────────────
 
@@ -160,7 +426,88 @@ class GuildConfigCache:
         """Remove all cached entries for a guild (called when bot leaves a guild)."""
         self._lang.pop(guild_id, None)
         self._modrole.pop(guild_id, None)
-        self._leave_guild_ids.discard(guild_id)
+        self._leave_configs.pop(guild_id, None)
+        if self._leave_warmed:
+            self._leave_evicted.add(guild_id)  # guild may rejoin with existing config — re-check on next access
         guild_rr = self._rr_by_guild.pop(guild_id, None)
         if guild_rr:
             self._rr_message_ids -= guild_rr
+            for msg_id in guild_rr:
+                self._rr_mappings.pop(msg_id, None)
+            if self._rr_warmed:
+                self._rr_evicted_msgs.update(guild_rr)  # guild may rejoin — re-check on next reaction
+
+
+# ── Autocomplete TTL cache ─────────────────────────────────────────────────────
+
+# Shared cache for autocomplete handlers. Key: (cache_key_prefix, entity_id).
+# Short TTL (30s) reduces DB hits during rapid typing while keeping results fresh.
+_autocomplete_cache: TTLCache = TTLCache(maxsize=500, ttl=30)
+
+
+async def cached_autocomplete(key: tuple, fetcher):
+    """Return cached autocomplete results, calling fetcher() on miss.
+
+    Args:
+        key: A hashable tuple uniquely identifying the query (e.g. ("tags", guild_id)).
+        fetcher: Zero-argument callable that opens a DB session and returns a list.
+            Run in a thread pool on cache miss to avoid blocking the event loop.
+
+    Returns:
+        The cached or freshly fetched list.
+
+    Error handling:
+        ``SQLAlchemyError`` is caught, logged at ``exception`` level, and returns ``[]``
+        without caching so the next keystroke retries. Any other exception (programming
+        errors, unexpected import failures, ``NerpyInfraException`` from fetchers that use
+        ``session_scope``) falls through to the broad ``except Exception`` clause, which
+        also logs at error level and returns ``[]``. ``NerpyInfraException`` is intentionally
+        not caught here so future fetchers that raise it are only silently swallowed by the
+        generic handler — not given a false impression of being "handled" like a DB error.
+    """
+    try:
+        return _autocomplete_cache[key]
+    except KeyError:
+        pass
+    # No lock: two concurrent keystrokes for the same key can both miss and fire parallel DB
+    # fetches. Both write the same result, so this is benign — Discord's 3s autocomplete
+    # window makes true simultaneity rare, and the TTL window suppresses all subsequent hits.
+    try:
+        result = await asyncio.to_thread(fetcher)
+    except SQLAlchemyError:
+        _log.exception("cached_autocomplete: fetcher for key %r raised an error", key)
+        return []
+    except Exception:
+        _log.error("cached_autocomplete: unexpected error for key %r", key, exc_info=True)
+        return []
+    _autocomplete_cache[key] = result
+    return result
+
+
+def invalidate_autocomplete(key: tuple) -> None:
+    """Evict a single key from the autocomplete cache.
+
+    Call after mutations that change the result set (e.g. adding/removing a reaction role
+    message), so the next autocomplete call fetches fresh data rather than serving stale
+    labels for up to 30 seconds.
+    """
+    _autocomplete_cache.pop(key, None)
+
+
+def invalidate_autocomplete_app_templates(guild_id: int) -> None:
+    """Evict both app template autocomplete caches for a guild.
+
+    ``app_templates`` and ``app_guild_templates`` share the same mutation sites
+    (save, delete, create-from-template), so they are always invalidated together.
+    """
+    invalidate_autocomplete(("app_templates", guild_id))
+    invalidate_autocomplete(("app_guild_templates", guild_id))
+
+
+def build_name_choices(names: list[str], current: str) -> list[app_commands.Choice[str]]:
+    """Filter a list of names by the current autocomplete input and return up to 25 choices.
+
+    Companion to ``cached_autocomplete`` for the common case where the cache stores
+    plain name strings and Discord choices have name == value.
+    """
+    return [app_commands.Choice(name=n[:100], value=n[:100]) for n in names if current.lower() in n.lower()][:25]

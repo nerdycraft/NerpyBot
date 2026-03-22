@@ -14,6 +14,7 @@ from utils.checks import can_stop_playback, is_connected_to_voice
 from utils.cog import NerpyBotCog
 from utils.download import download
 from utils.errors import NerpyNotFoundError
+from utils.cache import build_name_choices, cached_autocomplete, invalidate_autocomplete
 from utils.helpers import error_context, send_paginated
 from utils.strings import get_string
 
@@ -31,11 +32,13 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
         self.audio = self.bot.audio
 
     async def _tag_name_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
-        with self.bot.session_scope() as session:
-            tags = Tag.get_all_from_guild(interaction.guild.id, session)
-            return [app_commands.Choice(name=t.Name, value=t.Name) for t in tags if current.lower() in t.Name.lower()][
-                :25
-            ]
+        guild_id = interaction.guild.id
+
+        def _fetch():
+            with self.bot.session_scope() as session:
+                return [t.Name for t in Tag.get_all_from_guild(guild_id, session)]
+
+        return build_name_choices(await cached_autocomplete(("tags", guild_id), _fetch), current)
 
     @app_commands.command(name="get")
     @app_commands.check(is_connected_to_voice)
@@ -100,6 +103,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
             self._add_tag_entries(session, _tag, content)
 
         self.bot.log.info(f'{error_context(interaction)}: tag "{name}" created')
+        invalidate_autocomplete(("tags", interaction.guild.id))
         await interaction.followup.send(get_string(lang, "tagging.create.success", name=name), ephemeral=True)
 
     @app_commands.command(name="add")
@@ -159,6 +163,7 @@ class Tagging(NerpyBotCog, QueueMixin, GroupCog, group_name="tag"):
                 return
 
             Tag.delete(name, interaction.guild.id, session)
+        invalidate_autocomplete(("tags", interaction.guild.id))
         await interaction.response.send_message(get_string(lang, "tagging.delete.success", name=name), ephemeral=True)
 
     _TAG_TYPE_EMOJI = {

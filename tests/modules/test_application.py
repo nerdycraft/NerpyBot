@@ -20,6 +20,7 @@ from models.application import (
     seed_built_in_templates,
 )
 from modules.application import Application
+from utils.cache import _autocomplete_cache
 from utils.helpers import fetch_message_content
 from utils.strings import load_strings
 
@@ -395,12 +396,15 @@ class TestApplicationDelete:
     @pytest.mark.asyncio
     async def test_delete_happy_path(self, app_cog, admin_interaction, db_session):
         _make_form(db_session, guild_id=admin_interaction.guild.id, name="ToDelete")
+        guild_id = admin_interaction.guild.id
+        _autocomplete_cache[("app_forms", guild_id)] = ["stale"]
 
         await app_cog._delete.callback(app_cog, admin_interaction, name="ToDelete")
 
         call_args = str(admin_interaction.response.send_message.call_args)
         assert "deleted" in call_args.lower()
-        assert ApplicationForm.get("ToDelete", admin_interaction.guild.id, db_session) is None
+        assert ApplicationForm.get("ToDelete", guild_id, db_session) is None
+        assert ("app_forms", guild_id) not in _autocomplete_cache
 
     @pytest.mark.asyncio
     async def test_delete_not_found(self, app_cog, admin_interaction):

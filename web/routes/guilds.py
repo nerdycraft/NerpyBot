@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 
+from cachetools import TTLCache
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from web.cache import ValkeyClient
@@ -56,6 +57,32 @@ from web.schemas import (
 
 _log = logging.getLogger(__name__)
 
+# Cache for per-guild language lookups (web-side only; bot side uses GuildConfigCache).
+# TTL of 5 minutes; guild language changes rarely.
+# Cross-process note: this cache is NOT shared with the bot process. If the bot updates
+# the language via /language set, the web process will serve stale data for up to 5 minutes.
+# This is acceptable — language is low-frequency and the TTL is short.
+_guild_lang_cache: TTLCache = TTLCache(maxsize=100, ttl=300)
+
+
+def _get_guild_language_cached(guild_id: int, session) -> str:
+    """Return the guild's configured language, caching the result for 5 minutes."""
+    try:
+        return _guild_lang_cache[guild_id]
+    except KeyError:
+        pass
+    from models.admin import GuildLanguageConfig
+
+    try:
+        config = GuildLanguageConfig.get(guild_id, session)
+    except SQLAlchemyError:
+        _log.exception("_get_guild_language_cached: DB read failed for guild_id=%d", guild_id)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Service temporarily unavailable")
+    lang = config.Language if config is not None else "en"
+    _guild_lang_cache[guild_id] = lang
+    return lang
+
+
 router = APIRouter(prefix="/guilds", tags=["guilds"], dependencies=[Depends(require_premium)])
 
 _REDACTED = "[redacted]"
@@ -91,12 +118,8 @@ async def get_language(
     response: Response = None,
 ):
     """Return the configured language for a guild (defaults to 'en')."""
-    from models.admin import GuildLanguageConfig
-
     _set_support_mode_header(user, response)
-    cfg = GuildLanguageConfig.get(guild_id, session)
-    lang = cfg.Language if cfg else "en"
-    return LanguageConfig(guild_id=str(guild_id), language=lang)
+    return LanguageConfig(guild_id=str(guild_id), language=_get_guild_language_cached(guild_id, session))
 
 
 @router.put("/{guild_id}/language", response_model=LanguageConfig)
@@ -105,6 +128,7 @@ async def set_language(
     body: LanguageUpdate,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    vk: ValkeyClient = Depends(get_valkey),
 ):
     """Set or update the bot language for a guild."""
     _deny_support_write(user)
@@ -116,7 +140,11 @@ async def set_language(
         session.add(cfg)
     else:
         cfg.Language = body.language
-    return LanguageConfig(guild_id=str(guild_id), language=cfg.Language)
+    lang = cfg.Language
+    session.commit()
+    _guild_lang_cache[guild_id] = lang
+    vk.notify_bot("set_guild_language", {"guild_id": guild_id, "language": lang})
+    return LanguageConfig(guild_id=str(guild_id), language=lang)
 
 
 # ── Moderator Roles ──
@@ -143,17 +171,20 @@ async def add_moderator_role(
     body: ModeratorRoleCreate,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    vk: ValkeyClient = Depends(get_valkey),
 ):
     """Set or replace the moderator role for a guild."""
     _deny_support_write(user)
     from models.admin import BotModeratorRole
 
+    new_role_id = int(body.role_id)
     existing = BotModeratorRole.get(guild_id, session)
     if existing:
-        existing.RoleId = int(body.role_id)
+        existing.RoleId = new_role_id
     else:
-        role = BotModeratorRole(GuildId=guild_id, RoleId=int(body.role_id))
-        session.add(role)
+        session.add(BotModeratorRole(GuildId=guild_id, RoleId=new_role_id))
+    session.commit()
+    vk.notify_bot("invalidate_modrole", {"guild_id": guild_id})
     return {"status": "created"}
 
 
@@ -163,6 +194,7 @@ async def delete_moderator_role(
     role_id: int,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    vk: ValkeyClient = Depends(get_valkey),
 ):
     """Remove the moderator role for a guild. Returns 404 if the role is not configured."""
     _deny_support_write(user)
@@ -172,6 +204,8 @@ async def delete_moderator_role(
     if existing is None or existing.RoleId != role_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
     BotModeratorRole.delete(guild_id, session)
+    session.commit()
+    vk.notify_bot("invalidate_modrole", {"guild_id": guild_id})
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -204,6 +238,7 @@ async def set_leave_message(
     body: LeaveMessageUpdate,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    vk: ValkeyClient = Depends(get_valkey),
 ):
     """Create or update the leave message configuration for a guild."""
     _deny_support_write(user)
@@ -212,18 +247,30 @@ async def set_leave_message(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Message must contain {member} placeholder for the member name.",
         )
+    if "enabled" in body.model_fields_set and body.enabled is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="enabled cannot be null",
+        )
     from models.leavemsg import LeaveMessage
 
     cfg = LeaveMessage.get(guild_id, session)
     if cfg is None:
         cfg = LeaveMessage(GuildId=guild_id)
         session.add(cfg)
-    if body.channel_id is not None:
-        cfg.ChannelId = int(body.channel_id)
-    if body.message is not None:
+    if "channel_id" in body.model_fields_set:
+        cfg.ChannelId = int(body.channel_id) if body.channel_id is not None else None
+    if "message" in body.model_fields_set:
         cfg.Message = body.message
-    if body.enabled is not None:
+    if "enabled" in body.model_fields_set:
         cfg.Enabled = body.enabled
+    if cfg.Enabled and cfg.ChannelId is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="channel_id is required when leave messages are enabled",
+        )
+    session.commit()  # commit before notifying bot so it re-reads the updated row
+    vk.notify_bot("invalidate_leave_config", {"guild_id": guild_id})
     return LeaveMessageConfig(
         guild_id=str(guild_id),
         channel_id=str(cfg.ChannelId) if cfg.ChannelId else None,
@@ -1247,15 +1294,16 @@ async def create_wow_news_config(
 ):
     """Create a WoW guild news tracker for a Discord guild. Returns 409 if already tracked."""
     _deny_support_write(user)
+    from models.admin import GuildLanguageConfig
     from models.wow import WowGuildNewsConfig
-    from utils.strings import get_guild_language
 
     normalized_name = " ".join(body.wow_guild_name.split())
     name_slug = normalized_name.lower().replace(" ", "-")
     if WowGuildNewsConfig.get_existing(guild_id, name_slug, body.wow_realm_slug, body.region, session):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already tracking this WoW guild")
 
-    lang = get_guild_language(guild_id, session)
+    lang_cfg = GuildLanguageConfig.get(guild_id, session)
+    lang = lang_cfg.Language if lang_cfg is not None else "en"
     cfg = WowGuildNewsConfig(
         GuildId=guild_id,
         ChannelId=int(body.channel_id),

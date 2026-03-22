@@ -10,6 +10,7 @@ from discord.ext.commands import Cog
 from models.music import Playlist, PlaylistEntry
 from modules.views.music import NowPlayingView, build_now_playing_embed
 from utils.audio import QueuedSong, QueueMixin
+from utils.cache import build_name_choices, cached_autocomplete, invalidate_autocomplete
 from utils.checks import is_connected_to_voice
 from utils.cog import NerpyBotCog
 from utils.download import download, fetch_yt_infos
@@ -22,7 +23,7 @@ from utils.strings import get_string
 class Music(NerpyBotCog, QueueMixin, Cog):
     """Music playback and playlist management."""
 
-    playlist = app_commands.Group(name="playlist", description="Manage your saved playlists")
+    playlist = app_commands.Group(name="playlist", description="Manage your saved playlists", guild_only=True)
 
     def __init__(self, bot):
         super().__init__(bot)
@@ -178,11 +179,14 @@ class Music(NerpyBotCog, QueueMixin, Cog):
 
     async def _ac_playlist_name(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         """Autocomplete for playlist name from the user's saved playlists."""
-        with self.bot.session_scope() as session:
-            playlists = Playlist.get_by_user(interaction.guild_id, interaction.user.id, session)
-        return [app_commands.Choice(name=p.Name, value=p.Name) for p in playlists if current.lower() in p.Name.lower()][
-            :25
-        ]
+        guild_id = interaction.guild_id
+        user_id = interaction.user.id
+
+        def _fetch():
+            with self.bot.session_scope() as session:
+                return [p.Name for p in Playlist.get_by_user(guild_id, user_id, session)]
+
+        return build_name_choices(await cached_autocomplete(("playlists", guild_id, user_id), _fetch), current)
 
     async def _ac_playlist_url(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         """Autocomplete for song URL within a named playlist (reads sibling `name` field)."""
@@ -243,6 +247,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                     Name=name,
                 )
             )
+        invalidate_autocomplete(("playlists", interaction.guild_id, interaction.user.id))
         await interaction.followup.send(get_string(lang, "music.playlist.created", name=name), ephemeral=True)
 
     @playlist.command(name="list")
@@ -354,6 +359,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                     )
                 )
 
+        invalidate_autocomplete(("playlists", interaction.guild_id, interaction.user.id))
         await interaction.followup.send(
             get_string(lang, "music.playlist.saved", count=len(songs), name=name), ephemeral=True
         )
@@ -389,6 +395,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                 await interaction.followup.send(get_string(lang, "music.playlist.not_found", name=name), ephemeral=True)
                 return
             session.delete(pl)
+        invalidate_autocomplete(("playlists", interaction.guild_id, interaction.user.id))
         await interaction.followup.send(get_string(lang, "music.playlist.deleted", name=name), ephemeral=True)
 
     @playlist.command(name="load")

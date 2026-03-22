@@ -1,4 +1,7 @@
+from unittest.mock import patch
+
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
 from tests.web.conftest import make_auth_header
 
@@ -43,6 +46,38 @@ class TestLanguageEndpoints:
         response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=auth_header)
         assert response.json()["language"] == "fr"
 
+    def test_put_language_write_through_and_notifies_bot(self, client, fake_valkey, auth_header, web_db_session):
+        """PUT language must populate _guild_lang_cache, persist to DB, and publish set_guild_language to the bot."""
+        import json
+        from models.admin import GuildLanguageConfig
+        from web.routes.guilds import _guild_lang_cache
+
+        # Pre-populate cache with stale value to confirm write-through replaces it.
+        _guild_lang_cache[GUILD_ID] = "stale"
+
+        published = []
+
+        def capture(channel, message):
+            published.append((channel, message))
+
+        with patch.object(fake_valkey._client, "publish", side_effect=capture):
+            response = client.put(
+                f"/api/guilds/{GUILD_ID}/language",
+                json={"language": "de"},
+                headers=auth_header,
+            )
+
+        assert response.status_code == 200
+        assert _guild_lang_cache[GUILD_ID] == "de"
+        stored = GuildLanguageConfig.get(GUILD_ID, web_db_session)
+        assert stored is not None
+        assert stored.Language == "de"
+        bot_cmds = [json.loads(msg) for ch, msg in published if ch == "nerpybot:cmd"]
+        lang_cmds = [c for c in bot_cmds if c.get("command") == "set_guild_language"]
+        assert len(lang_cmds) == 1
+        assert lang_cmds[0]["guild_id"] == GUILD_ID
+        assert lang_cmds[0]["language"] == "de"
+
 
 class TestModeratorRoleEndpoints:
     def test_get_empty_roles(self, client, auth_header):
@@ -73,6 +108,55 @@ class TestModeratorRoleEndpoints:
     def test_delete_nonexistent_role_returns_404(self, client, auth_header):
         response = client.delete(f"/api/guilds/{GUILD_ID}/moderator-roles/999", headers=auth_header)
         assert response.status_code == 404
+
+    def test_post_notifies_bot_to_invalidate_cache(self, client, fake_valkey, auth_header):
+        """POST moderator-roles must publish an invalidate_modrole command with the new role_id."""
+        import json
+
+        published = []
+
+        def capture(channel, message):
+            published.append((channel, message))
+
+        with patch.object(fake_valkey._client, "publish", side_effect=capture):
+            response = client.post(
+                f"/api/guilds/{GUILD_ID}/moderator-roles",
+                json={"role_id": "555666777"},
+                headers=auth_header,
+            )
+
+        assert response.status_code == 201
+        bot_cmds = [json.loads(msg) for ch, msg in published if ch == "nerpybot:cmd"]
+        invalidations = [c for c in bot_cmds if c.get("command") == "invalidate_modrole"]
+        assert len(invalidations) == 1
+        assert invalidations[0]["guild_id"] == GUILD_ID
+
+    def test_delete_notifies_bot_to_invalidate_cache(self, client, fake_valkey, auth_header):
+        """DELETE moderator-roles must publish an invalidate_modrole command with null role_id."""
+        import json
+
+        client.post(
+            f"/api/guilds/{GUILD_ID}/moderator-roles",
+            json={"role_id": "555666777"},
+            headers=auth_header,
+        )
+
+        published = []
+
+        def capture(channel, message):
+            published.append((channel, message))
+
+        with patch.object(fake_valkey._client, "publish", side_effect=capture):
+            response = client.delete(
+                f"/api/guilds/{GUILD_ID}/moderator-roles/555666777",
+                headers=auth_header,
+            )
+
+        assert response.status_code == 204
+        bot_cmds = [json.loads(msg) for ch, msg in published if ch == "nerpybot:cmd"]
+        invalidations = [c for c in bot_cmds if c.get("command") == "invalidate_modrole"]
+        assert len(invalidations) == 1
+        assert invalidations[0]["guild_id"] == GUILD_ID
 
 
 class TestLeaveMessageEndpoints:
@@ -107,6 +191,37 @@ class TestLeaveMessageEndpoints:
         response = client.put(
             f"/api/guilds/{GUILD_ID}/leave-messages",
             json={"message": "Goodbye!"},
+            headers=auth_header,
+        )
+        assert response.status_code == 422
+
+    def test_put_notifies_bot_to_invalidate_cache(self, client, fake_valkey, auth_header):
+        """PUT leave-messages must publish an invalidate_leave_config command to the bot."""
+        import json
+
+        published = []
+
+        def capture(channel, message):
+            published.append((channel, message))
+
+        with patch.object(fake_valkey._client, "publish", side_effect=capture):
+            response = client.put(
+                f"/api/guilds/{GUILD_ID}/leave-messages",
+                json={"channel_id": "111222333", "message": "Bye {member}!", "enabled": True},
+                headers=auth_header,
+            )
+
+        assert response.status_code == 200
+        bot_cmds = [json.loads(msg) for ch, msg in published if ch == "nerpybot:cmd"]
+        invalidations = [c for c in bot_cmds if c.get("command") == "invalidate_leave_config"]
+        assert len(invalidations) == 1
+        assert invalidations[0]["guild_id"] == GUILD_ID
+
+    def test_put_enabled_without_channel_id_returns_422(self, client, auth_header):
+        """PUT leave-messages with enabled=True but no channel_id must return 422."""
+        response = client.put(
+            f"/api/guilds/{GUILD_ID}/leave-messages",
+            json={"message": "Bye {member}!", "enabled": True},
             headers=auth_header,
         )
         assert response.status_code == 422
@@ -851,3 +966,45 @@ class TestSupportModeRedactionAndWriteBlocking:
         )
         assert response.status_code == 200
         assert response.json()["language"] == "de"
+
+
+class TestPremiumCacheBehavior:
+    """Tests for the in-process premium user ID cache in web/dependencies.py."""
+
+    def test_get_premium_ids_db_failure_returns_503(self, client, auth_header):
+        """When PremiumUser.get_all raises SQLAlchemyError, guild routes must return 503."""
+        from web.dependencies import _premium_ids_cache
+
+        _premium_ids_cache.clear()  # force cache miss so DB is actually hit
+        with patch("models.admin.PremiumUser.get_all", side_effect=SQLAlchemyError("DB down")):
+            response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=auth_header)
+        assert response.status_code == 503
+
+    def test_invalidate_premium_cache_forces_fresh_db_read(self, client, fake_valkey, web_db_session):
+        """invalidate_premium_cache forces the next request to reload from DB.
+
+        Flow: new user has no premium → 403; grant premium + invalidate → 200.
+        """
+        from models.admin import PremiumUser
+        from web.dependencies import _premium_ids_cache, invalidate_premium_cache
+
+        new_user_id = 555444333
+        fake_valkey.set_permissions(
+            str(new_user_id),
+            {str(GUILD_ID): {"level": "admin", "name": "Test Guild"}},
+            ttl=300,
+        )
+        new_header = make_auth_header(user_id=str(new_user_id), username="NewUser")
+
+        # Without premium — 403
+        _premium_ids_cache.clear()
+        response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=new_header)
+        assert response.status_code == 403
+
+        # Grant premium and invalidate so the next request hits DB
+        PremiumUser.grant(new_user_id, 111222333, web_db_session)
+        web_db_session.commit()
+        invalidate_premium_cache()
+
+        response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=new_header)
+        assert response.status_code == 200

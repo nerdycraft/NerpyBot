@@ -25,6 +25,7 @@ from models.application import (
     SubmissionStatus,
 )
 from modules.views.application import ApplicationReviewView, build_review_embed
+from utils.cache import invalidate_autocomplete, invalidate_autocomplete_app_templates
 from utils.conversation import Conversation
 from utils.strings import get_string
 
@@ -319,6 +320,7 @@ class ApplicationCreateConversation(Conversation):
                 session.add(ApplicationQuestion(FormId=form.Id, QuestionText=q_text, SortOrder=i))
             form_id = form.Id
 
+        invalidate_autocomplete(("app_forms", self.guild.id))
         if self.apply_channel_id:
             from modules.views.application import post_apply_button_message
 
@@ -475,6 +477,7 @@ class ApplicationTemplateCreateConversation(Conversation):
             for i, q_text in enumerate(self.questions, start=1):
                 session.add(ApplicationTemplateQuestion(TemplateId=tpl.Id, QuestionText=q_text, SortOrder=i))
 
+        invalidate_autocomplete_app_templates(self.guild.id)
         emb = _questions_embed(
             get_string(self.lang, f"{_c}.done_title", name=self.template_name),
             self.questions,

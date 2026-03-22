@@ -28,6 +28,12 @@ from modules.conversations.application import (
 )
 from modules.views.application import check_override_permission
 from sqlalchemy.exc import SQLAlchemyError
+from utils.cache import (
+    build_name_choices,
+    cached_autocomplete,
+    invalidate_autocomplete,
+    invalidate_autocomplete_app_templates,
+)
 from utils.cog import NerpyBotCog
 from utils.helpers import fetch_message_content, send_hidden_message
 from utils.strings import get_raw, get_string
@@ -40,16 +46,6 @@ def _localize_field(
     field.placeholder = get_string(lang, f"{key_prefix}_placeholder")
     field.default = default
     modal.add_item(discord.ui.Label(text=get_string(lang, f"{key_prefix}_label"), component=field))
-
-
-def _filter_choices(items, current: str) -> list[app_commands.Choice[str]]:
-    """Build autocomplete choices from items with a .Name attribute, filtering by current input."""
-    choices = []
-    for item in items:
-        if current and current.lower() not in item.Name.lower():
-            continue
-        choices.append(app_commands.Choice(name=item.Name[:100], value=item.Name))
-    return choices[:25]
 
 
 @app_commands.default_permissions(administrator=True)
@@ -78,39 +74,54 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     # -- Autocomplete helpers ------------------------------------------------
 
     async def _form_name_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
-        with self.bot.session_scope() as session:
-            return _filter_choices(ApplicationForm.get_all_by_guild(interaction.guild.id, session), current)
+        guild_id = interaction.guild.id
+
+        def _fetch():
+            with self.bot.session_scope() as session:
+                return [f.Name for f in ApplicationForm.get_all_by_guild(guild_id, session)]
+
+        return build_name_choices(await cached_autocomplete(("app_forms", guild_id), _fetch), current)
 
     async def _template_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         lang = self._lang(interaction.guild_id)
-        with self.bot.session_scope() as session:
-            templates = ApplicationTemplate.get_available(interaction.guild.id, session)
-            choices = []
-            for tpl in templates:
-                if tpl.IsBuiltIn:
-                    yaml_key = TEMPLATE_KEY_MAP.get(tpl.Name)
-                    if yaml_key:
-                        try:
-                            localized_name = get_raw(lang, f"application.builtin_templates.{yaml_key}.name")
-                        except KeyError:
-                            localized_name = tpl.Name
-                    else:
-                        localized_name = tpl.Name
-                    prefix = get_string(lang, "application.template.list.prefix_builtin")
-                    label = f"{prefix} {localized_name}"
+        guild_id = interaction.guild.id
+
+        def _fetch():
+            with self.bot.session_scope() as session:
+                return [(tpl.Name, tpl.IsBuiltIn) for tpl in ApplicationTemplate.get_available(guild_id, session)]
+
+        templates = await cached_autocomplete(("app_templates", guild_id), _fetch)
+        choices = []
+        for name, is_built_in in templates:
+            if is_built_in:
+                yaml_key = TEMPLATE_KEY_MAP.get(name)
+                if yaml_key:
+                    try:
+                        localized_name = get_raw(lang, f"application.builtin_templates.{yaml_key}.name")
+                    except KeyError:
+                        localized_name = name
                 else:
-                    localized_name = tpl.Name
-                    label = tpl.Name
-                if current and current.lower() not in localized_name.lower():
-                    continue
-                choices.append(app_commands.Choice(name=label[:100], value=tpl.Name))
-            return choices[:25]
+                    localized_name = name
+                prefix = get_string(lang, "application.template.list.prefix_builtin")
+                label = f"{prefix} {localized_name}"
+            else:
+                localized_name = name
+                label = name
+            if current and current.lower() not in localized_name.lower():
+                continue
+            choices.append(app_commands.Choice(name=label[:100], value=name[:100]))
+        return choices[:25]
 
     async def _guild_template_autocomplete(
         self, interaction: Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
-        with self.bot.session_scope() as session:
-            return _filter_choices(ApplicationTemplate.get_guild_templates(interaction.guild.id, session), current)
+        guild_id = interaction.guild.id
+
+        def _fetch():
+            with self.bot.session_scope() as session:
+                return [t.Name for t in ApplicationTemplate.get_guild_templates(guild_id, session)]
+
+        return build_name_choices(await cached_autocomplete(("app_guild_templates", guild_id), _fetch), current)
 
     # -- Permission helper ---------------------------------------------------
 
@@ -378,6 +389,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             apply_message_id = form.ApplyMessageId
             session.delete(form)
 
+        invalidate_autocomplete(("app_forms", interaction.guild.id))
         await interaction.response.send_message(
             get_string(lang, "application.delete.success", name=name), ephemeral=True
         )
@@ -777,6 +789,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                         )
                 form_id = form.Id
 
+            invalidate_autocomplete(("app_forms", guild_id))
             await modal_interaction.response.send_message(
                 get_string(lang, "application.template.use.success", name=name, template=template), ephemeral=True
             )
@@ -841,6 +854,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                     ApplicationTemplateQuestion(TemplateId=tpl.Id, QuestionText=q.QuestionText, SortOrder=q.SortOrder)
                 )
 
+        invalidate_autocomplete_app_templates(interaction.guild.id)
         await interaction.response.send_message(
             get_string(lang, "application.template.save.success", template_name=template_name, form=form),
             ephemeral=True,
@@ -872,6 +886,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 return
             session.delete(tpl)
 
+        invalidate_autocomplete_app_templates(interaction.guild.id)
         await interaction.response.send_message(
             get_string(lang, "application.template.delete.success", name=template_name), ephemeral=True
         )
@@ -1127,6 +1142,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                     ApplicationQuestion(FormId=form.Id, QuestionText=q["text"].strip(), SortOrder=q.get("order", i + 1))
                 )
 
+        invalidate_autocomplete(("app_forms", interaction.guild.id))
         await interaction.user.send(
             get_string(lang, "application.import.success", name=form_name, count=len(questions))
         )

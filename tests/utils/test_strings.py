@@ -4,7 +4,6 @@
 import pytest
 import yaml
 
-from models.admin import GuildLanguageConfig
 from utils import strings
 
 
@@ -62,30 +61,4 @@ class TestGetString:
     def test_unknown_language_falls_back_to_english(self, locale_dir):
         strings.load_strings(locale_dir)
         result = strings.get_string("fr", "common.greeting", name="World")
-        assert result == "Hello World!"
-
-
-class TestGetGuildLanguage:
-    def test_default_when_no_config(self, db_session):
-        result = strings.get_guild_language(999, db_session)
-        assert result == "en"
-
-    def test_returns_configured_language(self, db_session):
-        db_session.add(GuildLanguageConfig(GuildId=123, Language="de"))
-        db_session.commit()
-        result = strings.get_guild_language(123, db_session)
-        assert result == "de"
-
-
-class TestGetLocalizedString:
-    def test_combines_guild_language_and_lookup(self, locale_dir, db_session):
-        strings.load_strings(locale_dir)
-        db_session.add(GuildLanguageConfig(GuildId=123, Language="de"))
-        db_session.commit()
-        result = strings.get_localized_string(123, "common.greeting", db_session, name="Welt")
-        assert result == "Hallo Welt!"
-
-    def test_defaults_to_english(self, locale_dir, db_session):
-        strings.load_strings(locale_dir)
-        result = strings.get_localized_string(999, "common.greeting", db_session, name="World")
         assert result == "Hello World!"

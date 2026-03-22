@@ -9,6 +9,8 @@ from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 from modules.roles import Roles
 from utils.strings import load_strings
 
+_NO_DB_MSG = "warm-cache path must not open a DB session"
+
 
 @pytest.fixture(autouse=True)
 def _load_locale_strings():
@@ -76,6 +78,84 @@ def _make_payload(message_id, guild_id, emoji_name, member=None, user_id=999):
 
 class TestOnRawReactionAdd:
     """Tests for the on_raw_reaction_add listener."""
+
+    @pytest.mark.asyncio
+    async def test_reaction_add_warm_cache_assigns_role(
+        self, cog, db_with_reaction_role, guild_id, message_id, mock_role
+    ):
+        """Warm cache + correct emoji → role assigned without fallback DB hit."""
+        cog.bot.guild_cache.warm_reaction_roles(cog.bot.SESSION)
+        cog.bot.session_scope = MagicMock(side_effect=AssertionError(_NO_DB_MSG))
+
+        member = MagicMock()
+        member.bot = False
+        member.add_roles = AsyncMock()
+
+        payload = _make_payload(message_id, guild_id, "👍", member=member)
+
+        mock_guild = MagicMock()
+        mock_guild.id = guild_id
+        mock_guild.name = "Test Guild"
+        mock_guild.get_role = MagicMock(return_value=mock_role)
+        cog.bot.get_guild = MagicMock(return_value=mock_guild)
+
+        await cog.on_raw_reaction_add(payload)
+
+        member.add_roles.assert_awaited_once_with(mock_role, reason="Reaction role")
+
+    @pytest.mark.asyncio
+    async def test_reaction_add_warm_cache_no_mapping_skips_role(
+        self, cog, db_with_reaction_role, guild_id, message_id
+    ):
+        """Warm cache + unmapped emoji → add_roles never called."""
+        cog.bot.guild_cache.warm_reaction_roles(cog.bot.SESSION)
+        cog.bot.session_scope = MagicMock(side_effect=AssertionError(_NO_DB_MSG))
+
+        member = MagicMock()
+        member.bot = False
+        member.add_roles = AsyncMock()
+
+        payload = _make_payload(message_id, guild_id, "👎", member=member)
+
+        mock_guild = MagicMock()
+        mock_guild.id = guild_id
+        mock_guild.name = "Test Guild"
+        cog.bot.get_guild = MagicMock(return_value=mock_guild)
+
+        await cog.on_raw_reaction_add(payload)
+
+        member.add_roles.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_reaction_add_warm_cache_mismatched_emoji_no_db_hit(
+        self, cog, db_with_reaction_role, guild_id, message_id
+    ):
+        """Warm cache with message_id mapped to 👍 only; reaction for ❤ returns None without a DB call.
+
+        Pins the warm-but-mismatched-emoji path: get_reaction_role returns None in-memory,
+        and the cold-miss DB fallback is never triggered.
+        """
+        cog.bot.guild_cache.warm_reaction_roles(cog.bot.SESSION)
+        cog.bot.session_scope = MagicMock(side_effect=AssertionError(_NO_DB_MSG))
+
+        member = MagicMock()
+        member.bot = False
+        member.add_roles = AsyncMock()
+
+        payload = _make_payload(message_id, guild_id, "❤", member=member)
+
+        # get_reaction_role for a known message + unknown emoji should return None without fallback.
+        result = cog.bot.guild_cache.get_reaction_role(message_id, "❤")
+        assert result is None  # None, not REACTION_ROLE_CACHE_MISS
+
+        mock_guild = MagicMock()
+        mock_guild.id = guild_id
+        mock_guild.name = "Test Guild"
+        cog.bot.get_guild = MagicMock(return_value=mock_guild)
+
+        await cog.on_raw_reaction_add(payload)
+
+        member.add_roles.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_reaction_add_assigns_role(self, cog, db_with_reaction_role, guild_id, message_id, mock_role):

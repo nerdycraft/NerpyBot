@@ -1,8 +1,14 @@
 # -*- coding: utf-8 -*-
 """wow dbmodel"""
 
+import functools
+import inspect
+import logging
 from datetime import UTC, datetime
+from threading import RLock
 
+from cachetools import TTLCache
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -22,6 +28,92 @@ from sqlalchemy import (
     or_,
 )
 from utils import database as db
+
+_log = logging.getLogger(__name__)
+
+# ── CraftingRecipeCache query cache ───────────────────────────────────────────
+# Recipe data changes only on operator-triggered sync (daily/weekly at most).
+# TTL of 1 hour prevents stale data without ever needing a bot restart.
+
+_recipe_cache: TTLCache = TTLCache(maxsize=256, ttl=3600)
+_recipe_cache_lock = RLock()
+_recipe_cache_generation: int = 0
+
+
+def _cache_recipe_query(method):
+    """Wrap a CraftingRecipeCache classmethod with TTL result caching.
+
+    Builds a key from the method name + all arguments except ``cls`` and ``session``.
+    ``set`` arguments are converted to ``frozenset`` for hashability.
+    Empty ``profession_ids`` (``None`` or ``set()``) are normalized to ``None``
+    so both forms share the same cache entry.
+
+    Warning: methods that return ``list[CraftingRecipeCache]`` yield session-detached
+    ORM instances. Callers must not access lazy-loaded relationships on those objects —
+    only eagerly-loaded columns are safe.
+
+    Return-type behaviour:
+    - ``list[ORM]``: each item is expunged from the session before caching.
+    - ``list[tuple]``: the expunge loop runs but the ``isinstance(item, db.BASE)``
+      guard makes each iteration a no-op — the tuples are cached without expunge.
+    - scalar (bool, int, …): the ``isinstance(result, list)`` guard skips the loop
+      entirely.
+    """
+    sig = inspect.signature(method)
+
+    def _normalize(name, val):
+        if name == "profession_ids" and not val:
+            return None
+        return frozenset(val) if isinstance(val, set) else val
+
+    @functools.wraps(method)
+    def wrapper(*args, **kwargs):
+        bound = sig.bind(*args, **kwargs)
+        bound.apply_defaults()
+        key = (
+            method.__name__,
+            *(_normalize(name, val) for name, val in bound.arguments.items() if name not in ("cls", "session")),
+        )
+        with _recipe_cache_lock:
+            generation = _recipe_cache_generation
+            try:
+                return _recipe_cache[key]
+            except KeyError:
+                pass
+        try:
+            result = method(*args, **kwargs)
+        except Exception:
+            _log.exception("_cache_recipe_query: %s raised an error", method.__name__)
+            raise
+        session = bound.arguments.get("session")
+        if session is not None and isinstance(result, list):
+            try:
+                for item in result:
+                    if isinstance(item, db.BASE):
+                        session.expunge(item)
+            except SQLAlchemyError:
+                _log.exception(
+                    "_cache_recipe_query: %s — expunge failed; returning result uncached",
+                    method.__name__,
+                )
+                return result  # safe to return detached-ish; just won't be served from cache
+        with _recipe_cache_lock:
+            if generation == _recipe_cache_generation:
+                _recipe_cache[key] = result
+        return result
+
+    return wrapper
+
+
+def invalidate_recipe_cache() -> None:
+    """Clear all cached CraftingRecipeCache query results.
+
+    Call this after a recipe sync completes to ensure fresh data on next access.
+    """
+    global _recipe_cache_generation
+    with _recipe_cache_lock:
+        _recipe_cache_generation += 1
+        _recipe_cache.clear()
 
 
 class WoW(db.BASE):
@@ -411,6 +503,7 @@ class CraftingRecipeCache(db.BASE):
         )
 
     @classmethod
+    @_cache_recipe_query
     def get_prof_knowledge_items(
         cls, recipe_type, session, profession_ids: set[int] | None = None
     ) -> list["CraftingRecipeCache"]:
@@ -424,6 +517,7 @@ class CraftingRecipeCache(db.BASE):
         return q.order_by(asc(cls.ItemName)).all()
 
     @classmethod
+    @_cache_recipe_query
     def has_prof_knowledge_items(cls, recipe_type, session, profession_ids: set[int] | None = None) -> bool:
         """Return True if there are any profession knowledge items for the given filters."""
         q = session.query(cls.RecipeId).filter(
@@ -435,6 +529,7 @@ class CraftingRecipeCache(db.BASE):
         return q.limit(1).scalar() is not None
 
     @classmethod
+    @_cache_recipe_query
     def get_by_profession(cls, prof_id, recipe_type, session):
         return (
             session.query(cls)
@@ -444,6 +539,7 @@ class CraftingRecipeCache(db.BASE):
         )
 
     @classmethod
+    @_cache_recipe_query
     def get_by_profession_and_expansion(cls, prof_id, recipe_type, expansion, session):
         return (
             session.query(cls)
@@ -453,6 +549,7 @@ class CraftingRecipeCache(db.BASE):
         )
 
     @classmethod
+    @_cache_recipe_query
     def get_by_type_and_subclass(
         cls,
         recipe_type,
@@ -477,6 +574,7 @@ class CraftingRecipeCache(db.BASE):
         return q.order_by(asc(cls.ItemName)).all()
 
     @classmethod
+    @_cache_recipe_query
     def get_expansions_for_profession(cls, prof_id, recipe_type, session):
         """Return distinct non-null expansion names for a profession, ordered alphabetically."""
         rows = (
@@ -523,6 +621,7 @@ class CraftingRecipeCache(db.BASE):
         return list(seen.values())
 
     @classmethod
+    @_cache_recipe_query
     def get_item_classes(
         cls,
         recipe_type,
@@ -549,6 +648,7 @@ class CraftingRecipeCache(db.BASE):
         return cls._dedup_rows(q, cls.ItemClassName)
 
     @classmethod
+    @_cache_recipe_query
     def get_item_subclasses(
         cls,
         recipe_type,
@@ -576,6 +676,7 @@ class CraftingRecipeCache(db.BASE):
         return cls._dedup_rows(q, cls.ItemSubClassName)
 
     @classmethod
+    @_cache_recipe_query
     def get_pvp_item_classes(cls, recipe_type, session, profession_ids: set[int] | None = None):
         """Return distinct (ItemClassId, ItemClassName, locales) for PvP items (bound, PvP category)."""
         q = session.query(cls.ItemClassId, cls.ItemClassName, cls.ItemClassNameLocales).filter(
@@ -589,6 +690,7 @@ class CraftingRecipeCache(db.BASE):
         return cls._dedup_rows(q, cls.ItemClassName)
 
     @classmethod
+    @_cache_recipe_query
     def get_pvp_item_subclasses(cls, recipe_type, item_class_id, session, profession_ids: set[int] | None = None):
         """Return distinct (ItemSubClassId, ItemSubClassName, locales) for PvP items in a class."""
         q = session.query(cls.ItemSubClassId, cls.ItemSubClassName, cls.ItemSubClassNameLocales).filter(
@@ -603,6 +705,7 @@ class CraftingRecipeCache(db.BASE):
         return cls._dedup_rows(q, cls.ItemSubClassName)
 
     @classmethod
+    @_cache_recipe_query
     def get_pvp_items(
         cls, recipe_type, item_class_id, item_subclass_id, session, profession_ids: set[int] | None = None
     ):
@@ -623,6 +726,7 @@ class CraftingRecipeCache(db.BASE):
         return q.order_by(asc(cls.ItemName)).all()
 
     @classmethod
+    @_cache_recipe_query
     def get_raid_prep_categories(
         cls, recipe_type, session, profession_ids: set[int] | None = None
     ) -> list[tuple[str, dict | None]]:
@@ -638,6 +742,7 @@ class CraftingRecipeCache(db.BASE):
         return cls._dedup_category_rows(rows)
 
     @classmethod
+    @_cache_recipe_query
     def get_raid_prep_items(cls, recipe_type, category_name, session, profession_ids: set[int] | None = None):
         """Return recipe rows for a specific raid prep category."""
         q = session.query(cls).filter(
@@ -650,6 +755,7 @@ class CraftingRecipeCache(db.BASE):
         return q.order_by(asc(cls.ItemName)).all()
 
     @classmethod
+    @_cache_recipe_query
     def get_other_categories(
         cls, recipe_type, session, profession_ids: set[int] | None = None
     ) -> list[tuple[str, dict | None]]:
@@ -672,6 +778,7 @@ class CraftingRecipeCache(db.BASE):
         return cls._dedup_category_rows(rows)
 
     @classmethod
+    @_cache_recipe_query
     def get_other_items(cls, recipe_type, category_name, session, profession_ids: set[int] | None = None):
         """Return recipe rows for a specific 'Other' category."""
         q = session.query(cls).filter(
@@ -688,6 +795,7 @@ class CraftingRecipeCache(db.BASE):
         return q.order_by(asc(cls.ItemName)).all()
 
     @classmethod
+    @_cache_recipe_query
     def get_professions_with_recipes(cls, recipe_type, session, profession_ids: set[int] | None = None):
         """Return distinct (ProfessionId, ProfessionName) pairs that have cached recipes of the given type."""
         q = session.query(cls.ProfessionId, cls.ProfessionName).filter(cls.RecipeType == recipe_type)

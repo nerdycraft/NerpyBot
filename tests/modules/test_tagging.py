@@ -8,6 +8,7 @@ import pytest
 
 from models.tagging import Tag, TagType, TagTypeConverter
 from modules.tagging import Tagging
+from utils.cache import _autocomplete_cache
 from utils.errors import NerpyValidationError
 from utils.strings import load_strings
 
@@ -231,6 +232,19 @@ class TestTagDeleteLocale:
 
         msg = tagging_interaction.response.send_message.call_args[0][0]
         assert "doesn't exist" in msg
+
+    async def test_delete_success_invalidates_autocomplete(
+        self, _load_locale_strings, tagging_cog, tagging_interaction, monkeypatch
+    ):
+        guild_id = tagging_interaction.guild.id
+        _autocomplete_cache[("tags", guild_id)] = ["stale"]
+
+        monkeypatch.setattr("modules.tagging.Tag.exists", lambda name, gid, sess: True)
+        monkeypatch.setattr("modules.tagging.Tag.delete", lambda name, gid, sess: None)
+
+        await Tagging._tag_delete.callback(tagging_cog, tagging_interaction, "oldtag")
+
+        assert ("tags", guild_id) not in _autocomplete_cache
 
 
 class TestTagListLocale:

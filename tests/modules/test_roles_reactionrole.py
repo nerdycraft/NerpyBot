@@ -73,6 +73,13 @@ class TestAdd:
         assert "👍" in msg
         assert "Member" in msg
 
+    async def test_add_updates_cache(self, cog, interaction, channel, role):
+        cog.bot.guild_cache.warm_reaction_roles(cog.bot.SESSION)
+
+        await Roles.reactionrole._children["add"].callback(cog, interaction, channel, "12345", "👍", role)
+
+        assert cog.bot.guild_cache.get_reaction_role(12345, "👍") == role.id
+
     async def test_add_already_mapped(self, cog, interaction, channel, role, db_session):
         rr_msg = ReactionRoleMessage(GuildId=987654321, ChannelId=111, MessageId=12345)
         db_session.add(rr_msg)
@@ -111,6 +118,36 @@ class TestRemove:
 
         msg = interaction.response.send_message.call_args[0][0]
         assert "Removed mapping" in msg
+
+    async def test_remove_last_entry_evicts_message_from_cache(self, cog, interaction, db_session):
+        rr_msg = ReactionRoleMessage(GuildId=987654321, ChannelId=111, MessageId=12345)
+        db_session.add(rr_msg)
+        db_session.flush()
+        db_session.add(ReactionRoleEntry(ReactionRoleMessageId=rr_msg.Id, Emoji="👍", RoleId=333))
+        db_session.commit()
+
+        cog.bot.guild_cache.warm_reaction_roles(cog.bot.SESSION)
+        cog._clear_reaction = AsyncMock()
+
+        await Roles.reactionrole._children["remove"].callback(cog, interaction, "12345", "👍")
+
+        assert cog.bot.guild_cache.is_reaction_role_message(12345) is False
+
+    async def test_remove_non_last_entry_keeps_message_tracked(self, cog, interaction, db_session):
+        rr_msg = ReactionRoleMessage(GuildId=987654321, ChannelId=111, MessageId=12345)
+        db_session.add(rr_msg)
+        db_session.flush()
+        db_session.add(ReactionRoleEntry(ReactionRoleMessageId=rr_msg.Id, Emoji="👍", RoleId=333))
+        db_session.add(ReactionRoleEntry(ReactionRoleMessageId=rr_msg.Id, Emoji="❤️", RoleId=444))
+        db_session.commit()
+
+        cog.bot.guild_cache.warm_reaction_roles(cog.bot.SESSION)
+        cog._clear_reaction = AsyncMock()
+
+        await Roles.reactionrole._children["remove"].callback(cog, interaction, "12345", "👍")
+
+        assert cog.bot.guild_cache.is_reaction_role_message(12345) is True
+        assert cog.bot.guild_cache.get_reaction_role(12345, "👍") is None
 
 
 # ---------------------------------------------------------------------------
