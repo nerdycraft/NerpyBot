@@ -143,7 +143,7 @@ async def set_language(
     lang = cfg.Language
     session.commit()
     _guild_lang_cache[guild_id] = lang
-    vk.notify_bot("set_guild_language", {"guild_id": str(guild_id), "language": lang})
+    vk.notify_bot("set_guild_language", {"guild_id": guild_id, "language": lang})
     return LanguageConfig(guild_id=str(guild_id), language=lang)
 
 
@@ -184,7 +184,7 @@ async def add_moderator_role(
     else:
         session.add(BotModeratorRole(GuildId=guild_id, RoleId=new_role_id))
     session.commit()
-    vk.notify_bot("invalidate_modrole", {"guild_id": str(guild_id)})
+    vk.notify_bot("invalidate_modrole", {"guild_id": guild_id})
     return {"status": "created"}
 
 
@@ -205,7 +205,7 @@ async def delete_moderator_role(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
     BotModeratorRole.delete(guild_id, session)
     session.commit()
-    vk.notify_bot("invalidate_modrole", {"guild_id": str(guild_id)})
+    vk.notify_bot("invalidate_modrole", {"guild_id": guild_id})
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -265,7 +265,7 @@ async def set_leave_message(
             detail="channel_id is required when leave messages are enabled",
         )
     session.commit()  # commit before notifying bot so it re-reads the updated row
-    vk.notify_bot("invalidate_leave_config", {"guild_id": str(guild_id)})
+    vk.notify_bot("invalidate_leave_config", {"guild_id": guild_id})
     return LeaveMessageConfig(
         guild_id=str(guild_id),
         channel_id=str(cfg.ChannelId) if cfg.ChannelId else None,

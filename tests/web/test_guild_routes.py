@@ -71,7 +71,7 @@ class TestLanguageEndpoints:
         bot_cmds = [json.loads(msg) for ch, msg in published if ch == "nerpybot:cmd"]
         lang_cmds = [c for c in bot_cmds if c.get("command") == "set_guild_language"]
         assert len(lang_cmds) == 1
-        assert lang_cmds[0]["guild_id"] == str(GUILD_ID)
+        assert lang_cmds[0]["guild_id"] == GUILD_ID
         assert lang_cmds[0]["language"] == "de"
 
 
@@ -125,7 +125,7 @@ class TestModeratorRoleEndpoints:
         bot_cmds = [json.loads(msg) for ch, msg in published if ch == "nerpybot:cmd"]
         invalidations = [c for c in bot_cmds if c.get("command") == "invalidate_modrole"]
         assert len(invalidations) == 1
-        assert invalidations[0]["guild_id"] == str(GUILD_ID)
+        assert invalidations[0]["guild_id"] == GUILD_ID
 
     def test_delete_notifies_bot_to_invalidate_cache(self, client, fake_valkey, auth_header):
         """DELETE moderator-roles must publish an invalidate_modrole command with null role_id."""
@@ -152,7 +152,7 @@ class TestModeratorRoleEndpoints:
         bot_cmds = [json.loads(msg) for ch, msg in published if ch == "nerpybot:cmd"]
         invalidations = [c for c in bot_cmds if c.get("command") == "invalidate_modrole"]
         assert len(invalidations) == 1
-        assert invalidations[0]["guild_id"] == str(GUILD_ID)
+        assert invalidations[0]["guild_id"] == GUILD_ID
 
 
 class TestLeaveMessageEndpoints:
@@ -211,7 +211,7 @@ class TestLeaveMessageEndpoints:
         bot_cmds = [json.loads(msg) for ch, msg in published if ch == "nerpybot:cmd"]
         invalidations = [c for c in bot_cmds if c.get("command") == "invalidate_leave_config"]
         assert len(invalidations) == 1
-        assert invalidations[0]["guild_id"] == str(GUILD_ID)
+        assert invalidations[0]["guild_id"] == GUILD_ID
 
 
 class TestAutoDeleteEndpoints:

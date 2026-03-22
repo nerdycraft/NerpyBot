@@ -102,18 +102,19 @@ class TestCacheRecipeQueryDecorator:
         assert r1 is r2
 
     def test_bool_returning_method_is_cached(self, db_session):
-        db_session.add(_recipe(RecipeId=1, ProfessionId=164))
+        db_session.add(_recipe(RecipeId=1, ProfessionId=164, CategoryName="Blacksmith Treatise"))
         db_session.commit()
 
         # First call populates the cache.
         r1 = CraftingRecipeCache.has_prof_knowledge_items(RECIPE_TYPE_CRAFTED, db_session)
+        assert r1 is True
 
         # Mutate the DB between calls — the second call must return the cached (stale) value.
         db_session.query(CraftingRecipeCache).delete()
         db_session.commit()
 
         r2 = CraftingRecipeCache.has_prof_knowledge_items(RECIPE_TYPE_CRAFTED, db_session)
-        assert r1 == r2  # same cached boolean, not a fresh DB result
+        assert r2 is True  # same cached boolean, not a fresh DB result
 
     def test_cached_results_are_session_detached(self, db_session):
         from sqlalchemy import inspect as sa_inspect
