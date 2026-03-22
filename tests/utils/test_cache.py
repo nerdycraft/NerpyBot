@@ -297,6 +297,18 @@ class TestLeaveMessages:
         result = cache.get_leave_config(GUILD_ID, session_factory)
         assert result == (111, "bye")
 
+    def test_get_leave_config_sqlalchemy_error_returns_none_and_does_not_cache(self, cache, session_factory):
+        # Evict so the cache is forced to hit the DB path.
+        cache._leave_evicted.add(GUILD_ID)
+
+        def failing_factory():
+            raise OperationalError("DB down", None, None)
+
+        result = cache.get_leave_config(GUILD_ID, failing_factory)
+
+        assert result is None
+        assert GUILD_ID not in cache._leave_configs  # must NOT be cached
+
     def test_evict_nonexistent_is_safe(self, cache):
         cache.evict_leave_config(GUILD_ID)  # must not raise
 
@@ -356,6 +368,24 @@ class TestLeaveMessages:
 
         cache.reload_leave_config(GUILD_ID, session_factory)
 
+        assert cache.is_leave_message_guild(GUILD_ID) is True
+
+    def test_reload_leave_config_db_error_evicts_and_marks_for_recheck(self, cache, session_factory, db_session):
+        # Warm the cache with a live guild so _leave_warmed=True.
+        db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye", Enabled=True))
+        db_session.commit()
+        cache.warm_leave_messages(session_factory)
+
+        def failing_factory():
+            raise OperationalError("DB down", None, None)
+
+        cache.reload_leave_config(GUILD_ID, failing_factory)
+
+        # Guild must be popped from _leave_configs
+        assert GUILD_ID not in cache._leave_configs
+        # Guild must be added to _leave_evicted so the next cold-miss path retries
+        assert GUILD_ID in cache._leave_evicted
+        # is_leave_message_guild must return True (conservative: state unknown, must re-check)
         assert cache.is_leave_message_guild(GUILD_ID) is True
 
 

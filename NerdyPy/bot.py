@@ -363,6 +363,14 @@ class NerpyBot(Bot):
             except Exception as e:
                 self.log.error(f"Failed to warm {cache_name} cache: {e}", exc_info=True)
         self.log.debug("Guild config cache warm-up finished.")
+        if not self.guild_cache.rr_warmed:
+            self.log.error(
+                "reaction-role cache warm-up failed — every reaction event will fall back to DB indefinitely"
+            )
+        if not self.guild_cache.leave_warmed:
+            self.log.error(
+                "leave-message cache warm-up failed — every member-remove event will fall back to DB indefinitely"
+            )
 
         required = required_permissions_for(self.modules)
         for guild in self.guilds:

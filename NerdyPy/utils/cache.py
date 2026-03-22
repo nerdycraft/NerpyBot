@@ -185,6 +185,16 @@ class GuildConfigCache:
         if guild_id in self._rr_by_guild:
             self._rr_by_guild[guild_id].discard(message_id)
 
+    @property
+    def rr_warmed(self) -> bool:
+        """Return True once the reaction-role cache has been successfully warmed."""
+        return self._rr_warmed
+
+    @property
+    def leave_warmed(self) -> bool:
+        """Return True once the leave-message cache has been successfully warmed."""
+        return self._leave_warmed
+
     def warm_reaction_roles(self, session_factory) -> None:
         """Bulk-load all reaction role message IDs and emoji mappings from the database.
 

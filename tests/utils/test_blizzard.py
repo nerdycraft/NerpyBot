@@ -4,7 +4,7 @@
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
-from models.wow import CraftingRecipeCache
+from models.wow import CraftingRecipeCache, _recipe_cache
 from utils.blizzard import CRAFTING_PROFESSIONS
 
 
@@ -137,3 +137,19 @@ class TestSyncCraftingRecipesGuard:
         assert result["errors"] > 0
         assert result["cache_updated"] is True
         assert result["crafted"] > 0  # partial rows were actually written
+
+    async def test_cache_updated_true_invalidates_recipe_cache(self):
+        """When the DB swap succeeds (cache_updated=True), _recipe_cache must be cleared."""
+        bot, _ = _make_bot()
+
+        # Pre-populate the recipe cache with a sentinel so we can detect the invalidation.
+        _recipe_cache["sentinel_key"] = ["stale"]
+
+        with patch("blizzapi.RetailClient", return_value=_make_client(fail=False)):
+            with patch.object(CraftingRecipeCache, "count", return_value=5):
+                from utils.blizzard import sync_crafting_recipes
+
+                result = await sync_crafting_recipes(bot)
+
+        assert result["cache_updated"] is True
+        assert "sentinel_key" not in _recipe_cache  # sentinel must have been cleared

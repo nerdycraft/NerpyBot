@@ -7,6 +7,7 @@ import logging
 from datetime import UTC, datetime
 
 from cachetools import TTLCache
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -56,7 +57,7 @@ def _cache_recipe_query(method):
         key = (
             method.__name__,
             *(
-                None if (isinstance(val, set) and not val) else (frozenset(val) if isinstance(val, set) else val)
+                frozenset(val) if isinstance(val, set) else val
                 for name, val in bound.arguments.items()
                 if name not in ("cls", "session")
             ),
@@ -70,9 +71,13 @@ def _cache_recipe_query(method):
             raise
         session = bound.arguments.get("session")
         if session is not None and isinstance(result, list):
-            for item in result:
-                if isinstance(item, db.BASE):
-                    session.expunge(item)
+            try:
+                for item in result:
+                    if isinstance(item, db.BASE):
+                        session.expunge(item)
+            except SQLAlchemyError:
+                _log.exception("_cache_recipe_query: %s — expunge failed", method.__name__)
+                raise
         _recipe_cache[key] = result
         return result
 

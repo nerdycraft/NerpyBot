@@ -77,7 +77,7 @@ class Roles(NerpyBotCog, Cog):
             async def _fetch_channel(cid):
                 try:
                     return await guild.fetch_channel(cid)
-                except (discord.NotFound, discord.Forbidden):
+                except discord.HTTPException:
                     return None
 
             fetched = await asyncio.gather(*(_fetch_channel(m["channel_id"]) for m in still_missing))

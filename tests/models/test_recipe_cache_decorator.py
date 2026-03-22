@@ -88,18 +88,32 @@ class TestCacheRecipeQueryDecorator:
         )
         assert r1 is r2
 
-    def test_none_and_empty_set_produce_same_cache_key(self, db_session):
+    def test_none_and_empty_set_produce_different_cache_keys(self, db_session):
         db_session.add(_recipe(RecipeId=1, ProfessionId=164))
         db_session.commit()
 
         from models.wow import RECIPE_TYPE_CRAFTED, CraftingRecipeCache, invalidate_recipe_cache
 
         invalidate_recipe_cache()
-        # First call with None populates the cache.
+        # None and set() are distinct argument values and must produce separate cache entries.
         r1 = CraftingRecipeCache.get_by_type_and_subclass(RECIPE_TYPE_CRAFTED, 4, 4, db_session, profession_ids=None)
-        # Second call with an empty set should normalize to the same key and hit the cache.
         r2 = CraftingRecipeCache.get_by_type_and_subclass(RECIPE_TYPE_CRAFTED, 4, 4, db_session, profession_ids=set())
-        assert r1 is r2
+        # r1 is r2 would mean same object (cache hit) — we want different entries.
+        assert r1 is not r2
+
+    def test_bool_returning_method_is_cached(self, db_session):
+        db_session.add(_recipe(RecipeId=1, ProfessionId=164))
+        db_session.commit()
+
+        # First call populates the cache.
+        r1 = CraftingRecipeCache.has_prof_knowledge_items(RECIPE_TYPE_CRAFTED, db_session)
+
+        # Mutate the DB between calls — the second call must return the cached (stale) value.
+        db_session.query(CraftingRecipeCache).delete()
+        db_session.commit()
+
+        r2 = CraftingRecipeCache.has_prof_knowledge_items(RECIPE_TYPE_CRAFTED, db_session)
+        assert r1 == r2  # same cached boolean, not a fresh DB result
 
     def test_cached_results_are_session_detached(self, db_session):
         from sqlalchemy import inspect as sa_inspect
