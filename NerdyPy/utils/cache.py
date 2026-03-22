@@ -5,6 +5,7 @@ import asyncio
 import logging
 import time
 from contextlib import contextmanager
+from typing import Literal
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -321,7 +322,9 @@ class GuildConfigCache:
         if self._leave_warmed:
             self._leave_evicted.add(guild_id)
 
-    def get_leave_config(self, guild_id: int, session_factory) -> tuple[int, str | None] | None | object:
+    def get_leave_config(
+        self, guild_id: int, session_factory
+    ) -> tuple[int, str | None] | None | Literal[LEAVE_CONFIG_DB_ERROR]:
         """Return ``(channel_id, message_text)`` for the guild's enabled leave message.
 
         Returns ``None`` when the guild has no enabled leave message.
