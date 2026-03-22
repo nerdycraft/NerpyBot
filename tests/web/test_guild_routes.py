@@ -49,7 +49,6 @@ class TestLanguageEndpoints:
     def test_put_language_write_through_and_notifies_bot(self, client, fake_valkey, auth_header):
         """PUT language must populate _guild_lang_cache and publish set_guild_language to the bot."""
         import json
-        from unittest.mock import patch
         from web.routes.guilds import _guild_lang_cache
 
         # Pre-populate cache with stale value to confirm write-through replaces it.
@@ -109,7 +108,6 @@ class TestModeratorRoleEndpoints:
     def test_post_notifies_bot_to_invalidate_cache(self, client, fake_valkey, auth_header):
         """POST moderator-roles must publish an invalidate_modrole command with the new role_id."""
         import json
-        from unittest.mock import patch
 
         published = []
 
@@ -132,7 +130,6 @@ class TestModeratorRoleEndpoints:
     def test_delete_notifies_bot_to_invalidate_cache(self, client, fake_valkey, auth_header):
         """DELETE moderator-roles must publish an invalidate_modrole command with null role_id."""
         import json
-        from unittest.mock import patch
 
         client.post(
             f"/api/guilds/{GUILD_ID}/moderator-roles",
@@ -197,7 +194,6 @@ class TestLeaveMessageEndpoints:
     def test_put_notifies_bot_to_invalidate_cache(self, client, fake_valkey, auth_header):
         """PUT leave-messages must publish an invalidate_leave_config command to the bot."""
         import json
-        from unittest.mock import patch
 
         published = []
 
