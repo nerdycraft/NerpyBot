@@ -1050,7 +1050,6 @@ test = [
     { name = "ruff" },
 ]
 web = [
-    { name = "cachetools" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "pyjwt" },
@@ -1089,7 +1088,6 @@ test = [
     { name = "ruff", specifier = "==0.15.7" },
 ]
 web = [
-    { name = "cachetools" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "pyjwt" },

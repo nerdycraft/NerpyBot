@@ -1,4 +1,7 @@
+from unittest.mock import patch
+
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
 from tests.web.conftest import make_auth_header
 
@@ -801,3 +804,45 @@ class TestSupportModeRedactionAndWriteBlocking:
         )
         assert response.status_code == 200
         assert response.json()["language"] == "de"
+
+
+class TestPremiumCacheBehavior:
+    """Tests for the in-process premium user ID cache in web/dependencies.py."""
+
+    def test_get_premium_ids_db_failure_returns_503(self, client, auth_header):
+        """When PremiumUser.get_all raises SQLAlchemyError, guild routes must return 503."""
+        from web.dependencies import _premium_ids_cache
+
+        _premium_ids_cache.clear()  # force cache miss so DB is actually hit
+        with patch("models.admin.PremiumUser.get_all", side_effect=SQLAlchemyError("DB down")):
+            response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=auth_header)
+        assert response.status_code == 503
+
+    def test_invalidate_premium_cache_forces_fresh_db_read(self, client, fake_valkey, web_db_session):
+        """invalidate_premium_cache forces the next request to reload from DB.
+
+        Flow: new user has no premium → 403; grant premium + invalidate → 200.
+        """
+        from models.admin import PremiumUser
+        from web.dependencies import _premium_ids_cache, invalidate_premium_cache
+
+        new_user_id = 555444333
+        fake_valkey.set_permissions(
+            str(new_user_id),
+            {str(GUILD_ID): {"level": "admin", "name": "Test Guild"}},
+            ttl=300,
+        )
+        new_header = make_auth_header(user_id=str(new_user_id), username="NewUser")
+
+        # Without premium — 403
+        _premium_ids_cache.clear()
+        response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=new_header)
+        assert response.status_code == 403
+
+        # Grant premium and invalidate so the next request hits DB
+        PremiumUser.grant(new_user_id, 111222333, web_db_session)
+        web_db_session.commit()
+        invalidate_premium_cache()
+
+        response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=new_header)
+        assert response.status_code == 200

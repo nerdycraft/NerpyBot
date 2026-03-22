@@ -45,7 +45,6 @@ web = [
     "uvicorn[standard]",
     "PyJWT",
     "httpx",
-    "cachetools",
     "valkey",
     "pyyaml",
     "sse-starlette",

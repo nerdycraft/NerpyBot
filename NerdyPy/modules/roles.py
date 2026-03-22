@@ -79,7 +79,13 @@ class Roles(NerpyBotCog, Cog):
             async def _fetch_channel(cid):
                 try:
                     return await guild.fetch_channel(cid)
-                except discord.HTTPException:
+                except discord.HTTPException as exc:
+                    self.bot.log.debug(
+                        "_message_id_autocomplete: fetch_channel(%d) failed — %s (%s)",
+                        cid,
+                        type(exc).__name__,
+                        exc,
+                    )
                     return None
 
             fetched = await asyncio.gather(*(_fetch_channel(cid) for cid in missing_ids))
@@ -102,6 +108,7 @@ class Roles(NerpyBotCog, Cog):
 
     def _get_role_for_reaction(self, payload):
         """Look up the role for a given reaction event payload."""
+        self.bot.guild_cache.try_rewarm_reaction_roles(self.bot.SESSION)
         if not self.bot.guild_cache.is_reaction_role_message(payload.message_id):
             return None
 

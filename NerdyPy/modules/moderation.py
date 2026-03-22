@@ -15,6 +15,7 @@ from pytimeparse2 import parse
 from models.leavemsg import LeaveMessage
 from models.moderation import AutoDelete, AutoKicker
 
+from utils.cache import LEAVE_CONFIG_DB_ERROR
 from utils.cog import NerpyBotCog
 from utils.errors import NerpyValidationError
 from utils.helpers import fetch_message_content, notify_error, register_before_loop, send_hidden_message, send_paginated
@@ -619,26 +620,26 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         if member.bot:
             return
 
+        self.bot.guild_cache.try_rewarm_leave_messages(self.bot.SESSION)
+
         if not self.bot.guild_cache.is_leave_message_guild(member.guild.id):
             return
 
         try:
             leave_config = self.bot.guild_cache.get_leave_config(member.guild.id, self.bot.SESSION)
+            if leave_config is LEAVE_CONFIG_DB_ERROR:
+                self.bot.log.warning(
+                    "[%s (%d)]: on_member_remove: DB error reading leave config — skipping",
+                    member.guild.name,
+                    member.guild.id,
+                )
+                return
             if leave_config is None:
-                # Warmed cache + None means the guild was in the evicted set (prior DB error or reload);
-                # log at warning so a DB failure isn't indistinguishable from normal "no config" operation.
-                if self.bot.guild_cache.leave_warmed:
-                    self.bot.log.warning(
-                        "[%s (%d)]: on_member_remove: leave config missing after cache eviction — DB error likely",
-                        member.guild.name,
-                        member.guild.id,
-                    )
-                else:
-                    self.bot.log.debug(
-                        "[%s (%d)]: on_member_remove: no leave config — skipping",
-                        member.guild.name,
-                        member.guild.id,
-                    )
+                self.bot.log.debug(
+                    "[%s (%d)]: on_member_remove: no leave config — skipping",
+                    member.guild.name,
+                    member.guild.id,
+                )
                 return
 
             channel_id, message_text = leave_config

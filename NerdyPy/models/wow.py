@@ -45,8 +45,14 @@ def _cache_recipe_query(method):
 
     Warning: methods that return ``list[CraftingRecipeCache]`` yield session-detached
     ORM instances. Callers must not access lazy-loaded relationships on those objects —
-    only eagerly-loaded columns are safe. Methods returning scalars or plain tuples are
-    cached normally but are not subject to session expunge, since they carry no ORM identity.
+    only eagerly-loaded columns are safe.
+
+    Return-type behaviour:
+    - ``list[ORM]``: each item is expunged from the session before caching.
+    - ``list[tuple]``: the expunge loop runs but the ``isinstance(item, db.BASE)``
+      guard makes each iteration a no-op — the tuples are cached without expunge.
+    - scalar (bool, int, …): the ``isinstance(result, list)`` guard skips the loop
+      entirely.
     """
     sig = inspect.signature(method)
 
@@ -76,8 +82,11 @@ def _cache_recipe_query(method):
                     if isinstance(item, db.BASE):
                         session.expunge(item)
             except SQLAlchemyError:
-                _log.exception("_cache_recipe_query: %s — expunge failed", method.__name__)
-                raise
+                _log.exception(
+                    "_cache_recipe_query: %s — expunge failed; returning result uncached",
+                    method.__name__,
+                )
+                return result  # safe to return detached-ish; just won't be served from cache
         _recipe_cache[key] = result
         return result
 

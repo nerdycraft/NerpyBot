@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
-"""In-memory guild configuration cache to reduce redundant DB queries."""
+"""In-memory guild configuration and autocomplete TTL cache."""
 
 import asyncio
 import logging
+import time
 from contextlib import contextmanager
 
 from sqlalchemy.exc import SQLAlchemyError
-
-from utils.errors import NerpyInfraException
 
 from cachetools import TTLCache
 from discord import app_commands
@@ -26,8 +25,16 @@ def _open_session(session_factory):
 
 
 # Sentinel returned by GuildConfigCache.get_reaction_role() when the cache has not been
-# warmed yet. Distinguishes "not warmed — fall back to DB" from None ("warmed, no mapping").
+# warmed yet or when the message was evicted after warm-up. Distinguishes "must fall back
+# to DB" (not yet warmed, or evicted after warm-up) from None ("warmed, emoji has no mapping").
 REACTION_ROLE_CACHE_MISS = object()
+
+# Sentinel returned by GuildConfigCache.get_leave_config() when a DB read failed.
+# Callers must treat this as distinct from None ("no leave config") and log at warning level.
+LEAVE_CONFIG_DB_ERROR = object()
+
+# Minimum seconds between lazy re-warm attempts after a failed startup warm-up.
+_REWARM_COOLDOWN = 60.0
 
 
 class GuildConfigCache:
@@ -49,9 +56,11 @@ class GuildConfigCache:
         self._rr_mappings: dict[int, dict[str, int]] = {}
         self._rr_warmed: bool = False
         self._rr_evicted_msgs: set[int] = set()  # evicted after warm; return CACHE_MISS until re-warmed
+        self._rr_last_rewarm_attempt: float = 0.0
         self._leave_configs: dict[int, tuple[int, str | None] | None] = {}
         self._leave_warmed: bool = False
         self._leave_evicted: set[int] = set()  # guilds evicted after warm-up; need DB re-read on next access
+        self._leave_last_rewarm_attempt: float = 0.0
 
     @staticmethod
     def _run_warm(session_factory, loader_fn):
@@ -231,6 +240,25 @@ class GuildConfigCache:
         self._rr_warmed = True
         self._rr_evicted_msgs.clear()
 
+    def try_rewarm_reaction_roles(self, session_factory) -> None:
+        """Attempt a reaction-role re-warm if the cache is unwarmed and the backoff window has elapsed.
+
+        Called from the on_raw_reaction_add hot path when ``_rr_warmed`` is still ``False``
+        after a failed startup warm-up. Limits re-warm frequency to ``_REWARM_COOLDOWN`` seconds
+        so a persistently down DB does not cause a flood of queries per reaction event.
+        """
+        if self._rr_warmed:
+            return
+        now = time.monotonic()
+        if now - self._rr_last_rewarm_attempt < _REWARM_COOLDOWN:
+            return
+        self._rr_last_rewarm_attempt = now
+        try:
+            self.warm_reaction_roles(session_factory)
+            _log.info("GuildConfigCache: reaction-role cache lazily re-warmed")
+        except Exception:
+            _log.exception("GuildConfigCache: lazy reaction-role re-warm failed")
+
     # ── Leave messages ────────────────────────────────────────────────────────
 
     def is_leave_message_guild(self, guild_id: int) -> bool:
@@ -292,14 +320,18 @@ class GuildConfigCache:
         """Return ``(channel_id, message_text)`` for the guild's enabled leave message.
 
         Returns ``None`` when the guild has no enabled leave message.
-        Falls back to a direct DB read when the cache has not been warmed yet and populates
-        the per-guild entry so subsequent calls are served from memory.
+        Returns :data:`LEAVE_CONFIG_DB_ERROR` when a DB read failed — callers must log at
+        warning level to distinguish this from a legitimately absent config.
+        Falls back to a direct DB read when the cache has not been warmed yet or when
+        ``guild_id in self._leave_evicted`` (guild evicted after warm-up, e.g. via
+        ``evict_guild`` or a prior DB error flagged by ``mark_leave_config_for_recheck``).
+        On success the per-guild entry is populated and the eviction sentinel cleared so
+        subsequent calls are served from memory.
 
-        On ``SQLAlchemyError``, logs the error and returns ``None`` without caching — the
-        entry stays absent so the next call retries the DB. Unlike ``get_guild_language``
-        and ``get_modrole``, this intentionally swallows the error to keep ``on_member_remove``
-        non-fatal; callers must not treat ``None`` as a definitive "no config" when the cache
-        is cold.
+        On ``SQLAlchemyError``, logs the error and returns :data:`LEAVE_CONFIG_DB_ERROR`
+        without caching — the entry stays absent so the next call retries the DB. Unlike
+        ``get_guild_language`` and ``get_modrole``, this intentionally swallows the error
+        to keep ``on_member_remove`` non-fatal.
         """
         if guild_id not in self._leave_evicted:
             if self._leave_warmed or guild_id in self._leave_configs:
@@ -308,8 +340,8 @@ class GuildConfigCache:
         try:
             config = self._load_leave_config_from_db(guild_id, session_factory)
         except SQLAlchemyError:
-            _log.exception("get_leave_config: DB read failed for guild_id=%d — returning None", guild_id)
-            return None
+            _log.exception("get_leave_config: DB read failed for guild_id=%d", guild_id)
+            return LEAVE_CONFIG_DB_ERROR
 
         # Store None explicitly as a sentinel so repeated cold-cache misses for the same guild
         # don't each re-hit the DB.  (apply_leave_config pops on None, which is the right
@@ -368,6 +400,25 @@ class GuildConfigCache:
         self._leave_warmed = True
         self._leave_evicted.clear()
 
+    def try_rewarm_leave_messages(self, session_factory) -> None:
+        """Attempt a leave-message re-warm if the cache is unwarmed and the backoff window has elapsed.
+
+        Called from the on_member_remove hot path when ``_leave_warmed`` is still ``False``
+        after a failed startup warm-up. Limits re-warm frequency to ``_REWARM_COOLDOWN`` seconds
+        so a persistently down DB does not cause a flood of queries per member-leave event.
+        """
+        if self._leave_warmed:
+            return
+        now = time.monotonic()
+        if now - self._leave_last_rewarm_attempt < _REWARM_COOLDOWN:
+            return
+        self._leave_last_rewarm_attempt = now
+        try:
+            self.warm_leave_messages(session_factory)
+            _log.info("GuildConfigCache: leave-message cache lazily re-warmed")
+        except Exception:
+            _log.exception("GuildConfigCache: lazy leave-message re-warm failed")
+
     # ── Eviction ──────────────────────────────────────────────────────────────
 
     def evict_guild(self, guild_id: int) -> None:
@@ -405,11 +456,13 @@ async def cached_autocomplete(key: tuple, fetcher):
         The cached or freshly fetched list.
 
     Error handling:
-        ``SQLAlchemyError`` is caught, logged, and returns ``[]`` without caching
-        so the next keystroke retries. Any other exception (programming errors,
-        unexpected import failures) is also caught, logged at error level, and
-        returns ``[]`` so discord.py's autocomplete handler gets a clean empty list
-        rather than propagating to the root exception handler with no module log entry.
+        ``SQLAlchemyError`` is caught, logged at ``exception`` level, and returns ``[]``
+        without caching so the next keystroke retries. Any other exception (programming
+        errors, unexpected import failures, ``NerpyInfraException`` from fetchers that use
+        ``session_scope``) falls through to the broad ``except Exception`` clause, which
+        also logs at error level and returns ``[]``. ``NerpyInfraException`` is intentionally
+        not caught here so future fetchers that raise it are only silently swallowed by the
+        generic handler — not given a false impression of being "handled" like a DB error.
     """
     try:
         return _autocomplete_cache[key]
@@ -420,7 +473,7 @@ async def cached_autocomplete(key: tuple, fetcher):
     # window makes true simultaneity rare, and the TTL window suppresses all subsequent hits.
     try:
         result = await asyncio.to_thread(fetcher)
-    except (SQLAlchemyError, NerpyInfraException):
+    except SQLAlchemyError:
         _log.exception("cached_autocomplete: fetcher for key %r raised an error", key)
         return []
     except Exception:

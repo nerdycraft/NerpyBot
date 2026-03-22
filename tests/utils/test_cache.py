@@ -10,6 +10,7 @@ from models.admin import BotModeratorRole, GuildLanguageConfig
 from models.leavemsg import LeaveMessage
 from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 from utils.cache import (
+    LEAVE_CONFIG_DB_ERROR,
     REACTION_ROLE_CACHE_MISS,
     GuildConfigCache,
     _autocomplete_cache,
@@ -84,6 +85,15 @@ class TestGuildLanguage:
         assert cache.get_guild_language(GUILD_ID, session_factory) == "de"
         assert cache.get_guild_language(GUILD_ID_2, session_factory) == "fr"
 
+    def test_db_failure_does_not_write_stale_value(self, cache):
+        def failing_factory():
+            raise OperationalError("DB down", None, None)
+
+        with pytest.raises(OperationalError):
+            cache.get_guild_language(GUILD_ID, failing_factory)
+
+        assert GUILD_ID not in cache._lang
+
 
 # ── Moderator role ────────────────────────────────────────────────────────────
 
@@ -122,6 +132,15 @@ class TestModrole:
 
     def test_delete_nonexistent_is_safe(self, cache):
         cache.delete_modrole(GUILD_ID)  # must not raise
+
+    def test_db_failure_does_not_write_stale_value(self, cache):
+        def failing_factory():
+            raise OperationalError("DB down", None, None)
+
+        with pytest.raises(OperationalError):
+            cache.get_modrole(GUILD_ID, failing_factory)
+
+        assert GUILD_ID not in cache._modrole
 
 
 # ── Reaction roles ────────────────────────────────────────────────────────────
@@ -297,7 +316,7 @@ class TestLeaveMessages:
         result = cache.get_leave_config(GUILD_ID, session_factory)
         assert result == (111, "bye")
 
-    def test_get_leave_config_sqlalchemy_error_returns_none_and_does_not_cache(self, cache, session_factory):
+    def test_get_leave_config_sqlalchemy_error_returns_sentinel_and_does_not_cache(self, cache, session_factory):
         # Evict so the cache is forced to hit the DB path.
         cache._leave_evicted.add(GUILD_ID)
 
@@ -306,7 +325,7 @@ class TestLeaveMessages:
 
         result = cache.get_leave_config(GUILD_ID, failing_factory)
 
-        assert result is None
+        assert result is LEAVE_CONFIG_DB_ERROR
         assert GUILD_ID not in cache._leave_configs  # must NOT be cached
 
     def test_evict_nonexistent_is_safe(self, cache):

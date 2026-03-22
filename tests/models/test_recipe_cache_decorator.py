@@ -127,3 +127,28 @@ class TestCacheRecipeQueryDecorator:
         # Object must be detached (not bound to the session).
         state = sa_inspect(results[0])
         assert state.detached
+
+    def test_ttl_expiry_forces_fresh_db_query(self, db_session, monkeypatch):
+        """After TTL expires, the decorator must issue a fresh DB query."""
+        import time
+
+        import models.wow as wow_module
+        from cachetools import TTLCache
+
+        short_ttl_cache = TTLCache(maxsize=256, ttl=0.01)
+        monkeypatch.setattr(wow_module, "_recipe_cache", short_ttl_cache)
+
+        db_session.add(_recipe(RecipeId=1, ProfessionId=164))
+        db_session.commit()
+
+        r1 = CraftingRecipeCache.get_by_profession(164, RECIPE_TYPE_CRAFTED, db_session)
+        assert len(r1) == 1
+
+        time.sleep(0.1)  # wait for TTL to expire
+
+        db_session.add(_recipe(RecipeId=2, ProfessionId=164))
+        db_session.commit()
+
+        r2 = CraftingRecipeCache.get_by_profession(164, RECIPE_TYPE_CRAFTED, db_session)
+        assert len(r2) == 2  # fresh DB read after TTL expiry
+        assert r1 is not r2
