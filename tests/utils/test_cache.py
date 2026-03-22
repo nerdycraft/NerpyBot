@@ -385,10 +385,26 @@ class TestEviction:
     def test_evict_removes_reaction_role_messages(self, cache, session_factory):
         cache.warm_reaction_roles(session_factory)
         cache.add_reaction_role_message(GUILD_ID, 42)
+        cache.add_reaction_role_entry(42, "👍", 111)
         cache.add_reaction_role_message(GUILD_ID_2, 99)
         cache.evict_guild(GUILD_ID)
-        assert cache.is_reaction_role_message(42) is False  # evicted
+        # After eviction, is_reaction_role_message returns True (conservative: fall back to DB).
+        # This matches the _leave_evicted pattern — guild may rejoin with existing config.
+        assert cache.is_reaction_role_message(42) is True  # evicted but treated as possible
         assert cache.is_reaction_role_message(99) is True  # other guild unaffected
+        # get_reaction_role must return CACHE_MISS (not None) so callers fall back to DB.
+        from utils.cache import REACTION_ROLE_CACHE_MISS
+
+        assert cache.get_reaction_role(42, "👍") is REACTION_ROLE_CACHE_MISS
+
+    def test_evict_reaction_role_messages_cleared_on_re_warm(self, cache, session_factory):
+        cache.warm_reaction_roles(session_factory)
+        cache.add_reaction_role_message(GUILD_ID, 42)
+        cache.evict_guild(GUILD_ID)
+        assert cache.is_reaction_role_message(42) is True  # evicted sentinel
+        cache.warm_reaction_roles(session_factory)  # re-warm clears sentinel
+        # msg 42 was not in the DB, so after re-warm it is truly absent
+        assert cache.is_reaction_role_message(42) is False
 
     def test_evict_nonexistent_is_safe(self, cache):
         cache.evict_guild(GUILD_ID)  # must not raise

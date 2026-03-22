@@ -46,6 +46,7 @@ class GuildConfigCache:
         self._rr_by_guild: dict[int, set[int]] = {}  # guild_id -> set[message_id] for eviction
         self._rr_mappings: dict[int, dict[str, int]] = {}
         self._rr_warmed: bool = False
+        self._rr_evicted_msgs: set[int] = set()  # evicted after warm; return CACHE_MISS until re-warmed
         self._leave_configs: dict[int, tuple[int, str | None] | None] = {}
         self._leave_warmed: bool = False
         self._leave_evicted: set[int] = set()  # guilds evicted after warm-up; need DB re-read on next access
@@ -131,8 +132,12 @@ class GuildConfigCache:
 
         Returns True unconditionally before warm-up completes (conservative: always
         falls through to the DB query so no reactions are missed).
+        Also returns True for messages evicted via ``evict_guild`` after warm-up —
+        they are re-checked via ``get_reaction_role`` rather than treated as absent.
         """
         if not self._rr_warmed:
+            return True
+        if message_id in self._rr_evicted_msgs:
             return True
         return message_id in self._rr_message_ids
 
@@ -142,11 +147,15 @@ class GuildConfigCache:
         Returns:
             ``REACTION_ROLE_CACHE_MISS`` if the cache has not been warmed yet
                 (caller must fall back to DB).
+            ``REACTION_ROLE_CACHE_MISS`` if the message was evicted after warm-up
+                (caller must fall back to DB — data may have changed since eviction).
             ``None`` if the cache is warmed but the emoji has no mapping
                 (caller should skip the DB query).
             ``int`` role ID if a mapping exists.
         """
         if not self._rr_warmed:
+            return REACTION_ROLE_CACHE_MISS
+        if message_id in self._rr_evicted_msgs:
             return REACTION_ROLE_CACHE_MISS
         return self._rr_mappings.get(message_id, {}).get(emoji)
 
@@ -211,6 +220,7 @@ class GuildConfigCache:
 
         self._rr_by_guild, self._rr_message_ids, self._rr_mappings = self._run_warm(session_factory, _load)
         self._rr_warmed = True
+        self._rr_evicted_msgs.clear()
 
     # ── Leave messages ────────────────────────────────────────────────────────
 
@@ -341,6 +351,8 @@ class GuildConfigCache:
             self._rr_message_ids -= guild_rr
             for msg_id in guild_rr:
                 self._rr_mappings.pop(msg_id, None)
+            if self._rr_warmed:
+                self._rr_evicted_msgs.update(guild_rr)  # guild may rejoin — re-check on next reaction
 
 
 # ── Autocomplete TTL cache ─────────────────────────────────────────────────────

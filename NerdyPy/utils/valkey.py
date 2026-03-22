@@ -313,6 +313,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         if not isinstance(language, str) or not language.strip():
             bot.log.warning("set_guild_language: received invalid language=%r for guild_id=%d", language, guild_id)
             return {"ok": False, "error": "invalid language"}
+        language = language.strip()
         bot.guild_cache.set_guild_language(guild_id, language)
         bot.dispatch("guild_language_changed", guild_id, language)
         return {"ok": True}
