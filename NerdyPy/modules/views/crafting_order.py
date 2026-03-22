@@ -1999,7 +1999,7 @@ class CraftingOrderModal(ui.Modal):
         # (localized) name in ItemNameLocalized for display. For free-text flow: only ItemName.
         # If the user changed the pre-filled name, treat as free-text and drop cached metadata.
         recipe = self._recipe
-        if recipe is not None and recipe.item_name_english is not None and item_name_input != recipe.item_name:
+        if recipe is not None and item_name_input != recipe.item_name:
             item_name = item_name_input
             item_name_localized = None
             recipe = None  # discard cache metadata — user overrode the name
@@ -2064,7 +2064,7 @@ class CraftingOrderModal(ui.Modal):
         # Phase 2: send to Discord outside the session.
         try:
             channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
-        except (discord.NotFound, discord.Forbidden):
+        except discord.HTTPException:
             channel = None
         if channel is None:
             with self.bot.session_scope() as session:
@@ -2186,16 +2186,18 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
         return True
 
     async def callback(self, interaction: Interaction):
-        embed = view = None
         order_not_found = False
+        embed = view = None
         with interaction.client.session_scope() as session:
-            order = CraftingOrder.get_by_id(self.order_id, session)
-            if order is None:
+            rowcount = session.execute(
+                sa_update(CraftingOrder)
+                .where(CraftingOrder.Id == self.order_id, CraftingOrder.Status == "in_progress")
+                .values(Status="open", CrafterId=None, CrafterName=None)
+            ).rowcount
+            if rowcount == 0:
                 order_not_found = True
             else:
-                order.Status = "open"
-                order.CrafterId = None
-                order.CrafterName = None
+                order = CraftingOrder.get_by_id(self.order_id, session)
                 lang = interaction.client.get_guild_language(interaction.guild_id)
                 embed = build_order_embed(order, interaction.guild, lang)
                 view = build_order_view(order.Id, "open", lang)
@@ -2236,11 +2238,15 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         order_not_found = False
         item_name = creator_id = crafter_id = thread_id = None
         with interaction.client.session_scope() as session:
-            order = CraftingOrder.get_by_id(self.order_id, session)
-            if order is None:
+            rowcount = session.execute(
+                sa_update(CraftingOrder)
+                .where(CraftingOrder.Id == self.order_id, CraftingOrder.Status == "in_progress")
+                .values(Status="completed")
+            ).rowcount
+            if rowcount == 0:
                 order_not_found = True
             else:
-                order.Status = "completed"
+                order = CraftingOrder.get_by_id(self.order_id, session)
                 item_name = _display_item_name(order)
                 creator_id = order.CreatorId
                 crafter_id = order.CrafterId
@@ -2313,11 +2319,18 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
         item_name = creator_id = thread_id = None
         cancelled_by_creator = False
         with interaction.client.session_scope() as session:
-            order = CraftingOrder.get_by_id(self.order_id, session)
-            if order is None:
+            rowcount = session.execute(
+                sa_update(CraftingOrder)
+                .where(
+                    CraftingOrder.Id == self.order_id,
+                    CraftingOrder.Status.not_in(["completed", "cancelled"]),
+                )
+                .values(Status="cancelled")
+            ).rowcount
+            if rowcount == 0:
                 order_not_found = True
             else:
-                order.Status = "cancelled"
+                order = CraftingOrder.get_by_id(self.order_id, session)
                 item_name = _display_item_name(order)
                 creator_id = order.CreatorId
                 cancelled_by_creator = interaction.user.id == creator_id
