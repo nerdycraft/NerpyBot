@@ -83,6 +83,7 @@ class TestOnRawReactionAdd:
     ):
         """Warm cache + correct emoji → role assigned without fallback DB hit."""
         cog.bot.guild_cache.warm_reaction_roles(cog.bot.SESSION)
+        cog.bot.session_scope = MagicMock(side_effect=AssertionError("warm-cache path must not open a DB session"))
 
         member = MagicMock()
         member.bot = False
@@ -106,6 +107,7 @@ class TestOnRawReactionAdd:
     ):
         """Warm cache + unmapped emoji → add_roles never called."""
         cog.bot.guild_cache.warm_reaction_roles(cog.bot.SESSION)
+        cog.bot.session_scope = MagicMock(side_effect=AssertionError("warm-cache path must not open a DB session"))
 
         member = MagicMock()
         member.bot = False
@@ -132,10 +134,7 @@ class TestOnRawReactionAdd:
         and the cold-miss DB fallback is never triggered.
         """
         cog.bot.guild_cache.warm_reaction_roles(cog.bot.SESSION)
-
-        # Patch session_scope so any DB access would raise and fail the test.
-        def _no_db():
-            raise AssertionError("DB should not be accessed on a warm-cache emoji miss")
+        cog.bot.session_scope = MagicMock(side_effect=AssertionError("warm-cache path must not open a DB session"))
 
         member = MagicMock()
         member.bot = False

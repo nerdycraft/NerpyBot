@@ -5,6 +5,7 @@ import functools
 import inspect
 import logging
 from datetime import UTC, datetime
+from threading import RLock
 
 from cachetools import TTLCache
 from sqlalchemy.exc import SQLAlchemyError
@@ -35,6 +36,7 @@ _log = logging.getLogger(__name__)
 # TTL of 1 hour prevents stale data without ever needing a bot restart.
 
 _recipe_cache: TTLCache = TTLCache(maxsize=256, ttl=3600)
+_recipe_cache_lock = RLock()
 
 
 def _cache_recipe_query(method):
@@ -68,8 +70,11 @@ def _cache_recipe_query(method):
                 if name not in ("cls", "session")
             ),
         )
-        if key in _recipe_cache:
-            return _recipe_cache[key]
+        with _recipe_cache_lock:
+            try:
+                return _recipe_cache[key]
+            except KeyError:
+                pass
         try:
             result = method(*args, **kwargs)
         except Exception:
@@ -87,7 +92,8 @@ def _cache_recipe_query(method):
                     method.__name__,
                 )
                 return result  # safe to return detached-ish; just won't be served from cache
-        _recipe_cache[key] = result
+        with _recipe_cache_lock:
+            _recipe_cache[key] = result
         return result
 
     return wrapper
@@ -98,7 +104,8 @@ def invalidate_recipe_cache() -> None:
 
     Call this after a recipe sync completes to ensure fresh data on next access.
     """
-    _recipe_cache.clear()
+    with _recipe_cache_lock:
+        _recipe_cache.clear()
 
 
 class WoW(db.BASE):
