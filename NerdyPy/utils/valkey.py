@@ -10,6 +10,8 @@ The listener loop runs as an asyncio background task. It subscribes to the
 import json
 import time
 from asyncio import CancelledError, ensure_future, gather, sleep, to_thread
+
+from sqlalchemy.exc import SQLAlchemyError
 from datetime import UTC, datetime
 from importlib.metadata import version as pkg_version
 from pathlib import Path
@@ -40,14 +42,18 @@ def _discover_available_modules(loaded_names: set[str]) -> list[str]:
 def _parse_guild_id(payload: dict) -> int:
     """Safely extract guild_id from a payload dict.
 
-    Returns 0 on missing, explicit ``None``, or non-numeric input.
+    Returns 0 on missing, explicit ``None``, non-numeric input, booleans, or non-positive values.
     The ``or 0`` handles the case where the key is present but set to ``None``
     (``payload.get("guild_id", 0)`` returns ``None`` in that case, not the default).
     """
+    raw = payload.get("guild_id", 0)
+    if isinstance(raw, bool):
+        return 0
     try:
-        return int(payload.get("guild_id", 0) or 0)
+        guild_id = int(raw or 0)
     except (TypeError, ValueError):
         return 0
+    return guild_id if guild_id > 0 else 0
 
 
 def _get_guild(bot, payload: dict):
@@ -290,10 +296,12 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             bot.log.warning("invalidate_leave_config: received invalid guild_id=%r", payload.get("guild_id"))
             return {"ok": False, "error": "invalid guild_id"}
         try:
-            await to_thread(bot.guild_cache.reload_leave_config, guild_id, bot.SESSION)
-        except Exception:
+            config = await to_thread(bot.guild_cache._load_leave_config_from_db, guild_id, bot.SESSION)
+        except SQLAlchemyError:
+            bot.guild_cache.mark_leave_config_for_recheck(guild_id)
             bot.log.exception("invalidate_leave_config: reload failed for guild_id=%d", guild_id)
             return {"ok": False, "error": "cache reload failed — see bot logs"}
+        bot.guild_cache.apply_leave_config(guild_id, config)
         return {"ok": True}
     elif command == "invalidate_modrole":
         guild_id = _parse_guild_id(payload)

@@ -257,6 +257,35 @@ class GuildConfigCache:
             )
         ).scalar_one_or_none()
 
+    def _load_leave_config_from_db(self, guild_id: int, session_factory) -> tuple[int, str | None] | None:
+        """Read the leave config for *guild_id* from the DB.
+
+        Returns ``(channel_id, message)`` or ``None`` (no enabled leave message).
+        Pure I/O — does **not** mutate any cache state. Safe to call from a worker thread.
+        Raises ``SQLAlchemyError`` on DB failure.
+        """
+        with _open_session(session_factory) as session:
+            row = self._query_leave_row(guild_id, session)
+        return (row.ChannelId, row.Message) if row is not None else None
+
+    def apply_leave_config(self, guild_id: int, config: tuple[int, str | None] | None) -> None:
+        """Write a freshly loaded leave config into the in-memory cache.
+
+        Must be called from the event-loop thread.
+        ``config`` is ``(channel_id, message)`` or ``None`` (no enabled leave message).
+        """
+        if config is not None:
+            self._leave_configs[guild_id] = config
+        else:
+            self._leave_configs.pop(guild_id, None)
+        self._leave_evicted.discard(guild_id)
+
+    def mark_leave_config_for_recheck(self, guild_id: int) -> None:
+        """On DB error: evict stale data and flag the guild for re-read on the next member-remove."""
+        self._leave_configs.pop(guild_id, None)
+        if self._leave_warmed:
+            self._leave_evicted.add(guild_id)
+
     def get_leave_config(self, guild_id: int, session_factory) -> tuple[int, str | None] | None:
         """Return ``(channel_id, message_text)`` for the guild's enabled leave message.
 
@@ -275,13 +304,14 @@ class GuildConfigCache:
                 return self._leave_configs.get(guild_id)
 
         try:
-            with _open_session(session_factory) as session:
-                row = self._query_leave_row(guild_id, session)
-                config = (row.ChannelId, row.Message) if row is not None else None
+            config = self._load_leave_config_from_db(guild_id, session_factory)
         except SQLAlchemyError:
             _log.exception("get_leave_config: DB read failed for guild_id=%d — returning None", guild_id)
             return None
 
+        # Store None explicitly as a sentinel so repeated cold-cache misses for the same guild
+        # don't each re-hit the DB.  (apply_leave_config pops on None, which is the right
+        # behaviour for the reload/eviction path but not here.)
         self._leave_configs[guild_id] = config
         self._leave_evicted.discard(guild_id)
         return config
@@ -309,23 +339,15 @@ class GuildConfigCache:
         ``on_member_remove`` retries the DB read via the cold-miss path.
         """
         try:
-            with _open_session(session_factory) as session:
-                row = self._query_leave_row(guild_id, session)
+            config = self._load_leave_config_from_db(guild_id, session_factory)
         except SQLAlchemyError:
             _log.exception(
                 "reload_leave_config: DB read failed for guild_id=%d — evicting so cold-miss retries on next member-remove",
                 guild_id,
             )
-            self._leave_configs.pop(guild_id, None)
-            if self._leave_warmed:
-                self._leave_evicted.add(guild_id)
+            self.mark_leave_config_for_recheck(guild_id)
             return
-
-        if row is not None:
-            self._leave_configs[guild_id] = (row.ChannelId, row.Message)
-        else:
-            self._leave_configs.pop(guild_id, None)
-        self._leave_evicted.discard(guild_id)
+        self.apply_leave_config(guild_id, config)
 
     def warm_leave_messages(self, session_factory) -> None:
         """Bulk-load full leave message configs (channel_id, message) for all enabled guilds.

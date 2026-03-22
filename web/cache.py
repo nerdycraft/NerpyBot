@@ -134,7 +134,7 @@ class ValkeyClient:
         Failures are logged as errors — callers must not rely on delivery.
         """
         try:
-            message = json.dumps({"command": command, **payload})
+            message = json.dumps({**payload, "command": command})
             self._client.publish(self._key("cmd"), message)
         except Exception as exc:
             _log.error("notify_bot: failed to publish %r: %s", command, exc, exc_info=True)
