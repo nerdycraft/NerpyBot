@@ -258,6 +258,11 @@ async def set_leave_message(
     if "message" in body.model_fields_set:
         cfg.Message = body.message
     if "enabled" in body.model_fields_set:
+        if body.enabled is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="enabled cannot be null",
+            )
         cfg.Enabled = body.enabled
     if cfg.Enabled and cfg.ChannelId is None:
         raise HTTPException(
