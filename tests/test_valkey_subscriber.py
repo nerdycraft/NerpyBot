@@ -536,8 +536,6 @@ class TestBotCommandHandler:
 
     async def test_invalidate_leave_config_valid(self, mock_bot):
         """Valid guild_id: DB loaded in thread, then apply_leave_config called on event-loop."""
-        from sqlalchemy.exc import SQLAlchemyError  # noqa: F401 — ensure importable
-
         sentinel = (123, "bye")
         mock_bot.guild_cache = MagicMock()
         mock_bot.guild_cache._load_leave_config_from_db.return_value = sentinel
