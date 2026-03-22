@@ -46,9 +46,10 @@ class TestLanguageEndpoints:
         response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=auth_header)
         assert response.json()["language"] == "fr"
 
-    def test_put_language_write_through_and_notifies_bot(self, client, fake_valkey, auth_header):
-        """PUT language must populate _guild_lang_cache and publish set_guild_language to the bot."""
+    def test_put_language_write_through_and_notifies_bot(self, client, fake_valkey, auth_header, web_db_session):
+        """PUT language must populate _guild_lang_cache, persist to DB, and publish set_guild_language to the bot."""
         import json
+        from models.admin import GuildLanguageConfig
         from web.routes.guilds import _guild_lang_cache
 
         # Pre-populate cache with stale value to confirm write-through replaces it.
@@ -68,6 +69,9 @@ class TestLanguageEndpoints:
 
         assert response.status_code == 200
         assert _guild_lang_cache[GUILD_ID] == "de"
+        stored = GuildLanguageConfig.get(GUILD_ID, web_db_session)
+        assert stored is not None
+        assert stored.Language == "de"
         bot_cmds = [json.loads(msg) for ch, msg in published if ch == "nerpybot:cmd"]
         lang_cmds = [c for c in bot_cmds if c.get("command") == "set_guild_language"]
         assert len(lang_cmds) == 1
@@ -212,6 +216,23 @@ class TestLeaveMessageEndpoints:
         invalidations = [c for c in bot_cmds if c.get("command") == "invalidate_leave_config"]
         assert len(invalidations) == 1
         assert invalidations[0]["guild_id"] == GUILD_ID
+
+    def test_put_enabled_without_channel_id_returns_422(self, client, fake_valkey, auth_header):
+        """PUT leave-messages with enabled=True but no channel_id must return 422 and not notify the bot."""
+        published = []
+
+        def capture(channel, message):
+            published.append((channel, message))
+
+        with patch.object(fake_valkey._client, "publish", side_effect=capture):
+            response = client.put(
+                f"/api/guilds/{GUILD_ID}/leave-messages",
+                json={"message": "Bye {member}!", "enabled": True},
+                headers=auth_header,
+            )
+
+        assert response.status_code == 422
+        assert not any(ch == "nerpybot:cmd" for ch, _ in published)
 
 
 class TestAutoDeleteEndpoints:

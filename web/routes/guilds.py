@@ -261,7 +261,7 @@ async def set_leave_message(
         cfg.Enabled = body.enabled
     if cfg.Enabled and cfg.ChannelId is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="channel_id is required when leave messages are enabled",
         )
     session.commit()  # commit before notifying bot so it re-reads the updated row
