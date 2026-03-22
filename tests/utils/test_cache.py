@@ -539,14 +539,20 @@ class TestCachedAutocomplete:
         assert len(calls) == 2
 
     @pytest.mark.asyncio
-    async def test_non_db_fetcher_error_propagates(self):
-        # Non-SQLAlchemyError must propagate so programming bugs surface immediately
-        # rather than silently returning [] on every keystroke.
+    async def test_non_db_fetcher_error_returns_empty_and_logs(self, caplog):
+        # Non-SQLAlchemyError must be caught, logged at error level, and return []
+        # so discord.py's autocomplete handler gets a clean empty list rather than
+        # propagating to the root exception handler with no module log entry.
+        import logging
+
         def buggy_fetcher():
             raise RuntimeError("unexpected bug")
 
-        with pytest.raises(RuntimeError, match="unexpected bug"):
-            await cached_autocomplete(("test", 77), buggy_fetcher)
+        with caplog.at_level(logging.ERROR, logger="utils.cache"):
+            result = await cached_autocomplete(("test", 77), buggy_fetcher)
+
+        assert result == []
+        assert any("unexpected error" in r.message for r in caplog.records)
 
     def test_invalidate_evicts_key(self):
         _autocomplete_cache[("test", 5)] = ["cached"]

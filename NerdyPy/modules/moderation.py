@@ -625,11 +625,20 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         try:
             leave_config = self.bot.guild_cache.get_leave_config(member.guild.id, self.bot.SESSION)
             if leave_config is None:
-                self.bot.log.debug(
-                    "[%s (%d)]: on_member_remove: no leave config — skipping",
-                    member.guild.name,
-                    member.guild.id,
-                )
+                # Warmed cache + None means the guild was in the evicted set (prior DB error or reload);
+                # log at warning so a DB failure isn't indistinguishable from normal "no config" operation.
+                if self.bot.guild_cache.leave_warmed:
+                    self.bot.log.warning(
+                        "[%s (%d)]: on_member_remove: leave config missing after cache eviction — DB error likely",
+                        member.guild.name,
+                        member.guild.id,
+                    )
+                else:
+                    self.bot.log.debug(
+                        "[%s (%d)]: on_member_remove: no leave config — skipping",
+                        member.guild.name,
+                        member.guild.id,
+                    )
                 return
 
             channel_id, message_text = leave_config

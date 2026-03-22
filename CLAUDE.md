@@ -129,7 +129,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - `permissions.py` - Per-module bot permission requirements map and guild-level permission audit helpers
 - `duration.py` - `parse_duration()` for human-friendly duration strings (`2h30m`, `1d12h`, `1w`); wraps `pytimeparse2`
 - `schedule.py` - `compute_next_fire()` for DST-aware next-fire-time computation (interval/daily/weekly/monthly)
-- `strings.py` - Localized string lookup: `load_strings()` at startup, `get_string(lang, key, **kwargs)` for templates
+- `strings.py` - Localized string lookup: `load_strings()` at startup, `get_string(lang, key, **kwargs)` for templates. Guild-language helpers moved to bot level: use `bot.get_guild_language(guild_id)` / `bot.get_localized_string(guild_id, key, **kwargs)` (bot-level wrappers) or `GuildConfigCache.get_guild_language(guild_id, session_factory)` directly.
 
 ### Gotchas
 

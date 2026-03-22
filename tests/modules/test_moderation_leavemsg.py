@@ -136,6 +136,20 @@ class TestLeavemsgMessage:
         with pytest.raises(NerpyValidationError, match="enable|aktiviere"):
             await Moderation.leavemsg._children["message"].callback(cog, interaction, "Bye {member}")
 
+    async def test_set_message_disabled_does_not_update_cache(self, cog, interaction, db_session):
+        """When the leave config row has Enabled=False, /leavemsg message must NOT write to cache.
+
+        Guards the ``if enabled:`` guard in the cache-update path against accidental removal.
+        """
+        db_session.add(LeaveMessage(GuildId=987654321, ChannelId=111, Enabled=False))
+        db_session.commit()
+
+        await Moderation.leavemsg._children["message"].callback(cog, interaction, "Bye {member}!")
+
+        # Cache must still return None — disabled guilds must not appear in the cache.
+        cached = cog.bot.guild_cache.get_leave_config(987654321, cog.bot.SESSION)
+        assert cached is None
+
 
 # ---------------------------------------------------------------------------
 # /moderation leavemsg status

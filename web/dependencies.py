@@ -189,7 +189,13 @@ async def require_guild_access(
             if discord_token is not None:
                 try:
                     perms = await _refresh_guild_perms(vk, user["sub"], discord_token)
-                except HTTPException:
+                except HTTPException as exc:
+                    _log.warning(
+                        "require_guild_access: guild perm refresh failed for sub=%s guild_id=%s — degrading to support_mode: %s",
+                        user["sub"],
+                        guild_id,
+                        exc.detail,
+                    )
                     pass  # network/API failure → degrade to support_mode
         if _has_real_perms(perms):
             return user  # real guild permissions — normal access

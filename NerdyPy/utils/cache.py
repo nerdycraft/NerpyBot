@@ -404,9 +404,10 @@ async def cached_autocomplete(key: tuple, fetcher):
 
     Error handling:
         ``SQLAlchemyError`` is caught, logged, and returns ``[]`` without caching
-        so the next keystroke retries. Non-DB exceptions (programming errors,
-        unexpected import failures) propagate uncaught so they surface immediately
-        rather than silently returning empty results on every keystroke.
+        so the next keystroke retries. Any other exception (programming errors,
+        unexpected import failures) is also caught, logged at error level, and
+        returns ``[]`` so discord.py's autocomplete handler gets a clean empty list
+        rather than propagating to the root exception handler with no module log entry.
     """
     try:
         return _autocomplete_cache[key]
@@ -419,6 +420,9 @@ async def cached_autocomplete(key: tuple, fetcher):
         result = await asyncio.to_thread(fetcher)
     except SQLAlchemyError:
         _log.exception("cached_autocomplete: fetcher for key %r raised an error", key)
+        return []
+    except Exception:
+        _log.error("cached_autocomplete: unexpected error for key %r", key, exc_info=True)
         return []
     _autocomplete_cache[key] = result
     return result

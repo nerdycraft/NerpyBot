@@ -46,7 +46,7 @@ def _cache_recipe_query(method):
     Warning: methods that return ``list[CraftingRecipeCache]`` yield session-detached
     ORM instances. Callers must not access lazy-loaded relationships on those objects —
     only eagerly-loaded columns are safe. Methods returning scalars or plain tuples are
-    unaffected.
+    cached normally but are not subject to session expunge, since they carry no ORM identity.
     """
     sig = inspect.signature(method)
 

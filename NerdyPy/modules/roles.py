@@ -7,6 +7,8 @@ from discord import Forbidden, HTTPException, Interaction, Member, NotFound, Rol
 from discord.app_commands import checks
 from discord.ext.commands import Cog
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 from models.rolemanage import RoleMapping
 from utils.cache import REACTION_ROLE_CACHE_MISS, cached_autocomplete, invalidate_autocomplete
@@ -53,7 +55,7 @@ class Roles(NerpyBotCog, Cog):
                         "channel_id": msg.ChannelId,
                         "message_id": msg.MessageId,
                         "entry_count": len(msg.entries),
-                        "channel_name": None,  # resolved below; None entries are updated in-place to avoid re-fetching within TTL
+                        "channel_name": None,  # filled below; these dicts are the cached objects (aliased, not copied), so mutating channel_name here persists for the full TTL without re-fetching
                     }
                     for msg in ReactionRoleMessage.get_by_guild(guild_id, session)
                 ]
@@ -106,14 +108,20 @@ class Roles(NerpyBotCog, Cog):
         if role_id is REACTION_ROLE_CACHE_MISS:
             # Cache not yet warmed — fall back to DB and backfill.
             # ReactionRoleMessage uses lazy="joined" so rr_msg.entries is already loaded.
-            with self.bot.session_scope() as session:
-                rr_msg = ReactionRoleMessage.get_by_message(payload.message_id, session)
-                if rr_msg is None:
-                    return None
-                entry = next((e for e in rr_msg.entries if e.Emoji == emoji_str), None)
-                if entry is None:
-                    return None
-                role_id = entry.RoleId
+            try:
+                with self.bot.session_scope() as session:
+                    rr_msg = ReactionRoleMessage.get_by_message(payload.message_id, session)
+                    if rr_msg is None:
+                        return None
+                    entry = next((e for e in rr_msg.entries if e.Emoji == emoji_str), None)
+                    if entry is None:
+                        return None
+                    role_id = entry.RoleId
+            except SQLAlchemyError:
+                self.bot.log.exception(
+                    "_get_role_for_reaction: DB fallback failed for message_id=%d", payload.message_id
+                )
+                return None
             self.bot.guild_cache.add_reaction_role_entry(payload.message_id, emoji_str, role_id)
         elif role_id is None:
             return None
