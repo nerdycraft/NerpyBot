@@ -5,7 +5,6 @@ import asyncio
 import logging
 import time
 from contextlib import contextmanager
-from typing import Literal
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -30,9 +29,16 @@ def _open_session(session_factory):
 # to DB" (not yet warmed, or evicted after warm-up) from None ("warmed, emoji has no mapping").
 REACTION_ROLE_CACHE_MISS = object()
 
-# Sentinel returned by GuildConfigCache.get_leave_config() when a DB read failed.
-# Callers must treat this as distinct from None ("no leave config") and log at warning level.
-LEAVE_CONFIG_DB_ERROR = object()
+
+class _LeaveConfigDbError:
+    """Typed sentinel returned by GuildConfigCache.get_leave_config() on DB failure.
+
+    Distinct from ``None`` ("no leave config found") so callers can narrow the
+    return type statically. Use ``result is LEAVE_CONFIG_DB_ERROR`` for identity checks.
+    """
+
+
+LEAVE_CONFIG_DB_ERROR = _LeaveConfigDbError()
 
 # Minimum seconds between lazy re-warm attempts after a failed startup warm-up.
 _REWARM_COOLDOWN = 60.0
@@ -322,9 +328,7 @@ class GuildConfigCache:
         if self._leave_warmed:
             self._leave_evicted.add(guild_id)
 
-    def get_leave_config(
-        self, guild_id: int, session_factory
-    ) -> tuple[int, str | None] | None | Literal[LEAVE_CONFIG_DB_ERROR]:
+    def get_leave_config(self, guild_id: int, session_factory) -> tuple[int, str | None] | None | _LeaveConfigDbError:
         """Return ``(channel_id, message_text)`` for the guild's enabled leave message.
 
         Returns ``None`` when the guild has no enabled leave message.
