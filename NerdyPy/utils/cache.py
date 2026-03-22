@@ -240,24 +240,29 @@ class GuildConfigCache:
         self._rr_warmed = True
         self._rr_evicted_msgs.clear()
 
-    def try_rewarm_reaction_roles(self, session_factory) -> None:
-        """Attempt a reaction-role re-warm if the cache is unwarmed and the backoff window has elapsed.
+    def _try_rewarm(self, warmed_attr: str, last_attempt_attr: str, warm_fn, label: str, session_factory) -> None:
+        """Shared backoff-guarded re-warm logic for any sub-cache.
 
-        Called from the on_raw_reaction_add hot path when ``_rr_warmed`` is still ``False``
-        after a failed startup warm-up. Limits re-warm frequency to ``_REWARM_COOLDOWN`` seconds
-        so a persistently down DB does not cause a flood of queries per reaction event.
+        Only triggers a warm when ``warmed_attr`` is False and ``_REWARM_COOLDOWN`` seconds have
+        elapsed since the last attempt, preventing DB floods when the DB is persistently down.
         """
-        if self._rr_warmed:
+        if getattr(self, warmed_attr):
             return
         now = time.monotonic()
-        if now - self._rr_last_rewarm_attempt < _REWARM_COOLDOWN:
+        if now - getattr(self, last_attempt_attr) < _REWARM_COOLDOWN:
             return
-        self._rr_last_rewarm_attempt = now
+        setattr(self, last_attempt_attr, now)
         try:
-            self.warm_reaction_roles(session_factory)
-            _log.info("GuildConfigCache: reaction-role cache lazily re-warmed")
+            warm_fn(session_factory)
+            _log.info("GuildConfigCache: %s cache lazily re-warmed", label)
         except Exception:
-            _log.exception("GuildConfigCache: lazy reaction-role re-warm failed")
+            _log.exception("GuildConfigCache: lazy %s re-warm failed", label)
+
+    def try_rewarm_reaction_roles(self, session_factory) -> None:
+        """Called from the on_raw_reaction_add hot path after a failed startup warm-up."""
+        self._try_rewarm(
+            "_rr_warmed", "_rr_last_rewarm_attempt", self.warm_reaction_roles, "reaction-role", session_factory
+        )
 
     # ── Leave messages ────────────────────────────────────────────────────────
 
@@ -401,23 +406,10 @@ class GuildConfigCache:
         self._leave_evicted.clear()
 
     def try_rewarm_leave_messages(self, session_factory) -> None:
-        """Attempt a leave-message re-warm if the cache is unwarmed and the backoff window has elapsed.
-
-        Called from the on_member_remove hot path when ``_leave_warmed`` is still ``False``
-        after a failed startup warm-up. Limits re-warm frequency to ``_REWARM_COOLDOWN`` seconds
-        so a persistently down DB does not cause a flood of queries per member-leave event.
-        """
-        if self._leave_warmed:
-            return
-        now = time.monotonic()
-        if now - self._leave_last_rewarm_attempt < _REWARM_COOLDOWN:
-            return
-        self._leave_last_rewarm_attempt = now
-        try:
-            self.warm_leave_messages(session_factory)
-            _log.info("GuildConfigCache: leave-message cache lazily re-warmed")
-        except Exception:
-            _log.exception("GuildConfigCache: lazy leave-message re-warm failed")
+        """Called from the on_member_remove hot path after a failed startup warm-up."""
+        self._try_rewarm(
+            "_leave_warmed", "_leave_last_rewarm_attempt", self.warm_leave_messages, "leave-message", session_factory
+        )
 
     # ── Eviction ──────────────────────────────────────────────────────────────
 

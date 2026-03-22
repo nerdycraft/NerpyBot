@@ -9,6 +9,8 @@ from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 from modules.roles import Roles
 from utils.strings import load_strings
 
+_NO_DB_MSG = "warm-cache path must not open a DB session"
+
 
 @pytest.fixture(autouse=True)
 def _load_locale_strings():
@@ -83,7 +85,7 @@ class TestOnRawReactionAdd:
     ):
         """Warm cache + correct emoji → role assigned without fallback DB hit."""
         cog.bot.guild_cache.warm_reaction_roles(cog.bot.SESSION)
-        cog.bot.session_scope = MagicMock(side_effect=AssertionError("warm-cache path must not open a DB session"))
+        cog.bot.session_scope = MagicMock(side_effect=AssertionError(_NO_DB_MSG))
 
         member = MagicMock()
         member.bot = False
@@ -107,7 +109,7 @@ class TestOnRawReactionAdd:
     ):
         """Warm cache + unmapped emoji → add_roles never called."""
         cog.bot.guild_cache.warm_reaction_roles(cog.bot.SESSION)
-        cog.bot.session_scope = MagicMock(side_effect=AssertionError("warm-cache path must not open a DB session"))
+        cog.bot.session_scope = MagicMock(side_effect=AssertionError(_NO_DB_MSG))
 
         member = MagicMock()
         member.bot = False
@@ -134,7 +136,7 @@ class TestOnRawReactionAdd:
         and the cold-miss DB fallback is never triggered.
         """
         cog.bot.guild_cache.warm_reaction_roles(cog.bot.SESSION)
-        cog.bot.session_scope = MagicMock(side_effect=AssertionError("warm-cache path must not open a DB session"))
+        cog.bot.session_scope = MagicMock(side_effect=AssertionError(_NO_DB_MSG))
 
         member = MagicMock()
         member.bot = False
