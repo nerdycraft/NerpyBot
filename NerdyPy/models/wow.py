@@ -37,6 +37,7 @@ _log = logging.getLogger(__name__)
 
 _recipe_cache: TTLCache = TTLCache(maxsize=256, ttl=3600)
 _recipe_cache_lock = RLock()
+_recipe_cache_generation: int = 0
 
 
 def _cache_recipe_query(method):
@@ -44,6 +45,8 @@ def _cache_recipe_query(method):
 
     Builds a key from the method name + all arguments except ``cls`` and ``session``.
     ``set`` arguments are converted to ``frozenset`` for hashability.
+    Empty ``profession_ids`` (``None`` or ``set()``) are normalized to ``None``
+    so both forms share the same cache entry.
 
     Warning: methods that return ``list[CraftingRecipeCache]`` yield session-detached
     ORM instances. Callers must not access lazy-loaded relationships on those objects —
@@ -58,19 +61,21 @@ def _cache_recipe_query(method):
     """
     sig = inspect.signature(method)
 
+    def _normalize(name, val):
+        if name == "profession_ids" and not val:
+            return None
+        return frozenset(val) if isinstance(val, set) else val
+
     @functools.wraps(method)
     def wrapper(*args, **kwargs):
         bound = sig.bind(*args, **kwargs)
         bound.apply_defaults()
         key = (
             method.__name__,
-            *(
-                frozenset(val) if isinstance(val, set) else val
-                for name, val in bound.arguments.items()
-                if name not in ("cls", "session")
-            ),
+            *(_normalize(name, val) for name, val in bound.arguments.items() if name not in ("cls", "session")),
         )
         with _recipe_cache_lock:
+            generation = _recipe_cache_generation
             try:
                 return _recipe_cache[key]
             except KeyError:
@@ -93,7 +98,8 @@ def _cache_recipe_query(method):
                 )
                 return result  # safe to return detached-ish; just won't be served from cache
         with _recipe_cache_lock:
-            _recipe_cache[key] = result
+            if generation == _recipe_cache_generation:
+                _recipe_cache[key] = result
         return result
 
     return wrapper
@@ -104,7 +110,9 @@ def invalidate_recipe_cache() -> None:
 
     Call this after a recipe sync completes to ensure fresh data on next access.
     """
+    global _recipe_cache_generation
     with _recipe_cache_lock:
+        _recipe_cache_generation += 1
         _recipe_cache.clear()
 
 

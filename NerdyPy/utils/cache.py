@@ -247,11 +247,13 @@ class GuildConfigCache:
         self._rr_warmed = True
         self._rr_evicted_msgs.clear()
 
-    def _try_rewarm(self, warmed_attr: str, last_attempt_attr: str, warm_fn, label: str, session_factory) -> None:
+    async def _try_rewarm(self, warmed_attr: str, last_attempt_attr: str, warm_fn, label: str, session_factory) -> None:
         """Shared backoff-guarded re-warm logic for any sub-cache.
 
         Only triggers a warm when ``warmed_attr`` is False and ``_REWARM_COOLDOWN`` seconds have
         elapsed since the last attempt, preventing DB floods when the DB is persistently down.
+        The blocking ``warm_fn`` call is offloaded via ``asyncio.to_thread`` so the event loop
+        is not blocked during the DB table scan.
         """
         if getattr(self, warmed_attr):
             return
@@ -260,14 +262,14 @@ class GuildConfigCache:
             return
         setattr(self, last_attempt_attr, now)
         try:
-            warm_fn(session_factory)
+            await asyncio.to_thread(warm_fn, session_factory)
             _log.info("GuildConfigCache: %s cache lazily re-warmed", label)
         except Exception:
             _log.exception("GuildConfigCache: lazy %s re-warm failed", label)
 
-    def try_rewarm_reaction_roles(self, session_factory) -> None:
+    async def try_rewarm_reaction_roles(self, session_factory) -> None:
         """Called from the on_raw_reaction_add hot path after a failed startup warm-up."""
-        self._try_rewarm(
+        await self._try_rewarm(
             "_rr_warmed", "_rr_last_rewarm_attempt", self.warm_reaction_roles, "reaction-role", session_factory
         )
 
@@ -412,9 +414,9 @@ class GuildConfigCache:
         self._leave_warmed = True
         self._leave_evicted.clear()
 
-    def try_rewarm_leave_messages(self, session_factory) -> None:
+    async def try_rewarm_leave_messages(self, session_factory) -> None:
         """Called from the on_member_remove hot path after a failed startup warm-up."""
-        self._try_rewarm(
+        await self._try_rewarm(
             "_leave_warmed", "_leave_last_rewarm_attempt", self.warm_leave_messages, "leave-message", session_factory
         )
 

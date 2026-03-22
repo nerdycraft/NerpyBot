@@ -88,18 +88,18 @@ class TestCacheRecipeQueryDecorator:
         )
         assert r1 is r2
 
-    def test_none_and_empty_set_produce_different_cache_keys(self, db_session):
+    def test_none_and_empty_set_produce_same_cache_key(self, db_session):
         db_session.add(_recipe(RecipeId=1, ProfessionId=164))
         db_session.commit()
 
         from models.wow import RECIPE_TYPE_CRAFTED, CraftingRecipeCache, invalidate_recipe_cache
 
         invalidate_recipe_cache()
-        # None and set() are distinct argument values and must produce separate cache entries.
+        # Both mean "no filter" — the decorator normalizes empty set() to None so both
+        # produce the same cache key and the second call is a cache hit.
         r1 = CraftingRecipeCache.get_by_type_and_subclass(RECIPE_TYPE_CRAFTED, 4, 4, db_session, profession_ids=None)
         r2 = CraftingRecipeCache.get_by_type_and_subclass(RECIPE_TYPE_CRAFTED, 4, 4, db_session, profession_ids=set())
-        # r1 is r2 would mean same object (cache hit) — we want different entries.
-        assert r1 is not r2
+        assert r1 is r2
 
     def test_bool_returning_method_is_cached(self, db_session):
         db_session.add(_recipe(RecipeId=1, ProfessionId=164))

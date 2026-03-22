@@ -620,7 +620,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         if member.bot:
             return
 
-        self.bot.guild_cache.try_rewarm_leave_messages(self.bot.SESSION)
+        await self.bot.guild_cache.try_rewarm_leave_messages(self.bot.SESSION)
 
         if not self.bot.guild_cache.is_leave_message_guild(member.guild.id):
             return

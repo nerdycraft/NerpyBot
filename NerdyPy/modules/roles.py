@@ -106,9 +106,9 @@ class Roles(NerpyBotCog, Cog):
             choices.append(app_commands.Choice(name=label[:100], value=msg_id_str))
         return choices[:25]
 
-    def _get_role_for_reaction(self, payload):
+    async def _get_role_for_reaction(self, payload):
         """Look up the role for a given reaction event payload."""
-        self.bot.guild_cache.try_rewarm_reaction_roles(self.bot.SESSION)
+        await self.bot.guild_cache.try_rewarm_reaction_roles(self.bot.SESSION)
         if not self.bot.guild_cache.is_reaction_role_message(payload.message_id):
             return None
 
@@ -116,7 +116,7 @@ class Roles(NerpyBotCog, Cog):
         role_id = self.bot.guild_cache.get_reaction_role(payload.message_id, emoji_str)
 
         if role_id is REACTION_ROLE_CACHE_MISS:
-            # Cache not yet warmed — fall back to DB and backfill.
+            # Cache not yet warmed — fall back to DB and backfill all entries for this message.
             # ReactionRoleMessage uses lazy="joined" so rr_msg.entries is already loaded.
             try:
                 with self.bot.session_scope() as session:
@@ -124,6 +124,11 @@ class Roles(NerpyBotCog, Cog):
                     if rr_msg is None:
                         self.bot.guild_cache.remove_reaction_role_message(payload.guild_id, payload.message_id)
                         return None
+                    self.bot.guild_cache.add_reaction_role_message(payload.guild_id, payload.message_id)
+                    for cached_entry in rr_msg.entries:
+                        self.bot.guild_cache.add_reaction_role_entry(
+                            payload.message_id, cached_entry.Emoji, cached_entry.RoleId
+                        )
                     entry = next((e for e in rr_msg.entries if e.Emoji == emoji_str), None)
                     if entry is None:
                         return None
@@ -133,8 +138,6 @@ class Roles(NerpyBotCog, Cog):
                     "_get_role_for_reaction: DB fallback failed for message_id=%d", payload.message_id
                 )
                 return None
-            self.bot.guild_cache.add_reaction_role_message(payload.guild_id, payload.message_id)
-            self.bot.guild_cache.add_reaction_role_entry(payload.message_id, emoji_str, role_id)
         elif role_id is None:
             return None
 
@@ -167,7 +170,7 @@ class Roles(NerpyBotCog, Cog):
         if payload.guild_id is None or payload.member is None or payload.member.bot:
             return
 
-        role = self._get_role_for_reaction(payload)
+        role = await self._get_role_for_reaction(payload)
         if role is None:
             return
 
@@ -189,7 +192,7 @@ class Roles(NerpyBotCog, Cog):
         if payload.guild_id is None:
             return
 
-        role = self._get_role_for_reaction(payload)
+        role = await self._get_role_for_reaction(payload)
         if role is None:
             return
 
