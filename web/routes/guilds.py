@@ -253,11 +253,11 @@ async def set_leave_message(
     if cfg is None:
         cfg = LeaveMessage(GuildId=guild_id)
         session.add(cfg)
-    if body.channel_id is not None:
-        cfg.ChannelId = int(body.channel_id)
-    if body.message is not None:
+    if "channel_id" in body.model_fields_set:
+        cfg.ChannelId = int(body.channel_id) if body.channel_id is not None else None
+    if "message" in body.model_fields_set:
         cfg.Message = body.message
-    if body.enabled is not None:
+    if "enabled" in body.model_fields_set:
         cfg.Enabled = body.enabled
     if cfg.Enabled and cfg.ChannelId is None:
         raise HTTPException(
