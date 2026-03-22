@@ -125,14 +125,15 @@ class Roles(NerpyBotCog, Cog):
                         self.bot.guild_cache.remove_reaction_role_message(payload.guild_id, payload.message_id)
                         return None
                     self.bot.guild_cache.add_reaction_role_message(payload.guild_id, payload.message_id)
+                    role_id = None
                     for cached_entry in rr_msg.entries:
                         self.bot.guild_cache.add_reaction_role_entry(
                             payload.message_id, cached_entry.Emoji, cached_entry.RoleId
                         )
-                    entry = next((e for e in rr_msg.entries if e.Emoji == emoji_str), None)
-                    if entry is None:
+                        if cached_entry.Emoji == emoji_str:
+                            role_id = cached_entry.RoleId
+                    if role_id is None:
                         return None
-                    role_id = entry.RoleId
             except SQLAlchemyError:
                 self.bot.log.exception(
                     "_get_role_for_reaction: DB fallback failed for message_id=%d", payload.message_id
