@@ -73,8 +73,8 @@ class Roles(NerpyBotCog, Cog):
 
         # For channels still unresolved, fetch in parallel. Mutate cached entries in-place so
         # subsequent calls within the 30s TTL window skip these HTTP round-trips.
-        still_missing = [m for m in messages if m["channel_name"] is None]
-        if still_missing:
+        missing_ids = list({m["channel_id"] for m in messages if m["channel_name"] is None})
+        if missing_ids:
 
             async def _fetch_channel(cid):
                 try:
@@ -82,9 +82,12 @@ class Roles(NerpyBotCog, Cog):
                 except discord.HTTPException:
                     return None
 
-            fetched = await asyncio.gather(*(_fetch_channel(m["channel_id"]) for m in still_missing))
-            for m, ch in zip(still_missing, fetched):
-                m["channel_name"] = f"#{ch.name}" if ch else "Unknown"
+            fetched = await asyncio.gather(*(_fetch_channel(cid) for cid in missing_ids))
+            channel_lookup = {cid: ch for cid, ch in zip(missing_ids, fetched)}
+            for m in messages:
+                if m["channel_name"] is None:
+                    ch = channel_lookup.get(m["channel_id"])
+                    m["channel_name"] = f"#{ch.name}" if ch else "Unknown"
 
         choices = []
         for rr_msg in messages:

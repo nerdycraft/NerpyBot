@@ -7,6 +7,8 @@ from contextlib import contextmanager
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from utils.errors import NerpyInfraException
+
 from cachetools import TTLCache
 from discord import app_commands
 
@@ -418,7 +420,7 @@ async def cached_autocomplete(key: tuple, fetcher):
     # window makes true simultaneity rare, and the TTL window suppresses all subsequent hits.
     try:
         result = await asyncio.to_thread(fetcher)
-    except SQLAlchemyError:
+    except (SQLAlchemyError, NerpyInfraException):
         _log.exception("cached_autocomplete: fetcher for key %r raised an error", key)
         return []
     except Exception:
