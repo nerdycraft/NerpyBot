@@ -912,7 +912,7 @@ class ApplicationSubmitConversation(Conversation):
                 lang = self.lang
                 all_answers = _extract_answers(submission.answers)
                 total_pages = max(1, math.ceil(len(all_answers) / _ANSWERS_PER_PAGE))
-                embed = build_review_embed(submission, form, session, lang)
+                embed = build_review_embed(submission, form, session, lang, answers=all_answers)
                 # Collect role IDs to mention: non-managed admin roles + all configured manager/reviewer roles
                 mention_ids: set[int] = {
                     r.id for r in self.guild.roles if r.permissions.administrator and not r.managed

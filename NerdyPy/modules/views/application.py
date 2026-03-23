@@ -175,9 +175,21 @@ def check_override_permission(interaction: discord.Interaction, bot) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def build_review_embed(submission, form, session, lang: str = "en", page: int = 1) -> discord.Embed:
-    """Build the review embed shown in the review channel for a submission."""
-    all_answers = _extract_answers(submission.answers)
+def build_review_embed(
+    submission,
+    form,
+    session,
+    lang: str = "en",
+    page: int = 1,
+    *,
+    answers: "list[tuple[str, str | None]] | None" = None,
+) -> discord.Embed:
+    """Build the review embed shown in the review channel for a submission.
+
+    Pass pre-extracted *answers* to skip the internal ``_extract_answers`` call
+    when the caller already has the list (avoids a second traversal).
+    """
+    all_answers = answers if answers is not None else _extract_answers(submission.answers)
     total_pages = max(1, math.ceil(len(all_answers) / _ANSWERS_PER_PAGE))
     page = max(1, min(page, total_pages))
     return _build_review_embed_from_data(
@@ -310,24 +322,7 @@ async def _update_review_embed(
             all_answers = _extract_answers(submission.answers)
             total_pages = max(1, math.ceil(len(all_answers) / _ANSWERS_PER_PAGE))
             current_page = max(1, min(current_page, total_pages))
-            embed = _build_review_embed_from_data(
-                _ReviewEmbedData(
-                    user_id=submission.UserId,
-                    user_name=submission.UserName,
-                    submitted_at=submission.SubmittedAt,
-                    status=submission.Status,
-                    applicant_notified=submission.ApplicantNotified,
-                    form_name=form.Name,
-                    required_approvals=form.RequiredApprovals,
-                    required_denials=form.RequiredDenials,
-                    lang=lang,
-                    approve_count=sum(1 for v in submission.votes if v.Vote == VoteType.APPROVE),
-                    deny_count=sum(1 for v in submission.votes if v.Vote == VoteType.DENY),
-                    answers=all_answers,
-                    page=current_page,
-                    total_pages=total_pages,
-                )
-            )
+            embed = build_review_embed(submission, form, session, lang, page=current_page, answers=all_answers)
             status = submission.Status
             applicant_notified = submission.ApplicantNotified
 
