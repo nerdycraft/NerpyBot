@@ -5,6 +5,7 @@ web/frontend/dist/
 ### Claude Code
 .claude/worktrees/
 .claude/settings.local.json
+WORKTREE.md
 
 ### Custom
 _version.py

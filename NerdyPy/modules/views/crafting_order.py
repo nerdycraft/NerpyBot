@@ -4,7 +4,9 @@
 import functools
 import logging
 import re
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from urllib.parse import quote
 
 import discord
@@ -20,12 +22,35 @@ from models.wow import (
     CraftingRoleMapping,
 )
 from utils.blizzard import CRAFTING_PROFESSIONS
+from utils.errors import NerpyInfraException
 from utils.strings import get_string
 
 log = logging.getLogger(__name__)
 
 # Discord select menu hard limit — options beyond this index are silently dropped.
 _DISCORD_SELECT_LIMIT = 24
+
+
+@dataclass
+class CraftingRecipeContext:
+    """Groups recipe-metadata fields passed from the cache-driven flow into CraftingOrderModal."""
+
+    item_name: str
+    item_name_english: str | None = None
+    icon_url: str | None = None
+    wowhead_url: str | None = None
+
+
+@dataclass
+class NavContext:
+    """Bundles the stable navigation parameters shared by all _navigate_* helpers."""
+
+    bot: Any
+    roles: list[discord.Role]
+    guild_id: int
+    lang: str
+    mapped_prof_ids: set[int] | None
+
 
 # ---------------------------------------------------------------------------
 # Virtual category sentinel values
@@ -164,6 +189,57 @@ _VCAT_TO_CLASS_NAME: dict[str, str] = {
     _VCAT_PROFESSIONS: "profession",
 }
 
+# ---------------------------------------------------------------------------
+# Locale key constants (full paths — typos become NameError at import time)
+# ---------------------------------------------------------------------------
+_KEY_BACK_BUTTON = "wow.craftingorder.back_button"
+_KEY_BOARD_TITLE = "wow.craftingorder.board_title"
+_KEY_ARMOR_CATEGORY = "wow.craftingorder.armor_category"
+_KEY_WEAPONS_CATEGORY = "wow.craftingorder.weapons_category"
+_KEY_PROFESSION_SELECT = "wow.craftingorder.profession_select"
+_KEY_NO_PROFESSION_MAPPED = "wow.craftingorder.no_profession_mapped"
+_KEY_CREATE_NO_ROLES = "wow.craftingorder.create.no_roles"
+_KEY_ITEM_TYPE_SELECT = "wow.craftingorder.item_type_select"
+_KEY_ITEM_SUBTYPE_SELECT = "wow.craftingorder.item_subtype_select"
+_KEY_ITEM_SUBTYPE_SELECT_DESC = "wow.craftingorder.item_subtype_select_desc"
+_KEY_VIRTUAL_CATEGORY_SELECT = "wow.craftingorder.virtual_category_select"
+_KEY_VIRTUAL_CATEGORY_SELECT_DESC = "wow.craftingorder.virtual_category_select_desc"
+_KEY_PVP_GROUP_SELECT = "wow.craftingorder.pvp_group_select"
+_KEY_PVP_GROUP_SELECT_DESC = "wow.craftingorder.pvp_group_select_desc"
+_KEY_PROF_GROUP_SELECT = "wow.craftingorder.prof_group_select"
+_KEY_PROF_GROUP_SELECT_DESC = "wow.craftingorder.prof_group_select_desc"
+_KEY_PROF_GEAR_OPTION = "wow.craftingorder.prof_gear_option"
+_KEY_PROF_KNOWLEDGE_OPTION = "wow.craftingorder.prof_knowledge_option"
+_KEY_RAID_PREP_SELECT = "wow.craftingorder.raid_prep_select"
+_KEY_RAID_PREP_SELECT_DESC = "wow.craftingorder.raid_prep_select_desc"
+_KEY_OTHER_SELECT = "wow.craftingorder.other_select"
+_KEY_OTHER_SELECT_DESC = "wow.craftingorder.other_select_desc"
+_KEY_ITEM_SELECT = "wow.craftingorder.item_select"
+_KEY_ITEM_SELECT_DESC = "wow.craftingorder.item_select_desc"
+_KEY_OTHER_BUTTON = "wow.craftingorder.other_button"
+_KEY_CHOOSE_BUTTON = "wow.craftingorder.choose_button"
+_KEY_HOUSING_PROFESSION_SELECT = "wow.craftingorder.housing_profession_select"
+_KEY_HOUSING_PROFESSION_SELECT_DESC = "wow.craftingorder.housing_profession_select_desc"
+_KEY_EXPANSION_SELECT = "wow.craftingorder.expansion_select"
+_KEY_EXPANSION_SELECT_DESC = "wow.craftingorder.expansion_select_desc"
+_KEY_MODAL_TITLE = "wow.craftingorder.modal_title"
+_KEY_MODAL_ITEM_NAME = "wow.craftingorder.modal_item_name"
+_KEY_MODAL_NOTES = "wow.craftingorder.modal_notes"
+_KEY_ORDER_PROFESSION = "wow.craftingorder.order.profession"
+_KEY_ORDER_STATUS = "wow.craftingorder.order.status"
+_KEY_ORDER_POSTED_BY = "wow.craftingorder.order.posted_by"
+_KEY_ORDER_NOTES = "wow.craftingorder.order.notes"
+_KEY_ASK_MODAL_TITLE = "wow.craftingorder.ask.modal_title"
+_KEY_ASK_MODAL_MESSAGE = "wow.craftingorder.ask.modal_message"
+_KEY_MANUAL_MAP_SELECT_PLACEHOLDER = "wow.craftingorder.manual_map.select_placeholder"
+_KEY_MANUAL_MAP_CONFIRM_BUTTON = "wow.craftingorder.manual_map.confirm_button"
+_KEY_MANUAL_MAP_NO_SELECTIONS = "wow.craftingorder.manual_map.no_selections"
+_KEY_MANUAL_MAP_NEXT_BATCH = "wow.craftingorder.manual_map.next_batch"
+_KEY_MANUAL_MAP_DESCRIPTION = "wow.craftingorder.manual_map.description"
+_KEY_MANUAL_MAP_SUCCESS = "wow.craftingorder.manual_map.success"
+_KEY_MANUAL_MAP_PARTIAL = "wow.craftingorder.manual_map.partial"
+_KEY_PAGE_INFO = "wow.craftingorder.page_info"
+
 
 def _build_vcat_info(recipe_type: str, session, profession_ids) -> tuple[list[str], dict[str, int], dict[str, int]]:
     """Check which virtual categories have items and build the item class ID maps.
@@ -206,12 +282,8 @@ def _build_vcat_info(recipe_type: str, session, profession_ids) -> tuple[list[st
 
 async def _navigate_prof_gear(
     interaction: Interaction,
-    bot,
-    roles,
-    guild_id,
-    lang,
+    ctx: NavContext,
     item_class_ids,
-    mapped_prof_ids,
     breadcrumbs=None,
     back_factory=None,
 ):
@@ -220,23 +292,23 @@ async def _navigate_prof_gear(
     if class_id is None:
         await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
         return
-    with bot.session_scope() as session:
+    with ctx.bot.session_scope() as session:
         subclasses = CraftingRecipeCache.get_item_subclasses(
             RECIPE_TYPE_CRAFTED,
             class_id,
             session,
-            profession_ids=mapped_prof_ids,
+            profession_ids=ctx.mapped_prof_ids,
             orderable_only=True,
             exclude_pvp=False,
         )
     view = ItemSubTypeSelectView(
-        bot,
-        roles,
-        guild_id,
-        lang,
+        ctx.bot,
+        ctx.roles,
+        ctx.guild_id,
+        ctx.lang,
         class_id,
         subclasses,
-        mapped_prof_ids,
+        ctx.mapped_prof_ids,
         orderable_only=True,
         exclude_pvp=False,
         breadcrumbs=breadcrumbs,
@@ -248,32 +320,26 @@ async def _navigate_prof_gear(
 
 async def _navigate_prof_knowledge(
     interaction: Interaction,
-    bot,
-    roles,
-    guild_id,
-    lang,
-    mapped_prof_ids,
+    ctx: NavContext,
     breadcrumbs=None,
     back_factory=None,
 ):
     """Shared navigation helper: fetch profession knowledge items and show ItemSelectView."""
-    with bot.session_scope() as session:
+    with ctx.bot.session_scope() as session:
         recipes = CraftingRecipeCache.get_prof_knowledge_items(
-            RECIPE_TYPE_CRAFTED, session, profession_ids=mapped_prof_ids
+            RECIPE_TYPE_CRAFTED, session, profession_ids=ctx.mapped_prof_ids
         )
-    view = ItemSelectView(bot, recipes, roles, guild_id, lang, breadcrumbs=breadcrumbs, back_factory=back_factory)
+    view = ItemSelectView(
+        ctx.bot, recipes, ctx.roles, ctx.guild_id, ctx.lang, breadcrumbs=breadcrumbs, back_factory=back_factory
+    )
     embed = view._make_embed()
     await interaction.response.edit_message(embed=embed, view=view, content=None)
 
 
 async def _navigate_pvp_weapons(
     interaction: Interaction,
-    bot,
-    roles,
-    guild_id,
-    lang,
+    ctx: NavContext,
     weapon_class_id,
-    mapped_prof_ids,
     breadcrumbs=None,
     back_factory=None,
 ):
@@ -282,26 +348,26 @@ async def _navigate_pvp_weapons(
     If there are more than 24 weapons, routes to a weapon-subtype picker first so no
     items are silently truncated by the Discord select menu limit.
     """
-    with bot.session_scope() as session:
+    with ctx.bot.session_scope() as session:
         recipes = CraftingRecipeCache.get_pvp_items(
-            RECIPE_TYPE_CRAFTED, weapon_class_id, None, session, profession_ids=mapped_prof_ids
+            RECIPE_TYPE_CRAFTED, weapon_class_id, None, session, profession_ids=ctx.mapped_prof_ids
         )
         if len(recipes) > _DISCORD_SELECT_LIMIT:
             subclasses = CraftingRecipeCache.get_pvp_item_subclasses(
-                RECIPE_TYPE_CRAFTED, weapon_class_id, session, profession_ids=mapped_prof_ids
+                RECIPE_TYPE_CRAFTED, weapon_class_id, session, profession_ids=ctx.mapped_prof_ids
             )
         else:
             subclasses = []
 
     if subclasses:
         view = PvPSubTypeSelectView(
-            bot,
-            roles,
-            guild_id,
-            lang,
+            ctx.bot,
+            ctx.roles,
+            ctx.guild_id,
+            ctx.lang,
             weapon_class_id,
             subclasses,
-            mapped_prof_ids,
+            ctx.mapped_prof_ids,
             placeholder_key="pvp_weapon_select",
             breadcrumbs=breadcrumbs,
             back_factory=back_factory,
@@ -310,35 +376,33 @@ async def _navigate_pvp_weapons(
         await interaction.response.edit_message(embed=embed, view=view, content=None)
         return
 
-    view = ItemSelectView(bot, recipes, roles, guild_id, lang, breadcrumbs=breadcrumbs, back_factory=back_factory)
+    view = ItemSelectView(
+        ctx.bot, recipes, ctx.roles, ctx.guild_id, ctx.lang, breadcrumbs=breadcrumbs, back_factory=back_factory
+    )
     embed = view._make_embed()
     await interaction.response.edit_message(embed=embed, view=view, content=None)
 
 
 async def _navigate_pvp_armor(
     interaction: Interaction,
-    bot,
-    roles,
-    guild_id,
-    lang,
+    ctx: NavContext,
     armor_class_id,
-    mapped_prof_ids,
     breadcrumbs=None,
     back_factory=None,
 ):
     """Shared navigation helper: fetch PvP armor subclasses and show PvPArmorTypeSelectView."""
-    with bot.session_scope() as session:
+    with ctx.bot.session_scope() as session:
         subclasses = CraftingRecipeCache.get_pvp_item_subclasses(
-            RECIPE_TYPE_CRAFTED, armor_class_id, session, profession_ids=mapped_prof_ids
+            RECIPE_TYPE_CRAFTED, armor_class_id, session, profession_ids=ctx.mapped_prof_ids
         )
     view = PvPArmorTypeSelectView(
-        bot,
-        roles,
-        guild_id,
-        lang,
+        ctx.bot,
+        ctx.roles,
+        ctx.guild_id,
+        ctx.lang,
         armor_class_id,
         subclasses,
-        mapped_prof_ids,
+        ctx.mapped_prof_ids,
         breadcrumbs=breadcrumbs,
         back_factory=back_factory,
     )
@@ -366,7 +430,7 @@ def _build_step_embed(
 def _add_back_button(view: ui.View, lang: str, callback, row: int = 4) -> None:
     """Add a secondary back button to *view* on the given row (default 4)."""
     btn = ui.Button(
-        label=get_string(lang, "wow.craftingorder.back_button"),
+        label=get_string(lang, _KEY_BACK_BUTTON),
         style=discord.ButtonStyle.secondary,
         emoji="◀",
         row=row,
@@ -470,13 +534,11 @@ def build_order_embed(order: CraftingOrder, guild: discord.Guild, lang: str = "e
     embed = discord.Embed(title=display_name, url=order.WowheadUrl, color=discord.Color.blue())
     if order.ItemNameLocalized:
         embed.description = f"-# {order.ItemName}"
-    embed.add_field(name=get_string(lang, "wow.craftingorder.order.profession"), value=role_display, inline=True)
-    embed.add_field(name=get_string(lang, "wow.craftingorder.order.status"), value=status_text, inline=True)
-    embed.add_field(
-        name=get_string(lang, "wow.craftingorder.order.posted_by"), value=f"<@{order.CreatorId}>", inline=True
-    )
+    embed.add_field(name=get_string(lang, _KEY_ORDER_PROFESSION), value=role_display, inline=True)
+    embed.add_field(name=get_string(lang, _KEY_ORDER_STATUS), value=status_text, inline=True)
+    embed.add_field(name=get_string(lang, _KEY_ORDER_POSTED_BY), value=f"<@{order.CreatorId}>", inline=True)
     if order.Notes:
-        embed.add_field(name=get_string(lang, "wow.craftingorder.order.notes"), value=order.Notes, inline=False)
+        embed.add_field(name=get_string(lang, _KEY_ORDER_NOTES), value=order.Notes, inline=False)
     if order.IconUrl:
         embed.set_thumbnail(url=order.IconUrl)
 
@@ -599,7 +661,7 @@ class CraftingBoardView(ui.View):
                 mapped_prof_ids,
                 item_class_ids,
                 pvp_item_class_ids,
-                breadcrumbs=[get_string(lang, "wow.craftingorder.board_title")],
+                breadcrumbs=[get_string(lang, _KEY_BOARD_TITLE)],
             )
             embed = view._make_embed()
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
@@ -639,7 +701,7 @@ class CraftingBoardView(ui.View):
             interaction.guild_id,
             lang,
             housing_professions,
-            breadcrumbs=[get_string(lang, "wow.craftingorder.board_title")],
+            breadcrumbs=[get_string(lang, _KEY_BOARD_TITLE)],
         )
         embed = view._make_embed()
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
@@ -659,7 +721,7 @@ class ProfessionSelectView(ui.View):
         self.guild_id = guild_id
         self.lang = lang
         select = ui.Select(
-            placeholder=get_string(lang, "wow.craftingorder.profession_select"),
+            placeholder=get_string(lang, _KEY_PROFESSION_SELECT),
             options=[discord.SelectOption(label=r.name, value=str(r.id)) for r in roles[:25]],
         )
         select.callback = self._on_select
@@ -709,7 +771,7 @@ class ItemTypeSelectView(ui.View):
 
         options = _build_localized_options(item_classes, lang)
         select = ui.Select(
-            placeholder=get_string(lang, "wow.craftingorder.item_type_select"),
+            placeholder=get_string(lang, _KEY_ITEM_TYPE_SELECT),
             options=options,
         )
         select.callback = self._on_select
@@ -788,7 +850,7 @@ class ItemSubTypeSelectView(ui.View):
 
         options = _build_localized_options(subclasses, lang, emojis=True)
         select = ui.Select(
-            placeholder=get_string(lang, "wow.craftingorder.item_subtype_select"),
+            placeholder=get_string(lang, _KEY_ITEM_SUBTYPE_SELECT),
             options=options,
         )
         select.callback = self._on_select
@@ -798,8 +860,8 @@ class ItemSubTypeSelectView(ui.View):
             _add_back_button(self, lang, back_factory)
 
     def _make_embed(self) -> discord.Embed:
-        title = get_string(self.lang, "wow.craftingorder.item_subtype_select")
-        desc = get_string(self.lang, "wow.craftingorder.item_subtype_select_desc")
+        title = get_string(self.lang, _KEY_ITEM_SUBTYPE_SELECT)
+        desc = get_string(self.lang, _KEY_ITEM_SUBTYPE_SELECT_DESC)
         return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
@@ -897,8 +959,8 @@ class VirtualCategorySelectView(ui.View):
             _add_back_button(self, lang, back_factory, row=back_row)
 
     def _make_embed(self) -> discord.Embed:
-        title = get_string(self.lang, "wow.craftingorder.virtual_category_select")
-        desc = get_string(self.lang, "wow.craftingorder.virtual_category_select_desc")
+        title = get_string(self.lang, _KEY_VIRTUAL_CATEGORY_SELECT)
+        desc = get_string(self.lang, _KEY_VIRTUAL_CATEGORY_SELECT_DESC)
         return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
@@ -928,27 +990,20 @@ class VirtualCategorySelectView(ui.View):
             has_pvp_weapons = weapon_class_name in self.pvp_item_class_ids
             has_pvp_armor = armor_class_name in self.pvp_item_class_ids
 
+            _ctx = NavContext(self.bot, self.roles, self.guild_id, self.lang, self.mapped_prof_ids)
             if has_pvp_weapons and not has_pvp_armor:
                 await _navigate_pvp_weapons(
                     interaction,
-                    self.bot,
-                    self.roles,
-                    self.guild_id,
-                    self.lang,
+                    _ctx,
                     self.pvp_item_class_ids[weapon_class_name],
-                    self.mapped_prof_ids,
                     breadcrumbs=new_breadcrumbs,
                     back_factory=go_back,
                 )
             elif has_pvp_armor and not has_pvp_weapons:
                 await _navigate_pvp_armor(
                     interaction,
-                    self.bot,
-                    self.roles,
-                    self.guild_id,
-                    self.lang,
+                    _ctx,
                     self.pvp_item_class_ids[armor_class_name],
-                    self.mapped_prof_ids,
                     breadcrumbs=new_breadcrumbs,
                     back_factory=go_back,
                 )
@@ -1035,23 +1090,15 @@ class VirtualCategorySelectView(ui.View):
             elif has_gear:
                 await _navigate_prof_gear(
                     interaction,
-                    self.bot,
-                    self.roles,
-                    self.guild_id,
-                    self.lang,
+                    NavContext(self.bot, self.roles, self.guild_id, self.lang, self.mapped_prof_ids),
                     self.item_class_ids,
-                    self.mapped_prof_ids,
                     breadcrumbs=new_breadcrumbs,
                     back_factory=go_back,
                 )
             elif has_knowledge:
                 await _navigate_prof_knowledge(
                     interaction,
-                    self.bot,
-                    self.roles,
-                    self.guild_id,
-                    self.lang,
-                    self.mapped_prof_ids,
+                    NavContext(self.bot, self.roles, self.guild_id, self.lang, self.mapped_prof_ids),
                     breadcrumbs=new_breadcrumbs,
                     back_factory=go_back,
                 )
@@ -1100,7 +1147,7 @@ class PvPGroupSelectView(ui.View):
         self._back_factory = back_factory
 
         weapons_btn = ui.Button(
-            label=get_string(lang, "wow.craftingorder.weapons_category"),
+            label=get_string(lang, _KEY_WEAPONS_CATEGORY),
             emoji="⚔️",
             style=discord.ButtonStyle.primary,
             row=0,
@@ -1109,7 +1156,7 @@ class PvPGroupSelectView(ui.View):
         self.add_item(weapons_btn)
 
         gear_btn = ui.Button(
-            label=get_string(lang, "wow.craftingorder.armor_category"),
+            label=get_string(lang, _KEY_ARMOR_CATEGORY),
             emoji="🛡️",
             style=discord.ButtonStyle.primary,
             row=0,
@@ -1121,8 +1168,8 @@ class PvPGroupSelectView(ui.View):
             _add_back_button(self, lang, back_factory)
 
     def _make_embed(self) -> discord.Embed:
-        title = get_string(self.lang, "wow.craftingorder.pvp_group_select")
-        desc = get_string(self.lang, "wow.craftingorder.pvp_group_select_desc")
+        title = get_string(self.lang, _KEY_PVP_GROUP_SELECT)
+        desc = get_string(self.lang, _KEY_PVP_GROUP_SELECT_DESC)
         return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
@@ -1145,15 +1192,11 @@ class PvPGroupSelectView(ui.View):
         if weapon_class_id is None:
             await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
             return
-        new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, "wow.craftingorder.weapons_category")]
+        new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, _KEY_WEAPONS_CATEGORY)]
         await _navigate_pvp_weapons(
             interaction,
-            self.bot,
-            self.roles,
-            self.guild_id,
-            self.lang,
+            NavContext(self.bot, self.roles, self.guild_id, self.lang, self.mapped_prof_ids),
             weapon_class_id,
-            self.mapped_prof_ids,
             breadcrumbs=new_breadcrumbs,
             back_factory=self._make_back_closure(),
         )
@@ -1163,15 +1206,11 @@ class PvPGroupSelectView(ui.View):
         if armor_class_id is None:
             await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
             return
-        new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, "wow.craftingorder.armor_category")]
+        new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, _KEY_ARMOR_CATEGORY)]
         await _navigate_pvp_armor(
             interaction,
-            self.bot,
-            self.roles,
-            self.guild_id,
-            self.lang,
+            NavContext(self.bot, self.roles, self.guild_id, self.lang, self.mapped_prof_ids),
             armor_class_id,
-            self.mapped_prof_ids,
             breadcrumbs=new_breadcrumbs,
             back_factory=self._make_back_closure(),
         )
@@ -1203,7 +1242,7 @@ class ProfessionGroupSelectView(ui.View):
 
         if _VCAT_TO_CLASS_NAME[_VCAT_PROFESSIONS] in self.item_class_ids:
             gear_btn = ui.Button(
-                label=get_string(lang, "wow.craftingorder.prof_gear_option"),
+                label=get_string(lang, _KEY_PROF_GEAR_OPTION),
                 emoji="🔧",
                 style=discord.ButtonStyle.primary,
                 row=0,
@@ -1213,7 +1252,7 @@ class ProfessionGroupSelectView(ui.View):
 
         if _PROF_GROUP_KNOWLEDGE in self.item_class_ids:
             knowledge_btn = ui.Button(
-                label=get_string(lang, "wow.craftingorder.prof_knowledge_option"),
+                label=get_string(lang, _KEY_PROF_KNOWLEDGE_OPTION),
                 emoji="📚",
                 style=discord.ButtonStyle.primary,
                 row=0,
@@ -1225,8 +1264,8 @@ class ProfessionGroupSelectView(ui.View):
             _add_back_button(self, lang, back_factory)
 
     def _make_embed(self) -> discord.Embed:
-        title = get_string(self.lang, "wow.craftingorder.prof_group_select")
-        desc = get_string(self.lang, "wow.craftingorder.prof_group_select_desc")
+        title = get_string(self.lang, _KEY_PROF_GROUP_SELECT)
+        desc = get_string(self.lang, _KEY_PROF_GROUP_SELECT_DESC)
         return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
@@ -1245,28 +1284,20 @@ class ProfessionGroupSelectView(ui.View):
         )
 
     async def _on_gear(self, interaction: Interaction):
-        new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, "wow.craftingorder.prof_gear_option")]
+        new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, _KEY_PROF_GEAR_OPTION)]
         await _navigate_prof_gear(
             interaction,
-            self.bot,
-            self.roles,
-            self.guild_id,
-            self.lang,
+            NavContext(self.bot, self.roles, self.guild_id, self.lang, self.mapped_prof_ids),
             self.item_class_ids,
-            self.mapped_prof_ids,
             breadcrumbs=new_breadcrumbs,
             back_factory=self._make_back_closure(),
         )
 
     async def _on_knowledge(self, interaction: Interaction):
-        new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, "wow.craftingorder.prof_knowledge_option")]
+        new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, _KEY_PROF_KNOWLEDGE_OPTION)]
         await _navigate_prof_knowledge(
             interaction,
-            self.bot,
-            self.roles,
-            self.guild_id,
-            self.lang,
-            self.mapped_prof_ids,
+            NavContext(self.bot, self.roles, self.guild_id, self.lang, self.mapped_prof_ids),
             breadcrumbs=new_breadcrumbs,
             back_factory=self._make_back_closure(),
         )
@@ -1391,7 +1422,7 @@ class RaidPrepCategorySelectView(ui.View):
         self._back_factory = back_factory
 
         select = ui.Select(
-            placeholder=get_string(lang, "wow.craftingorder.raid_prep_select"),
+            placeholder=get_string(lang, _KEY_RAID_PREP_SELECT),
             options=_build_localized_category_options(categories, lang),
         )
         select.callback = self._on_select
@@ -1401,8 +1432,8 @@ class RaidPrepCategorySelectView(ui.View):
             _add_back_button(self, lang, back_factory)
 
     def _make_embed(self) -> discord.Embed:
-        title = get_string(self.lang, "wow.craftingorder.raid_prep_select")
-        desc = get_string(self.lang, "wow.craftingorder.raid_prep_select_desc")
+        title = get_string(self.lang, _KEY_RAID_PREP_SELECT)
+        desc = get_string(self.lang, _KEY_RAID_PREP_SELECT_DESC)
         return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
@@ -1474,7 +1505,7 @@ class OtherCategorySelectView(ui.View):
         self._back_factory = back_factory
 
         select = ui.Select(
-            placeholder=get_string(lang, "wow.craftingorder.other_select"),
+            placeholder=get_string(lang, _KEY_OTHER_SELECT),
             options=_build_localized_category_options(categories, lang),
         )
         select.callback = self._on_select
@@ -1484,8 +1515,8 @@ class OtherCategorySelectView(ui.View):
             _add_back_button(self, lang, back_factory)
 
     def _make_embed(self) -> discord.Embed:
-        title = get_string(self.lang, "wow.craftingorder.other_select")
-        desc = get_string(self.lang, "wow.craftingorder.other_select_desc")
+        title = get_string(self.lang, _KEY_OTHER_SELECT)
+        desc = get_string(self.lang, _KEY_OTHER_SELECT_DESC)
         return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
@@ -1572,7 +1603,6 @@ class ItemSelectView(ui.View):
         self._total_pages = max(1, (total_items + self._PAGE_SIZE - 1) // self._PAGE_SIZE)
         offset = (page - 1) * self._PAGE_SIZE
         self._page_items = self._all_recipes[offset : offset + self._PAGE_SIZE]
-        self._recipes_by_id = {str(r.RecipeId): r for r in self._page_items}
 
         items = [(r.RecipeId, r.ItemName, r.ItemNameLocales) for r in self._page_items]
         self._select_options = _build_localized_options(items, self.lang)
@@ -1581,12 +1611,13 @@ class ItemSelectView(ui.View):
 
     def _build_items(self, include_choose: bool = False) -> None:
         """Populate the view with select, pagination, back, choose (optional), and other buttons."""
+        self._recipes_by_id = {str(r.RecipeId): r for r in self._page_items}
         total_items = len(self._all_recipes)
         is_multipage = total_items > self._PAGE_SIZE
         action_row = 2 if is_multipage else 1
 
         select = ui.Select(
-            placeholder=get_string(self.lang, "wow.craftingorder.item_select"),
+            placeholder=get_string(self.lang, _KEY_ITEM_SELECT),
             options=self._select_options,
             row=0,
         )
@@ -1611,7 +1642,7 @@ class ItemSelectView(ui.View):
             _add_back_button(self, self.lang, self._back_factory, row=action_row)
 
         other_btn = ui.Button(
-            label=get_string(self.lang, "wow.craftingorder.other_button"),
+            label=get_string(self.lang, _KEY_OTHER_BUTTON),
             style=discord.ButtonStyle.secondary,
             emoji="✍️",
             row=action_row,
@@ -1621,7 +1652,7 @@ class ItemSelectView(ui.View):
 
         if include_choose:
             choose_btn = ui.Button(
-                label=get_string(self.lang, "wow.craftingorder.choose_button"),
+                label=get_string(self.lang, _KEY_CHOOSE_BUTTON),
                 style=discord.ButtonStyle.success,
                 emoji="✅",
                 row=action_row,
@@ -1649,14 +1680,14 @@ class ItemSelectView(ui.View):
             if recipe.IconUrl:
                 embed.set_thumbnail(url=recipe.IconUrl)
         else:
-            title = get_string(self.lang, "wow.craftingorder.item_select")
-            desc = get_string(self.lang, "wow.craftingorder.item_select_desc")
+            title = get_string(self.lang, _KEY_ITEM_SELECT)
+            desc = get_string(self.lang, _KEY_ITEM_SELECT_DESC)
             embed = _build_step_embed(title, desc, self._breadcrumbs)
 
         if is_multipage:
             footer = get_string(
                 self.lang,
-                "wow.craftingorder.page_info",
+                _KEY_PAGE_INFO,
                 page=self._page,
                 total=self._total_pages,
                 items=total_items,
@@ -1711,12 +1742,12 @@ class ItemSelectView(ui.View):
                 roles_found.append(role)
         if not roles_found:
             await interaction.response.edit_message(
-                content=get_string(self.lang, "wow.craftingorder.create.no_roles"), view=None, embed=None
+                content=get_string(self.lang, _KEY_CREATE_NO_ROLES), view=None, embed=None
             )
             return
         view = ProfessionSelectView(self.bot, roles_found, interaction.guild_id, self.lang)
         await interaction.response.edit_message(
-            content=get_string(self.lang, "wow.craftingorder.profession_select"), view=view, embed=None
+            content=get_string(self.lang, _KEY_PROFESSION_SELECT), view=view, embed=None
         )
 
     async def _on_choose(self, interaction: Interaction):
@@ -1735,7 +1766,7 @@ class ItemSelectView(ui.View):
 
         if not role_id:
             await interaction.response.edit_message(
-                content=get_string(self.lang, "wow.craftingorder.no_profession_mapped"),
+                content=get_string(self.lang, _KEY_NO_PROFESSION_MAPPED),
                 view=None,
                 embed=None,
             )
@@ -1749,7 +1780,7 @@ class ItemSelectView(ui.View):
                 role = None
         if role is None:
             await interaction.response.edit_message(
-                content=get_string(self.lang, "wow.craftingorder.no_profession_mapped"),
+                content=get_string(self.lang, _KEY_NO_PROFESSION_MAPPED),
                 view=None,
                 embed=None,
             )
@@ -1762,10 +1793,12 @@ class ItemSelectView(ui.View):
             role,
             interaction.guild_id,
             self.lang,
-            item_name=localized_name or recipe.ItemName,
-            item_name_english=recipe.ItemName if localized_name else None,
-            icon_url=recipe.IconUrl,
-            wowhead_url=recipe.wowhead_url,
+            recipe=CraftingRecipeContext(
+                item_name=localized_name or recipe.ItemName,
+                item_name_english=recipe.ItemName if localized_name else None,
+                icon_url=recipe.IconUrl,
+                wowhead_url=recipe.wowhead_url,
+            ),
         )
         await interaction.response.send_modal(modal)
 
@@ -1790,15 +1823,15 @@ class HousingProfessionSelectView(ui.View):
 
         options = [discord.SelectOption(label=name, value=str(prof_id)) for prof_id, name in housing_professions[:25]]
         select = ui.Select(
-            placeholder=get_string(lang, "wow.craftingorder.housing_profession_select"),
+            placeholder=get_string(lang, _KEY_HOUSING_PROFESSION_SELECT),
             options=options,
         )
         select.callback = self._on_select
         self.add_item(select)
 
     def _make_embed(self) -> discord.Embed:
-        title = get_string(self.lang, "wow.craftingorder.housing_profession_select")
-        desc = get_string(self.lang, "wow.craftingorder.housing_profession_select_desc")
+        title = get_string(self.lang, _KEY_HOUSING_PROFESSION_SELECT)
+        desc = get_string(self.lang, _KEY_HOUSING_PROFESSION_SELECT_DESC)
         return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
@@ -1864,7 +1897,7 @@ class ExpansionSelectView(ui.View):
 
         options = [discord.SelectOption(label=exp, value=exp) for exp in expansions[:25]]
         select = ui.Select(
-            placeholder=get_string(lang, "wow.craftingorder.expansion_select"),
+            placeholder=get_string(lang, _KEY_EXPANSION_SELECT),
             options=options,
         )
         select.callback = self._on_select
@@ -1874,8 +1907,8 @@ class ExpansionSelectView(ui.View):
             _add_back_button(self, lang, back_factory)
 
     def _make_embed(self) -> discord.Embed:
-        title = get_string(self.lang, "wow.craftingorder.expansion_select")
-        desc = get_string(self.lang, "wow.craftingorder.expansion_select_desc")
+        title = get_string(self.lang, _KEY_EXPANSION_SELECT)
+        desc = get_string(self.lang, _KEY_EXPANSION_SELECT_DESC)
         return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
@@ -1921,10 +1954,8 @@ class ExpansionSelectView(ui.View):
 class CraftingOrderModal(ui.Modal):
     """Order creation modal (Step 2).
 
-    Accepts optional pre-filled values from the cache-driven flows:
-        item_name   — pre-fill the item name field
-        icon_url    — store on the order for embed thumbnail
-        wowhead_url — store on the order for Wowhead link
+    Accepts an optional ``recipe`` context from the cache-driven flow to pre-fill
+    the item name field and attach icon/wowhead metadata to the created order.
     """
 
     def __init__(
@@ -1934,25 +1965,19 @@ class CraftingOrderModal(ui.Modal):
         role: discord.Role,
         guild_id: int,
         lang: str = "en",
-        item_name: str | None = None,
-        item_name_english: str | None = None,
-        icon_url: str | None = None,
-        wowhead_url: str | None = None,
+        recipe: CraftingRecipeContext | None = None,
     ):
-        super().__init__(title=get_string(lang, "wow.craftingorder.modal_title"))
+        super().__init__(title=get_string(lang, _KEY_MODAL_TITLE))
         self.bot = bot
         self.role_id = role_id
         self.role = role
         self.guild_id = guild_id
-        self._item_name_english = item_name_english
-        self._item_name_prefill = item_name  # original pre-fill for edit-detection
-        self._icon_url = icon_url
-        self._wowhead_url = wowhead_url
-        self.item_name_input = ui.TextInput(label=get_string(lang, "wow.craftingorder.modal_item_name"), max_length=200)
-        if item_name:
-            self.item_name_input.default = item_name
+        self._recipe = recipe
+        self.item_name_input = ui.TextInput(label=get_string(lang, _KEY_MODAL_ITEM_NAME), max_length=200)
+        if recipe and recipe.item_name:
+            self.item_name_input.default = recipe.item_name
         self.notes_input = ui.TextInput(
-            label=get_string(lang, "wow.craftingorder.modal_notes"),
+            label=get_string(lang, _KEY_MODAL_NOTES),
             style=discord.TextStyle.paragraph,
             required=False,
             max_length=1000,
@@ -1972,13 +1997,13 @@ class CraftingOrderModal(ui.Modal):
         # For cache-driven flow: keep English canonical in ItemName; store user-confirmed
         # (localized) name in ItemNameLocalized for display. For free-text flow: only ItemName.
         # If the user changed the pre-filled name, treat as free-text and drop cached metadata.
-        if self._item_name_english is not None and item_name_input != self._item_name_prefill:
+        recipe = self._recipe
+        if recipe is not None and item_name_input != recipe.item_name:
             item_name = item_name_input
             item_name_localized = None
-            self._icon_url = None
-            self._wowhead_url = None
-        elif self._item_name_english is not None:
-            item_name = self._item_name_english
+            recipe = None  # discard cache metadata — user overrode the name
+        elif recipe is not None and recipe.item_name_english is not None:
+            item_name = recipe.item_name_english
             item_name_localized = item_name_input
         else:
             item_name = item_name_input
@@ -1992,17 +2017,20 @@ class CraftingOrderModal(ui.Modal):
         embed = None
         view = None
         config = None
+        icon_url = recipe.icon_url if recipe else None
+        wowhead_url = recipe.wowhead_url if recipe else None
+
         with self.bot.session_scope() as session:
             # Resolve free-text item names against the recipe cache before
             # falling back to a Wowhead search URL.
-            if not self._wowhead_url and item_name:
+            if not wowhead_url and item_name:
                 cached = CraftingRecipeCache.find_best_match(item_name, session)
                 if cached:
-                    self._wowhead_url = cached.wowhead_url
-                    if not self._icon_url:
-                        self._icon_url = cached.IconUrl
-                else:
-                    self._wowhead_url = f"https://www.wowhead.com/search?q={quote(item_name)}"
+                    wowhead_url = cached.wowhead_url
+                    if not icon_url:
+                        icon_url = cached.IconUrl
+                if not wowhead_url:
+                    wowhead_url = f"https://www.wowhead.com/search?q={quote(item_name)}"
 
             config = CraftingBoardConfig.get_by_guild(self.guild_id, session)
             if config is not None:
@@ -2017,8 +2045,8 @@ class CraftingOrderModal(ui.Modal):
                     ProfessionRoleId=self.role_id,
                     ItemName=item_name,
                     ItemNameLocalized=item_name_localized,
-                    IconUrl=self._icon_url,
-                    WowheadUrl=self._wowhead_url,
+                    IconUrl=icon_url,
+                    WowheadUrl=wowhead_url,
                     Notes=notes,
                     Status="open",
                 )
@@ -2157,14 +2185,25 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
         return True
 
     async def callback(self, interaction: Interaction):
+        order_not_found = False
+        embed = view = None
         with interaction.client.session_scope() as session:
-            order = CraftingOrder.get_by_id(self.order_id, session)
-            order.Status = "open"
-            order.CrafterId = None
-            order.CrafterName = None
-            lang = interaction.client.get_guild_language(interaction.guild_id)
-            embed = build_order_embed(order, interaction.guild, lang)
-            view = build_order_view(order.Id, "open", lang)
+            conditions = [CraftingOrder.Id == self.order_id, CraftingOrder.Status == "in_progress"]
+            if not interaction.user.guild_permissions.administrator:
+                conditions.append(CraftingOrder.CrafterId == interaction.user.id)
+            rowcount = session.execute(
+                sa_update(CraftingOrder).where(*conditions).values(Status="open", CrafterId=None, CrafterName=None)
+            ).rowcount
+            if rowcount == 0:
+                order_not_found = True
+            else:
+                order = CraftingOrder.get_by_id(self.order_id, session)
+                lang = interaction.client.get_guild_language(interaction.guild_id)
+                embed = build_order_embed(order, interaction.guild, lang)
+                view = build_order_view(order.Id, "open", lang)
+        if order_not_found:
+            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            return
         await interaction.response.edit_message(embed=embed, view=view)
 
 
@@ -2196,13 +2235,24 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         return True
 
     async def callback(self, interaction: Interaction):
+        order_not_found = False
+        item_name = creator_id = crafter_id = thread_id = None
         with interaction.client.session_scope() as session:
-            order = CraftingOrder.get_by_id(self.order_id, session)
-            order.Status = "completed"
-            item_name = _display_item_name(order)
-            creator_id = order.CreatorId
-            crafter_id = order.CrafterId
-            thread_id = order.ThreadId
+            conditions = [CraftingOrder.Id == self.order_id, CraftingOrder.Status == "in_progress"]
+            if not interaction.user.guild_permissions.administrator:
+                conditions.append(CraftingOrder.CrafterId == interaction.user.id)
+            rowcount = session.execute(sa_update(CraftingOrder).where(*conditions).values(Status="completed")).rowcount
+            if rowcount == 0:
+                order_not_found = True
+            else:
+                order = CraftingOrder.get_by_id(self.order_id, session)
+                item_name = _display_item_name(order)
+                creator_id = order.CreatorId
+                crafter_id = order.CrafterId
+                thread_id = order.ThreadId
+        if order_not_found:
+            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            return
 
         crafter_mention = f"<@{crafter_id}>" if crafter_id else interaction.user.mention
         # DM the creator; fall back to thread if DM fails
@@ -2219,11 +2269,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
             )
 
         if used_thread:
-            with interaction.client.session_scope() as session:
-                config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
-                delay = config.ThreadCleanupDelayHours if config else 24
-                order = CraftingOrder.get_by_id(self.order_id, session)
-                order.MessageDeleteAt = datetime.now(UTC) + timedelta(hours=delay)
+            _schedule_thread_cleanup(interaction, self.order_id)
 
         await interaction.response.edit_message(content=_ls(interaction, "complete.done"), embed=None, view=None)
         if not used_thread:
@@ -2268,13 +2314,29 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
         return True
 
     async def callback(self, interaction: Interaction):
+        order_not_found = False
+        item_name = creator_id = thread_id = None
+        cancelled_by_creator = False
         with interaction.client.session_scope() as session:
-            order = CraftingOrder.get_by_id(self.order_id, session)
-            order.Status = "cancelled"
-            item_name = _display_item_name(order)
-            creator_id = order.CreatorId
-            cancelled_by_creator = interaction.user.id == creator_id
-            thread_id = order.ThreadId
+            rowcount = session.execute(
+                sa_update(CraftingOrder)
+                .where(
+                    CraftingOrder.Id == self.order_id,
+                    CraftingOrder.Status.not_in(["completed", "cancelled"]),
+                )
+                .values(Status="cancelled")
+            ).rowcount
+            if rowcount == 0:
+                order_not_found = True
+            else:
+                order = CraftingOrder.get_by_id(self.order_id, session)
+                item_name = _display_item_name(order)
+                creator_id = order.CreatorId
+                cancelled_by_creator = interaction.user.id == creator_id
+                thread_id = order.ThreadId
+        if order_not_found:
+            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            return
 
         # DM only if cancelled by admin (not by creator); fall back to thread if DM fails
         used_thread = False
@@ -2288,11 +2350,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
                 )
 
         if used_thread:
-            with interaction.client.session_scope() as session:
-                config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
-                delay = config.ThreadCleanupDelayHours if config else 24
-                order = CraftingOrder.get_by_id(self.order_id, session)
-                order.MessageDeleteAt = datetime.now(UTC) + timedelta(hours=delay)
+            _schedule_thread_cleanup(interaction, self.order_id)
 
         await interaction.response.edit_message(content=_ls(interaction, "cancel.done"), embed=None, view=None)
         if not used_thread:
@@ -2335,10 +2393,10 @@ class AskQuestionButton(ui.DynamicItem[ui.Button], template=r"crafting:ask:(?P<o
 
 class AskQuestionModal(ui.Modal):
     def __init__(self, order_id: int, lang: str = "en"):
-        super().__init__(title=get_string(lang, "wow.craftingorder.ask.modal_title"))
+        super().__init__(title=get_string(lang, _KEY_ASK_MODAL_TITLE))
         self.order_id = order_id
         self.message_input = ui.TextInput(
-            label=get_string(lang, "wow.craftingorder.ask.modal_message"),
+            label=get_string(lang, _KEY_ASK_MODAL_MESSAGE),
             style=discord.TextStyle.paragraph,
             max_length=1000,
         )
@@ -2386,6 +2444,25 @@ class AskQuestionModal(ui.Modal):
 # ---------------------------------------------------------------------------
 # DM Thread Fallback
 # ---------------------------------------------------------------------------
+
+
+def _schedule_thread_cleanup(interaction: Interaction, order_id: int) -> None:
+    """Write MessageDeleteAt for the order so the background task auto-deletes the thread.
+
+    Called after a thread was successfully used as a DM fallback. The write is advisory —
+    a failure here is logged but never propagates to the user.
+    """
+    try:
+        with interaction.client.session_scope() as session:
+            config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+            delay = config.ThreadCleanupDelayHours if config else 24
+            session.execute(
+                sa_update(CraftingOrder)
+                .where(CraftingOrder.Id == order_id)
+                .values(MessageDeleteAt=datetime.now(UTC) + timedelta(hours=delay))
+            )
+    except NerpyInfraException:
+        log.error("Failed to schedule thread cleanup for order %s; thread may not be auto-deleted", order_id)
 
 
 async def _thread_fallback(interaction: Interaction, order_id: int, message: str, creator_id: int) -> bool:
@@ -2459,7 +2536,7 @@ class ManualProfessionMappingView(ui.View):
         ]
 
         for role_id, role_name in all_unmapped_roles[offset : offset + self.MAX_ROLES]:
-            placeholder = get_string(lang, "wow.craftingorder.manual_map.select_placeholder", role=role_name)
+            placeholder = get_string(lang, _KEY_MANUAL_MAP_SELECT_PLACEHOLDER).format(role=role_name)
             select = ui.Select(
                 placeholder=placeholder,
                 options=prof_options,
@@ -2470,7 +2547,7 @@ class ManualProfessionMappingView(ui.View):
             self.add_item(select)
 
         confirm = ui.Button(
-            label=get_string(lang, "wow.craftingorder.manual_map.confirm_button"),
+            label=get_string(lang, _KEY_MANUAL_MAP_CONFIRM_BUTTON),
             style=discord.ButtonStyle.success,
         )
         confirm.callback = self._on_confirm
@@ -2493,7 +2570,7 @@ class ManualProfessionMappingView(ui.View):
 
         if not self.selections and is_last_batch:
             await interaction.response.send_message(
-                get_string(self.lang, "wow.craftingorder.manual_map.no_selections"), ephemeral=True
+                get_string(self.lang, _KEY_MANUAL_MAP_NO_SELECTIONS), ephemeral=True
             )
             return
 
@@ -2515,16 +2592,14 @@ class ManualProfessionMappingView(ui.View):
             next_view = ManualProfessionMappingView(
                 self.bot, self.guild_id, self.all_unmapped_roles, self.lang, offset=next_offset
             )
-            header = get_string(self.lang, "wow.craftingorder.manual_map.next_batch", count=len(self.selections))
-            description = get_string(self.lang, "wow.craftingorder.manual_map.description")
+            header = get_string(self.lang, _KEY_MANUAL_MAP_NEXT_BATCH, count=len(self.selections))
+            description = get_string(self.lang, _KEY_MANUAL_MAP_DESCRIPTION)
             await interaction.response.edit_message(content=f"{header}\n\n{description}", view=next_view)
         else:
             num_selects = sum(1 for item in self.children if isinstance(item, ui.Select))
             skipped = num_selects - len(self.selections)
             if skipped > 0:
-                reply = get_string(
-                    self.lang, "wow.craftingorder.manual_map.partial", count=len(self.selections), skipped=skipped
-                )
+                reply = get_string(self.lang, _KEY_MANUAL_MAP_PARTIAL, count=len(self.selections), skipped=skipped)
             else:
-                reply = get_string(self.lang, "wow.craftingorder.manual_map.success")
+                reply = get_string(self.lang, _KEY_MANUAL_MAP_SUCCESS)
             await interaction.response.edit_message(content=reply, view=None)
