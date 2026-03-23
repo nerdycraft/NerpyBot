@@ -2536,7 +2536,7 @@ class ManualProfessionMappingView(ui.View):
         ]
 
         for role_id, role_name in all_unmapped_roles[offset : offset + self.MAX_ROLES]:
-            placeholder = get_string(lang, _KEY_MANUAL_MAP_SELECT_PLACEHOLDER, role=role_name)
+            placeholder = get_string(lang, _KEY_MANUAL_MAP_SELECT_PLACEHOLDER).format(role=role_name)
             select = ui.Select(
                 placeholder=placeholder,
                 options=prof_options,
