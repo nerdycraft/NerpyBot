@@ -37,8 +37,16 @@ _ANSWERS_PER_PAGE = 23
 _review_page_cache: dict[int, tuple[int, int]] = {}
 
 # Regex used to recover pagination state from an embed footer after a bot restart.
-# Matches the "Page X/Y" suffix appended by _build_review_embed_from_data.
-_PAGE_RE = re.compile(r"Page (\d+)/(\d+)")
+# Locale-agnostic: matches the numeric X/Y part regardless of surrounding text.
+_PAGE_RE = re.compile(r"(\d+)/(\d+)")
+
+
+def _parse_page_from_footer(footer: str) -> tuple[int, int] | None:
+    # The footer contains multiple X/Y patterns (approvals, denials, then page).
+    # Page info is always last — take the final match.
+    matches = _PAGE_RE.findall(footer)
+    return (int(matches[-1][0]), int(matches[-1][1])) if matches else None
+
 
 # Button custom_id constants — shared by decorators, __init__ label lookup, and _update_review_embed.
 _BTN_VOTE = "app_review_vote"
@@ -187,6 +195,8 @@ def _build_review_embed_from_data(data: "_ReviewEmbedData") -> discord.Embed:
     page_answers = data.answers[offset : offset + _ANSWERS_PER_PAGE]
     no_answer = get_string(data.lang, "application.review.no_answer")
     for label, answer_text in page_answers:
+        if len(label) > 256:
+            label = label[:255] + "…"
         value = answer_text or no_answer
         if len(value) > 1024:
             value = value[:1023] + "…"
@@ -242,7 +252,13 @@ async def _update_review_embed(
     else:
         raise ValueError("Either interaction (with .message) or review_channel_id+review_message_id must be provided")
 
-    current_page = page if page is not None else _review_page_cache.get(msg_id, (1, 1))[0]
+    if page is not None:
+        current_page = page
+    elif msg_id in _review_page_cache:
+        current_page = _review_page_cache[msg_id][0]
+    else:
+        footer = message.embeds[0].footer.text if message.embeds else ""
+        current_page = (_parse_page_from_footer(footer or "") or (1, 1))[0]
 
     if preloaded is not None:
         preloaded.total_pages = max(1, math.ceil(len(preloaded.answers) / _ANSWERS_PER_PAGE))
@@ -1203,8 +1219,7 @@ class ApplicationReviewView(discord.ui.View):
         # Recover (page, total_pages) from the embed footer on first click after a restart.
         if msg_id not in _review_page_cache:
             footer = interaction.message.embeds[0].footer.text if interaction.message.embeds else ""
-            m = _PAGE_RE.search(footer or "")
-            _review_page_cache[msg_id] = (int(m.group(1)), int(m.group(2))) if m else (1, 1)
+            _review_page_cache[msg_id] = _parse_page_from_footer(footer or "") or (1, 1)
 
         current_page, total_pages = _review_page_cache[msg_id]
         new_page = current_page + delta

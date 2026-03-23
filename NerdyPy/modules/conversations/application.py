@@ -7,6 +7,7 @@ Three conversation subclasses:
 - ApplicationSubmitConversation — user answers a form's questions to submit an application
 """
 
+import math
 from datetime import datetime, timezone
 from enum import Enum
 from functools import partial
@@ -24,7 +25,7 @@ from models.application import (
     ApplicationTemplateQuestion,
     SubmissionStatus,
 )
-from modules.views.application import ApplicationReviewView, build_review_embed
+from modules.views.application import _ANSWERS_PER_PAGE, _BTN_NEXT, _BTN_PREV, ApplicationReviewView, build_review_embed
 from utils.cache import invalidate_autocomplete, invalidate_autocomplete_app_templates
 from utils.conversation import Conversation
 from utils.strings import get_string
@@ -904,6 +905,7 @@ class ApplicationSubmitConversation(Conversation):
                 form = ApplicationForm.get_by_id(self.form_id, session)
                 lang = self.lang
                 embed = build_review_embed(submission, form, session, lang)
+                total_pages = max(1, math.ceil(len(submission.answers) / _ANSWERS_PER_PAGE))
                 # Collect role IDs to mention: non-managed admin roles + all configured manager/reviewer roles
                 mention_ids: set[int] = {
                     r.id for r in self.guild.roles if r.permissions.administrator and not r.managed
@@ -916,6 +918,13 @@ class ApplicationSubmitConversation(Conversation):
                 submission_user_name = submission.UserName
 
             view = ApplicationReviewView(bot=self.bot, lang=self.lang)
+            for item in list(view.children):
+                if total_pages <= 1 and item.custom_id in (_BTN_PREV, _BTN_NEXT):
+                    view.remove_item(item)
+                elif item.custom_id == _BTN_PREV:
+                    item.disabled = True
+                elif item.custom_id == _BTN_NEXT:
+                    item.disabled = total_pages <= 1
             mention_content = " ".join(f"<@&{rid}>" for rid in sorted(mention_ids)) or None
 
             msg = await channel.send(embed=embed, view=view)

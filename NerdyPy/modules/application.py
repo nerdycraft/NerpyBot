@@ -172,9 +172,11 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         """
         try:
             form = ApplicationForm.get_by_id(int(value), session)
-            if form is not None and form.GuildId != guild_id:
-                return None
-            return form
+            if form is not None:
+                if form.GuildId != guild_id:
+                    return None
+                return form
+            return ApplicationForm.get(value, guild_id, session)
         except ValueError:
             return ApplicationForm.get(value, guild_id, session)
 
@@ -183,9 +185,11 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         """Resolve a template from an autocomplete value (str ID) or a manually typed name."""
         try:
             tpl = ApplicationTemplate.get_by_id(int(value), session)
-            if tpl is not None and tpl.GuildId is not None and tpl.GuildId != guild_id:
-                return None
-            return tpl
+            if tpl is not None:
+                if tpl.GuildId is not None and tpl.GuildId != guild_id:
+                    return None
+                return tpl
+            return ApplicationTemplate.get_by_name(value, guild_id, session)
         except ValueError:
             return ApplicationTemplate.get_by_name(value, guild_id, session)
 
@@ -538,7 +542,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         # If edit-description flag is set and no description yet → show modal
         if edit_description and description is None:
             with self.bot.session_scope() as session:
-                form = ApplicationForm.get(name, interaction.guild.id, session)
+                form = self._resolve_form(name, interaction.guild.id, session)
                 if not form:
                     await interaction.response.send_message(
                         get_string(lang, "application.form_not_found", name=name), ephemeral=True
