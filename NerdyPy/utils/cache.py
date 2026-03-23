@@ -511,3 +511,16 @@ def build_name_choices(names: list[str], current: str) -> list[app_commands.Choi
     plain name strings and Discord choices have name == value.
     """
     return [app_commands.Choice(name=n[:100], value=n[:100]) for n in names if current.lower() in n.lower()][:25]
+
+
+def build_id_choices(items: list[tuple[int, str]], current: str) -> list[app_commands.Choice[str]]:
+    """Filter a list of (id, name) tuples and return up to 25 choices with the ID as the value.
+
+    Use this instead of ``build_name_choices`` when downstream commands resolve records by primary
+    key — the stable ID survives renames and avoids silent failures when names exceed 100 chars.
+    """
+    return [
+        app_commands.Choice(name=name[:100], value=str(item_id))
+        for item_id, name in items
+        if current.lower() in name.lower()
+    ][:25]

@@ -772,9 +772,10 @@ class ApplicationSubmitConversation(Conversation):
             description=description,
         )
 
+        limit_hint = get_string(self.lang, f"{_c}.answer_limit_hint")
         if self._editing:
             next_state = SubmitState.CONFIRM
-            emb.set_footer(text=get_string(self.lang, f"{_c}.question_footer_editing"))
+            nav = get_string(self.lang, f"{_c}.question_footer_editing")
             reactions = {BACK_EMOJI: SubmitState.CONFIRM, LEAVE_EMOJI: SubmitState.CANCELLED}
         else:
             next_state = f"question_{index + 1}" if index + 1 < total else SubmitState.CONFIRM
@@ -782,10 +783,11 @@ class ApplicationSubmitConversation(Conversation):
             if index > 0:
                 reactions[BACK_EMOJI] = f"question_{index - 1}"
                 reactions[RESET_EMOJI] = SubmitState.RESET
-                emb.set_footer(text=get_string(self.lang, f"{_c}.question_footer_restart"))
+                nav = get_string(self.lang, f"{_c}.question_footer_restart")
             else:
-                emb.set_footer(text=get_string(self.lang, f"{_c}.question_footer_leave"))
+                nav = get_string(self.lang, f"{_c}.question_footer_leave")
             reactions[LEAVE_EMOJI] = SubmitState.CANCELLED
+        emb.set_footer(text=f"{nav}  |  {limit_hint}")
 
         await self.send_both(emb, next_state, self._handle_answer, reactions)
 

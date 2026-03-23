@@ -333,6 +333,11 @@ class ApplicationTemplate(db.BASE):
         return session.query(cls).filter(cls.GuildId == guild_id, cls.IsBuiltIn.is_(False)).order_by(cls.Name).all()
 
     @classmethod
+    def get_by_id(cls, template_id, session):
+        """Returns a template by primary key."""
+        return session.query(cls).filter(cls.Id == template_id).first()
+
+    @classmethod
     def get_by_name(cls, name, guild_id, session):
         """Returns a template by name — checks built-in and guild-specific."""
         return (
