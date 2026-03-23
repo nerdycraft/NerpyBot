@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 import discord
+from cachetools import LRUCache
 from sqlalchemy.exc import IntegrityError
 
 from models.application import (
@@ -33,8 +34,9 @@ _ANSWERS_PER_PAGE = 23
 
 # Runtime cache: maps review message_id → (current_page, total_pages), both 1-based.
 # Populated on first ◀/▶ click; cleared on bot restart (harmless — full state is
-# recovered from the embed footer regex on the next click).
-_review_page_cache: dict[int, tuple[int, int]] = {}
+# recovered from the embed footer regex on the next click).  Bounded to 1 000 entries
+# so long-running bots don't accumulate stale entries indefinitely.
+_review_page_cache: LRUCache = LRUCache(maxsize=1000)
 
 # Regex used to recover pagination state from an embed footer after a bot restart.
 # Locale-agnostic: matches the numeric X/Y part regardless of surrounding text.
@@ -56,6 +58,35 @@ _BTN_OVERRIDE = "app_review_override"
 _BTN_PREV = "app_review_prev"
 _BTN_NEXT = "app_review_next"
 _BTN_APPLY = "app_apply_button"
+
+
+def _normalize_review_view(
+    view: "ApplicationReviewView",
+    *,
+    total_pages: int,
+    current_page: int,
+    status: "SubmissionStatus",
+    applicant_notified: bool,
+) -> None:
+    """Mutate *view* in-place: remove/disable buttons based on pagination and submission state.
+
+    Called on both the initial embed send and every subsequent re-render so that first
+    render and re-render are always in sync.
+    """
+    for item in list(view.children):
+        cid = item.custom_id
+        if total_pages <= 1 and cid in (_BTN_PREV, _BTN_NEXT):
+            view.remove_item(item)
+        elif cid == _BTN_OVERRIDE:
+            item.disabled = status == SubmissionStatus.PENDING
+        elif cid == _BTN_MESSAGE:
+            item.disabled = applicant_notified
+        elif cid == _BTN_PREV:
+            item.disabled = current_page <= 1
+        elif cid == _BTN_NEXT:
+            item.disabled = current_page >= total_pages
+        else:
+            item.disabled = status != SubmissionStatus.PENDING
 
 
 # ---------------------------------------------------------------------------
@@ -284,21 +315,13 @@ async def _update_review_embed(
             applicant_notified = submission.ApplicantNotified
 
     view = ApplicationReviewView(bot=bot, lang=lang)
-    for item in list(view.children):
-        cid = item.custom_id
-        if total_pages <= 1 and cid in (_BTN_PREV, _BTN_NEXT):
-            view.remove_item(item)
-        elif cid == _BTN_OVERRIDE:
-            item.disabled = status == SubmissionStatus.PENDING
-        elif cid == _BTN_MESSAGE:
-            item.disabled = applicant_notified
-        elif cid == _BTN_PREV:
-            item.disabled = current_page <= 1
-        elif cid == _BTN_NEXT:
-            item.disabled = current_page >= total_pages
-        else:
-            item.disabled = status != SubmissionStatus.PENDING
-
+    _normalize_review_view(
+        view,
+        total_pages=total_pages,
+        current_page=current_page,
+        status=status,
+        applicant_notified=applicant_notified,
+    )
     await message.edit(embed=embed, view=view)
 
 

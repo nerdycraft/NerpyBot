@@ -25,7 +25,12 @@ from models.application import (
     ApplicationTemplateQuestion,
     SubmissionStatus,
 )
-from modules.views.application import _ANSWERS_PER_PAGE, _BTN_NEXT, _BTN_PREV, ApplicationReviewView, build_review_embed
+from modules.views.application import (
+    _ANSWERS_PER_PAGE,
+    _normalize_review_view,
+    ApplicationReviewView,
+    build_review_embed,
+)
 from utils.cache import invalidate_autocomplete, invalidate_autocomplete_app_templates
 from utils.conversation import Conversation
 from utils.strings import get_string
@@ -918,13 +923,13 @@ class ApplicationSubmitConversation(Conversation):
                 submission_user_name = submission.UserName
 
             view = ApplicationReviewView(bot=self.bot, lang=self.lang)
-            for item in list(view.children):
-                if total_pages <= 1 and item.custom_id in (_BTN_PREV, _BTN_NEXT):
-                    view.remove_item(item)
-                elif item.custom_id == _BTN_PREV:
-                    item.disabled = True
-                elif item.custom_id == _BTN_NEXT:
-                    item.disabled = total_pages <= 1
+            _normalize_review_view(
+                view,
+                total_pages=total_pages,
+                current_page=1,
+                status=SubmissionStatus.PENDING,
+                applicant_notified=False,
+            )
             mention_content = " ".join(f"<@&{rid}>" for rid in sorted(mention_ids)) or None
 
             msg = await channel.send(embed=embed, view=view)

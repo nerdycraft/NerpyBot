@@ -510,7 +510,8 @@ def build_name_choices(names: list[str], current: str) -> list[app_commands.Choi
     Companion to ``cached_autocomplete`` for the common case where the cache stores
     plain name strings and Discord choices have name == value.
     """
-    return [app_commands.Choice(name=n[:100], value=n[:100]) for n in names if current.lower() in n.lower()][:25]
+    lower = current.lower()
+    return [app_commands.Choice(name=n[:100], value=n[:100]) for n in names if lower in n.lower()][:25]
 
 
 def build_id_choices(items: list[tuple[int, str]], current: str) -> list[app_commands.Choice[str]]:
@@ -519,8 +520,7 @@ def build_id_choices(items: list[tuple[int, str]], current: str) -> list[app_com
     Use this instead of ``build_name_choices`` when downstream commands resolve records by primary
     key — the stable ID survives renames and avoids silent failures when names exceed 100 chars.
     """
+    lower = current.lower()
     return [
-        app_commands.Choice(name=name[:100], value=str(item_id))
-        for item_id, name in items
-        if current.lower() in name.lower()
+        app_commands.Choice(name=name[:100], value=str(item_id)) for item_id, name in items if lower in name.lower()
     ][:25]
