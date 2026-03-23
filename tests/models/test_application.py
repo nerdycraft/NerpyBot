@@ -14,6 +14,7 @@ from models.application import (
     ApplicationSubmission,
     ApplicationTemplate,
     ApplicationVote,
+    VoteType,
     seed_built_in_templates,
 )
 
@@ -130,7 +131,7 @@ class TestCascadeDeletes:
         db_session.add(sub)
         db_session.commit()
 
-        vote = ApplicationVote(SubmissionId=sub.Id, UserId=99, Vote="approve")
+        vote = ApplicationVote(SubmissionId=sub.Id, UserId=99, Vote=VoteType.APPROVE)
         db_session.add(vote)
         db_session.commit()
         vote_id = vote.Id
@@ -162,7 +163,7 @@ class TestCascadeDeletes:
         db_session.commit()
 
         ans = ApplicationAnswer(SubmissionId=sub.Id, QuestionId=q.Id, AnswerText="A!")
-        vote = ApplicationVote(SubmissionId=sub.Id, UserId=99, Vote="approve")
+        vote = ApplicationVote(SubmissionId=sub.Id, UserId=99, Vote=VoteType.APPROVE)
         db_session.add_all([ans, vote])
         db_session.commit()
 
@@ -174,6 +175,95 @@ class TestCascadeDeletes:
         assert db_session.query(ApplicationQuestion).filter(ApplicationQuestion.Id == q_id).first() is None
         assert db_session.query(ApplicationAnswer).filter(ApplicationAnswer.Id == ans_id).first() is None
         assert db_session.query(ApplicationVote).filter(ApplicationVote.Id == vote_id).first() is None
+
+
+# ---------------------------------------------------------------------------
+# ApplicationSubmission — votes eager-loading contract
+# ---------------------------------------------------------------------------
+class TestApplicationSubmissionVotesEagerLoading:
+    """Verify votes are accessible after session detachment (selectinload contract).
+
+    Each test loads a submission via a query classmethod, then calls expunge_all()
+    to detach all objects from the session.  Accessing .votes on a detached object
+    raises DetachedInstanceError if the collection was not eager-loaded — so a
+    passing test proves selectinload fired correctly.
+    """
+
+    def _make_submission_with_votes(self, db_session, *, review_message_id=None, guild_id=111):
+        form = ApplicationForm(GuildId=guild_id, Name=f"EagerForm-{guild_id}")
+        db_session.add(form)
+        db_session.flush()
+        sub = ApplicationSubmission(
+            FormId=form.Id,
+            GuildId=guild_id,
+            UserId=1,
+            UserName="Tester",
+            Status="pending",
+            SubmittedAt=datetime.now(UTC),
+            ReviewMessageId=review_message_id,
+        )
+        db_session.add(sub)
+        db_session.flush()
+        db_session.add(ApplicationVote(SubmissionId=sub.Id, UserId=10, Vote=VoteType.APPROVE))
+        db_session.add(ApplicationVote(SubmissionId=sub.Id, UserId=20, Vote=VoteType.DENY))
+        db_session.commit()
+        return sub
+
+    def test_get_by_id_votes_accessible_after_detach(self, db_session):
+        sub = self._make_submission_with_votes(db_session)
+        result = ApplicationSubmission.get_by_id(sub.Id, db_session)
+        db_session.expunge_all()
+        assert len(result.votes) == 2
+
+    def test_get_by_review_message_votes_accessible_after_detach(self, db_session):
+        self._make_submission_with_votes(db_session, review_message_id=999)
+        result = ApplicationSubmission.get_by_review_message(999, db_session)
+        db_session.expunge_all()
+        assert len(result.votes) == 2
+
+    def test_get_by_guild_votes_accessible_after_detach(self, db_session):
+        self._make_submission_with_votes(db_session, guild_id=333)
+        results = ApplicationSubmission.get_by_guild(333, db_session)
+        assert len(results) == 1
+        db_session.expunge_all()
+        assert len(results[0].votes) == 2
+
+    def test_get_by_guild_votes_scoped_per_submission(self, db_session):
+        """Votes from one submission must not appear on another after detach."""
+        form = ApplicationForm(GuildId=444, Name="EagerForm-444")
+        db_session.add(form)
+        db_session.flush()
+
+        sub_a = ApplicationSubmission(
+            FormId=form.Id,
+            GuildId=444,
+            UserId=1,
+            UserName="A",
+            Status="pending",
+            SubmittedAt=datetime.now(UTC),
+        )
+        sub_b = ApplicationSubmission(
+            FormId=form.Id,
+            GuildId=444,
+            UserId=2,
+            UserName="B",
+            Status="pending",
+            SubmittedAt=datetime.now(UTC),
+        )
+        db_session.add_all([sub_a, sub_b])
+        db_session.flush()
+
+        db_session.add(ApplicationVote(SubmissionId=sub_a.Id, UserId=10, Vote=VoteType.APPROVE))
+        db_session.add(ApplicationVote(SubmissionId=sub_b.Id, UserId=20, Vote=VoteType.DENY))
+        db_session.add(ApplicationVote(SubmissionId=sub_b.Id, UserId=30, Vote=VoteType.DENY))
+        db_session.commit()
+
+        results = ApplicationSubmission.get_by_guild(444, db_session)
+        by_user = {r.UserId: r for r in results}
+        db_session.expunge_all()
+
+        assert len(by_user[1].votes) == 1
+        assert len(by_user[2].votes) == 2
 
 
 # ---------------------------------------------------------------------------

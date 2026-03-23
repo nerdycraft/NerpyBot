@@ -213,25 +213,25 @@ class ApplicationSubmission(db.BASE):
         "ApplicationVote",
         back_populates="submission",
         cascade="all, delete, delete-orphan",
-        lazy="subquery",
+        lazy="select",
     )
 
     @classmethod
     def get_by_id(cls, submission_id, session):
-        """Returns a submission by its primary key."""
-        return session.query(cls).filter(cls.Id == submission_id).first()
+        """Returns a submission by its primary key, with votes eager-loaded."""
+        return session.query(cls).options(selectinload(cls.votes)).filter(cls.Id == submission_id).first()
 
     @classmethod
     def get_by_review_message(cls, message_id, session):
-        """Returns a submission by its review message ID."""
-        return session.query(cls).filter(cls.ReviewMessageId == message_id).first()
+        """Returns a submission by its review message ID, with votes eager-loaded."""
+        return session.query(cls).options(selectinload(cls.votes)).filter(cls.ReviewMessageId == message_id).first()
 
     @classmethod
     def get_by_guild(cls, guild_id, session):
-        """Returns all submissions for a guild, with the form relationship eager-loaded."""
+        """Returns all submissions for a guild, with form and votes eager-loaded."""
         return (
             session.query(cls)
-            .options(selectinload(cls.form).lazyload(ApplicationForm.questions))
+            .options(selectinload(cls.form).lazyload(ApplicationForm.questions), selectinload(cls.votes))
             .filter(cls.GuildId == guild_id)
             .all()
         )
