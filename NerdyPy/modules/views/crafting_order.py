@@ -2063,7 +2063,7 @@ class CraftingOrderModal(ui.Modal):
         # Phase 2: send to Discord outside the session.
         try:
             channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
-        except discord.HTTPException:
+        except (discord.NotFound, discord.Forbidden):
             channel = None
         if channel is None:
             with self.bot.session_scope() as session:
@@ -2188,10 +2188,11 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
         order_not_found = False
         embed = view = None
         with interaction.client.session_scope() as session:
+            conditions = [CraftingOrder.Id == self.order_id, CraftingOrder.Status == "in_progress"]
+            if not interaction.user.guild_permissions.administrator:
+                conditions.append(CraftingOrder.CrafterId == interaction.user.id)
             rowcount = session.execute(
-                sa_update(CraftingOrder)
-                .where(CraftingOrder.Id == self.order_id, CraftingOrder.Status == "in_progress")
-                .values(Status="open", CrafterId=None, CrafterName=None)
+                sa_update(CraftingOrder).where(*conditions).values(Status="open", CrafterId=None, CrafterName=None)
             ).rowcount
             if rowcount == 0:
                 order_not_found = True
@@ -2237,11 +2238,10 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         order_not_found = False
         item_name = creator_id = crafter_id = thread_id = None
         with interaction.client.session_scope() as session:
-            rowcount = session.execute(
-                sa_update(CraftingOrder)
-                .where(CraftingOrder.Id == self.order_id, CraftingOrder.Status == "in_progress")
-                .values(Status="completed")
-            ).rowcount
+            conditions = [CraftingOrder.Id == self.order_id, CraftingOrder.Status == "in_progress"]
+            if not interaction.user.guild_permissions.administrator:
+                conditions.append(CraftingOrder.CrafterId == interaction.user.id)
+            rowcount = session.execute(sa_update(CraftingOrder).where(*conditions).values(Status="completed")).rowcount
             if rowcount == 0:
                 order_not_found = True
             else:
