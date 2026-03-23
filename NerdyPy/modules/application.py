@@ -94,6 +94,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         templates = await cached_autocomplete(("app_templates", guild_id), _fetch)
         prefix_builtin = get_string(lang, "application.template.list.prefix_builtin")
+        lower_current = current.lower()
         choices = []
         for tpl_id, name, is_built_in in templates:
             localized_name = name
@@ -107,7 +108,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 label = f"{prefix_builtin} {localized_name}"
             else:
                 label = name
-            if current and current.lower() not in localized_name.lower():
+            if current and lower_current not in localized_name.lower():
                 continue
             choices.append(app_commands.Choice(name=label[:100], value=str(tpl_id)))
         return choices[:25]

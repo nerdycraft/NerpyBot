@@ -310,7 +310,24 @@ async def _update_review_embed(
             all_answers = _extract_answers(submission.answers)
             total_pages = max(1, math.ceil(len(all_answers) / _ANSWERS_PER_PAGE))
             current_page = max(1, min(current_page, total_pages))
-            embed = build_review_embed(submission, form, session, lang, page=current_page)
+            embed = _build_review_embed_from_data(
+                _ReviewEmbedData(
+                    user_id=submission.UserId,
+                    user_name=submission.UserName,
+                    submitted_at=submission.SubmittedAt,
+                    status=submission.Status,
+                    applicant_notified=submission.ApplicantNotified,
+                    form_name=form.Name,
+                    required_approvals=form.RequiredApprovals,
+                    required_denials=form.RequiredDenials,
+                    lang=lang,
+                    approve_count=sum(1 for v in submission.votes if v.Vote == VoteType.APPROVE),
+                    deny_count=sum(1 for v in submission.votes if v.Vote == VoteType.DENY),
+                    answers=all_answers,
+                    page=current_page,
+                    total_pages=total_pages,
+                )
+            )
             status = submission.Status
             applicant_notified = submission.ApplicantNotified
 

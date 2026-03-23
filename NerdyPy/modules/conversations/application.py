@@ -27,6 +27,7 @@ from models.application import (
 )
 from modules.views.application import (
     _ANSWERS_PER_PAGE,
+    _extract_answers,
     _normalize_review_view,
     ApplicationReviewView,
     build_review_embed,
@@ -909,8 +910,9 @@ class ApplicationSubmitConversation(Conversation):
                 submission = ApplicationSubmission.get_by_id(self.submission_id, session)
                 form = ApplicationForm.get_by_id(self.form_id, session)
                 lang = self.lang
+                all_answers = _extract_answers(submission.answers)
+                total_pages = max(1, math.ceil(len(all_answers) / _ANSWERS_PER_PAGE))
                 embed = build_review_embed(submission, form, session, lang)
-                total_pages = max(1, math.ceil(len(submission.answers) / _ANSWERS_PER_PAGE))
                 # Collect role IDs to mention: non-managed admin roles + all configured manager/reviewer roles
                 mention_ids: set[int] = {
                     r.id for r in self.guild.roles if r.permissions.administrator and not r.managed
