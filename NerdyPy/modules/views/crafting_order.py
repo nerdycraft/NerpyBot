@@ -2030,7 +2030,7 @@ class CraftingOrderModal(ui.Modal):
                     wowhead_url = cached.wowhead_url
                     if not icon_url:
                         icon_url = cached.IconUrl
-                else:
+                if not wowhead_url:
                     wowhead_url = f"https://www.wowhead.com/search?q={quote(item_name)}"
 
             config = CraftingBoardConfig.get_by_guild(self.guild_id, session)
