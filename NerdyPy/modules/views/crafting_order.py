@@ -1611,8 +1611,7 @@ class ItemSelectView(ui.View):
 
     def _build_items(self, include_choose: bool = False) -> None:
         """Populate the view with select, pagination, back, choose (optional), and other buttons."""
-        offset = (self._page - 1) * self._PAGE_SIZE
-        self._recipes_by_id = {str(r.RecipeId): r for r in self._all_recipes[offset : offset + self._PAGE_SIZE]}
+        self._recipes_by_id = {str(r.RecipeId): r for r in self._page_items}
         total_items = len(self._all_recipes)
         is_multipage = total_items > self._PAGE_SIZE
         action_row = 2 if is_multipage else 1
