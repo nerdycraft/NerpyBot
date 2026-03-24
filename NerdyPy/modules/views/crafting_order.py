@@ -240,6 +240,29 @@ _KEY_MANUAL_MAP_SUCCESS = "wow.craftingorder.manual_map.success"
 _KEY_MANUAL_MAP_PARTIAL = "wow.craftingorder.manual_map.partial"
 _KEY_PAGE_INFO = "wow.craftingorder.page_info"
 
+# Short keys for _ls() — suffix only (wow.craftingorder. is prepended by _ls at call time).
+# Typos here become NameError at import time instead of a silent English fallback at runtime.
+_LS_NOT_FOUND = "not_found"
+_LS_CREATE_NO_ROLES = "create.no_roles"
+_LS_PROFESSION_SELECT = "profession_select"
+_LS_NO_PROFESSION_MAPPED = "no_profession_mapped"
+_LS_MODAL_ITEM_NAME_EMPTY = "modal_item_name_empty"
+_LS_ORDER_CREATED = "order_created"
+_LS_ACCEPT_NOT_OPEN = "accept.not_open"
+_LS_ACCEPT_NO_ROLE = "accept.no_role"
+_LS_DROP_NOT_IN_PROGRESS = "drop.not_in_progress"
+_LS_DROP_NOT_CRAFTER = "drop.not_crafter"
+_LS_COMPLETE_NOT_IN_PROGRESS = "complete.not_in_progress"
+_LS_COMPLETE_NOT_CRAFTER = "complete.not_crafter"
+_LS_COMPLETE_DM_COMPLETE = "complete.dm_complete"
+_LS_COMPLETE_DONE = "complete.done"
+_LS_CANCEL_NOT_ALLOWED = "cancel.not_allowed"
+_LS_CANCEL_DM_CANCEL = "cancel.dm_cancel"
+_LS_CANCEL_DONE = "cancel.done"
+_LS_ASK_THREAD_FAILED = "ask.thread_failed"
+_LS_ASK_THREAD_NAME = "ask.thread_name"
+_LS_ASK_SENT = "ask.sent"
+
 
 def _build_vcat_info(recipe_type: str, session, profession_ids) -> tuple[list[str], dict[str, int], dict[str, int]]:
     """Check which virtual categories have items and build the item class ID maps.
@@ -290,7 +313,7 @@ async def _navigate_prof_gear(
     """Shared navigation helper: fetch profession gear subclasses and show ItemSubTypeSelectView."""
     class_id = item_class_ids.get(_VCAT_TO_CLASS_NAME[_VCAT_PROFESSIONS])
     if class_id is None:
-        await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
+        await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), view=None)
         return
     with ctx.bot.session_scope() as session:
         subclasses = CraftingRecipeCache.get_item_subclasses(
@@ -643,12 +666,12 @@ class CraftingBoardView(ui.View):
                 )
 
         if board_ctx is None:
-            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
 
         roles = [r for rid in mapping_role_ids if (r := interaction.guild.get_role(rid))]
         if not roles:
-            await interaction.response.send_message(_ls(interaction, "create.no_roles"), ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_CREATE_NO_ROLES), ephemeral=True)
             return
 
         if available_vcats:
@@ -667,7 +690,7 @@ class CraftingBoardView(ui.View):
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         else:
             view = ProfessionSelectView(self.bot, roles, interaction.guild_id, lang)
-            await interaction.response.send_message(_ls(interaction, "profession_select"), view=view, ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_PROFESSION_SELECT), view=view, ephemeral=True)
 
     async def _on_create_housing(self, interaction: Interaction):
         lang = mapped_prof_ids = mapping_role_ids = housing_professions = None
@@ -683,17 +706,17 @@ class CraftingBoardView(ui.View):
                     housing_professions = []
 
         if board_ctx is None:
-            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
 
         if not housing_professions:
             # Fall back to profession select (free-text flow)
             roles = [r for rid in mapping_role_ids if (r := interaction.guild.get_role(rid))]
             if not roles:
-                await interaction.response.send_message(_ls(interaction, "create.no_roles"), ephemeral=True)
+                await interaction.response.send_message(_ls(interaction, _LS_CREATE_NO_ROLES), ephemeral=True)
                 return
             view = ProfessionSelectView(self.bot, roles, interaction.guild_id, lang)
-            await interaction.response.send_message(_ls(interaction, "profession_select"), view=view, ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_PROFESSION_SELECT), view=view, ephemeral=True)
             return
 
         view = HousingProfessionSelectView(
@@ -736,7 +759,7 @@ class ProfessionSelectView(ui.View):
             except discord.HTTPException:
                 role = None
         if role is None:
-            await interaction.response.send_message(_ls(interaction, "no_profession_mapped"), ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_NO_PROFESSION_MAPPED), ephemeral=True)
             return
         modal = CraftingOrderModal(self.bot, role_id, role, self.guild_id, self.lang)
         await interaction.response.send_modal(modal)
@@ -1026,13 +1049,16 @@ class VirtualCategorySelectView(ui.View):
                 categories = CraftingRecipeCache.get_raid_prep_categories(
                     RECIPE_TYPE_CRAFTED, session, profession_ids=self.mapped_prof_ids
                 )
-            view = RaidPrepCategorySelectView(
+            view = CategoryPickerView(
                 self.bot,
                 self.roles,
                 self.guild_id,
                 self.lang,
                 categories,
-                self.mapped_prof_ids,
+                placeholder_key=_KEY_RAID_PREP_SELECT,
+                desc_key=_KEY_RAID_PREP_SELECT_DESC,
+                fetch_fn=functools.partial(CraftingRecipeCache.get_raid_prep_items, RECIPE_TYPE_CRAFTED),
+                mapped_prof_ids=self.mapped_prof_ids,
                 breadcrumbs=new_breadcrumbs,
                 back_factory=go_back,
             )
@@ -1042,7 +1068,7 @@ class VirtualCategorySelectView(ui.View):
         elif vcat in (_VCAT_ARMOR, _VCAT_WEAPONS):
             class_id = self.item_class_ids.get(_VCAT_TO_CLASS_NAME[vcat])
             if class_id is None:
-                await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
+                await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), view=None)
                 return
 
             with self.bot.session_scope() as session:
@@ -1108,13 +1134,16 @@ class VirtualCategorySelectView(ui.View):
                 categories = CraftingRecipeCache.get_other_categories(
                     RECIPE_TYPE_CRAFTED, session, profession_ids=self.mapped_prof_ids
                 )
-            view = OtherCategorySelectView(
+            view = CategoryPickerView(
                 self.bot,
                 self.roles,
                 self.guild_id,
                 self.lang,
                 categories,
-                self.mapped_prof_ids,
+                placeholder_key=_KEY_OTHER_SELECT,
+                desc_key=_KEY_OTHER_SELECT_DESC,
+                fetch_fn=functools.partial(CraftingRecipeCache.get_other_items, RECIPE_TYPE_CRAFTED),
+                mapped_prof_ids=self.mapped_prof_ids,
                 breadcrumbs=new_breadcrumbs,
                 back_factory=go_back,
             )
@@ -1190,7 +1219,7 @@ class PvPGroupSelectView(ui.View):
     async def _on_weapons(self, interaction: Interaction):
         weapon_class_id = self.item_class_ids.get(_VCAT_TO_CLASS_NAME[_VCAT_WEAPONS])
         if weapon_class_id is None:
-            await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
+            await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), view=None)
             return
         new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, _KEY_WEAPONS_CATEGORY)]
         await _navigate_pvp_weapons(
@@ -1204,7 +1233,7 @@ class PvPGroupSelectView(ui.View):
     async def _on_gear(self, interaction: Interaction):
         armor_class_id = self.item_class_ids.get(_VCAT_TO_CLASS_NAME[_VCAT_ARMOR])
         if armor_class_id is None:
-            await interaction.response.edit_message(content=_ls(interaction, "not_found"), view=None)
+            await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), view=None)
             return
         new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, _KEY_ARMOR_CATEGORY)]
         await _navigate_pvp_armor(
@@ -1397,8 +1426,16 @@ class PvPSubTypeSelectView(ui.View):
 PvPArmorTypeSelectView = PvPSubTypeSelectView
 
 
-class RaidPrepCategorySelectView(ui.View):
-    """Raid prep flow: choose consumable/cauldron category, then items."""
+class CategoryPickerView(ui.View):
+    """Generic category selection step: choose a named category, then show items.
+
+    Used for raid-prep and other-bucket flows, which share the same structure but
+    differ only in placeholder key and the cache query method called.
+
+    ``fetch_fn`` must have the signature ``(category_name, session, *, profession_ids)``.
+    Use ``functools.partial`` to pre-bind the recipe type:
+        ``functools.partial(CraftingRecipeCache.get_raid_prep_items, RECIPE_TYPE_CRAFTED)``
+    """
 
     def __init__(
         self,
@@ -1407,6 +1444,9 @@ class RaidPrepCategorySelectView(ui.View):
         guild_id: int,
         lang: str,
         categories: list[tuple[str, dict | None]],
+        placeholder_key: str,
+        desc_key: str,
+        fetch_fn,
         mapped_prof_ids: set[int] | None = None,
         breadcrumbs: list[str] | None = None,
         back_factory=None,
@@ -1418,11 +1458,14 @@ class RaidPrepCategorySelectView(ui.View):
         self.lang = lang
         self.mapped_prof_ids = mapped_prof_ids
         self._categories = categories
+        self._placeholder_key = placeholder_key
+        self._desc_key = desc_key
+        self._fetch_fn = fetch_fn
         self._breadcrumbs = breadcrumbs or []
         self._back_factory = back_factory
 
         select = ui.Select(
-            placeholder=get_string(lang, _KEY_RAID_PREP_SELECT),
+            placeholder=get_string(lang, placeholder_key),
             options=_build_localized_category_options(categories, lang),
         )
         select.callback = self._on_select
@@ -1432,19 +1475,22 @@ class RaidPrepCategorySelectView(ui.View):
             _add_back_button(self, lang, back_factory)
 
     def _make_embed(self) -> discord.Embed:
-        title = get_string(self.lang, _KEY_RAID_PREP_SELECT)
-        desc = get_string(self.lang, _KEY_RAID_PREP_SELECT_DESC)
+        title = get_string(self.lang, self._placeholder_key)
+        desc = get_string(self.lang, self._desc_key)
         return _build_step_embed(title, desc, self._breadcrumbs)
 
     def _make_back_closure(self):
-        """Return an async callback that navigates back to this RaidPrepCategorySelectView."""
+        """Return an async callback that navigates back to this CategoryPickerView."""
         return _nav_back(
-            lambda: RaidPrepCategorySelectView(
+            lambda: CategoryPickerView(
                 self.bot,
                 self.roles,
                 self.guild_id,
                 self.lang,
                 self._categories,
+                self._placeholder_key,
+                self._desc_key,
+                self._fetch_fn,
                 self.mapped_prof_ids,
                 breadcrumbs=list(self._breadcrumbs),
                 back_factory=self._back_factory,
@@ -1457,95 +1503,10 @@ class RaidPrepCategorySelectView(ui.View):
         selected_label = _resolve_category_label(self._categories, category_name, self.lang)
 
         with self.bot.session_scope() as session:
-            recipes = CraftingRecipeCache.get_raid_prep_items(
-                RECIPE_TYPE_CRAFTED, category_name, session, profession_ids=self.mapped_prof_ids
-            )
+            recipes = self._fetch_fn(category_name, session, profession_ids=self.mapped_prof_ids)
         if len(recipes) > _DISCORD_SELECT_LIMIT:
             log.warning(
-                "Raid prep category overflow: category=%r returned %d recipes (>24); paginating",
-                category_name,
-                len(recipes),
-            )
-
-        view = ItemSelectView(
-            self.bot,
-            recipes,
-            self.roles,
-            self.guild_id,
-            self.lang,
-            breadcrumbs=self._breadcrumbs + [selected_label],
-            back_factory=self._make_back_closure(),
-        )
-        embed = view._make_embed()
-        await interaction.response.edit_message(embed=embed, view=view, content=None)
-
-
-class OtherCategorySelectView(ui.View):
-    """Other bucket flow: choose a category (bags, treatises, transmutations, …), then items."""
-
-    def __init__(
-        self,
-        bot,
-        roles: list[discord.Role],
-        guild_id: int,
-        lang: str,
-        categories: list[tuple[str, dict | None]],
-        mapped_prof_ids: set[int] | None = None,
-        breadcrumbs: list[str] | None = None,
-        back_factory=None,
-    ):
-        super().__init__(timeout=180)
-        self.bot = bot
-        self.roles = roles
-        self.guild_id = guild_id
-        self.lang = lang
-        self.mapped_prof_ids = mapped_prof_ids
-        self._categories = categories
-        self._breadcrumbs = breadcrumbs or []
-        self._back_factory = back_factory
-
-        select = ui.Select(
-            placeholder=get_string(lang, _KEY_OTHER_SELECT),
-            options=_build_localized_category_options(categories, lang),
-        )
-        select.callback = self._on_select
-        self.add_item(select)
-
-        if back_factory is not None:
-            _add_back_button(self, lang, back_factory)
-
-    def _make_embed(self) -> discord.Embed:
-        title = get_string(self.lang, _KEY_OTHER_SELECT)
-        desc = get_string(self.lang, _KEY_OTHER_SELECT_DESC)
-        return _build_step_embed(title, desc, self._breadcrumbs)
-
-    def _make_back_closure(self):
-        """Return an async callback that navigates back to this OtherCategorySelectView."""
-        return _nav_back(
-            lambda: OtherCategorySelectView(
-                self.bot,
-                self.roles,
-                self.guild_id,
-                self.lang,
-                self._categories,
-                self.mapped_prof_ids,
-                breadcrumbs=list(self._breadcrumbs),
-                back_factory=self._back_factory,
-            )
-        )
-
-    async def _on_select(self, interaction: Interaction):
-        category_name = interaction.data["values"][0]
-
-        selected_label = _resolve_category_label(self._categories, category_name, self.lang)
-
-        with self.bot.session_scope() as session:
-            recipes = CraftingRecipeCache.get_other_items(
-                RECIPE_TYPE_CRAFTED, category_name, session, profession_ids=self.mapped_prof_ids
-            )
-        if len(recipes) > _DISCORD_SELECT_LIMIT:
-            log.warning(
-                "Other category overflow: category=%r returned %d recipes (>24); paginating",
+                "Category overflow: category=%r returned %d recipes (>24); paginating",
                 category_name,
                 len(recipes),
             )
@@ -1698,7 +1659,7 @@ class ItemSelectView(ui.View):
         value = interaction.data["values"][0]
         recipe = self._recipes_by_id.get(value)
         if not recipe:
-            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
 
         self._selected_recipe = recipe
@@ -1752,7 +1713,7 @@ class ItemSelectView(ui.View):
     async def _on_choose(self, interaction: Interaction):
         recipe = self._selected_recipe
         if not recipe:
-            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
 
         role_id = None
@@ -1989,7 +1950,7 @@ class CraftingOrderModal(ui.Modal):
 
         item_name_input = self.item_name_input.value.strip()
         if not item_name_input:
-            await interaction.followup.send(_ls(interaction, "modal_item_name_empty"), ephemeral=True)
+            await interaction.followup.send(_ls(interaction, _LS_MODAL_ITEM_NAME_EMPTY), ephemeral=True)
             return
         notes = self.notes_input.value.strip() or None
 
@@ -2056,7 +2017,7 @@ class CraftingOrderModal(ui.Modal):
                 view = build_order_view(order.Id, "open", lang)
 
         if config is None:
-            await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
+            await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
 
         # Phase 2: send to Discord outside the session.
@@ -2069,7 +2030,7 @@ class CraftingOrderModal(ui.Modal):
                 order = CraftingOrder.get_by_id(order_id, session)
                 if order is not None:
                     session.delete(order)
-            await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
+            await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
         try:
             role_mention = self.role.mention if self.role else f"<@&{self.role_id}>"
@@ -2079,7 +2040,7 @@ class CraftingOrderModal(ui.Modal):
                 order = CraftingOrder.get_by_id(order_id, session)
                 if order is not None:
                     session.delete(order)
-            await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
+            await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
 
         # Phase 3: store the message ID now that Discord has accepted the message.
@@ -2089,7 +2050,7 @@ class CraftingOrderModal(ui.Modal):
                 order.OrderMessageId = msg.id
 
         await interaction.followup.send(
-            _ls(interaction, "order_created", item=item_name_localized or item_name),
+            _ls(interaction, _LS_ORDER_CREATED, item=item_name_localized or item_name),
             ephemeral=True,
         )
 
@@ -2114,15 +2075,15 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+                await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
                 return False
             if order.Status != "open":
-                await interaction.response.send_message(_ls(interaction, "accept.not_open"), ephemeral=True)
+                await interaction.response.send_message(_ls(interaction, _LS_ACCEPT_NOT_OPEN), ephemeral=True)
                 return False
             role = interaction.guild.get_role(order.ProfessionRoleId)
             if role and role not in interaction.user.roles:
                 await interaction.response.send_message(
-                    _ls(interaction, "accept.no_role", role=role.name), ephemeral=True
+                    _ls(interaction, _LS_ACCEPT_NO_ROLE, role=role.name), ephemeral=True
                 )
                 return False
         return True
@@ -2151,7 +2112,7 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
                 embed = build_order_embed(order, interaction.guild, lang)
                 view = build_order_view(order.Id, "in_progress", lang)
         if not_open:
-            await interaction.response.send_message(_ls(interaction, "accept.not_open"), ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_ACCEPT_NOT_OPEN), ephemeral=True)
             return
         await interaction.response.edit_message(embed=embed, view=view)
 
@@ -2171,15 +2132,15 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+                await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
                 return False
             if order.Status != "in_progress":
-                await interaction.response.send_message(_ls(interaction, "drop.not_in_progress"), ephemeral=True)
+                await interaction.response.send_message(_ls(interaction, _LS_DROP_NOT_IN_PROGRESS), ephemeral=True)
                 return False
             is_crafter = order.CrafterId == interaction.user.id
             is_admin = interaction.user.guild_permissions.administrator
             if not is_crafter and not is_admin:
-                await interaction.response.send_message(_ls(interaction, "drop.not_crafter"), ephemeral=True)
+                await interaction.response.send_message(_ls(interaction, _LS_DROP_NOT_CRAFTER), ephemeral=True)
                 return False
         return True
 
@@ -2201,7 +2162,7 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
                 embed = build_order_embed(order, interaction.guild, lang)
                 view = build_order_view(order.Id, "open", lang)
         if order_not_found:
-            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
         await interaction.response.edit_message(embed=embed, view=view)
 
@@ -2221,15 +2182,15 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+                await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
                 return False
             if order.Status != "in_progress":
-                await interaction.response.send_message(_ls(interaction, "complete.not_in_progress"), ephemeral=True)
+                await interaction.response.send_message(_ls(interaction, _LS_COMPLETE_NOT_IN_PROGRESS), ephemeral=True)
                 return False
             is_crafter = order.CrafterId == interaction.user.id
             is_admin = interaction.user.guild_permissions.administrator
             if not is_crafter and not is_admin:
-                await interaction.response.send_message(_ls(interaction, "complete.not_crafter"), ephemeral=True)
+                await interaction.response.send_message(_ls(interaction, _LS_COMPLETE_NOT_CRAFTER), ephemeral=True)
                 return False
         return True
 
@@ -2259,7 +2220,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
                 crafter_id = row.CrafterId
                 thread_id = row.ThreadId
         if not row_found:
-            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
 
         crafter_mention = f"<@{crafter_id}>" if crafter_id else interaction.user.mention
@@ -2267,19 +2228,19 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         used_thread = False
         try:
             creator = await interaction.client.fetch_user(creator_id)
-            await creator.send(_ls(interaction, "complete.dm_complete", item=item_name, crafter=crafter_mention))
+            await creator.send(_ls(interaction, _LS_COMPLETE_DM_COMPLETE, item=item_name, crafter=crafter_mention))
         except (discord.Forbidden, discord.NotFound):
             used_thread = await _thread_fallback(
                 interaction,
                 self.order_id,
-                _ls(interaction, "complete.dm_complete", item=item_name, crafter=crafter_mention),
+                _ls(interaction, _LS_COMPLETE_DM_COMPLETE, item=item_name, crafter=crafter_mention),
                 creator_id,
             )
 
         if used_thread:
             _schedule_thread_cleanup(interaction, self.order_id)
 
-        await interaction.response.edit_message(content=_ls(interaction, "complete.done"), embed=None, view=None)
+        await interaction.response.edit_message(content=_ls(interaction, _LS_COMPLETE_DONE), embed=None, view=None)
         if not used_thread:
             # Delete the Ask thread before the parent message (deleting message first archives the thread)
             if thread_id:
@@ -2309,15 +2270,15 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+                await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
                 return False
             if order.Status in ("completed", "cancelled"):
-                await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+                await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
                 return False
             is_creator = order.CreatorId == interaction.user.id
             is_admin = interaction.user.guild_permissions.administrator
             if not is_creator and not is_admin:
-                await interaction.response.send_message(_ls(interaction, "cancel.not_allowed"), ephemeral=True)
+                await interaction.response.send_message(_ls(interaction, _LS_CANCEL_NOT_ALLOWED), ephemeral=True)
                 return False
         return True
 
@@ -2347,7 +2308,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
                 cancelled_by_creator = interaction.user.id == creator_id
                 thread_id = row.ThreadId
         if not row_found:
-            await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
 
         # DM only if cancelled by admin (not by creator); fall back to thread if DM fails
@@ -2355,16 +2316,16 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
         if not cancelled_by_creator:
             try:
                 creator = await interaction.client.fetch_user(creator_id)
-                await creator.send(_ls(interaction, "cancel.dm_cancel", item=item_name))
+                await creator.send(_ls(interaction, _LS_CANCEL_DM_CANCEL, item=item_name))
             except (discord.Forbidden, discord.NotFound):
                 used_thread = await _thread_fallback(
-                    interaction, self.order_id, _ls(interaction, "cancel.dm_cancel", item=item_name), creator_id
+                    interaction, self.order_id, _ls(interaction, _LS_CANCEL_DM_CANCEL, item=item_name), creator_id
                 )
 
         if used_thread:
             _schedule_thread_cleanup(interaction, self.order_id)
 
-        await interaction.response.edit_message(content=_ls(interaction, "cancel.done"), embed=None, view=None)
+        await interaction.response.edit_message(content=_ls(interaction, _LS_CANCEL_DONE), embed=None, view=None)
         if not used_thread:
             # Delete the Ask thread before the parent message (deleting message first archives the thread)
             if thread_id:
@@ -2420,7 +2381,7 @@ class AskQuestionModal(ui.Modal):
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                await interaction.followup.send(_ls(interaction, "not_found"), ephemeral=True)
+                await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
                 return
 
             item_name = order.ItemName
@@ -2431,7 +2392,7 @@ class AskQuestionModal(ui.Modal):
 
         channel = interaction.guild.get_channel(channel_id)
         if channel is None:
-            await interaction.followup.send(_ls(interaction, "ask.thread_failed"), ephemeral=True)
+            await interaction.followup.send(_ls(interaction, _LS_ASK_THREAD_FAILED), ephemeral=True)
             return
         thread = None
 
@@ -2441,16 +2402,16 @@ class AskQuestionModal(ui.Modal):
         if thread is None:
             try:
                 msg = await channel.fetch_message(message_id)
-                thread = await msg.create_thread(name=_ls(interaction, "ask.thread_name", item=item_name))
+                thread = await msg.create_thread(name=_ls(interaction, _LS_ASK_THREAD_NAME, item=item_name))
                 with interaction.client.session_scope() as session:
                     order = CraftingOrder.get_by_id(self.order_id, session)
                     order.ThreadId = thread.id
             except discord.HTTPException:
-                await interaction.followup.send(_ls(interaction, "ask.thread_failed"), ephemeral=True)
+                await interaction.followup.send(_ls(interaction, _LS_ASK_THREAD_FAILED), ephemeral=True)
                 return
 
         await thread.send(f"**{interaction.user.display_name}:** {self.message_input.value}\n\n<@{creator_id}>")
-        await interaction.followup.send(_ls(interaction, "ask.sent"), ephemeral=True)
+        await interaction.followup.send(_ls(interaction, _LS_ASK_SENT), ephemeral=True)
 
 
 # ---------------------------------------------------------------------------
@@ -2500,7 +2461,7 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
     if thread is None:
         try:
             msg = await channel.fetch_message(message_id)
-            thread = await msg.create_thread(name=_ls(interaction, "ask.thread_name", item=item_name))
+            thread = await msg.create_thread(name=_ls(interaction, _LS_ASK_THREAD_NAME, item=item_name))
             with interaction.client.session_scope() as session:
                 order = CraftingOrder.get_by_id(order_id, session)
                 order.ThreadId = thread.id
