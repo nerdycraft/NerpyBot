@@ -1504,11 +1504,12 @@ class CategoryPickerView(ui.View):
 
         with self.bot.session_scope() as session:
             recipes = self._fetch_fn(category_name, session, profession_ids=self.mapped_prof_ids)
-        if len(recipes) > _DISCORD_SELECT_LIMIT:
+        if len(recipes) > ItemSelectView._PAGE_SIZE:
             log.warning(
-                "Category overflow: category=%r returned %d recipes (>24); paginating",
+                "Category overflow: category=%r returned %d recipes (>%d); paginating",
                 category_name,
                 len(recipes),
+                ItemSelectView._PAGE_SIZE,
             )
 
         view = ItemSelectView(
