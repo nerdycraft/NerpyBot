@@ -300,7 +300,8 @@ async def _update_review_embed(
     elif msg_id in _review_page_cache:
         current_page = _review_page_cache[msg_id][0]
     else:
-        footer_raw = message.embeds[0].footer.text if message.embeds else None
+        embed = message.embeds[0] if message.embeds else None
+        footer_raw = embed.footer.text if embed and embed.footer else None
         current_page = (_parse_page_from_footer(footer_raw if isinstance(footer_raw, str) else "") or (1, 1))[0]
 
     if preloaded is not None:
@@ -1253,7 +1254,8 @@ class ApplicationReviewView(discord.ui.View):
 
         # Recover (page, total_pages) from the embed footer on first click after a restart.
         if msg_id not in _review_page_cache:
-            footer = interaction.message.embeds[0].footer.text if interaction.message.embeds else ""
+            embed = interaction.message.embeds[0] if interaction.message.embeds else None
+            footer = embed.footer.text if embed and embed.footer else ""
             _review_page_cache[msg_id] = _parse_page_from_footer(footer or "") or (1, 1)
 
         current_page, total_pages = _review_page_cache[msg_id]
