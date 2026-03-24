@@ -2118,6 +2118,7 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
         embed = None
         view = None
         with interaction.client.session_scope() as session:
+            order = CraftingOrder.get_by_id(self.order_id, session)
             # Atomic update: only proceeds if status is still 'open', preventing
             # two crafters from both accepting the same order in a race.
             rowcount = session.execute(
@@ -2132,7 +2133,9 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
             if rowcount == 0:
                 not_open = True
             else:
-                order = CraftingOrder.get_by_id(self.order_id, session)
+                order.Status = "in_progress"
+                order.CrafterId = interaction.user.id
+                order.CrafterName = interaction.user.display_name
                 lang = interaction.client.get_guild_language(interaction.guild_id)
                 embed = build_order_embed(order, interaction.guild, lang)
                 view = build_order_view(order.Id, "in_progress", lang)
@@ -2173,6 +2176,7 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
         order_not_found = False
         embed = view = None
         with interaction.client.session_scope() as session:
+            order = CraftingOrder.get_by_id(self.order_id, session)
             conditions = [CraftingOrder.Id == self.order_id, CraftingOrder.Status == "in_progress"]
             if not interaction.user.guild_permissions.administrator:
                 conditions.append(CraftingOrder.CrafterId == interaction.user.id)
@@ -2182,7 +2186,9 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
             if rowcount == 0:
                 order_not_found = True
             else:
-                order = CraftingOrder.get_by_id(self.order_id, session)
+                order.Status = "open"
+                order.CrafterId = None
+                order.CrafterName = None
                 lang = interaction.client.get_guild_language(interaction.guild_id)
                 embed = build_order_embed(order, interaction.guild, lang)
                 view = build_order_view(order.Id, "open", lang)
