@@ -241,7 +241,10 @@ _KEY_MANUAL_MAP_PARTIAL = "wow.craftingorder.manual_map.partial"
 _KEY_PAGE_INFO = "wow.craftingorder.page_info"
 
 # Short keys for _ls() — suffix only (wow.craftingorder. is prepended by _ls at call time).
-# Typos here become NameError at import time instead of a silent English fallback at runtime.
+# Using an undefined constant raises NameError when the calling function executes (not at import
+# time). Typos in constant values (e.g. _LS_NOT_FOUND = "nto_found") surface as missing locale
+# keys at runtime rather than NameError — but all 20 values are present in lang_en.yaml, so
+# locale validation is working. The main benefit is that grep/IDE refactoring finds every usage.
 _LS_NOT_FOUND = "not_found"
 _LS_CREATE_NO_ROLES = "create.no_roles"
 _LS_PROFESSION_SELECT = "profession_select"
@@ -313,7 +316,7 @@ async def _navigate_prof_gear(
     """Shared navigation helper: fetch profession gear subclasses and show ItemSubTypeSelectView."""
     class_id = item_class_ids.get(_VCAT_TO_CLASS_NAME[_VCAT_PROFESSIONS])
     if class_id is None:
-        await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), view=None)
+        await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), embed=None, view=None)
         return
     with ctx.bot.session_scope() as session:
         subclasses = CraftingRecipeCache.get_item_subclasses(
@@ -1068,7 +1071,7 @@ class VirtualCategorySelectView(ui.View):
         elif vcat in (_VCAT_ARMOR, _VCAT_WEAPONS):
             class_id = self.item_class_ids.get(_VCAT_TO_CLASS_NAME[vcat])
             if class_id is None:
-                await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), view=None)
+                await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), embed=None, view=None)
                 return
 
             with self.bot.session_scope() as session:
@@ -1219,7 +1222,7 @@ class PvPGroupSelectView(ui.View):
     async def _on_weapons(self, interaction: Interaction):
         weapon_class_id = self.item_class_ids.get(_VCAT_TO_CLASS_NAME[_VCAT_WEAPONS])
         if weapon_class_id is None:
-            await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), view=None)
+            await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), embed=None, view=None)
             return
         new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, _KEY_WEAPONS_CATEGORY)]
         await _navigate_pvp_weapons(
@@ -1233,7 +1236,7 @@ class PvPGroupSelectView(ui.View):
     async def _on_gear(self, interaction: Interaction):
         armor_class_id = self.item_class_ids.get(_VCAT_TO_CLASS_NAME[_VCAT_ARMOR])
         if armor_class_id is None:
-            await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), view=None)
+            await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), embed=None, view=None)
             return
         new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, _KEY_ARMOR_CATEGORY)]
         await _navigate_pvp_armor(
