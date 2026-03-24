@@ -300,8 +300,8 @@ async def _update_review_embed(
     elif msg_id in _review_page_cache:
         current_page = _review_page_cache[msg_id][0]
     else:
-        footer = message.embeds[0].footer.text if message.embeds else ""
-        current_page = (_parse_page_from_footer(footer or "") or (1, 1))[0]
+        footer_raw = message.embeds[0].footer.text if message.embeds else None
+        current_page = (_parse_page_from_footer(footer_raw if isinstance(footer_raw, str) else "") or (1, 1))[0]
 
     if preloaded is not None:
         preloaded.total_pages = max(1, math.ceil(len(preloaded.answers) / _ANSWERS_PER_PAGE))

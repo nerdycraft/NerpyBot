@@ -125,6 +125,7 @@ def _make_reviewer_interaction(mock_bot, *, is_admin=True, manager_role_id=None,
 
     interaction.message = MagicMock()
     interaction.message.id = message_id
+    interaction.message.embeds = []
     interaction.message.channel = MagicMock()
     interaction.message.channel.id = REVIEW_CHANNEL_ID
     interaction.message.edit = AsyncMock()
