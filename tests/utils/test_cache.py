@@ -408,6 +408,74 @@ class TestLeaveMessages:
         assert cache.is_leave_message_guild(GUILD_ID) is True
 
 
+# ── Leave config primitives (async-split building blocks) ─────────────────────
+
+
+class TestLeaveConfigPrimitives:
+    # ── _load_leave_config_from_db ────────────────────────────────────────────
+
+    def test_load_returns_tuple_when_enabled(self, cache, session_factory, db_session):
+        db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye {member}", Enabled=True))
+        db_session.commit()
+
+        result = cache._load_leave_config_from_db(GUILD_ID, session_factory)
+        assert result == (111, "bye {member}")
+
+    def test_load_returns_none_when_no_row(self, cache, session_factory):
+        result = cache._load_leave_config_from_db(GUILD_ID, session_factory)
+        assert result is None
+
+    def test_load_returns_none_when_disabled(self, cache, session_factory, db_session):
+        db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye", Enabled=False))
+        db_session.commit()
+
+        result = cache._load_leave_config_from_db(GUILD_ID, session_factory)
+        assert result is None
+
+    def test_load_does_not_mutate_cache(self, cache, session_factory, db_session):
+        db_session.add(LeaveMessage(GuildId=GUILD_ID, ChannelId=111, Message="bye", Enabled=True))
+        db_session.commit()
+
+        cache._load_leave_config_from_db(GUILD_ID, session_factory)
+
+        # No cache state must have changed — _leave_configs stays empty
+        assert GUILD_ID not in cache._leave_configs
+        assert cache._leave_warmed is False
+        assert GUILD_ID not in cache._leave_evicted
+
+    # ── apply_leave_config ────────────────────────────────────────────────────
+
+    def test_apply_populates_config(self, cache):
+        cache.apply_leave_config(GUILD_ID, (111, "bye"))
+        assert cache._leave_configs[GUILD_ID] == (111, "bye")
+
+    def test_apply_with_none_removes_entry(self, cache):
+        cache._leave_configs[GUILD_ID] = (111, "bye")
+        cache.apply_leave_config(GUILD_ID, None)
+        assert GUILD_ID not in cache._leave_configs
+
+    @pytest.mark.parametrize("config", [(111, "bye"), None])
+    def test_apply_clears_eviction_sentinel(self, cache, config):
+        cache._leave_evicted.add(GUILD_ID)
+        cache.apply_leave_config(GUILD_ID, config)
+        assert GUILD_ID not in cache._leave_evicted
+
+    # ── mark_leave_config_for_recheck ─────────────────────────────────────────
+
+    def test_mark_evicts_from_configs(self, cache):
+        cache._leave_configs[GUILD_ID] = (111, "bye")
+        cache.mark_leave_config_for_recheck(GUILD_ID)
+        assert GUILD_ID not in cache._leave_configs
+
+    @pytest.mark.parametrize("warmed,expected_in_evicted", [(True, True), (False, False)])
+    def test_mark_respects_warmed_flag(self, cache, warmed, expected_in_evicted):
+        # When unwarmed, evicted set stays empty — is_leave_message_guild returns True
+        # unconditionally in that state, so the sentinel would be redundant.
+        cache._leave_warmed = warmed
+        cache.mark_leave_config_for_recheck(GUILD_ID)
+        assert (GUILD_ID in cache._leave_evicted) == expected_in_evicted
+
+
 # ── Eviction ──────────────────────────────────────────────────────────────────
 
 
