@@ -241,10 +241,7 @@ _KEY_MANUAL_MAP_PARTIAL = "wow.craftingorder.manual_map.partial"
 _KEY_PAGE_INFO = "wow.craftingorder.page_info"
 
 # Short keys for _ls() — suffix only (wow.craftingorder. is prepended by _ls at call time).
-# Using an undefined constant raises NameError when the calling function executes (not at import
-# time). Typos in constant values (e.g. _LS_NOT_FOUND = "nto_found") surface as missing locale
-# keys at runtime rather than NameError — but all 20 values are present in lang_en.yaml, so
-# locale validation is working. The main benefit is that grep/IDE refactoring finds every usage.
+# Typos in values surface as missing locale keys at runtime, not NameError at import.
 _LS_NOT_FOUND = "not_found"
 _LS_CREATE_NO_ROLES = "create.no_roles"
 _LS_PROFESSION_SELECT = "profession_select"
@@ -1405,12 +1402,13 @@ class PvPSubTypeSelectView(ui.View):
             recipes = CraftingRecipeCache.get_pvp_items(
                 RECIPE_TYPE_CRAFTED, self.item_class_id, item_subclass_id, session, profession_ids=self.mapped_prof_ids
             )
-        if len(recipes) > _DISCORD_SELECT_LIMIT:
+        if len(recipes) > ItemSelectView._PAGE_SIZE:
             log.warning(
-                "PvP subtype overflow: class_id=%d subclass_id=%d returned %d recipes (>24); paginating",
+                "PvP subtype overflow: class_id=%d subclass_id=%d returned %d recipes (>%d); paginating",
                 self.item_class_id,
                 item_subclass_id,
                 len(recipes),
+                ItemSelectView._PAGE_SIZE,
             )
 
         view = ItemSelectView(
