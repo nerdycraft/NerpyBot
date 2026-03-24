@@ -4,8 +4,11 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from discord import HTTPException, Object
+from discord.app_commands import MissingApplicationID
 from models.admin import PermissionSubscriber
 from modules.operator import Operator, _format_remaining
+from utils.errors import NerpyInfraException
 from utils.strings import load_strings
 
 
@@ -359,6 +362,85 @@ class TestErrorsUnknownAction:
         await cog._errors.callback(cog, operator_ctx, action="foobar")
         msg = operator_ctx.send.call_args[0][0]
         assert "Unknown action" in msg
+
+
+# ---------------------------------------------------------------------------
+# !sync (multi-guild path)
+# ---------------------------------------------------------------------------
+
+
+class TestSyncGuilds:
+    def _make_guilds(self, *ids):
+        return [Object(id=i) for i in ids]
+
+    @pytest.mark.asyncio
+    async def test_all_guilds_succeed(self, cog, operator_ctx):
+        cog.bot.tree.sync = AsyncMock(return_value=[])
+        guilds = self._make_guilds(1, 2, 3)
+
+        await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
+
+        msg = operator_ctx.send.call_args[0][0]
+        assert "3/3" in msg
+
+    @pytest.mark.asyncio
+    async def test_partial_failure_http_exception(self, cog, operator_ctx):
+        http_err = HTTPException(MagicMock(status=429), "rate limited")
+
+        async def side_effect(guild):
+            if guild.id == 2:
+                raise http_err
+            return []
+
+        cog.bot.tree.sync = side_effect
+        guilds = self._make_guilds(1, 2, 3)
+
+        await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
+
+        msg = operator_ctx.send.call_args[0][0]
+        assert "2/3" in msg
+
+    @pytest.mark.asyncio
+    async def test_hard_error_raises_infra_exception_after_all_complete(self, cog, operator_ctx):
+        sync_calls = []
+
+        async def side_effect(guild):
+            sync_calls.append(guild)
+            if guild.id == 2:
+                raise MissingApplicationID("boom")
+            return []
+
+        cog.bot.tree.sync = side_effect
+        guilds = self._make_guilds(1, 2, 3)
+
+        with pytest.raises(NerpyInfraException):
+            await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
+
+        # All three guilds must have been attempted before the exception propagated
+        assert len(sync_calls) == 3
+
+    @pytest.mark.asyncio
+    async def test_unexpected_exception_raises_infra_exception(self, cog, operator_ctx):
+        async def side_effect(guild):
+            if guild.id == 2:
+                raise RuntimeError("unexpected")
+            return []
+
+        cog.bot.tree.sync = side_effect
+        guilds = self._make_guilds(1, 2, 3)
+
+        with pytest.raises(NerpyInfraException):
+            await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
+
+    @pytest.mark.asyncio
+    async def test_single_guild_succeeds(self, cog, operator_ctx):
+        cog.bot.tree.sync = AsyncMock(return_value=[])
+        guilds = self._make_guilds(42)
+
+        await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
+
+        msg = operator_ctx.send.call_args[0][0]
+        assert "1/1" in msg
 
 
 # ---------------------------------------------------------------------------
