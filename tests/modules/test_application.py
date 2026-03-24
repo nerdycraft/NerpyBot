@@ -1748,14 +1748,20 @@ class TestReviewerRoleCommands:
 
 
 class TestAutocomplete:
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        load_strings()
+
     @pytest.mark.asyncio
     async def test_form_name_autocomplete_returns_matching(self, app_cog, admin_interaction, db_session):
-        _make_form(db_session, guild_id=admin_interaction.guild.id, name="Alpha")
+        form = _make_form(db_session, guild_id=admin_interaction.guild.id, name="Alpha")
         _make_form(db_session, guild_id=admin_interaction.guild.id, name="Beta")
 
         results = await app_cog._form_name_autocomplete(admin_interaction, "alp")
         assert len(results) == 1
-        assert results[0].value == "Alpha"
+        # value is now the stable numeric ID; name carries the display label
+        assert results[0].value == str(form.Id)
+        assert results[0].name == "Alpha"
 
     @pytest.mark.asyncio
     async def test_form_name_autocomplete_returns_all_when_empty(self, app_cog, admin_interaction, db_session):
@@ -1771,8 +1777,11 @@ class TestAutocomplete:
         db_session.commit()
 
         results = await app_cog._template_autocomplete(admin_interaction, "")
-        names = [r.value for r in results]
-        assert "Guild Membership" in names
+        # value is now the stable numeric ID; name carries the display label
+        display_names = [r.name for r in results]
+        assert any("Guild Membership" in n for n in display_names)
+        # All values must be parseable as integers
+        assert all(r.value.isdigit() for r in results)
 
     @pytest.mark.asyncio
     async def test_guild_template_autocomplete_excludes_builtin(self, app_cog, admin_interaction, db_session):
@@ -1782,6 +1791,9 @@ class TestAutocomplete:
         db_session.commit()
 
         results = await app_cog._guild_template_autocomplete(admin_interaction, "")
-        names = [r.value for r in results]
-        assert "Custom" in names
-        assert "Guild Membership" not in names
+        # value is now the stable numeric ID; name carries the display label
+        display_names = [r.name for r in results]
+        assert "Custom" in display_names
+        assert "Guild Membership" not in display_names
+        # All values must be parseable as integers
+        assert all(r.value.isdigit() for r in results)

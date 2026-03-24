@@ -29,7 +29,7 @@ from modules.conversations.application import (
 from modules.views.application import check_override_permission
 from sqlalchemy.exc import SQLAlchemyError
 from utils.cache import (
-    build_name_choices,
+    build_id_choices,
     cached_autocomplete,
     invalidate_autocomplete,
     invalidate_autocomplete_app_templates,
@@ -78,9 +78,9 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         def _fetch():
             with self.bot.session_scope() as session:
-                return [f.Name for f in ApplicationForm.get_all_by_guild(guild_id, session)]
+                return [(f.Id, f.Name) for f in ApplicationForm.get_all_by_guild(guild_id, session)]
 
-        return build_name_choices(await cached_autocomplete(("app_forms", guild_id), _fetch), current)
+        return build_id_choices(await cached_autocomplete(("app_forms", guild_id), _fetch), current)
 
     async def _template_autocomplete(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
         lang = self._lang(interaction.guild_id)
@@ -88,28 +88,29 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         def _fetch():
             with self.bot.session_scope() as session:
-                return [(tpl.Name, tpl.IsBuiltIn) for tpl in ApplicationTemplate.get_available(guild_id, session)]
+                return [
+                    (tpl.Id, tpl.Name, tpl.IsBuiltIn) for tpl in ApplicationTemplate.get_available(guild_id, session)
+                ]
 
         templates = await cached_autocomplete(("app_templates", guild_id), _fetch)
+        prefix_builtin = get_string(lang, "application.template.list.prefix_builtin")
+        lower_current = current.lower()
         choices = []
-        for name, is_built_in in templates:
+        for tpl_id, name, is_built_in in templates:
+            localized_name = name
             if is_built_in:
                 yaml_key = TEMPLATE_KEY_MAP.get(name)
                 if yaml_key:
                     try:
                         localized_name = get_raw(lang, f"application.builtin_templates.{yaml_key}.name")
                     except KeyError:
-                        localized_name = name
-                else:
-                    localized_name = name
-                prefix = get_string(lang, "application.template.list.prefix_builtin")
-                label = f"{prefix} {localized_name}"
+                        pass
+                label = f"{prefix_builtin} {localized_name}"
             else:
-                localized_name = name
                 label = name
-            if current and current.lower() not in localized_name.lower():
+            if current and lower_current not in localized_name.lower():
                 continue
-            choices.append(app_commands.Choice(name=label[:100], value=name[:100]))
+            choices.append(app_commands.Choice(name=label[:100], value=str(tpl_id)))
         return choices[:25]
 
     async def _guild_template_autocomplete(
@@ -119,9 +120,9 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         def _fetch():
             with self.bot.session_scope() as session:
-                return [t.Name for t in ApplicationTemplate.get_guild_templates(guild_id, session)]
+                return [(t.Id, t.Name) for t in ApplicationTemplate.get_guild_templates(guild_id, session)]
 
-        return build_name_choices(await cached_autocomplete(("app_guild_templates", guild_id), _fetch), current)
+        return build_id_choices(await cached_autocomplete(("app_guild_templates", guild_id), _fetch), current)
 
     # -- Permission helper ---------------------------------------------------
 
@@ -163,12 +164,43 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         await self._start_dm_conversation(interaction, conv, lang)
 
     @staticmethod
+    def _resolve_form(value: str, guild_id: int, session) -> "ApplicationForm | None":
+        """Resolve a form from an autocomplete value (str ID) or a manually typed name.
+
+        Autocomplete choices use ``str(form.Id)`` as the value so that long names are
+        not silently truncated.  Manual input (plain text) falls back to a name lookup
+        for backwards-compatibility.
+        """
+        try:
+            form = ApplicationForm.get_by_id(int(value), session)
+            if form is not None:
+                if form.GuildId != guild_id:
+                    return None
+                return form
+            return ApplicationForm.get(value, guild_id, session)
+        except ValueError:
+            return ApplicationForm.get(value, guild_id, session)
+
+    @staticmethod
+    def _resolve_template(value: str, guild_id: int, session) -> "ApplicationTemplate | None":
+        """Resolve a template from an autocomplete value (str ID) or a manually typed name."""
+        try:
+            tpl = ApplicationTemplate.get_by_id(int(value), session)
+            if tpl is not None:
+                if tpl.GuildId is not None and tpl.GuildId != guild_id:
+                    return None
+                return tpl
+            return ApplicationTemplate.get_by_name(value, guild_id, session)
+        except ValueError:
+            return ApplicationTemplate.get_by_name(value, guild_id, session)
+
+    @staticmethod
     async def _get_form_or_respond(
         interaction: Interaction, name: str, session
     ) -> tuple[str, "ApplicationForm"] | None:
-        """Look up a form by name; returns (lang, form) or sends an error and returns None."""
+        """Look up a form by autocomplete value or name; returns (lang, form) or sends an error."""
         lang = interaction.client.get_guild_language(interaction.guild_id)
-        form = ApplicationForm.get(name, interaction.guild.id, session)
+        form = Application._resolve_form(name, interaction.guild.id, session)
         if not form:
             await interaction.response.send_message(
                 get_string(lang, "application.form_not_found", name=name), ephemeral=True
@@ -244,7 +276,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         changes = []
 
         with self.bot.session_scope() as session:
-            form = ApplicationForm.get(name, interaction.guild.id, session)
+            form = self._resolve_form(name, interaction.guild.id, session)
             if not form:
                 msg = get_string(lang, "application.form_not_found", name=name)
             else:
@@ -283,7 +315,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             await send_hidden_message(interaction, msg)
             return
 
-        msg = get_string(lang, "application.settings.success", name=name, changes=", ".join(changes))
+        msg = get_string(lang, "application.settings.success", name=form.Name, changes=", ".join(changes))
         await send_hidden_message(interaction, msg)
 
         if repost_apply:
@@ -391,7 +423,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         invalidate_autocomplete(("app_forms", interaction.guild.id))
         await interaction.response.send_message(
-            get_string(lang, "application.delete.success", name=name), ephemeral=True
+            get_string(lang, "application.delete.success", name=form.Name), ephemeral=True
         )
 
         if apply_channel_id and apply_message_id:
@@ -511,7 +543,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         # If edit-description flag is set and no description yet → show modal
         if edit_description and description is None:
             with self.bot.session_scope() as session:
-                form = ApplicationForm.get(name, interaction.guild.id, session)
+                form = self._resolve_form(name, interaction.guild.id, session)
                 if not form:
                     await interaction.response.send_message(
                         get_string(lang, "application.form_not_found", name=name), ephemeral=True
@@ -612,7 +644,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             return
 
         with self.bot.session_scope() as session:
-            tpl = ApplicationTemplate.get_by_name(name, interaction.guild.id, session)
+            tpl = self._resolve_template(name, interaction.guild.id, session)
             if not tpl:
                 await interaction.response.send_message(
                     get_string(lang, "application.template.not_found", name=name), ephemeral=True
@@ -714,7 +746,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         lang, prefill_description = result
 
         with self.bot.session_scope() as session:
-            tpl = ApplicationTemplate.get_by_name(template, interaction.guild.id, session)
+            tpl = self._resolve_template(template, interaction.guild.id, session)
             if not tpl:
                 await interaction.response.send_message(
                     get_string(lang, "application.template.not_found", name=template), ephemeral=True
@@ -742,7 +774,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             form_id = None
             with bot.session_scope() as db_session:
                 # Re-query template (session closed after permission checks above)
-                tmpl = ApplicationTemplate.get_by_name(template, guild_id, db_session)
+                tmpl = Application._resolve_template(template, guild_id, db_session)
 
                 # Resolve questions: for built-in templates, use localized YAML questions
                 questions = None
@@ -791,7 +823,10 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
             invalidate_autocomplete(("app_forms", guild_id))
             await modal_interaction.response.send_message(
-                get_string(lang, "application.template.use.success", name=name, template=template), ephemeral=True
+                get_string(
+                    lang, "application.template.use.success", name=name, template=tmpl.Name if tmpl else template
+                ),
+                ephemeral=True,
             )
 
             if apply_channel_id and form_id:
@@ -825,7 +860,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             return
 
         with self.bot.session_scope() as session:
-            src_form = ApplicationForm.get(form, interaction.guild.id, session)
+            src_form = self._resolve_form(form, interaction.guild.id, session)
             if not src_form:
                 await interaction.response.send_message(
                     get_string(lang, "application.form_not_found", name=form), ephemeral=True
@@ -856,7 +891,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         invalidate_autocomplete_app_templates(interaction.guild.id)
         await interaction.response.send_message(
-            get_string(lang, "application.template.save.success", template_name=template_name, form=form),
+            get_string(lang, "application.template.save.success", template_name=template_name, form=src_form.Name),
             ephemeral=True,
         )
 
@@ -873,7 +908,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             return
 
         with self.bot.session_scope() as session:
-            tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
+            tpl = self._resolve_template(template_name, interaction.guild.id, session)
             if not tpl:
                 await interaction.response.send_message(
                     get_string(lang, "application.template.not_found", name=template_name), ephemeral=True
@@ -888,7 +923,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         invalidate_autocomplete_app_templates(interaction.guild.id)
         await interaction.response.send_message(
-            get_string(lang, "application.template.delete.success", name=template_name), ephemeral=True
+            get_string(lang, "application.template.delete.success", name=tpl.Name), ephemeral=True
         )
 
     # -- /application template edit-messages ---------------------------------
@@ -906,7 +941,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         msg = None
 
         with self.bot.session_scope() as session:
-            tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
+            tpl = self._resolve_template(template_name, interaction.guild.id, session)
             if not tpl:
                 msg = get_string(lang, "application.template.not_found", name=template_name)
             elif tpl.IsBuiltIn:
@@ -927,7 +962,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             msg = get_string(lang, "application.template.edit_messages.nothing_to_update")
         else:
             msg = get_string(
-                lang, "application.template.edit_messages.success", name=template_name, changes=", ".join(changes)
+                lang, "application.template.edit_messages.success", name=tpl.Name, changes=", ".join(changes)
             )
 
         await send_hidden_message(interaction, msg)
@@ -994,7 +1029,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         # When no text provided at all → open modal pre-filled with current values
         if approval_message is None and denial_message is None:
             with self.bot.session_scope() as session:
-                tpl = ApplicationTemplate.get_by_name(template_name, interaction.guild.id, session)
+                tpl = self._resolve_template(template_name, interaction.guild.id, session)
                 if not tpl:
                     await interaction.response.send_message(
                         get_string(lang, "application.template.not_found", name=template_name), ephemeral=True
@@ -1027,7 +1062,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             return
 
         with self.bot.session_scope() as session:
-            form = ApplicationForm.get(name, interaction.guild.id, session)
+            form = self._resolve_form(name, interaction.guild.id, session)
             if not form:
                 await interaction.response.send_message(
                     get_string(lang, "application.form_not_found", name=name), ephemeral=True
@@ -1044,7 +1079,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             }
 
         data = json.dumps(form_dict, indent=2)
-        file = discord.File(io.BytesIO(data.encode()), filename=f"{name}.json")
+        file = discord.File(io.BytesIO(data.encode()), filename=f"{form.Name}.json")
 
         await interaction.response.send_message(get_string(lang, "application.check_dms"), ephemeral=True)
 

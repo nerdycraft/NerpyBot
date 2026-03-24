@@ -7,6 +7,7 @@ Three conversation subclasses:
 - ApplicationSubmitConversation — user answers a form's questions to submit an application
 """
 
+import math
 from datetime import datetime, timezone
 from enum import Enum
 from functools import partial
@@ -24,7 +25,13 @@ from models.application import (
     ApplicationTemplateQuestion,
     SubmissionStatus,
 )
-from modules.views.application import ApplicationReviewView, build_review_embed
+from modules.views.application import (
+    _ANSWERS_PER_PAGE,
+    _extract_answers,
+    _normalize_review_view,
+    ApplicationReviewView,
+    build_review_embed,
+)
 from utils.cache import invalidate_autocomplete, invalidate_autocomplete_app_templates
 from utils.conversation import Conversation
 from utils.strings import get_string
@@ -772,9 +779,10 @@ class ApplicationSubmitConversation(Conversation):
             description=description,
         )
 
+        limit_hint = get_string(self.lang, f"{_c}.answer_limit_hint")
         if self._editing:
             next_state = SubmitState.CONFIRM
-            emb.set_footer(text=get_string(self.lang, f"{_c}.question_footer_editing"))
+            nav = get_string(self.lang, f"{_c}.question_footer_editing")
             reactions = {BACK_EMOJI: SubmitState.CONFIRM, LEAVE_EMOJI: SubmitState.CANCELLED}
         else:
             next_state = f"question_{index + 1}" if index + 1 < total else SubmitState.CONFIRM
@@ -782,10 +790,11 @@ class ApplicationSubmitConversation(Conversation):
             if index > 0:
                 reactions[BACK_EMOJI] = f"question_{index - 1}"
                 reactions[RESET_EMOJI] = SubmitState.RESET
-                emb.set_footer(text=get_string(self.lang, f"{_c}.question_footer_restart"))
+                nav = get_string(self.lang, f"{_c}.question_footer_restart")
             else:
-                emb.set_footer(text=get_string(self.lang, f"{_c}.question_footer_leave"))
+                nav = get_string(self.lang, f"{_c}.question_footer_leave")
             reactions[LEAVE_EMOJI] = SubmitState.CANCELLED
+        emb.set_footer(text=f"{nav}  |  {limit_hint}")
 
         await self.send_both(emb, next_state, self._handle_answer, reactions)
 
@@ -901,7 +910,9 @@ class ApplicationSubmitConversation(Conversation):
                 submission = ApplicationSubmission.get_by_id(self.submission_id, session)
                 form = ApplicationForm.get_by_id(self.form_id, session)
                 lang = self.lang
-                embed = build_review_embed(submission, form, session, lang)
+                all_answers = _extract_answers(submission.answers)
+                total_pages = max(1, math.ceil(len(all_answers) / _ANSWERS_PER_PAGE))
+                embed = build_review_embed(submission, form, session, lang, answers=all_answers)
                 # Collect role IDs to mention: non-managed admin roles + all configured manager/reviewer roles
                 mention_ids: set[int] = {
                     r.id for r in self.guild.roles if r.permissions.administrator and not r.managed
@@ -914,6 +925,13 @@ class ApplicationSubmitConversation(Conversation):
                 submission_user_name = submission.UserName
 
             view = ApplicationReviewView(bot=self.bot, lang=self.lang)
+            _normalize_review_view(
+                view,
+                total_pages=total_pages,
+                current_page=1,
+                status=SubmissionStatus.PENDING,
+                applicant_notified=False,
+            )
             mention_content = " ".join(f"<@&{rid}>" for rid in sorted(mention_ids)) or None
 
             msg = await channel.send(embed=embed, view=view)

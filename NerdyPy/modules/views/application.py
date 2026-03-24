@@ -1,18 +1,21 @@
 # -*- coding: utf-8 -*-
 """Persistent discord.ui views and modals for the application review system.
 
-ApplicationReviewView — four-button view (Vote / Edit Vote / Message / Override) attached to
-review embeds in the review channel.  Uses ``timeout=None`` and fixed ``custom_id``
-strings so the view survives bot restarts.
+ApplicationReviewView — six-button persistent view (◀ / ▶ / Vote / Edit Vote / Message / Override)
+attached to review embeds in the review channel.  Uses ``timeout=None`` and fixed ``custom_id``
+strings so the view survives bot restarts.  ◀/▶ are hidden when the form has ≤23 answers.
 
 ApplicationApplyView — single-button persistent view ("Apply") posted in a public channel.
 Clicking it starts the same DM conversation as ``/apply``.
 """
 
-from dataclasses import dataclass
+import math
+import re
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 import discord
+from cachetools import LRUCache
 from sqlalchemy.exc import IntegrityError
 
 from models.application import (
@@ -24,6 +27,66 @@ from models.application import (
     VoteType,
 )
 from utils.strings import get_string
+
+# Discord enforces a hard 25-field limit per embed.  Two fields are fixed (applicant +
+# submitted_at), leaving 23 slots for answers.
+_ANSWERS_PER_PAGE = 23
+
+# Runtime cache: maps review message_id → (current_page, total_pages), both 1-based.
+# Populated on first ◀/▶ click; cleared on bot restart (harmless — full state is
+# recovered from the embed footer regex on the next click).  Bounded to 1 000 entries
+# so long-running bots don't accumulate stale entries indefinitely.
+_review_page_cache: LRUCache = LRUCache(maxsize=1000)
+
+# Regex used to recover pagination state from an embed footer after a bot restart.
+# Locale-agnostic: matches the numeric X/Y part regardless of surrounding text.
+_PAGE_RE = re.compile(r"(\d+)/(\d+)")
+
+
+def _parse_page_from_footer(footer: str) -> tuple[int, int] | None:
+    # The footer contains multiple X/Y patterns (approvals, denials, then page).
+    # Page info is always last — take the final match.
+    matches = _PAGE_RE.findall(footer)
+    return (int(matches[-1][0]), int(matches[-1][1])) if matches else None
+
+
+# Button custom_id constants — shared by decorators, __init__ label lookup, and _update_review_embed.
+_BTN_VOTE = "app_review_vote"
+_BTN_EDIT_VOTE = "app_review_edit_vote"
+_BTN_MESSAGE = "app_review_message"
+_BTN_OVERRIDE = "app_review_override"
+_BTN_PREV = "app_review_prev"
+_BTN_NEXT = "app_review_next"
+_BTN_APPLY = "app_apply_button"
+
+
+def _normalize_review_view(
+    view: "ApplicationReviewView",
+    *,
+    total_pages: int,
+    current_page: int,
+    status: "SubmissionStatus",
+    applicant_notified: bool,
+) -> None:
+    """Mutate *view* in-place: remove/disable buttons based on pagination and submission state.
+
+    Called on both the initial embed send and every subsequent re-render so that first
+    render and re-render are always in sync.
+    """
+    for item in list(view.children):
+        cid = item.custom_id
+        if total_pages <= 1 and cid in (_BTN_PREV, _BTN_NEXT):
+            view.remove_item(item)
+        elif cid == _BTN_OVERRIDE:
+            item.disabled = status == SubmissionStatus.PENDING
+        elif cid == _BTN_MESSAGE:
+            item.disabled = applicant_notified
+        elif cid == _BTN_PREV:
+            item.disabled = current_page <= 1
+        elif cid == _BTN_NEXT:
+            item.disabled = current_page >= total_pages
+        else:
+            item.disabled = status != SubmissionStatus.PENDING
 
 
 # ---------------------------------------------------------------------------
@@ -58,6 +121,8 @@ class _ReviewEmbedData:
     approve_count: int
     deny_count: int
     answers: list[tuple[str, str | None]]
+    page: int = field(default=1)
+    total_pages: int = field(default=1)
 
 
 @dataclass
@@ -110,8 +175,23 @@ def check_override_permission(interaction: discord.Interaction, bot) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def build_review_embed(submission, form, session, lang: str = "en") -> discord.Embed:
-    """Build the review embed shown in the review channel for a submission."""
+def build_review_embed(
+    submission,
+    form,
+    session,
+    lang: str = "en",
+    page: int = 1,
+    *,
+    answers: "list[tuple[str, str | None]] | None" = None,
+) -> discord.Embed:
+    """Build the review embed shown in the review channel for a submission.
+
+    Pass pre-extracted *answers* to skip the internal ``_extract_answers`` call
+    when the caller already has the list (avoids a second traversal).
+    """
+    all_answers = answers if answers is not None else _extract_answers(submission.answers)
+    total_pages = max(1, math.ceil(len(all_answers) / _ANSWERS_PER_PAGE))
+    page = max(1, min(page, total_pages))
     return _build_review_embed_from_data(
         _ReviewEmbedData(
             user_id=submission.UserId,
@@ -125,13 +205,20 @@ def build_review_embed(submission, form, session, lang: str = "en") -> discord.E
             lang=lang,
             approve_count=sum(1 for v in submission.votes if v.Vote == VoteType.APPROVE),
             deny_count=sum(1 for v in submission.votes if v.Vote == VoteType.DENY),
-            answers=_extract_answers(submission.answers),
+            answers=all_answers,
+            page=page,
+            total_pages=total_pages,
         )
     )
 
 
 def _build_review_embed_from_data(data: "_ReviewEmbedData") -> discord.Embed:
-    """Build the review embed from pre-extracted scalar data (no DB session needed)."""
+    """Build the review embed from pre-extracted scalar data (no DB session needed).
+
+    Renders only the answers for the current page (up to ``_ANSWERS_PER_PAGE`` per page).
+    Answer values that exceed Discord's 1024-character field limit are truncated with ``…``.
+    When the form spans multiple pages, the footer includes the current page indicator.
+    """
     embed = discord.Embed(title=f"\U0001f4cb {data.form_name}", colour=_status_colour(data.status))
     embed.add_field(
         name=get_string(data.lang, "application.review.applicant"),
@@ -146,23 +233,31 @@ def _build_review_embed_from_data(data: "_ReviewEmbedData") -> discord.Embed:
         value=discord.utils.format_dt(submitted_at, style="R"),
         inline=True,
     )
-    for label, answer_text in data.answers:
-        embed.add_field(
-            name=label,
-            value=answer_text or get_string(data.lang, "application.review.no_answer"),
-            inline=False,
-        )
-    embed.set_footer(
-        text=get_string(
-            data.lang,
-            "application.review.footer",
-            status=data.status.capitalize(),
-            approvals=data.approve_count,
-            required_approvals=data.required_approvals,
-            denials=data.deny_count,
-            required_denials=data.required_denials,
-        )
+
+    offset = (data.page - 1) * _ANSWERS_PER_PAGE
+    page_answers = data.answers[offset : offset + _ANSWERS_PER_PAGE]
+    no_answer = get_string(data.lang, "application.review.no_answer")
+    for label, answer_text in page_answers:
+        if len(label) > 256:
+            label = label[:255] + "…"
+        value = answer_text or no_answer
+        if len(value) > 1024:
+            value = value[:1023] + "…"
+        embed.add_field(name=label, value=value, inline=False)
+
+    footer_text = get_string(
+        data.lang,
+        "application.review.footer",
+        status=data.status.capitalize(),
+        approvals=data.approve_count,
+        required_approvals=data.required_approvals,
+        denials=data.deny_count,
+        required_denials=data.required_denials,
     )
+    if data.total_pages > 1:
+        page_info = get_string(data.lang, "application.review.page_info", page=data.page, total=data.total_pages)
+        footer_text = f"{footer_text}  |  {page_info}"
+    embed.set_footer(text=footer_text)
     return embed
 
 
@@ -173,6 +268,7 @@ async def _update_review_embed(
     review_channel_id: int | None = None,
     review_message_id: int | None = None,
     preloaded: "_ReviewEmbedData | None" = None,
+    page: int | None = None,
 ):
     """Rebuild and edit the review embed with current vote counts.
 
@@ -184,6 +280,7 @@ async def _update_review_embed(
     If the submission is no longer pending, all buttons are disabled.
 
     Pass ``preloaded`` to skip the database lookup entirely (used by bulk language-refresh).
+    Pass ``page`` to show a specific page of answers; defaults to 1.
     """
     # Resolve the review message
     if interaction is not None and interaction.message is not None:
@@ -198,11 +295,23 @@ async def _update_review_embed(
     else:
         raise ValueError("Either interaction (with .message) or review_channel_id+review_message_id must be provided")
 
+    if page is not None:
+        current_page = page
+    elif msg_id in _review_page_cache:
+        current_page = _review_page_cache[msg_id][0]
+    else:
+        embed = message.embeds[0] if message.embeds else None
+        footer_raw = embed.footer.text if embed and embed.footer else None
+        current_page = (_parse_page_from_footer(footer_raw if isinstance(footer_raw, str) else "") or (1, 1))[0]
+
     if preloaded is not None:
+        preloaded.total_pages = max(1, math.ceil(len(preloaded.answers) / _ANSWERS_PER_PAGE))
+        preloaded.page = max(1, min(current_page, preloaded.total_pages))
         embed = _build_review_embed_from_data(preloaded)
         status = preloaded.status
         applicant_notified = preloaded.applicant_notified
         lang = preloaded.lang
+        total_pages = preloaded.total_pages
     else:
         with bot.session_scope() as session:
             submission = ApplicationSubmission.get_by_review_message(msg_id, session)
@@ -211,19 +320,21 @@ async def _update_review_embed(
                 return
             form = ApplicationForm.get_by_id(submission.FormId, session)
             lang = bot.get_guild_language(submission.GuildId)
-            embed = build_review_embed(submission, form, session, lang)
+            all_answers = _extract_answers(submission.answers)
+            total_pages = max(1, math.ceil(len(all_answers) / _ANSWERS_PER_PAGE))
+            current_page = max(1, min(current_page, total_pages))
+            embed = build_review_embed(submission, form, session, lang, page=current_page, answers=all_answers)
             status = submission.Status
             applicant_notified = submission.ApplicantNotified
 
     view = ApplicationReviewView(bot=bot, lang=lang)
-    for item in view.children:
-        if item.custom_id == "app_review_override":
-            item.disabled = status == SubmissionStatus.PENDING
-        elif item.custom_id == "app_review_message":
-            item.disabled = applicant_notified
-        else:
-            item.disabled = status != SubmissionStatus.PENDING
-
+    _normalize_review_view(
+        view,
+        total_pages=total_pages,
+        current_page=current_page,
+        status=status,
+        applicant_notified=applicant_notified,
+    )
     await message.edit(embed=embed, view=view)
 
 
@@ -944,23 +1055,28 @@ class OverrideModal(discord.ui.Modal):
 
 
 class ApplicationReviewView(discord.ui.View):
-    """Four-button persistent view attached to every review embed (Vote, Edit Vote, Message, Override).
+    """Six-button persistent view attached to every review embed (◀ / ▶ / Vote / Edit Vote / Message / Override).
 
     One view instance (registered in ``setup_hook``) handles ALL review embeds
     across all guilds — the submission is looked up via ``interaction.message.id``.
+
+    ◀/▶ (row 1) are hidden when the form has ≤23 answers and disabled at page
+    boundaries.  ``_update_review_embed`` handles both via ``remove_item`` /
+    per-item ``disabled`` assignment on each fresh view instance.
     """
 
     def __init__(self, bot=None, lang: str = "en"):
         super().__init__(timeout=None)  # persistent — survives bot restarts
         self.bot = bot
+        # _BTN_PREV and _BTN_NEXT use emoji (◀/▶) and need no label localization.
         for item in self.children:
-            if item.custom_id == "app_review_vote":
+            if item.custom_id == _BTN_VOTE:
                 item.label = get_string(lang, "application.review.btn_vote")
-            elif item.custom_id == "app_review_edit_vote":
+            elif item.custom_id == _BTN_EDIT_VOTE:
                 item.label = get_string(lang, "application.review.btn_edit_vote")
-            elif item.custom_id == "app_review_message":
+            elif item.custom_id == _BTN_MESSAGE:
                 item.label = get_string(lang, "application.review.btn_message")
-            elif item.custom_id == "app_review_override":
+            elif item.custom_id == _BTN_OVERRIDE:
                 item.label = get_string(lang, "application.review.btn_override")
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
@@ -977,7 +1093,7 @@ class ApplicationReviewView(discord.ui.View):
 
     # -- Vote --------------------------------------------------------------
 
-    @discord.ui.button(label="Vote", style=discord.ButtonStyle.primary, custom_id="app_review_vote")
+    @discord.ui.button(label="Vote", style=discord.ButtonStyle.primary, custom_id=_BTN_VOTE)
     async def vote(self, interaction: discord.Interaction, button: discord.ui.Button):
         with self.bot.session_scope() as session:
             result = await _validate_review_interaction(self.bot, interaction, session)
@@ -1007,7 +1123,7 @@ class ApplicationReviewView(discord.ui.View):
 
     # -- Edit Vote ---------------------------------------------------------
 
-    @discord.ui.button(label="Edit Vote", style=discord.ButtonStyle.secondary, custom_id="app_review_edit_vote")
+    @discord.ui.button(label="Edit Vote", style=discord.ButtonStyle.secondary, custom_id=_BTN_EDIT_VOTE)
     async def edit_vote(self, interaction: discord.Interaction, button: discord.ui.Button):
         with self.bot.session_scope() as session:
             result = await _validate_review_interaction(self.bot, interaction, session)
@@ -1039,7 +1155,7 @@ class ApplicationReviewView(discord.ui.View):
 
     # -- Message -----------------------------------------------------------
 
-    @discord.ui.button(label="Message", style=discord.ButtonStyle.grey, custom_id="app_review_message")
+    @discord.ui.button(label="Message", style=discord.ButtonStyle.grey, custom_id=_BTN_MESSAGE)
     async def message_applicant(self, interaction: discord.Interaction, button: discord.ui.Button):
         lang = self.bot.get_guild_language(interaction.guild_id)
         if not check_application_permission(interaction, self.bot):
@@ -1085,7 +1201,7 @@ class ApplicationReviewView(discord.ui.View):
 
     # -- Override ----------------------------------------------------------
 
-    @discord.ui.button(label="Override", style=discord.ButtonStyle.danger, custom_id="app_review_override")
+    @discord.ui.button(label="Override", style=discord.ButtonStyle.danger, custom_id=_BTN_OVERRIDE)
     async def override(self, interaction: discord.Interaction, button: discord.ui.Button):
         lang = self.bot.get_guild_language(interaction.guild_id)
         if not check_override_permission(interaction, self.bot):
@@ -1121,6 +1237,37 @@ class ApplicationReviewView(discord.ui.View):
                 lang=lang,
             )
         )
+
+    # -- Pagination --------------------------------------------------------
+
+    @discord.ui.button(emoji="◀", style=discord.ButtonStyle.secondary, custom_id=_BTN_PREV, row=1)
+    async def page_prev(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._navigate(interaction, delta=-1)
+
+    @discord.ui.button(emoji="▶", style=discord.ButtonStyle.secondary, custom_id=_BTN_NEXT, row=1)
+    async def page_next(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._navigate(interaction, delta=1)
+
+    async def _navigate(self, interaction: discord.Interaction, delta: int) -> None:
+        """Shared handler for ◀/▶: advance the page by ``delta`` and re-render the embed."""
+        msg_id = interaction.message.id
+
+        # Recover (page, total_pages) from the embed footer on first click after a restart.
+        if msg_id not in _review_page_cache:
+            embed = interaction.message.embeds[0] if interaction.message.embeds else None
+            footer = embed.footer.text if embed and embed.footer else ""
+            _review_page_cache[msg_id] = _parse_page_from_footer(footer or "") or (1, 1)
+
+        current_page, total_pages = _review_page_cache[msg_id]
+        new_page = current_page + delta
+
+        if new_page < 1 or new_page > total_pages:
+            await interaction.response.defer()
+            return
+
+        _review_page_cache[msg_id] = (new_page, total_pages)
+        await interaction.response.defer()
+        await _update_review_embed(self.bot, interaction=interaction, page=new_page)
 
 
 # ---------------------------------------------------------------------------
@@ -1264,7 +1411,7 @@ class ApplicationApplyView(discord.ui.View):
         else:
             await interaction.followup.send(msg, ephemeral=True)
 
-    @discord.ui.button(label="Apply", style=discord.ButtonStyle.green, custom_id="app_apply_button")
+    @discord.ui.button(label="Apply", style=discord.ButtonStyle.green, custom_id=_BTN_APPLY)
     async def apply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         # 1. Look up form via apply message ID
         lang = self.bot.get_guild_language(interaction.guild_id)
