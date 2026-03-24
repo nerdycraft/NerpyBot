@@ -1601,24 +1601,23 @@ class ItemSelectView(ui.View):
 
         total_items = len(self._all_recipes)
         self._total_pages = max(1, (total_items + self._PAGE_SIZE - 1) // self._PAGE_SIZE)
-        offset = (page - 1) * self._PAGE_SIZE
-        self._page_items = self._all_recipes[offset : offset + self._PAGE_SIZE]
-
-        items = [(r.RecipeId, r.ItemName, r.ItemNameLocales) for r in self._page_items]
-        self._select_options = _build_localized_options(items, self.lang)
-
         self._build_items()
 
     def _build_items(self, include_choose: bool = False) -> None:
         """Populate the view with select, pagination, back, choose (optional), and other buttons."""
-        self._recipes_by_id = {str(r.RecipeId): r for r in self._page_items}
+        offset = (self._page - 1) * self._PAGE_SIZE
+        page_items = self._all_recipes[offset : offset + self._PAGE_SIZE]
+        self._recipes_by_id = {str(r.RecipeId): r for r in page_items}
+        select_options = _build_localized_options(
+            [(r.RecipeId, r.ItemName, r.ItemNameLocales) for r in page_items], self.lang
+        )
         total_items = len(self._all_recipes)
         is_multipage = total_items > self._PAGE_SIZE
         action_row = 2 if is_multipage else 1
 
         select = ui.Select(
             placeholder=get_string(self.lang, _KEY_ITEM_SELECT),
-            options=self._select_options,
+            options=select_options,
             row=0,
         )
         select.callback = self._on_select
@@ -2235,22 +2234,31 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         return True
 
     async def callback(self, interaction: Interaction):
-        order_not_found = False
+        row_found = False
         item_name = creator_id = crafter_id = thread_id = None
         with interaction.client.session_scope() as session:
             conditions = [CraftingOrder.Id == self.order_id, CraftingOrder.Status == "in_progress"]
             if not interaction.user.guild_permissions.administrator:
                 conditions.append(CraftingOrder.CrafterId == interaction.user.id)
-            rowcount = session.execute(sa_update(CraftingOrder).where(*conditions).values(Status="completed")).rowcount
-            if rowcount == 0:
-                order_not_found = True
-            else:
-                order = CraftingOrder.get_by_id(self.order_id, session)
-                item_name = _display_item_name(order)
-                creator_id = order.CreatorId
-                crafter_id = order.CrafterId
-                thread_id = order.ThreadId
-        if order_not_found:
+            row = session.execute(
+                sa_update(CraftingOrder)
+                .where(*conditions)
+                .values(Status="completed")
+                .returning(
+                    CraftingOrder.ItemName,
+                    CraftingOrder.ItemNameLocalized,
+                    CraftingOrder.CreatorId,
+                    CraftingOrder.CrafterId,
+                    CraftingOrder.ThreadId,
+                )
+            ).fetchone()
+            row_found = row is not None
+            if row_found:
+                item_name = _display_item_name(row)
+                creator_id = row.CreatorId
+                crafter_id = row.CrafterId
+                thread_id = row.ThreadId
+        if not row_found:
             await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
             return
 
@@ -2314,27 +2322,31 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
         return True
 
     async def callback(self, interaction: Interaction):
-        order_not_found = False
+        row_found = False
         item_name = creator_id = thread_id = None
         cancelled_by_creator = False
         with interaction.client.session_scope() as session:
-            rowcount = session.execute(
+            row = session.execute(
                 sa_update(CraftingOrder)
                 .where(
                     CraftingOrder.Id == self.order_id,
                     CraftingOrder.Status.not_in(["completed", "cancelled"]),
                 )
                 .values(Status="cancelled")
-            ).rowcount
-            if rowcount == 0:
-                order_not_found = True
-            else:
-                order = CraftingOrder.get_by_id(self.order_id, session)
-                item_name = _display_item_name(order)
-                creator_id = order.CreatorId
+                .returning(
+                    CraftingOrder.ItemName,
+                    CraftingOrder.ItemNameLocalized,
+                    CraftingOrder.CreatorId,
+                    CraftingOrder.ThreadId,
+                )
+            ).fetchone()
+            row_found = row is not None
+            if row_found:
+                item_name = _display_item_name(row)
+                creator_id = row.CreatorId
                 cancelled_by_creator = interaction.user.id == creator_id
-                thread_id = order.ThreadId
-        if order_not_found:
+                thread_id = row.ThreadId
+        if not row_found:
             await interaction.response.send_message(_ls(interaction, "not_found"), ephemeral=True)
             return
 
