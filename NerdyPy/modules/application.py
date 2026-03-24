@@ -315,7 +315,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             await send_hidden_message(interaction, msg)
             return
 
-        msg = get_string(lang, "application.settings.success", name=name, changes=", ".join(changes))
+        msg = get_string(lang, "application.settings.success", name=form.Name, changes=", ".join(changes))
         await send_hidden_message(interaction, msg)
 
         if repost_apply:
@@ -423,7 +423,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         invalidate_autocomplete(("app_forms", interaction.guild.id))
         await interaction.response.send_message(
-            get_string(lang, "application.delete.success", name=name), ephemeral=True
+            get_string(lang, "application.delete.success", name=form.Name), ephemeral=True
         )
 
         if apply_channel_id and apply_message_id:
@@ -823,7 +823,10 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
             invalidate_autocomplete(("app_forms", guild_id))
             await modal_interaction.response.send_message(
-                get_string(lang, "application.template.use.success", name=name, template=template), ephemeral=True
+                get_string(
+                    lang, "application.template.use.success", name=name, template=tmpl.Name if tmpl else template
+                ),
+                ephemeral=True,
             )
 
             if apply_channel_id and form_id:
@@ -888,7 +891,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         invalidate_autocomplete_app_templates(interaction.guild.id)
         await interaction.response.send_message(
-            get_string(lang, "application.template.save.success", template_name=template_name, form=form),
+            get_string(lang, "application.template.save.success", template_name=template_name, form=src_form.Name),
             ephemeral=True,
         )
 
@@ -920,7 +923,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         invalidate_autocomplete_app_templates(interaction.guild.id)
         await interaction.response.send_message(
-            get_string(lang, "application.template.delete.success", name=template_name), ephemeral=True
+            get_string(lang, "application.template.delete.success", name=tpl.Name), ephemeral=True
         )
 
     # -- /application template edit-messages ---------------------------------
@@ -959,7 +962,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             msg = get_string(lang, "application.template.edit_messages.nothing_to_update")
         else:
             msg = get_string(
-                lang, "application.template.edit_messages.success", name=template_name, changes=", ".join(changes)
+                lang, "application.template.edit_messages.success", name=tpl.Name, changes=", ".join(changes)
             )
 
         await send_hidden_message(interaction, msg)
@@ -1076,7 +1079,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             }
 
         data = json.dumps(form_dict, indent=2)
-        file = discord.File(io.BytesIO(data.encode()), filename=f"{name}.json")
+        file = discord.File(io.BytesIO(data.encode()), filename=f"{form.Name}.json")
 
         await interaction.response.send_message(get_string(lang, "application.check_dms"), ephemeral=True)
 
