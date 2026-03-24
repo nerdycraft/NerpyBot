@@ -441,6 +441,7 @@ class TestLeaveConfigPrimitives:
         # No cache state must have changed — _leave_configs stays empty
         assert GUILD_ID not in cache._leave_configs
         assert cache._leave_warmed is False
+        assert GUILD_ID not in cache._leave_evicted
 
     # ── apply_leave_config ────────────────────────────────────────────────────
 
