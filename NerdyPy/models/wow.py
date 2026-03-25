@@ -310,6 +310,12 @@ class CraftingRoleMapping(db.BASE):
         session.query(cls).filter(cls.GuildId == guild_id).delete()
 
 
+ORDER_STATUS_OPEN = "open"
+ORDER_STATUS_IN_PROGRESS = "in_progress"
+ORDER_STATUS_COMPLETED = "completed"
+ORDER_STATUS_CANCELLED = "cancelled"
+
+
 class CraftingOrder(db.BASE):
     """Individual crafting order posted by a user."""
 
@@ -334,7 +340,7 @@ class CraftingOrder(db.BASE):
     IconUrl = Column(Unicode(500), nullable=True)
     WowheadUrl = Column(Unicode(500), nullable=True)
     Notes = Column(UnicodeText, nullable=True)
-    Status = Column(String(20), default="open")
+    Status = Column(String(20), default=ORDER_STATUS_OPEN)
     MessageDeleteAt = Column(DateTime, nullable=True)
     CreateDate = Column(DateTime, default=lambda: datetime.now(UTC))
 
@@ -344,7 +350,11 @@ class CraftingOrder(db.BASE):
 
     @classmethod
     def get_active_by_guild(cls, guild_id, session):
-        return session.query(cls).filter(cls.GuildId == guild_id, cls.Status.notin_(["completed", "cancelled"])).all()
+        return (
+            session.query(cls)
+            .filter(cls.GuildId == guild_id, cls.Status.notin_([ORDER_STATUS_COMPLETED, ORDER_STATUS_CANCELLED]))
+            .all()
+        )
 
     @classmethod
     def get_pending_cleanup(cls, session):

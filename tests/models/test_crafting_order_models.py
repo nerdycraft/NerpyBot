@@ -7,6 +7,8 @@ from models.wow import (
     BIND_ON_ACQUIRE,
     BIND_ON_EQUIP,
     BIND_TO_ACCOUNT,
+    ORDER_STATUS_COMPLETED,
+    ORDER_STATUS_OPEN,
     RECIPE_TYPE_CRAFTED,
     CraftingOrder,
     CraftingRecipeCache,
@@ -605,11 +607,18 @@ class TestCraftingRoleMapping:
 class TestCraftingOrder:
     def test_get_active_by_guild(self, db_session):
         db_session.add(
-            CraftingOrder(GuildId=100, ChannelId=200, CreatorId=300, ProfessionRoleId=400, ItemName="A", Status="open")
+            CraftingOrder(
+                GuildId=100, ChannelId=200, CreatorId=300, ProfessionRoleId=400, ItemName="A", Status=ORDER_STATUS_OPEN
+            )
         )
         db_session.add(
             CraftingOrder(
-                GuildId=100, ChannelId=200, CreatorId=300, ProfessionRoleId=400, ItemName="B", Status="completed"
+                GuildId=100,
+                ChannelId=200,
+                CreatorId=300,
+                ProfessionRoleId=400,
+                ItemName="B",
+                Status=ORDER_STATUS_COMPLETED,
             )
         )
         db_session.flush()
