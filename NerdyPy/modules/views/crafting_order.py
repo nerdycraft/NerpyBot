@@ -1049,6 +1049,13 @@ class VirtualCategorySelectView(ui.View):
                 categories = CraftingRecipeCache.get_raid_prep_categories(
                     RECIPE_TYPE_CRAFTED, session, profession_ids=self.mapped_prof_ids
                 )
+            if not categories:
+                await interaction.response.edit_message(
+                    content=_ls(interaction, _LS_NOT_FOUND),
+                    embed=None,
+                    view=None,
+                )
+                return
             view = CategoryPickerView(
                 self.bot,
                 self.roles,
@@ -1134,6 +1141,13 @@ class VirtualCategorySelectView(ui.View):
                 categories = CraftingRecipeCache.get_other_categories(
                     RECIPE_TYPE_CRAFTED, session, profession_ids=self.mapped_prof_ids
                 )
+            if not categories:
+                await interaction.response.edit_message(
+                    content=_ls(interaction, _LS_NOT_FOUND),
+                    embed=None,
+                    view=None,
+                )
+                return
             view = CategoryPickerView(
                 self.bot,
                 self.roles,
@@ -1433,7 +1447,7 @@ class CategoryPickerView(ui.View):
     Used for raid-prep and other-bucket flows, which share the same structure but
     differ only in placeholder key and the cache query method called.
 
-    ``fetch_fn`` must have the signature ``(category_name, session, *, profession_ids)``.
+    ``fetch_fn`` must have the signature ``(category_name, session, profession_ids=None)``.
     Use ``functools.partial`` to pre-bind the recipe type:
         ``functools.partial(CraftingRecipeCache.get_raid_prep_items, RECIPE_TYPE_CRAFTED)``
     """
@@ -2392,7 +2406,10 @@ class AskQuestionModal(ui.Modal):
             channel_id = order.ChannelId
             message_id = order.OrderMessageId
 
-        channel = interaction.guild.get_channel(channel_id)
+        try:
+            channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
+        except (discord.NotFound, discord.Forbidden):
+            channel = None
         if channel is None:
             await interaction.followup.send(_ls(interaction, _LS_ASK_THREAD_FAILED), ephemeral=True)
             return
@@ -2454,7 +2471,10 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
         message_id = order.OrderMessageId
         item_name = order.ItemName
 
-    channel = interaction.guild.get_channel(channel_id)
+    try:
+        channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
+    except (discord.NotFound, discord.Forbidden):
+        channel = None
     if channel is None:
         log.warning("Board channel %d not found for order #%d", channel_id, order_id)
         return False
