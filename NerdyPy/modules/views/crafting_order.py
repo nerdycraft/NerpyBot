@@ -23,6 +23,7 @@ from models.wow import (
 )
 from utils.blizzard import CRAFTING_PROFESSIONS
 from utils.errors import NerpyInfraException
+from utils.helpers import send_hidden_message
 from utils.strings import get_string
 
 log = logging.getLogger(__name__)
@@ -2046,7 +2047,7 @@ class CraftingOrderModal(ui.Modal):
         # Phase 2: send to Discord outside the session.
         try:
             channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
-        except (discord.NotFound, discord.Forbidden):
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
             channel = None
         if channel is None:
             with self.bot.session_scope() as session:
@@ -2104,9 +2105,10 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
                 await interaction.response.send_message(_ls(interaction, _LS_ACCEPT_NOT_OPEN), ephemeral=True)
                 return False
             role = interaction.guild.get_role(order.ProfessionRoleId)
-            if role and role not in interaction.user.roles:
+            if role is None or role not in interaction.user.roles:
+                role_label = role.name if role else f"<deleted role {order.ProfessionRoleId}>"
                 await interaction.response.send_message(
-                    _ls(interaction, _LS_ACCEPT_NO_ROLE, role=role.name), ephemeral=True
+                    _ls(interaction, _LS_ACCEPT_NO_ROLE, role=role_label), ephemeral=True
                 )
                 return False
         return True
@@ -2252,7 +2254,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         try:
             creator = await interaction.client.fetch_user(creator_id)
             await creator.send(_ls(interaction, _LS_COMPLETE_DM_COMPLETE, item=item_name, crafter=crafter_mention))
-        except (discord.Forbidden, discord.NotFound):
+        except (discord.Forbidden, discord.NotFound, discord.HTTPException):
             used_thread = await _thread_fallback(
                 interaction,
                 self.order_id,
@@ -2340,7 +2342,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
             try:
                 creator = await interaction.client.fetch_user(creator_id)
                 await creator.send(_ls(interaction, _LS_CANCEL_DM_CANCEL, item=item_name))
-            except (discord.Forbidden, discord.NotFound):
+            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
                 used_thread = await _thread_fallback(
                     interaction, self.order_id, _ls(interaction, _LS_CANCEL_DM_CANCEL, item=item_name), creator_id
                 )
@@ -2428,18 +2430,27 @@ class AskQuestionModal(ui.Modal):
             except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                 thread = None
 
+        is_new_thread = thread is None
         if thread is None:
             try:
                 msg = await channel.fetch_message(message_id)
-                thread = await msg.create_thread(name=_ls(interaction, _LS_ASK_THREAD_NAME, item=item_name))
-                with interaction.client.session_scope() as session:
-                    order = CraftingOrder.get_by_id(self.order_id, session)
-                    order.ThreadId = thread.id
+                thread_name = _ls(interaction, _LS_ASK_THREAD_NAME, item=item_name)[:100]
+                thread = await msg.create_thread(name=thread_name)
             except discord.HTTPException:
-                await interaction.followup.send(_ls(interaction, _LS_ASK_THREAD_FAILED), ephemeral=True)
+                await send_hidden_message(interaction, _ls(interaction, _LS_ASK_THREAD_FAILED))
                 return
 
-        await thread.send(f"**{interaction.user.display_name}:** {self.message_input.value}\n\n<@{creator_id}>")
+        try:
+            await thread.send(f"**{interaction.user.display_name}:** {self.message_input.value}\n\n<@{creator_id}>")
+        except discord.HTTPException:
+            await send_hidden_message(interaction, _ls(interaction, _LS_ASK_THREAD_FAILED))
+            return
+
+        if is_new_thread:
+            with interaction.client.session_scope() as session:
+                order = CraftingOrder.get_by_id(self.order_id, session)
+                order.ThreadId = thread.id
+
         await interaction.followup.send(_ls(interaction, _LS_ASK_SENT), ephemeral=True)
 
 
@@ -2496,18 +2507,27 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
     else:
         thread = None
 
+    is_new_thread = thread is None
     if thread is None:
         try:
             msg = await channel.fetch_message(message_id)
-            thread = await msg.create_thread(name=_ls(interaction, _LS_ASK_THREAD_NAME, item=item_name))
-            with interaction.client.session_scope() as session:
-                order = CraftingOrder.get_by_id(order_id, session)
-                order.ThreadId = thread.id
+            thread_name = _ls(interaction, _LS_ASK_THREAD_NAME, item=item_name)[:100]
+            thread = await msg.create_thread(name=thread_name)
         except discord.HTTPException:
             log.warning("Failed to create DM fallback thread for order #%d", order_id)
             return False
 
-    await thread.send(f"{message}\n<@{creator_id}>")
+    try:
+        await thread.send(f"{message}\n<@{creator_id}>")
+    except discord.HTTPException:
+        log.warning("Failed to send message to DM fallback thread for order #%d", order_id)
+        return False
+
+    if is_new_thread:
+        with interaction.client.session_scope() as session:
+            order = CraftingOrder.get_by_id(order_id, session)
+            order.ThreadId = thread.id
+
     return True
 
 
