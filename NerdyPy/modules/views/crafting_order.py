@@ -1519,6 +1519,13 @@ class CategoryPickerView(ui.View):
 
         with self.bot.session_scope() as session:
             recipes = self._fetch_fn(category_name, session, profession_ids=self.mapped_prof_ids)
+        if not recipes:
+            await interaction.response.edit_message(
+                content=_ls(interaction, _LS_NOT_FOUND),
+                embed=None,
+                view=None,
+            )
+            return
         if len(recipes) > ItemSelectView._PAGE_SIZE:
             log.warning(
                 "Category overflow: category=%r returned %d recipes (>%d); paginating",
@@ -2408,7 +2415,7 @@ class AskQuestionModal(ui.Modal):
 
         try:
             channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
-        except (discord.NotFound, discord.Forbidden):
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
             channel = None
         if channel is None:
             await interaction.followup.send(_ls(interaction, _LS_ASK_THREAD_FAILED), ephemeral=True)
@@ -2416,7 +2423,10 @@ class AskQuestionModal(ui.Modal):
         thread = None
 
         if thread_id:
-            thread = channel.get_thread(thread_id)
+            try:
+                thread = interaction.guild.get_thread(thread_id) or await interaction.guild.fetch_channel(thread_id)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                thread = None
 
         if thread is None:
             try:
@@ -2473,12 +2483,18 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
 
     try:
         channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
-    except (discord.NotFound, discord.Forbidden):
+    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
         channel = None
     if channel is None:
         log.warning("Board channel %d not found for order #%d", channel_id, order_id)
         return False
-    thread = channel.get_thread(thread_id) if thread_id else None
+    if thread_id:
+        try:
+            thread = interaction.guild.get_thread(thread_id) or await interaction.guild.fetch_channel(thread_id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            thread = None
+    else:
+        thread = None
 
     if thread is None:
         try:
