@@ -202,8 +202,10 @@ class Operator(NerpyBotCog, Cog):
         for r in results:
             if isinstance(r, NerpyInfraException):
                 raise r
-            elif isinstance(r, BaseException):
+            elif isinstance(r, Exception):
                 raise NerpyInfraException("Could not sync commands to Discord API.") from r
+            elif isinstance(r, BaseException):
+                raise r
 
         await ctx.send(f"Synced the tree to {ret}/{len(guilds)}.")
 

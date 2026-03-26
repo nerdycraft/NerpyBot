@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for Operator cog: botpermissions, !disable/!enable/!disabled/!help/!errors commands."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -452,6 +453,30 @@ class TestSyncGuilds:
 
         with pytest.raises(NerpyInfraException):
             await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
+
+    @pytest.mark.asyncio
+    async def test_guild_syncs_run_concurrently(self, cog, operator_ctx):
+        # Proves asyncio.gather runs all coroutines in parallel: none can
+        # complete until all have started, because each waits on a shared event.
+        started = set()
+        release = asyncio.Event()
+        all_started = asyncio.Event()
+
+        async def side_effect(guild):
+            started.add(guild.id)
+            if len(started) == 3:
+                all_started.set()
+            await release.wait()
+            return []
+
+        cog.bot.tree.sync = side_effect
+        guilds = self._make_guilds(1, 2, 3)
+
+        task = asyncio.create_task(cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None))
+        await all_started.wait()
+        assert started == {1, 2, 3}
+        release.set()
+        await task
 
     @pytest.mark.asyncio
     async def test_single_guild_succeeds(self, cog, operator_ctx):
