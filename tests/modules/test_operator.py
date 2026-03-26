@@ -416,12 +416,14 @@ class TestSyncGuilds:
         with pytest.raises(NerpyInfraException):
             await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
 
-        # All three guilds must have been attempted before the exception propagated
-        assert len(sync_calls) == 3
+        assert {g.id for g in sync_calls} == {1, 2, 3}
 
     @pytest.mark.asyncio
     async def test_unexpected_exception_raises_infra_exception(self, cog, operator_ctx):
+        sync_calls = []
+
         async def side_effect(guild):
+            sync_calls.append(guild)
             if guild.id == 2:
                 raise RuntimeError("unexpected")
             return []
@@ -431,6 +433,8 @@ class TestSyncGuilds:
 
         with pytest.raises(NerpyInfraException):
             await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
+
+        assert {g.id for g in sync_calls} == {1, 2, 3}
 
     @pytest.mark.asyncio
     async def test_forbidden_is_hard_error_not_soft_failure(self, cog, operator_ctx):
