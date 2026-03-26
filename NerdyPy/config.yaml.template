@@ -69,6 +69,15 @@ wow:
   #   track_mounts: true
   #   active_days: 7
 
+# twitch:
+#   client_id: your_twitch_client_id
+#   client_secret: your_twitch_client_secret
+#   webhook_url: https://your-domain.com/webhooks/twitch
+#   webhook_secret: random_secret_for_hmac
+#   # Uncomment to enable Twitch notifications slash commands:
+#   # modules:
+#   #   - twitch
+
 # ── Web Dashboard (optional) ──
 # web:
 #   client_secret: your_discord_client_secret

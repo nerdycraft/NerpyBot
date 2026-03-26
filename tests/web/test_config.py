@@ -224,3 +224,47 @@ class TestWebConfigFrontendUrl:
         with patch.dict(os.environ, env, clear=True):
             cfg = WebConfig.from_env()
         assert cfg.frontend_url == "http://localhost:5173"
+
+
+def test_twitch_defaults():
+    from web.config import WebConfig
+
+    cfg = WebConfig(
+        client_id="x",
+        client_secret="x",
+        redirect_uri="x",
+        jwt_secret="x",
+        jwt_expiry_hours=1,
+        valkey_url="x",
+        ops=[1],
+        db_connection_string="sqlite:///:memory:",
+    )
+    assert cfg.twitch_client_id == ""
+    assert cfg.twitch_client_secret == ""
+    assert cfg.twitch_webhook_url == ""
+    assert cfg.twitch_webhook_secret == ""
+
+
+def test_twitch_env_vars(monkeypatch):
+    """Twitch config fields are loaded from env vars through WebConfig.from_env()."""
+    from web.config import WebConfig
+
+    env = {
+        "NERPYBOT_WEB_CLIENT_ID": "123",
+        "NERPYBOT_WEB_OPS": "1",
+        "NERPYBOT_WEB_CLIENT_SECRET": "s",
+        "NERPYBOT_WEB_JWT_SECRET": "j",
+        "NERPYBOT_WEB_TWITCH_CLIENT_ID": "t_id",
+        "NERPYBOT_WEB_TWITCH_CLIENT_SECRET": "t_sec",
+        "NERPYBOT_WEB_TWITCH_WEBHOOK_URL": "https://example.com/webhooks/twitch",
+        "NERPYBOT_WEB_TWITCH_WEBHOOK_SECRET": "t_wh_sec",
+    }
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+
+    cfg = WebConfig.from_env()
+
+    assert cfg.twitch_client_id == "t_id"
+    assert cfg.twitch_client_secret == "t_sec"
+    assert cfg.twitch_webhook_url == "https://example.com/webhooks/twitch"
+    assert cfg.twitch_webhook_secret == "t_wh_sec"
