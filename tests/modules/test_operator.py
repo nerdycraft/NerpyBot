@@ -458,12 +458,12 @@ class TestSyncGuilds:
     async def test_guild_syncs_run_concurrently(self, cog, operator_ctx):
         # Proves asyncio.gather runs all coroutines in parallel: none can
         # complete until all have started, because each waits on a shared event.
-        started = set()
+        started = []
         release = asyncio.Event()
         all_started = asyncio.Event()
 
         async def side_effect(guild):
-            started.add(guild.id)
+            started.append(guild.id)
             if len(started) == 3:
                 all_started.set()
             await release.wait()
@@ -473,8 +473,8 @@ class TestSyncGuilds:
         guilds = self._make_guilds(1, 2, 3)
 
         task = asyncio.create_task(cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None))
-        await all_started.wait()
-        assert started == {1, 2, 3}
+        await asyncio.wait_for(all_started.wait(), timeout=1.0)
+        assert sorted(started) == [1, 2, 3]
         release.set()
         await task
 
