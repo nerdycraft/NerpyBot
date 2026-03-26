@@ -753,8 +753,8 @@ application:
 
 twitch:
   add_success: "Notification added for **{streamer}**. It may take a few minutes to activate."
+  add_already_exists: "A notification for **{streamer}** in {channel} already exists."
   remove_success: "Notification removed."
   remove_not_found: "No notification with that ID found in this server."
   list_empty: "No Twitch notifications configured for this server."
   list_title: "Twitch Notifications"
-  list_entry: "ID {id}: **{streamer}** → <#{channel_id}>"

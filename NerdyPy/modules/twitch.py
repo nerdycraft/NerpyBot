@@ -32,25 +32,28 @@ class TwitchNotificationsCog(NerpyBotCog, GroupCog, group_name="twitch"):
         notify_offline: bool = False,
     ):
         streamer_lower = streamer.lower().strip()
+        reply = None
         with self.bot.session_scope() as session:
             existing = TwitchNotifications.get_by_channel_and_streamer(
                 interaction.guild_id, channel.id, streamer_lower, session
             )
             if existing:
-                await send_hidden_message(
-                    interaction,
-                    f"A notification for **{streamer_lower}** in {channel.mention} already exists.",
+                reply = self.bot.get_localized_string(
+                    interaction.guild_id, "twitch.add_already_exists", streamer=streamer_lower, channel=channel.mention
                 )
-                return
-            row = TwitchNotifications(
-                GuildId=interaction.guild_id,
-                ChannelId=channel.id,
-                Streamer=streamer_lower,
-                StreamerDisplayName=streamer_lower,
-                Message=message or None,
-                NotifyOffline=notify_offline,
-            )
-            session.add(row)
+            else:
+                row = TwitchNotifications(
+                    GuildId=interaction.guild_id,
+                    ChannelId=channel.id,
+                    Streamer=streamer_lower,
+                    StreamerDisplayName=streamer_lower,
+                    Message=message,
+                    NotifyOffline=notify_offline,
+                )
+                session.add(row)
+        if reply:
+            await send_hidden_message(interaction, reply)
+            return
         await send_hidden_message(
             interaction,
             self.bot.get_localized_string(interaction.guild_id, "twitch.add_success", streamer=streamer_lower),
@@ -59,15 +62,16 @@ class TwitchNotificationsCog(NerpyBotCog, GroupCog, group_name="twitch"):
     @app_commands.command(name="remove", description="Remove a Twitch stream notification by ID")
     @app_commands.describe(config_id="The notification ID from /twitch list")
     async def remove(self, interaction: Interaction, config_id: int):
+        reply = None
         with self.bot.session_scope() as session:
             row = TwitchNotifications.get_by_id(config_id, session)
             if row is None or row.GuildId != interaction.guild_id:
-                await send_hidden_message(
-                    interaction,
-                    self.bot.get_localized_string(interaction.guild_id, "twitch.remove_not_found"),
-                )
-                return
-            session.delete(row)
+                reply = self.bot.get_localized_string(interaction.guild_id, "twitch.remove_not_found")
+            else:
+                session.delete(row)
+        if reply:
+            await send_hidden_message(interaction, reply)
+            return
         await send_hidden_message(
             interaction,
             self.bot.get_localized_string(interaction.guild_id, "twitch.remove_success"),

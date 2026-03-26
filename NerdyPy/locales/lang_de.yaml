@@ -736,8 +736,8 @@ application:
 
 twitch:
   add_success: "Benachrichtigung für **{streamer}** hinzugefügt. Es kann einige Minuten dauern, bis sie aktiv ist."
+  add_already_exists: "Eine Benachrichtigung für **{streamer}** in {channel} existiert bereits."
   remove_success: "Benachrichtigung entfernt."
   remove_not_found: "Keine Benachrichtigung mit dieser ID in diesem Server gefunden."
   list_empty: "Keine Twitch-Benachrichtigungen für diesen Server konfiguriert."
   list_title: "Twitch-Benachrichtigungen"
-  list_entry: "ID {id}: **{streamer}** → <#{channel_id}>"
