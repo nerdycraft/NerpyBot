@@ -43,7 +43,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from models.guild import BotGuild
 from utils import logging
-from utils.audio import Audio
+from modules.music.audio import Audio
 from utils.cache import GuildConfigCache
 from utils.config import parse_config
 from utils.conversation import AnswerType, ConversationManager
@@ -231,13 +231,11 @@ class NerpyBot(Bot):
         self.tree.interaction_check = self._global_interaction_check
 
         # load modules
-        audio_module_loaded = False
         for module in self.modules:
             try:
                 await self.load_extension(f"modules.{module}")
-                if module == "music" and not audio_module_loaded:
+                if module == "music":
                     await self.audio.setup_loops()
-                    audio_module_loaded = True
             except (ImportError, ExtensionFailed, ClientException) as e:
                 self.log.error(f"failed to load extension {module}. {e}")
                 self.log.debug(print_exc())
@@ -245,8 +243,6 @@ class NerpyBot(Bot):
         # noinspection GrazieInspection
         # auto-load essential extensions not explicitly listed in config
         auto_load = ["server_admin", "operator"]
-        if audio_module_loaded:
-            auto_load.append("voicecontrol")
 
         for module in auto_load:
             if module not in self.modules:

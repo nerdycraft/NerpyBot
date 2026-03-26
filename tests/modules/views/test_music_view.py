@@ -4,7 +4,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from modules.views.music import build_progress_bar, build_now_playing_embed, NowPlayingView
+from modules.music.views import build_progress_bar, build_now_playing_embed, NowPlayingView
 from utils.strings import load_strings
 
 
