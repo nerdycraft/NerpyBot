@@ -33,6 +33,7 @@ def create_app(
     from web.config import WebConfig
     from web.dependencies import _TEST_MODE, get_config, get_db_session, get_valkey
     from web.routes import auth, guilds, health, legal, operator, sse, support, wow
+    from web.webhooks import twitch as webhooks_twitch
 
     if config is None:
         config = WebConfig.load(config_path)
@@ -106,6 +107,7 @@ def create_app(
     app.dependency_overrides[get_db_session] = _get_db_session
 
     # Register routers
+    app.include_router(webhooks_twitch.router)
     app.include_router(auth.router, prefix="/api")
     app.include_router(guilds.router, prefix="/api")
     app.include_router(health.router, prefix="/api")
