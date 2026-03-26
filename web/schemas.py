@@ -592,3 +592,28 @@ class RecipeCacheBrowseResponse(BaseModel):
     professions: list[RecipeCacheProfession]
     expansions: list[str]
     total: int
+
+
+# ── Twitch Notifications ──
+
+
+class TwitchNotificationSchema(BaseModel):
+    id: int
+    channel_id: str
+    streamer: str
+    streamer_display_name: str
+    message: str | None
+    notify_offline: bool
+
+
+class TwitchNotificationCreate(BaseModel):
+    channel_id: str
+    streamer: Annotated[str, Field(min_length=1, max_length=25)]
+    message: Annotated[str | None, BeforeValidator(lambda v: v or None), Field(max_length=500)] = None
+    notify_offline: bool = False
+
+
+class TwitchNotificationUpdate(BaseModel):
+    channel_id: str | None = None
+    message: Annotated[str | None, BeforeValidator(lambda v: v or None), Field(max_length=500)] = None
+    notify_offline: bool | None = None
