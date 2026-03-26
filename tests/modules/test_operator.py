@@ -4,7 +4,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from discord import HTTPException, Object
+from discord import Forbidden, HTTPException, Object
 from discord.app_commands import MissingApplicationID
 from models.admin import PermissionSubscriber
 from modules.operator import Operator, _format_remaining
@@ -424,6 +424,23 @@ class TestSyncGuilds:
         async def side_effect(guild):
             if guild.id == 2:
                 raise RuntimeError("unexpected")
+            return []
+
+        cog.bot.tree.sync = side_effect
+        guilds = self._make_guilds(1, 2, 3)
+
+        with pytest.raises(NerpyInfraException):
+            await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
+
+    @pytest.mark.asyncio
+    async def test_forbidden_is_hard_error_not_soft_failure(self, cog, operator_ctx):
+        # Forbidden is a subclass of HTTPException; must be caught by the specific
+        # handler first, not the broad HTTPException fallback.
+        forbidden_err = Forbidden(MagicMock(status=403), "missing permissions")
+
+        async def side_effect(guild):
+            if guild.id == 2:
+                raise forbidden_err
             return []
 
         cog.bot.tree.sync = side_effect

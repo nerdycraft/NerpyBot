@@ -190,11 +190,11 @@ class Operator(NerpyBotCog, Cog):
             try:
                 await self.bot.tree.sync(guild=g)
                 return True
-            except HTTPException:
-                return False
             except (CommandSyncFailure, Forbidden, MissingApplicationID, TranslationError) as ex:
                 self.bot.log.debug(ex)
                 raise NerpyInfraException("Could not sync commands to Discord API.") from ex
+            except HTTPException:
+                return False
 
         results = await asyncio.gather(*(_sync_one(g) for g in guilds), return_exceptions=True)
         ret = sum(1 for r in results if r is True)
