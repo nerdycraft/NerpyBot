@@ -13,7 +13,7 @@ NerpyBot is a Discord bot built with discord.py using the Cog extension system. 
 3. `setup_hook()`:
    - Load each module listed in `config.bot.modules` via `bot.load_extension(f"modules.{name}")`
    - Call `create_all()` to auto-create missing database tables
-   - Start audio loops if `tagging` or `music` modules are loaded
+   - Start audio loops if `music` module is loaded
 4. `on_ready()` — log successful connection
 
 ### CLI Arguments
@@ -56,7 +56,6 @@ Modules are loaded dynamically based on `config.bot.modules`. Available modules:
 | raidplaner   | Cog                   | —                                      | —                       |
 | reminder     | GroupCog              | Reminder loop (30s)                    | —                       |
 | roles        | Cog (slash)           | —                                      | —                       |
-| tagging      | GroupCog + QueueMixin | —                                      | —                       |
 | wow          | GroupCog              | Guild news loop (15min)                | Blizzard API, Raider.io |
 
 ## Database Layer

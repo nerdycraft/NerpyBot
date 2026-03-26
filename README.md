@@ -112,7 +112,6 @@ The migration runner resolves the database URL in this order:
 | moderation | Server moderation tools                               |
 | music      | Voice channel audio playback                          |
 | reminder   | Timed user reminders                                  |
-| tagging    | Audio tag management                                  |
 | wow        | Blizzard API integration                              |
 
 Enable modules by listing them in the `bot.modules` section of your config file.

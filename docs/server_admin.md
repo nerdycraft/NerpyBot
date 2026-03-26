@@ -63,5 +63,5 @@ conditions:
 4. Are listed in `config.bot.ops` (bot operators)
 5. Have the role configured via `/modrole set`
 
-This check is used by other modules (moderation, music, tagging) to gate privileged commands like stopping playback or
+This check is used by other modules (moderation, music) to gate privileged commands like stopping playback or
 making the bot leave voice.

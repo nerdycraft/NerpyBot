@@ -1,6 +1,6 @@
 # Voice Control Module
 
-Voice channel control commands for stopping playback and disconnecting the bot. Auto-loaded when `tagging` or `music` modules are enabled.
+Voice channel control commands for stopping playback and disconnecting the bot. Auto-loaded when `music` module is enabled.
 
 ## Commands
 
