@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.exc import SQLAlchemyError
 
-from models.admin import BotGuild
+from models.guild import BotGuild
 from web.auth.jwt import create_access_token
 from web.auth.oauth2 import build_authorize_url, exchange_code, fetch_discord_user, fetch_user_guilds
 from web.auth.permissions import resolve_guild_permissions

@@ -31,7 +31,9 @@ def web_db_engine():
         cursor.close()
 
     # Import all models so SQLAlchemy registers them before create_all()
-    from models.admin import BotModeratorRole, GuildLanguageConfig, PermissionSubscriber, PremiumUser
+    from models.guild import GuildLanguageConfig
+    from models.permissions import BotModeratorRole, PermissionSubscriber
+    from models.premium import PremiumUser
     from models.application import ApplicationForm, ApplicationQuestion
     from models.leavemsg import LeaveMessage
     from models.moderation import AutoDelete, AutoKicker

@@ -35,7 +35,7 @@ class TestPermissionEnforcement:
 
     def test_guild_route_with_admin_returns_200(self, client, auth_header, fake_valkey, web_db_session):
         """User with admin permission and premium access can access guild routes."""
-        from models.admin import PremiumUser
+        from models.premium import PremiumUser
 
         PremiumUser.grant(123456, 111222333, web_db_session)
         web_db_session.commit()

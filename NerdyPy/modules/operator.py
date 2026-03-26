@@ -10,7 +10,7 @@ from discord import Embed, Forbidden, HTTPException, Interaction, Object, app_co
 from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError
 from discord.ext.commands import Cog, Context, Greedy, command, hybrid_command
 
-from models.admin import PermissionSubscriber
+from models.permissions import PermissionSubscriber
 from utils.checks import is_admin_or_operator, require_operator
 from utils.cog import NerpyBotCog
 from utils.constants import PROTECTED_MODULES

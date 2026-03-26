@@ -41,7 +41,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
-from models.admin import BotGuild
+from models.guild import BotGuild
 from utils import logging
 from utils.audio import Audio
 from utils.cache import GuildConfigCache
@@ -335,7 +335,7 @@ class NerpyBot(Bot):
 
         Starts the activity status loop and the Valkey listener (if configured), synchronizes guild membership state to the database, checks each guild for required permissions and notifies subscribed guild admins of any missing permissions, and writes the readiness sentinel file to signal that the bot is healthy and ready.
         """
-        from models.admin import PermissionSubscriber
+        from models.permissions import PermissionSubscriber
 
         self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
 

@@ -6,7 +6,8 @@ from unittest.mock import MagicMock
 import pytest
 import yaml
 
-from models.admin import BotModeratorRole, GuildLanguageConfig
+from models.guild import GuildLanguageConfig
+from models.permissions import BotModeratorRole
 from modules.server_admin import ServerAdmin
 from utils import strings
 from utils.strings import load_strings

@@ -95,7 +95,7 @@ class GuildConfigCache:
 
         try:
             with _open_session(session_factory) as session:
-                from models.admin import GuildLanguageConfig
+                from models.guild import GuildLanguageConfig
 
                 config = GuildLanguageConfig.get(guild_id, session)
                 lang = config.Language if config is not None else "en"
@@ -119,7 +119,7 @@ class GuildConfigCache:
 
         try:
             with _open_session(session_factory) as session:
-                from models.admin import BotModeratorRole
+                from models.permissions import BotModeratorRole
 
                 entry = BotModeratorRole.get(guild_id, session)
                 role_id = entry.RoleId if entry is not None else None

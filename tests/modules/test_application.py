@@ -10,7 +10,7 @@ import discord
 import pytest
 
 
-from models.admin import GuildLanguageConfig
+from models.guild import GuildLanguageConfig
 from models.application import (
     BUILT_IN_TEMPLATES,
     ApplicationForm,

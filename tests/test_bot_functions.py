@@ -271,7 +271,7 @@ class TestNerpyBotSessionScope:
         """NerpyBot.session_scope() should commit on success."""
         from NerdyPy.bot import NerpyBot
         from discord import Intents
-        from models.admin import BotGuild
+        from models.guild import BotGuild
 
         config = {"bot": {"token": "test_token", "client_id": "12345", "ops": ["111"], "modules": []}}
 
