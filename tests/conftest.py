@@ -79,6 +79,7 @@ def db_engine():
         CraftingRecipeCache,
     )
     from models.music import Playlist, PlaylistEntry  # noqa: F401
+    from models.twitch import TwitchNotifications, TwitchEventSubSubscription  # noqa: F401
 
     BASE.metadata.create_all(engine)
     yield engine

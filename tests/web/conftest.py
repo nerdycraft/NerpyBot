@@ -47,6 +47,7 @@ def web_db_engine():
         CraftingRoleMapping,
         WowGuildNewsConfig,
     )
+    from models.twitch import TwitchNotifications, TwitchEventSubSubscription  # noqa: F401
 
     BASE.metadata.create_all(engine)
     yield engine
