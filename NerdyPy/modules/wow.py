@@ -62,6 +62,7 @@ class WowApiLanguage(Enum):
 COLOR_ACHIEVEMENT = Color.gold()
 COLOR_ENCOUNTER = Color.red()
 COLOR_MOUNT = Color.purple()
+COLOR_ITEM_LINK = Color(value=0x0099FF)  # WoW blue item link color
 
 # Stale character cleanup: remove mount data for characters gone from roster after this many days
 STALE_DAYS = 30
@@ -387,7 +388,7 @@ class WorldofWarcraft(NerpyBotCog, GroupCog, group_name="wow"):
             emb = Embed(
                 title=f"{character['name']} | {realm_slug.capitalize()} | {region.upper()} | {character['active_spec']['name']} {character['character_class']['name']} | {character['equipped_item_level']} ilvl",
                 url=armory,
-                color=Color(value=int("0099ff", 16)),
+                color=COLOR_ITEM_LINK,
                 description=f"{character['gender']['name']} {character['race']['name']}",
             )
             emb.set_thumbnail(url=profile_picture)
