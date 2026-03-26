@@ -64,7 +64,6 @@ def db_engine():
         ApplicationTemplateQuestion,
     )
     from models.reminder import ReminderMessage  # noqa: F401
-    from models.tagging import Tag, TagEntry  # noqa: F401
     from models.admin import BotModeratorRole, PermissionSubscriber, GuildLanguageConfig  # noqa: F401
     from models.leavemsg import LeaveMessage  # noqa: F401
     from models.moderation import AutoDelete, AutoKicker  # noqa: F401

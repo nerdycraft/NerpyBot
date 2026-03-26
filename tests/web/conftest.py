@@ -39,7 +39,6 @@ def web_db_engine():
     from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
     from models.reminder import ReminderMessage
     from models.rolemanage import RoleMapping
-    from models.tagging import Tag, TagEntry
     from models.wow import (
         CraftingBoardConfig,
         CraftingOrder,

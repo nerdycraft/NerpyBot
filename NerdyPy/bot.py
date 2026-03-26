@@ -235,7 +235,7 @@ class NerpyBot(Bot):
         for module in self.modules:
             try:
                 await self.load_extension(f"modules.{module}")
-                if module in ("tagging", "music") and not audio_module_loaded:
+                if module == "music" and not audio_module_loaded:
                     await self.audio.setup_loops()
                     audio_module_loaded = True
             except (ImportError, ExtensionFailed, ClientException) as e:
