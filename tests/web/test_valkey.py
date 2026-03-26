@@ -41,3 +41,29 @@ class TestValkeyHelpers:
         client.delete_user_cache("123")
         assert client.get_permissions("123") is None
         assert client.get_discord_token("123") is None
+
+
+class TestTwitchDedup:
+    def test_mark_and_check_seen(self):
+        from web.cache import ValkeyClient
+
+        vk = ValkeyClient.create_fake()
+        assert vk.is_twitch_event_seen("msg-abc") is False
+        vk.mark_twitch_event_seen("msg-abc", ttl=300)
+        assert vk.is_twitch_event_seen("msg-abc") is True
+
+    def test_not_seen_for_different_id(self):
+        from web.cache import ValkeyClient
+
+        vk = ValkeyClient.create_fake()
+        vk.mark_twitch_event_seen("msg-abc", ttl=300)
+        assert vk.is_twitch_event_seen("msg-xyz") is False
+
+    def test_nx_first_caller_wins(self):
+        """SET NX — second mark call is a no-op."""
+        from web.cache import ValkeyClient
+
+        vk = ValkeyClient.create_fake()
+        vk.mark_twitch_event_seen("msg-abc", ttl=300)
+        vk.mark_twitch_event_seen("msg-abc", ttl=300)  # second call should be no-op
+        assert vk.is_twitch_event_seen("msg-abc") is True

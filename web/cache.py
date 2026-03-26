@@ -98,6 +98,21 @@ class ValkeyClient:
             self._key("user", user_id, "token"),
         )
 
+    # ── Twitch event deduplication ──
+
+    def is_twitch_event_seen(self, message_id: str) -> bool:
+        """Return True if this Twitch event message_id was already processed."""
+        key = self._key("twitch", "dedup", message_id)
+        return self._client.get(key) is not None
+
+    def mark_twitch_event_seen(self, message_id: str, ttl: int = 300) -> None:
+        """Mark a Twitch event message_id as seen with a TTL (default 300s).
+
+        Uses SET NX so the first caller wins — duplicate calls are a no-op.
+        """
+        key = self._key("twitch", "dedup", message_id)
+        self._client.set(key, "1", ex=ttl, nx=True)
+
     # ── Pub/Sub for bot commands ──
 
     async def send_bot_command(self, command: str, payload: dict, timeout: float = 3.0) -> dict | None:
@@ -160,8 +175,13 @@ class _FakeValkeyClient:
         """Initialize the fake client with an empty in-memory store."""
         self._store: dict[str, str] = {}
 
-    def set(self, key: str, value: str, ex: int | None = None) -> None:
-        """Store a value (TTL ignored in fake)."""
+    def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> None:
+        """Store a value (TTL ignored in fake).
+
+        If nx=True, only set if the key does not exist (SET NX semantics).
+        """
+        if nx and key in self._store:
+            return
         self._store[key] = value
 
     def get(self, key: str) -> str | None:
@@ -195,3 +215,18 @@ class _FakeValkeyClient:
     def getdel(self, key: str) -> str | None:
         """Atomically get and delete a key. Returns the value or None if absent."""
         return self._store.pop(key, None)
+
+    # ── Twitch event deduplication (for ValkeyClient compatibility) ──
+
+    def is_twitch_event_seen(self, message_id: str) -> bool:
+        """Return True if this Twitch event message_id was already processed."""
+        key = f"nerpybot:twitch:dedup:{message_id}"
+        return self._store.get(key) is not None
+
+    def mark_twitch_event_seen(self, message_id: str, ttl: int = 300) -> None:
+        """Mark a Twitch event message_id as seen with a TTL (default 300s).
+
+        Uses SET NX so the first caller wins — duplicate calls are a no-op.
+        """
+        key = f"nerpybot:twitch:dedup:{message_id}"
+        self.set(key, "1", ex=ttl, nx=True)
