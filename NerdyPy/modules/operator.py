@@ -194,7 +194,7 @@ class Operator(NerpyBotCog, Cog):
                 return False
             except (CommandSyncFailure, Forbidden, MissingApplicationID, TranslationError) as ex:
                 self.bot.log.debug(ex)
-                raise NerpyInfraException("Could not sync commands to Discord API.")
+                raise NerpyInfraException("Could not sync commands to Discord API.") from ex
 
         results = await asyncio.gather(*(_sync_one(g) for g in guilds), return_exceptions=True)
         ret = sum(1 for r in results if r is True)
