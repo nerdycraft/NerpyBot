@@ -2443,14 +2443,24 @@ class AskQuestionModal(ui.Modal):
         try:
             await thread.send(f"**{interaction.user.display_name}:** {self.message_input.value}\n\n<@{creator_id}>")
         except discord.HTTPException:
+            if is_new_thread:
+                await _try_delete_thread(thread, self.order_id, "unsent ask")
             await send_hidden_message(interaction, _ls(interaction, _LS_ASK_THREAD_FAILED))
             return
 
+        thread_orphaned = False
         if is_new_thread:
             with interaction.client.session_scope() as session:
                 order = CraftingOrder.get_by_id(self.order_id, session)
-                if order is not None:
+                if order is None:
+                    thread_orphaned = True
+                else:
                     order.ThreadId = thread.id
+
+        if thread_orphaned:
+            await _try_delete_thread(thread, self.order_id, "orphaned ask")
+            await send_hidden_message(interaction, _ls(interaction, _LS_ASK_THREAD_FAILED))
+            return
 
         await interaction.followup.send(_ls(interaction, _LS_ASK_SENT), ephemeral=True)
 
@@ -2458,6 +2468,14 @@ class AskQuestionModal(ui.Modal):
 # ---------------------------------------------------------------------------
 # DM Thread Fallback
 # ---------------------------------------------------------------------------
+
+
+async def _try_delete_thread(thread: discord.Thread, order_id: int, context: str) -> None:
+    """Best-effort thread deletion; logs a warning on failure."""
+    try:
+        await thread.delete()
+    except discord.HTTPException:
+        log.warning("Failed to clean up %s thread for order #%d", context, order_id)
 
 
 def _schedule_thread_cleanup(interaction: Interaction, order_id: int) -> None:
@@ -2521,14 +2539,23 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
     try:
         await thread.send(f"{message}\n<@{creator_id}>")
     except discord.HTTPException:
+        if is_new_thread:
+            await _try_delete_thread(thread, order_id, "unsent DM fallback")
         log.warning("Failed to send message to DM fallback thread for order #%d", order_id)
         return False
 
+    thread_orphaned = False
     if is_new_thread:
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(order_id, session)
-            if order is not None:
+            if order is None:
+                thread_orphaned = True
+            else:
                 order.ThreadId = thread.id
+
+    if thread_orphaned:
+        await _try_delete_thread(thread, order_id, "orphaned DM fallback")
+        return False
 
     return True
 
