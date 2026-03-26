@@ -492,9 +492,13 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         import discord
 
         event_type = payload.get("event_type", "")
-        broadcaster_login = payload.get("broadcaster_login", "")
+        broadcaster_login = payload.get("broadcaster_login", "").lower()
         broadcaster_name = payload.get("broadcaster_name", broadcaster_login)
         started_at = payload.get("started_at", "")  # noqa: F841 — reserved for future embed use
+
+        if not broadcaster_login:
+            bot.log.warning("twitch_event: received empty broadcaster_login — ignoring")
+            return {"ok": False, "error": "broadcaster_login required"}
 
         try:
             from models.twitch import TwitchNotifications
@@ -515,7 +519,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
 
             guild = bot.get_guild(cfg.GuildId)
             if guild is None:
-                bot.log.debug("twitch_event: guild %s not in cache — skipping", cfg.GuildId)
+                bot.log.warning("twitch_event: guild %s not in cache — skipping", cfg.GuildId)
                 continue
 
             channel = guild.get_channel(cfg.ChannelId)
@@ -549,7 +553,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             try:
                 await channel.send(embed=embed)
                 notified += 1
-            except (discord.NotFound, discord.Forbidden) as e:
+            except discord.HTTPException as e:
                 bot.log.debug("twitch_event: could not send to channel %s: %s", cfg.ChannelId, e)
 
         return {"ok": True, "notified": notified}

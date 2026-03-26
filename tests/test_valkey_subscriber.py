@@ -657,3 +657,61 @@ class TestTwitchEventHandler:
         )
         assert result["ok"] is True
         assert result["notified"] == 0
+
+    @pytest.mark.asyncio
+    async def test_twitch_event_db_error_returns_ok_false(self, mock_bot, db_session):
+        from unittest.mock import patch
+
+        from utils.valkey import handle_valkey_command
+
+        with patch("models.twitch.TwitchNotifications.get_all_by_streamer", side_effect=Exception("DB down")):
+            result = await handle_valkey_command(
+                mock_bot,
+                "twitch_event",
+                {
+                    "event_type": "stream.online",
+                    "broadcaster_login": "shroud",
+                    "broadcaster_name": "shroud",
+                    "started_at": "",
+                },
+            )
+        assert result["ok"] is False
+        assert result["error"] == "DB error"
+
+    @pytest.mark.asyncio
+    async def test_twitch_event_fetch_channel_fallback_on_not_found(self, mock_bot, db_session):
+        import discord
+
+        from models.twitch import TwitchNotifications
+
+        db_session.add(
+            TwitchNotifications(
+                GuildId=111,
+                ChannelId=222,
+                Streamer="shroud",
+                StreamerDisplayName="shroud",
+                Message=None,
+                NotifyOffline=False,
+            )
+        )
+        db_session.commit()
+
+        mock_guild = MagicMock()
+        mock_guild.get_channel.return_value = None  # not in cache
+        mock_guild.fetch_channel = AsyncMock(side_effect=discord.NotFound(MagicMock(), "not found"))
+        mock_bot.get_guild.return_value = mock_guild
+
+        from utils.valkey import handle_valkey_command
+
+        result = await handle_valkey_command(
+            mock_bot,
+            "twitch_event",
+            {
+                "event_type": "stream.online",
+                "broadcaster_login": "shroud",
+                "broadcaster_name": "shroud",
+                "started_at": "",
+            },
+        )
+        assert result["ok"] is True
+        assert result["notified"] == 0  # channel not found, so not notified
