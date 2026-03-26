@@ -2449,7 +2449,8 @@ class AskQuestionModal(ui.Modal):
         if is_new_thread:
             with interaction.client.session_scope() as session:
                 order = CraftingOrder.get_by_id(self.order_id, session)
-                order.ThreadId = thread.id
+                if order is not None:
+                    order.ThreadId = thread.id
 
         await interaction.followup.send(_ls(interaction, _LS_ASK_SENT), ephemeral=True)
 
@@ -2526,7 +2527,8 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
     if is_new_thread:
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(order_id, session)
-            order.ThreadId = thread.id
+            if order is not None:
+                order.ThreadId = thread.id
 
     return True
 
