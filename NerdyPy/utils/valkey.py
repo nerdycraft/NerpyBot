@@ -488,6 +488,71 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         except Exception as exc:
             bot.log.error("sync_commands failed: %s", exc)
             return {"success": False, "error": str(exc)}
+    elif command == "twitch_event":
+        import discord
+
+        event_type = payload.get("event_type", "")
+        broadcaster_login = payload.get("broadcaster_login", "")
+        broadcaster_name = payload.get("broadcaster_name", broadcaster_login)
+        started_at = payload.get("started_at", "")  # noqa: F841 — reserved for future embed use
+
+        try:
+            from models.twitch import TwitchNotifications
+
+            def _get_configs():
+                with bot.session_scope() as session:
+                    return TwitchNotifications.get_all_by_streamer(broadcaster_login, session)
+
+            configs = await to_thread(_get_configs)
+        except Exception:
+            bot.log.exception("twitch_event: failed to query notification configs for '%s'", broadcaster_login)
+            return {"ok": False, "error": "DB error"}
+
+        notified = 0
+        for cfg in configs:
+            if event_type == "stream.offline" and not cfg.NotifyOffline:
+                continue
+
+            guild = bot.get_guild(cfg.GuildId)
+            if guild is None:
+                bot.log.debug("twitch_event: guild %s not in cache — skipping", cfg.GuildId)
+                continue
+
+            channel = guild.get_channel(cfg.ChannelId)
+            if channel is None:
+                try:
+                    channel = await guild.fetch_channel(cfg.ChannelId)
+                except (discord.NotFound, discord.Forbidden):
+                    bot.log.debug(
+                        "twitch_event: channel %s not found/accessible in guild %s", cfg.ChannelId, cfg.GuildId
+                    )
+                    continue
+
+            stream_url = f"https://twitch.tv/{broadcaster_login}"
+            if event_type == "stream.online":
+                description = cfg.Message or f"**{broadcaster_name}** is now live on Twitch!"
+                title = f"{broadcaster_name} is live!"
+                color = discord.Color.from_rgb(145, 70, 255)  # Twitch purple
+            else:
+                description = f"**{broadcaster_name}** has gone offline."
+                title = f"{broadcaster_name} went offline"
+                color = discord.Color.greyple()
+
+            embed = discord.Embed(
+                title=title,
+                description=description,
+                url=stream_url,
+                color=color,
+            )
+            embed.set_footer(text=f"twitch.tv/{broadcaster_login}")
+
+            try:
+                await channel.send(embed=embed)
+                notified += 1
+            except (discord.NotFound, discord.Forbidden) as e:
+                bot.log.debug("twitch_event: could not send to channel %s: %s", cfg.ChannelId, e)
+
+        return {"ok": True, "notified": notified}
     else:
         return {"error": f"Unknown command: {command}"}
 

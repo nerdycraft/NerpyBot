@@ -567,3 +567,93 @@ class TestBotCommandHandler:
         result = await handle_valkey_command(mock_bot, "invalidate_leave_config", {"guild_id": "55"})
         assert result == {"ok": False, "error": "cache reload failed — see bot logs"}
         mock_bot.guild_cache.mark_leave_config_for_recheck.assert_called_once_with(55)
+
+
+class TestTwitchEventHandler:
+    @pytest.mark.asyncio
+    async def test_twitch_event_online_sends_embeds(self, mock_bot, db_session):
+        import discord
+        from models.twitch import TwitchNotifications
+
+        db_session.add(
+            TwitchNotifications(
+                GuildId=111,
+                ChannelId=222,
+                Streamer="shroud",
+                StreamerDisplayName="shroud",
+                Message="Shroud is live!",
+                NotifyOffline=False,
+            )
+        )
+        db_session.commit()
+
+        mock_channel = AsyncMock()
+        mock_guild = MagicMock()
+        mock_guild.get_channel.return_value = mock_channel
+        mock_bot.get_guild.return_value = mock_guild
+
+        from utils.valkey import handle_valkey_command
+
+        result = await handle_valkey_command(
+            mock_bot,
+            "twitch_event",
+            {
+                "event_type": "stream.online",
+                "broadcaster_login": "shroud",
+                "broadcaster_name": "shroud",
+                "started_at": "",
+            },
+        )
+        assert result["ok"] is True
+        assert result["notified"] == 1
+        mock_channel.send.assert_called_once()
+        embed = mock_channel.send.call_args[1]["embed"]
+        assert isinstance(embed, discord.Embed)
+
+    @pytest.mark.asyncio
+    async def test_twitch_event_offline_skips_when_not_configured(self, mock_bot, db_session):
+        from models.twitch import TwitchNotifications
+
+        db_session.add(
+            TwitchNotifications(
+                GuildId=111,
+                ChannelId=222,
+                Streamer="shroud",
+                StreamerDisplayName="shroud",
+                NotifyOffline=False,
+            )
+        )
+        db_session.commit()
+
+        mock_bot.get_guild.return_value = MagicMock()
+
+        from utils.valkey import handle_valkey_command
+
+        result = await handle_valkey_command(
+            mock_bot,
+            "twitch_event",
+            {
+                "event_type": "stream.offline",
+                "broadcaster_login": "shroud",
+                "broadcaster_name": "shroud",
+                "started_at": "",
+            },
+        )
+        assert result["notified"] == 0
+
+    @pytest.mark.asyncio
+    async def test_twitch_event_no_configs_returns_ok(self, mock_bot, db_session):
+        from utils.valkey import handle_valkey_command
+
+        result = await handle_valkey_command(
+            mock_bot,
+            "twitch_event",
+            {
+                "event_type": "stream.online",
+                "broadcaster_login": "nobody",
+                "broadcaster_name": "nobody",
+                "started_at": "",
+            },
+        )
+        assert result["ok"] is True
+        assert result["notified"] == 0
