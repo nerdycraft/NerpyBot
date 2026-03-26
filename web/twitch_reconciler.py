@@ -2,17 +2,145 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from datetime import UTC, datetime
 
 _log = logging.getLogger(__name__)
 
+_RECONCILE_INTERVAL = 5 * 60  # 5 minutes
+
 
 async def reconcile_once(app_state) -> None:
-    """Run one reconciliation cycle. Called by BackgroundTasks after POST/DELETE."""
-    # Full implementation in Task 8; stub ensures routes can import this.
-    pass
+    """Run one reconciliation cycle. Called directly or from the background loop."""
+    twitch_client = getattr(app_state, "twitch_client", None)
+    if twitch_client is None:
+        return
+
+    session_factory = app_state.session_factory
+    config = app_state.config
+
+    session = session_factory()
+    try:
+        await _run_cycle(session, twitch_client, config)
+    except Exception:
+        _log.exception("twitch reconciler: unhandled error in reconcile_once")
+    finally:
+        session.close()
+
+
+def _needs_heal(streamer: str, existing_by_key: dict, session) -> bool:
+    """Return True if this streamer needs any EventSub subscription created or healed."""
+    from models.twitch import TwitchNotifications
+
+    # Always check stream.online
+    if (streamer, "stream.online") not in existing_by_key:
+        return True
+    if existing_by_key[(streamer, "stream.online")].Status not in ("enabled", "pending"):
+        return True
+    # Check stream.offline if any config needs it
+    notifications = TwitchNotifications.get_all_by_streamer(streamer, session)
+    needs_offline = any(n.NotifyOffline for n in notifications)
+    if needs_offline:
+        key = (streamer, "stream.offline")
+        if key not in existing_by_key or existing_by_key[key].Status not in ("enabled", "pending"):
+            return True
+    return False
+
+
+async def _run_cycle(session, twitch_client, config) -> None:
+    from models.twitch import TwitchEventSubSubscription, TwitchNotifications
+
+    # Desired: distinct streamers in notification config
+    desired_streamers = set(TwitchNotifications.get_all_distinct_streamers(session))
+
+    # Actual: all EventSub subscriptions in DB
+    existing_subs = TwitchEventSubSubscription.get_all(session)
+    existing_by_key: dict[tuple[str, str], TwitchEventSubSubscription] = {
+        (s.StreamerLogin, s.EventType): s for s in existing_subs
+    }
+
+    # Resolve user IDs for missing/broken streamers
+    missing_streamers = {s for s in desired_streamers if _needs_heal(s, existing_by_key, session)}
+    user_map: dict[str, dict] = {}
+    if missing_streamers:
+        try:
+            users = await twitch_client.get_users(list(missing_streamers))
+            user_map = {u["login"].lower(): u for u in users}
+        except Exception:
+            _log.exception("twitch reconciler: failed to resolve user IDs")
+
+    # Create missing subscriptions
+    for streamer in missing_streamers:
+        user_info = user_map.get(streamer)
+        if not user_info:
+            _log.warning("twitch reconciler: Twitch user not found for '%s' -- skipping", streamer)
+            continue
+        broadcaster_id = user_info["id"]
+
+        notifications = TwitchNotifications.get_all_by_streamer(streamer, session)
+        needs_offline = any(n.NotifyOffline for n in notifications)
+        event_types = ["stream.online"]
+        if needs_offline:
+            event_types.append("stream.offline")
+
+        for event_type in event_types:
+            key = (streamer, event_type)
+            existing = existing_by_key.get(key)
+            if existing and existing.Status in ("enabled", "pending"):
+                continue
+            try:
+                sub = await twitch_client.create_eventsub_subscription(
+                    event_type,
+                    broadcaster_id,
+                    config.twitch_webhook_url,
+                    config.twitch_webhook_secret,
+                )
+                sub_id = sub.get("id", "")
+                if not sub_id:
+                    continue
+                if existing:
+                    existing.TwitchSubscriptionId = sub_id
+                    existing.Status = "pending"
+                else:
+                    row = TwitchEventSubSubscription(
+                        TwitchSubscriptionId=sub_id,
+                        StreamerLogin=streamer,
+                        StreamerUserId=broadcaster_id,
+                        EventType=event_type,
+                        Status="pending",
+                        CreatedAt=datetime.now(UTC),
+                    )
+                    session.add(row)
+                session.commit()
+                _log.info(
+                    "twitch reconciler: created %s subscription for '%s' (sub_id=%s)",
+                    event_type,
+                    streamer,
+                    sub_id,
+                )
+            except Exception:
+                _log.exception("twitch reconciler: failed to create %s for '%s'", event_type, streamer)
+
+    # Delete orphaned subscriptions (streamer no longer in desired set)
+    for (streamer, event_type), sub in existing_by_key.items():
+        if streamer not in desired_streamers:
+            try:
+                await twitch_client.delete_eventsub_subscription(sub.TwitchSubscriptionId)
+                session.delete(sub)
+                session.commit()
+                _log.info("twitch reconciler: deleted orphaned %s for '%s'", event_type, streamer)
+            except Exception:
+                _log.exception("twitch reconciler: failed to delete orphaned sub for '%s'", streamer)
 
 
 async def reconciler_loop(app_state) -> None:
     """Background loop that reconciles every 5 minutes. Started in app lifespan."""
-    pass
+    try:
+        while True:
+            await asyncio.sleep(_RECONCILE_INTERVAL)
+            await reconcile_once(app_state)
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        _log.exception("twitch reconciler: background loop crashed")

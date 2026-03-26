@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -67,7 +68,22 @@ def create_app(
         app.state.session_factory = session_factory
         app.state.config = config
         app.state.valkey = valkey_client
+
+        # Initialize Twitch client and reconciler if configured
+        reconciler_task = None
+        if config.twitch_client_id:
+            from web.twitch import TwitchClient
+            from web.twitch_reconciler import reconciler_loop
+
+            app.state.twitch_client = TwitchClient(config.twitch_client_id, config.twitch_client_secret)
+            reconciler_task = asyncio.create_task(reconciler_loop(app.state))
+        else:
+            app.state.twitch_client = None
+
         yield
+
+        if reconciler_task is not None:
+            reconciler_task.cancel()
         valkey_client.close()
         engine.dispose()
 
