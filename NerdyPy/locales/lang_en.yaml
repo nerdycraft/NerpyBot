@@ -750,3 +750,11 @@ application:
 
 
         The submission was not saved. Please check the channel permissions or reconfigure the form."
+
+twitch:
+  add_success: "Notification added for **{streamer}**. It may take a few minutes to activate."
+  remove_success: "Notification removed."
+  remove_not_found: "No notification with that ID found in this server."
+  list_empty: "No Twitch notifications configured for this server."
+  list_title: "Twitch Notifications"
+  list_entry: "ID {id}: **{streamer}** → <#{channel_id}>"

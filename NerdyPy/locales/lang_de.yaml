@@ -733,3 +733,11 @@ application:
       cancelled_description: "Deine Bewerbung wurde abgebrochen."
       channel_unreachable_title: "Überprüfungskanal nicht erreichbar"
       channel_unreachable_description: "Jemand hat versucht, eine Bewerbung für das Formular **{form}** in **{guild}** einzureichen, aber der Überprüfungskanal (ID: `{channel_id}`) ist für den Bot nicht zugänglich.\n\nDie Einreichung wurde nicht gespeichert. Bitte überprüfe die Kanalberechtigungen oder konfiguriere das Formular neu."
+
+twitch:
+  add_success: "Benachrichtigung für **{streamer}** hinzugefügt. Es kann einige Minuten dauern, bis sie aktiv ist."
+  remove_success: "Benachrichtigung entfernt."
+  remove_not_found: "Keine Benachrichtigung mit dieser ID in diesem Server gefunden."
+  list_empty: "Keine Twitch-Benachrichtigungen für diesen Server konfiguriert."
+  list_title: "Twitch-Benachrichtigungen"
+  list_entry: "ID {id}: **{streamer}** → <#{channel_id}>"
