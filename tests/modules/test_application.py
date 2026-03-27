@@ -19,7 +19,7 @@ from models.application import (
     ApplicationTemplate,
     seed_built_in_templates,
 )
-from modules.application import Application
+from modules.application.management import ApplicationManagement as Application
 from utils.cache import _autocomplete_cache
 from utils.helpers import fetch_message_content
 from utils.strings import load_strings

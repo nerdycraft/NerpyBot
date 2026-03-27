@@ -27,7 +27,7 @@ from models.application import (
     ApplicationTemplateQuestion,
     SubmissionStatus,
 )
-from modules.views.application import (
+from modules.application.views import (
     _ANSWERS_PER_PAGE,
     _extract_answers,
     _normalize_review_view,
@@ -331,7 +331,7 @@ class ApplicationCreateConversation(Conversation):
 
         invalidate_autocomplete(("app_forms", self.guild.id))
         if self.apply_channel_id:
-            from modules.views.application import post_apply_button_message
+            from modules.application.views import post_apply_button_message
 
             try:
                 await post_apply_button_message(self.bot, form_id)

@@ -231,7 +231,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         form_id = int(payload.get("form_id", 0))
         if not form_id:
             return {"error": "form_id required"}
-        from modules.views.application import post_apply_button_message
+        from modules.application.views import post_apply_button_message
 
         task = ensure_future(post_apply_button_message(bot, form_id))
 

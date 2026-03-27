@@ -22,11 +22,11 @@ from models.application import (
     VoteType,
     seed_built_in_templates,
 )
-from modules.conversations.application import (
+from modules.application.conversations import (
     ApplicationCreateConversation,
     ApplicationEditConversation,
 )
-from modules.views.application import check_override_permission
+from modules.application.views import check_override_permission
 from sqlalchemy.exc import SQLAlchemyError
 from utils.cache import (
     build_id_choices,
@@ -50,7 +50,7 @@ def _localize_field(
 
 @app_commands.default_permissions(administrator=True)
 @app_commands.guild_only()
-class Application(NerpyBotCog, GroupCog, group_name="application"):
+class ApplicationManagement(NerpyBotCog, GroupCog, group_name="application"):
     """Cog for managing application forms, templates, and guild config."""
 
     template_group = app_commands.Group(name="template", description="Manage form templates", guild_only=True)
@@ -151,7 +151,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         lang: str,
     ) -> None:
         """Start the DM conversation flow for template creation (called from modal on_submit)."""
-        from modules.conversations.application import ApplicationTemplateCreateConversation
+        from modules.application.conversations import ApplicationTemplateCreateConversation
 
         conv = ApplicationTemplateCreateConversation(
             self.bot,
@@ -200,7 +200,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     ) -> tuple[str, "ApplicationForm"] | None:
         """Look up a form by autocomplete value or name; returns (lang, form) or sends an error."""
         lang = interaction.client.get_guild_language(interaction.guild_id)
-        form = Application._resolve_form(name, interaction.guild.id, session)
+        form = ApplicationManagement._resolve_form(name, interaction.guild.id, session)
         if not form:
             await interaction.response.send_message(
                 get_string(lang, "application.form_not_found", name=name), ephemeral=True
@@ -319,14 +319,14 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         await send_hidden_message(interaction, msg)
 
         if repost_apply:
-            from modules.views.application import post_apply_button_message
+            from modules.application.views import post_apply_button_message
 
             try:
                 await post_apply_button_message(self.bot, form_id)
             except discord.HTTPException:
                 self.bot.log.error("application: failed to repost apply button after settings change", exc_info=True)
         elif edit_apply:
-            from modules.views.application import edit_apply_button_message
+            from modules.application.views import edit_apply_button_message
 
             try:
                 await edit_apply_button_message(self.bot, form_id)
@@ -427,7 +427,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         )
 
         if apply_channel_id and apply_message_id:
-            from modules.views.application import delete_apply_message
+            from modules.application.views import delete_apply_message
 
             try:
                 await delete_apply_message(self.bot, apply_channel_id, apply_message_id)
@@ -774,7 +774,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             form_id = None
             with bot.session_scope() as db_session:
                 # Re-query template (session closed after permission checks above)
-                tmpl = Application._resolve_template(template, guild_id, db_session)
+                tmpl = ApplicationManagement._resolve_template(template, guild_id, db_session)
 
                 # Resolve questions: for built-in templates, use localized YAML questions
                 questions = None
@@ -830,7 +830,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             )
 
             if apply_channel_id and form_id:
-                from modules.views.application import post_apply_button_message
+                from modules.application.views import post_apply_button_message
 
                 try:
                     await post_apply_button_message(bot, form_id)
@@ -1334,7 +1334,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     async def _refresh_apply_embeds(self, guild_id: int) -> None:
         """Re-post or edit the Apply button embed for each configured form in the guild."""
-        from modules.views.application import _ApplyEmbedData, edit_apply_button_message
+        from modules.application.views import _ApplyEmbedData, edit_apply_button_message
 
         lang = self._lang(guild_id)
         with self.bot.session_scope() as session:
@@ -1367,7 +1367,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     async def _refresh_review_embeds(self, guild_id: int) -> None:
         """Re-render each pending review embed in the guild with the new language."""
-        from modules.views.application import (
+        from modules.application.views import (
             _ReviewEmbedData,
             _RoutedReviewEmbed,
             _extract_answers,
@@ -1448,7 +1448,7 @@ class _TemplateMessagesModal(discord.ui.Modal):
     async def on_submit(self, interaction: Interaction):
         approval = self.approval_input.value.strip() or None
         denial = self.denial_input.value.strip() or None
-        cog = self.bot.get_cog("Application")
+        cog = self.bot.get_cog("ApplicationManagement")
         await cog.save_template_messages(interaction, self.template_name, approval, denial, self.lang)
 
 
@@ -1503,7 +1503,7 @@ class _TemplateCreateMessagesModal(discord.ui.Modal):
     async def on_submit(self, interaction: Interaction):
         approval = self.approval_input.value.strip() or None
         denial = self.denial_input.value.strip() or None
-        cog = self.bot.get_cog("Application")
+        cog = self.bot.get_cog("ApplicationManagement")
         await cog.start_template_create_conversation(interaction, self.template_name, approval, denial, self.lang)
 
 
@@ -1523,10 +1523,5 @@ class _SettingsDescriptionModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: Interaction):
         desc = self.description_input.value.strip() or None
-        cog = self.bot.get_cog("Application")
+        cog = self.bot.get_cog("ApplicationManagement")
         await cog.apply_settings(interaction, self.form_name, description=desc, lang=self.lang, **self.settings_kwargs)
-
-
-async def setup(bot):
-    """adds this module to the bot"""
-    await bot.add_cog(Application(bot))

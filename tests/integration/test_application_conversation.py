@@ -8,7 +8,7 @@ import pytest
 
 from models.application import ApplicationAnswer, ApplicationForm, ApplicationQuestion, ApplicationSubmission
 from utils.strings import load_strings
-from modules.conversations.application import (
+from modules.application.conversations import (
     BACK_EMOJI,
     CANCEL_EMOJI,
     CONFIRM_EMOJI,
