@@ -90,7 +90,6 @@ def _get_guild_language_cached(guild_id: int, session) -> str:
 router = APIRouter(prefix="/guilds", tags=["guilds"], dependencies=[Depends(require_premium)])
 
 _REDACTED = "[redacted]"
-_TWITCH_NOTIFICATION_EXISTS = "Notification already exists for this streamer and channel"
 
 
 def _redact(value: str | None, user: dict) -> str | None:
@@ -1620,6 +1619,9 @@ async def list_discord_roles(
 
 
 # ── Twitch Notifications ──
+
+
+_TWITCH_NOTIFICATION_EXISTS = "Notification already exists for this streamer and channel"
 
 
 def _twitch_notification_to_schema(n) -> TwitchNotificationSchema:
