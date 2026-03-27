@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from functools import partial
 
+from sqlalchemy import update
+
 import discord
 from discord import Embed
 
@@ -878,13 +880,7 @@ class ApplicationSubmitConversation(Conversation):
                         exc,
                     )
                     await self._notify_responsible(review_channel_id)
-                    _c = "application.conversation.submit"
-                    emb = Embed(
-                        title=get_string(self.lang, f"{_c}.error_title"),
-                        description=get_string(self.lang, f"{_c}.error_description"),
-                    )
-                    await self.send_ns(emb)
-                    await self.close()
+                    await self._abort_with_submit_error()
                     return
 
         # Channel is accessible — save the submission and answers.
@@ -930,17 +926,21 @@ class ApplicationSubmitConversation(Conversation):
                         mention_ids.add(gr.RoleId)
                     submission_user_name = submission.UserName
 
-            if embed is not None:
-                view = ApplicationReviewView(bot=self.bot, lang=self.lang)
-                _normalize_review_view(
-                    view,
-                    total_pages=total_pages,
-                    current_page=1,
-                    status=SubmissionStatus.PENDING,
-                    applicant_notified=False,
-                )
-                mention_content = " ".join(f"<@&{rid}>" for rid in sorted(mention_ids)) or None
+            if embed is None:
+                await self._abort_with_submit_error()
+                return
 
+            view = ApplicationReviewView(bot=self.bot, lang=self.lang)
+            _normalize_review_view(
+                view,
+                total_pages=total_pages,
+                current_page=1,
+                status=SubmissionStatus.PENDING,
+                applicant_notified=False,
+            )
+            mention_content = " ".join(f"<@&{rid}>" for rid in sorted(mention_ids)) or None
+
+            try:
                 msg = await channel.send(embed=embed, view=view)
 
                 thread_name = submission_user_name or get_string(
@@ -952,21 +952,43 @@ class ApplicationSubmitConversation(Conversation):
                         await thread.send(mention_content)
                 except discord.HTTPException:
                     self.bot.log.warning("application: failed to create review thread for msg %d", msg.id)
+            except discord.HTTPException as exc:
+                self.bot.log.error(
+                    "application: failed to post review embed to channel %d: %s",
+                    review_channel_id,
+                    exc,
+                )
+                await self._abort_with_submit_error()
+                return
 
-                with self.bot.session_scope() as session:
-                    submission = ApplicationSubmission.get_by_id(self.submission_id, session)
-                    if submission is not None:
-                        submission.ReviewMessageId = msg.id
-                    else:
-                        self.bot.log.warning(
-                            "application: submission %d deleted before ReviewMessageId could be persisted",
-                            self.submission_id,
-                        )
+            rows_updated = 0
+            with self.bot.session_scope() as session:
+                rows_updated = session.execute(
+                    update(ApplicationSubmission)
+                    .where(ApplicationSubmission.Id == self.submission_id)
+                    .values(ReviewMessageId=msg.id)
+                ).rowcount
+
+            if rows_updated == 0:
+                self.bot.log.warning(
+                    "application: submission %d deleted before ReviewMessageId could be persisted",
+                    self.submission_id,
+                )
+                await self._abort_with_submit_error()
+                return
 
         _c = "application.conversation.submit"
         emb = Embed(
             title=get_string(self.lang, f"{_c}.submitted_title"),
             description=get_string(self.lang, f"{_c}.submitted_description"),
+        )
+        await self.send_ns(emb)
+        await self.close()
+
+    async def _abort_with_submit_error(self) -> None:
+        emb = Embed(
+            title=get_string(self.lang, "application.conversation.submit.error_title"),
+            description=get_string(self.lang, "application.conversation.submit.error_description"),
         )
         await self.send_ns(emb)
         await self.close()
