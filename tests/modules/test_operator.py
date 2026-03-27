@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 """Tests for Operator cog: botpermissions, !disable/!enable/!disabled/!help/!errors commands."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from discord import Forbidden, HTTPException, Object
+from discord.app_commands import MissingApplicationID
 from models.admin import PermissionSubscriber
 from modules.operator import Operator, _format_remaining
+from utils.errors import NerpyInfraException
 from utils.strings import load_strings
 
 
@@ -359,6 +363,130 @@ class TestErrorsUnknownAction:
         await cog._errors.callback(cog, operator_ctx, action="foobar")
         msg = operator_ctx.send.call_args[0][0]
         assert "Unknown action" in msg
+
+
+# ---------------------------------------------------------------------------
+# !sync (multi-guild path)
+# ---------------------------------------------------------------------------
+
+
+class TestSyncGuilds:
+    def _make_guilds(self, *ids):
+        return [Object(id=i) for i in ids]
+
+    @pytest.mark.asyncio
+    async def test_all_guilds_succeed(self, cog, operator_ctx):
+        cog.bot.tree.sync = AsyncMock(return_value=[])
+        guilds = self._make_guilds(1, 2, 3)
+
+        await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
+
+        msg = operator_ctx.send.call_args[0][0]
+        assert "3/3" in msg
+
+    @pytest.mark.asyncio
+    async def test_partial_failure_http_exception(self, cog, operator_ctx):
+        http_err = HTTPException(MagicMock(status=429), "rate limited")
+
+        async def side_effect(guild):
+            if guild.id == 2:
+                raise http_err
+            return []
+
+        cog.bot.tree.sync = side_effect
+        guilds = self._make_guilds(1, 2, 3)
+
+        await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
+
+        msg = operator_ctx.send.call_args[0][0]
+        assert "2/3" in msg
+
+    @pytest.mark.asyncio
+    async def test_hard_error_raises_infra_exception_after_all_complete(self, cog, operator_ctx):
+        sync_calls = []
+
+        async def side_effect(guild):
+            sync_calls.append(guild)
+            if guild.id == 2:
+                raise MissingApplicationID("boom")
+            return []
+
+        cog.bot.tree.sync = side_effect
+        guilds = self._make_guilds(1, 2, 3)
+
+        with pytest.raises(NerpyInfraException):
+            await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
+
+        assert {g.id for g in sync_calls} == {1, 2, 3}
+
+    @pytest.mark.asyncio
+    async def test_unexpected_exception_raises_infra_exception(self, cog, operator_ctx):
+        sync_calls = []
+
+        async def side_effect(guild):
+            sync_calls.append(guild)
+            if guild.id == 2:
+                raise RuntimeError("unexpected")
+            return []
+
+        cog.bot.tree.sync = side_effect
+        guilds = self._make_guilds(1, 2, 3)
+
+        with pytest.raises(NerpyInfraException):
+            await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
+
+        assert {g.id for g in sync_calls} == {1, 2, 3}
+
+    @pytest.mark.asyncio
+    async def test_forbidden_is_hard_error_not_soft_failure(self, cog, operator_ctx):
+        # Forbidden is a subclass of HTTPException; must be caught by the specific
+        # handler first, not the broad HTTPException fallback.
+        forbidden_err = Forbidden(MagicMock(status=403), "missing permissions")
+
+        async def side_effect(guild):
+            if guild.id == 2:
+                raise forbidden_err
+            return []
+
+        cog.bot.tree.sync = side_effect
+        guilds = self._make_guilds(1, 2, 3)
+
+        with pytest.raises(NerpyInfraException):
+            await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
+
+    @pytest.mark.asyncio
+    async def test_guild_syncs_run_concurrently(self, cog, operator_ctx):
+        # Proves asyncio.gather runs all coroutines in parallel: none can
+        # complete until all have started, because each waits on a shared event.
+        started = []
+        release = asyncio.Event()
+        all_started = asyncio.Event()
+
+        async def side_effect(guild):
+            started.append(guild.id)
+            if len(started) == 3:
+                all_started.set()
+            await release.wait()
+            return []
+
+        cog.bot.tree.sync = side_effect
+        guilds = self._make_guilds(1, 2, 3)
+
+        task = asyncio.create_task(cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None))
+        await asyncio.wait_for(all_started.wait(), timeout=1.0)
+        assert sorted(started) == [1, 2, 3]
+        release.set()
+        await task
+
+    @pytest.mark.asyncio
+    async def test_single_guild_succeeds(self, cog, operator_ctx):
+        cog.bot.tree.sync = AsyncMock(return_value=[])
+        guilds = self._make_guilds(42)
+
+        await cog.sync.callback(cog, operator_ctx, guilds=guilds, spec=None)
+
+        msg = operator_ctx.send.call_args[0][0]
+        assert "1/1" in msg
 
 
 # ---------------------------------------------------------------------------
