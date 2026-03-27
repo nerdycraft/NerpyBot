@@ -87,7 +87,7 @@ def create_app(
             try:
                 await reconciler_task
             except asyncio.CancelledError:
-                pass
+                pass  # expected during shutdown — cancellation is intentional
         if app.state.twitch_client is not None:
             await app.state.twitch_client.aclose()
         valkey_client.close()
