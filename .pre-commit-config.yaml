@@ -19,7 +19,7 @@ repos:
         types_or: [yaml, markdown]
 
   - repo: https://github.com/biomejs/pre-commit
-    rev: "v2.4.8"
+    rev: "v2.4.9"
     hooks:
       - id: biome-check
         additional_dependencies: ["@biomejs/biome@2.4.8"]
