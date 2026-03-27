@@ -496,3 +496,27 @@ export interface RecipeCacheBrowseResponse {
   expansions: string[];
   total: number;
 }
+
+// ── Twitch Notifications ──
+
+export interface TwitchNotificationSchema {
+  id: number;
+  channel_id: string;
+  streamer: string;
+  streamer_display_name: string;
+  message: string | null;
+  notify_offline: boolean;
+}
+
+export interface TwitchNotificationCreate {
+  channel_id: string;
+  streamer: string;
+  message?: string | null;
+  notify_offline?: boolean;
+}
+
+export interface TwitchNotificationUpdate {
+  channel_id?: string;
+  message?: string | null;
+  notify_offline?: boolean;
+}
