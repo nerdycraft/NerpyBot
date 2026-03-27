@@ -664,7 +664,7 @@ export const operatorRecipeSyncStatus: RecipeSyncStatusResponse = {
 export const guild1TwitchNotifications: TwitchNotificationSchema[] = [
   {
     id: 1,
-    channel_id: "999000000000000010",
+    channel_id: "800000000000000001",
     streamer: "shroud",
     streamer_display_name: "shroud",
     message: "Shroud is streaming! Come watch!",
@@ -672,7 +672,7 @@ export const guild1TwitchNotifications: TwitchNotificationSchema[] = [
   },
   {
     id: 2,
-    channel_id: "999000000000000011",
+    channel_id: "800000000000000002",
     streamer: "pokimane",
     streamer_display_name: "pokimane",
     message: null,

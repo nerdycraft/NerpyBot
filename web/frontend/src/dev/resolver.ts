@@ -586,12 +586,14 @@ const routes: Route[] = [
       if (_m === "PATCH" && body) {
         const b = body as TwitchNotificationUpdate;
         const idx = items.findIndex((x) => x.id === id);
-        if (idx >= 0) items[idx] = { ...items[idx]!, ...b };
-        return ok(items[idx]);
+        if (idx >= 0) {
+          items[idx] = { ...items[idx]!, ...b };
+          return ok(items[idx]);
+        }
+        return ok(undefined);
       }
       if (_m === "DELETE") {
-        const idx = items.findIndex((x) => x.id === id);
-        if (idx !== -1) items.splice(idx, 1);
+        stores[guildId]!["twitchNotifications"] = items.filter((x) => x.id !== id);
       }
       return ok(undefined);
     },
