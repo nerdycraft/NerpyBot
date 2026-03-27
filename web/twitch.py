@@ -59,12 +59,13 @@ class TwitchClient:
         """Resolve Twitch login names to user objects with id and display_name."""
         if not logins:
             return []
+        headers = await self._headers()
         results = []
         for i in range(0, len(logins), 100):
             chunk = logins[i : i + 100]
             resp = await self._http.get(
                 f"{_TWITCH_API_BASE}/users",
-                headers=await self._headers(),
+                headers=headers,
                 params=[("login", login) for login in chunk],
             )
             resp.raise_for_status()

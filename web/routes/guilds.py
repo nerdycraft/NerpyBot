@@ -90,6 +90,7 @@ def _get_guild_language_cached(guild_id: int, session) -> str:
 router = APIRouter(prefix="/guilds", tags=["guilds"], dependencies=[Depends(require_premium)])
 
 _REDACTED = "[redacted]"
+_TWITCH_NOTIFICATION_EXISTS = "Notification already exists for this streamer and channel"
 
 
 def _redact(value: str | None, user: dict) -> str | None:
@@ -1690,7 +1691,7 @@ async def create_twitch_notification(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Notification already exists for this streamer and channel",
+            detail=_TWITCH_NOTIFICATION_EXISTS,
         )
 
     row = TwitchNotifications(
@@ -1706,9 +1707,7 @@ async def create_twitch_notification(
         session.commit()
     except IntegrityError:
         session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Notification already exists for this streamer and channel"
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_TWITCH_NOTIFICATION_EXISTS)
 
     background_tasks.add_task(reconcile_once, request.app.state)
 
@@ -1732,15 +1731,7 @@ async def update_twitch_notification(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification config not found")
 
     if "channel_id" in body.model_fields_set and body.channel_id is not None:
-        new_channel_id = int(body.channel_id)
-        if new_channel_id != row.ChannelId:
-            conflict = TwitchNotifications.get_by_channel_and_streamer(guild_id, new_channel_id, row.Streamer, session)
-            if conflict is not None and conflict.Id != row.Id:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Notification already exists for this streamer and channel",
-                )
-        row.ChannelId = new_channel_id
+        row.ChannelId = int(body.channel_id)
     if "message" in body.model_fields_set:
         row.Message = body.message
     if "notify_offline" in body.model_fields_set and body.notify_offline is not None:
@@ -1750,9 +1741,7 @@ async def update_twitch_notification(
         session.flush()
     except IntegrityError:
         session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Notification already exists for this streamer and channel"
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_TWITCH_NOTIFICATION_EXISTS)
 
     return _twitch_notification_to_schema(row)
 
