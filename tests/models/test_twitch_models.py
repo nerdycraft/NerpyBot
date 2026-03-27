@@ -17,7 +17,7 @@ class TestTwitchNotifications:
         )
         db_session.add(row)
         db_session.commit()
-        found = TwitchNotifications.get_by_id(row.Id, db_session)
+        found = TwitchNotifications.get_by_id(row.Id, 111, db_session)
         assert found is not None
         assert found.Streamer == "shroud"
 

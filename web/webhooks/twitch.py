@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
-from models.twitch import TwitchEventSubSubscription
+from models.twitch import SUB_STATUS_REVOKED, TwitchEventSubSubscription
 from web.cache import ValkeyClient
 from web.dependencies import get_db_session, get_valkey
 from web.twitch import TwitchClient
@@ -43,7 +43,6 @@ async def twitch_webhook(
     if not config.twitch_client_id:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Twitch integration not configured")
 
-    # Read raw body for HMAC verification
     body = await request.body()
 
     msg_id = request.headers.get("Twitch-Eventsub-Message-Id", "")
@@ -51,12 +50,10 @@ async def twitch_webhook(
     signature = request.headers.get("Twitch-Eventsub-Message-Signature", "")
     msg_type = request.headers.get("Twitch-Eventsub-Message-Type", "")
 
-    # Verify HMAC signature
     if not TwitchClient.verify_signature(config.twitch_webhook_secret, msg_id, timestamp, body, signature):
         _log.warning("twitch_webhook: invalid HMAC signature for msg_id=%s", msg_id)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid signature")
 
-    # Reject stale timestamps (replay protection)
     msg_time = _parse_timestamp(timestamp)
     if msg_time is None or abs((datetime.now(UTC) - msg_time).total_seconds()) > _MAX_AGE_SECONDS:
         _log.warning("twitch_webhook: stale or unparseable timestamp=%s", timestamp)
@@ -97,7 +94,7 @@ async def twitch_webhook(
         if sub_id:
             row = TwitchEventSubSubscription.get_by_twitch_id(sub_id, session)
             if row:
-                row.Status = "revoked"
+                row.Status = SUB_STATUS_REVOKED
         return Response(status_code=204)
 
     # Unknown message type — accept and ignore

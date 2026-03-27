@@ -215,18 +215,3 @@ class _FakeValkeyClient:
     def getdel(self, key: str) -> str | None:
         """Atomically get and delete a key. Returns the value or None if absent."""
         return self._store.pop(key, None)
-
-    # ── Twitch event deduplication (for ValkeyClient compatibility) ──
-
-    def is_twitch_event_seen(self, message_id: str) -> bool:
-        """Return True if this Twitch event message_id was already processed."""
-        key = f"nerpybot:twitch:dedup:{message_id}"
-        return self._store.get(key) is not None
-
-    def mark_twitch_event_seen(self, message_id: str, ttl: int = 300) -> None:
-        """Mark a Twitch event message_id as seen with a TTL (default 300s).
-
-        Uses SET NX so the first caller wins — duplicate calls are a no-op.
-        """
-        key = f"nerpybot:twitch:dedup:{message_id}"
-        self.set(key, "1", ex=ttl, nx=True)

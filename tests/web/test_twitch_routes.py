@@ -1,6 +1,6 @@
 """Tests for guild Twitch notification CRUD endpoints."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -78,26 +78,24 @@ class TestListTwitchNotifications:
 class TestCreateTwitchNotification:
     def test_creates_notification(self, twitch_client, auth_header):
         mock_users = [{"id": "12345", "login": "shroud", "display_name": "shroud"}]
-        with patch("web.routes.guilds.TwitchClient") as MockClient:
-            MockClient.return_value.get_users = AsyncMock(return_value=mock_users)
-            resp = twitch_client.post(
-                f"/api/guilds/{GUILD_ID}/twitch-notifications",
-                json={"channel_id": "111222333", "streamer": "shroud"},
-                headers=auth_header,
-            )
+        twitch_client.app.state.twitch_client.get_users = AsyncMock(return_value=mock_users)
+        resp = twitch_client.post(
+            f"/api/guilds/{GUILD_ID}/twitch-notifications",
+            json={"channel_id": "111222333", "streamer": "shroud"},
+            headers=auth_header,
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert data["streamer"] == "shroud"
         assert data["channel_id"] == "111222333"
 
     def test_422_on_unknown_twitch_user(self, twitch_client, auth_header):
-        with patch("web.routes.guilds.TwitchClient") as MockClient:
-            MockClient.return_value.get_users = AsyncMock(return_value=[])
-            resp = twitch_client.post(
-                f"/api/guilds/{GUILD_ID}/twitch-notifications",
-                json={"channel_id": "111", "streamer": "doesnotexist"},
-                headers=auth_header,
-            )
+        twitch_client.app.state.twitch_client.get_users = AsyncMock(return_value=[])
+        resp = twitch_client.post(
+            f"/api/guilds/{GUILD_ID}/twitch-notifications",
+            json={"channel_id": "111", "streamer": "doesnotexist"},
+            headers=auth_header,
+        )
         assert resp.status_code == 422
 
     def test_409_on_duplicate(self, twitch_client, auth_header, web_db_session):
@@ -109,13 +107,12 @@ class TestCreateTwitchNotification:
         web_db_session.commit()
 
         mock_users = [{"id": "12345", "login": "shroud", "display_name": "shroud"}]
-        with patch("web.routes.guilds.TwitchClient") as MockClient:
-            MockClient.return_value.get_users = AsyncMock(return_value=mock_users)
-            resp = twitch_client.post(
-                f"/api/guilds/{GUILD_ID}/twitch-notifications",
-                json={"channel_id": "111222333", "streamer": "shroud"},
-                headers=auth_header,
-            )
+        twitch_client.app.state.twitch_client.get_users = AsyncMock(return_value=mock_users)
+        resp = twitch_client.post(
+            f"/api/guilds/{GUILD_ID}/twitch-notifications",
+            json={"channel_id": "111222333", "streamer": "shroud"},
+            headers=auth_header,
+        )
         assert resp.status_code == 409
 
 

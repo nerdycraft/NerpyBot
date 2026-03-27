@@ -6,6 +6,16 @@ from datetime import UTC, datetime
 from sqlalchemy import BigInteger, Boolean, Column, DateTime, Index, Integer, String, Text, UniqueConstraint
 from utils import database as db
 
+# EventSub event types
+STREAM_ONLINE = "stream.online"
+STREAM_OFFLINE = "stream.offline"
+
+# EventSub subscription statuses
+SUB_STATUS_PENDING = "pending"
+SUB_STATUS_ENABLED = "enabled"
+SUB_STATUS_REVOKED = "revoked"
+SUB_STATUS_FAILED = "failed"
+
 
 class TwitchNotifications(db.BASE):
     """Per-guild streamer notification config."""
@@ -26,8 +36,8 @@ class TwitchNotifications(db.BASE):
     NotifyOffline = Column(Boolean, default=False, server_default="0", nullable=False)
 
     @classmethod
-    def get_by_id(cls, notification_id: int, session):
-        return session.query(cls).filter(cls.Id == notification_id).first()
+    def get_by_id(cls, notification_id: int, guild_id: int, session):
+        return session.query(cls).filter(cls.Id == notification_id, cls.GuildId == guild_id).first()
 
     @classmethod
     def get_all_by_guild(cls, guild_id: int, session):
@@ -62,7 +72,7 @@ class TwitchEventSubSubscription(db.BASE):
     StreamerLogin = Column(String(25), nullable=False)
     StreamerUserId = Column(String(20), nullable=False)
     EventType = Column(String(30), nullable=False)
-    Status = Column(String(20), nullable=False, default="pending", server_default="pending")
+    Status = Column(String(20), nullable=False, default=SUB_STATUS_PENDING, server_default=SUB_STATUS_PENDING)
     CreatedAt = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 
     @classmethod
@@ -75,7 +85,7 @@ class TwitchEventSubSubscription(db.BASE):
 
     @classmethod
     def get_all_enabled(cls, session):
-        return session.query(cls).filter(cls.Status == "enabled").all()
+        return session.query(cls).filter(cls.Status == SUB_STATUS_ENABLED).all()
 
     @classmethod
     def get_all(cls, session):

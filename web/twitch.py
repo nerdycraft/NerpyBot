@@ -25,23 +25,27 @@ class TwitchClient:
         self._client_secret = client_secret
         self._token: str | None = None
         self._token_expires_at: float = 0.0
+        self._http = httpx.AsyncClient()
+
+    async def aclose(self) -> None:
+        """Close the underlying HTTP client."""
+        await self._http.aclose()
 
     async def get_app_access_token(self) -> str:
         """Return a valid client credentials access token, refreshing if expired."""
         now = time.monotonic()
         if self._token and now < self._token_expires_at - 60:
             return self._token
-        async with httpx.AsyncClient() as http:
-            resp = await http.post(
-                _TWITCH_AUTH_URL,
-                data={
-                    "client_id": self._client_id,
-                    "client_secret": self._client_secret,
-                    "grant_type": "client_credentials",
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        resp = await self._http.post(
+            _TWITCH_AUTH_URL,
+            data={
+                "client_id": self._client_id,
+                "client_secret": self._client_secret,
+                "grant_type": "client_credentials",
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
         self._token = data["access_token"]
         self._token_expires_at = now + data.get("expires_in", 3600)
         _log.debug("Refreshed Twitch app access token (expires in %ss)", data.get("expires_in", 3600))
@@ -56,14 +60,13 @@ class TwitchClient:
         if not logins:
             return []
         params = [("login", login) for login in logins]
-        async with httpx.AsyncClient() as http:
-            resp = await http.get(
-                f"{_TWITCH_API_BASE}/users",
-                params=params,
-                headers=await self._headers(),
-            )
-            resp.raise_for_status()
-            return resp.json().get("data", [])
+        resp = await self._http.get(
+            f"{_TWITCH_API_BASE}/users",
+            params=params,
+            headers=await self._headers(),
+        )
+        resp.raise_for_status()
+        return resp.json().get("data", [])
 
     async def create_eventsub_subscription(
         self,
@@ -83,47 +86,44 @@ class TwitchClient:
                 "secret": secret,
             },
         }
-        async with httpx.AsyncClient() as http:
-            resp = await http.post(
-                f"{_TWITCH_API_BASE}/eventsub/subscriptions",
-                json=payload,
-                headers=await self._headers(),
-            )
-            resp.raise_for_status()
-            data = resp.json().get("data", [])
-            return data[0] if data else {}
+        resp = await self._http.post(
+            f"{_TWITCH_API_BASE}/eventsub/subscriptions",
+            json=payload,
+            headers=await self._headers(),
+        )
+        resp.raise_for_status()
+        data = resp.json().get("data", [])
+        return data[0] if data else {}
 
     async def delete_eventsub_subscription(self, subscription_id: str) -> None:
         """Delete an EventSub subscription by Twitch's UUID."""
-        async with httpx.AsyncClient() as http:
-            resp = await http.delete(
-                f"{_TWITCH_API_BASE}/eventsub/subscriptions",
-                params={"id": subscription_id},
-                headers=await self._headers(),
-            )
-            if resp.status_code not in (204, 404):
-                resp.raise_for_status()
+        resp = await self._http.delete(
+            f"{_TWITCH_API_BASE}/eventsub/subscriptions",
+            params={"id": subscription_id},
+            headers=await self._headers(),
+        )
+        if resp.status_code not in (204, 404):
+            resp.raise_for_status()
 
     async def list_eventsub_subscriptions(self) -> list[dict[str, Any]]:
         """List all active EventSub subscriptions for this app."""
         results = []
         cursor = None
-        async with httpx.AsyncClient() as http:
-            while True:
-                params: dict[str, Any] = {"first": 100}
-                if cursor:
-                    params["after"] = cursor
-                resp = await http.get(
-                    f"{_TWITCH_API_BASE}/eventsub/subscriptions",
-                    params=params,
-                    headers=await self._headers(),
-                )
-                resp.raise_for_status()
-                body = resp.json()
-                results.extend(body.get("data", []))
-                cursor = body.get("pagination", {}).get("cursor")
-                if not cursor:
-                    break
+        while True:
+            params: dict[str, Any] = {"first": 100}
+            if cursor:
+                params["after"] = cursor
+            resp = await self._http.get(
+                f"{_TWITCH_API_BASE}/eventsub/subscriptions",
+                params=params,
+                headers=await self._headers(),
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            results.extend(body.get("data", []))
+            cursor = body.get("pagination", {}).get("cursor")
+            if not cursor:
+                break
         return results
 
     @staticmethod

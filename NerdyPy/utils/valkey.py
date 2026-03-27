@@ -490,11 +490,11 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             return {"success": False, "error": str(exc)}
     elif command == "twitch_event":
         import discord
+        from models.twitch import STREAM_OFFLINE, STREAM_ONLINE
 
         event_type = payload.get("event_type", "")
         broadcaster_login = payload.get("broadcaster_login", "").lower()
         broadcaster_name = payload.get("broadcaster_name", broadcaster_login)
-        started_at = payload.get("started_at", "")  # noqa: F841 — reserved for future embed use
 
         if not broadcaster_login:
             bot.log.warning("twitch_event: received empty broadcaster_login — ignoring")
@@ -514,7 +514,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
 
         notified = 0
         for cfg in configs:
-            if event_type == "stream.offline" and not cfg.NotifyOffline:
+            if event_type == STREAM_OFFLINE and not cfg.NotifyOffline:
                 continue
 
             guild = bot.get_guild(cfg.GuildId)
@@ -533,7 +533,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                     continue
 
             stream_url = f"https://twitch.tv/{broadcaster_login}"
-            if event_type == "stream.online":
+            if event_type == STREAM_ONLINE:
                 description = cfg.Message or f"**{broadcaster_name}** is now live on Twitch!"
                 title = f"{broadcaster_name} is live!"
                 color = discord.Color.from_rgb(145, 70, 255)  # Twitch purple

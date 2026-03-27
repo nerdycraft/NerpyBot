@@ -6,6 +6,8 @@ import asyncio
 import logging
 from datetime import UTC, datetime
 
+from models.twitch import STREAM_OFFLINE, STREAM_ONLINE, SUB_STATUS_ENABLED, SUB_STATUS_PENDING
+
 _log = logging.getLogger(__name__)
 
 _RECONCILE_INTERVAL = 5 * 60  # 5 minutes
@@ -34,16 +36,16 @@ def _needs_heal(streamer: str, existing_by_key: dict, session) -> bool:
     from models.twitch import TwitchNotifications
 
     # Always check stream.online
-    if (streamer, "stream.online") not in existing_by_key:
+    if (streamer, STREAM_ONLINE) not in existing_by_key:
         return True
-    if existing_by_key[(streamer, "stream.online")].Status not in ("enabled", "pending"):
+    if existing_by_key[(streamer, STREAM_ONLINE)].Status not in (SUB_STATUS_ENABLED, SUB_STATUS_PENDING):
         return True
     # Check stream.offline if any config needs it
     notifications = TwitchNotifications.get_all_by_streamer(streamer, session)
     needs_offline = any(n.NotifyOffline for n in notifications)
     if needs_offline:
-        key = (streamer, "stream.offline")
-        if key not in existing_by_key or existing_by_key[key].Status not in ("enabled", "pending"):
+        key = (streamer, STREAM_OFFLINE)
+        if key not in existing_by_key or existing_by_key[key].Status not in (SUB_STATUS_ENABLED, SUB_STATUS_PENDING):
             return True
     return False
 
@@ -80,14 +82,14 @@ async def _run_cycle(session, twitch_client, config) -> None:
 
         notifications = TwitchNotifications.get_all_by_streamer(streamer, session)
         needs_offline = any(n.NotifyOffline for n in notifications)
-        event_types = ["stream.online"]
+        event_types = [STREAM_ONLINE]
         if needs_offline:
-            event_types.append("stream.offline")
+            event_types.append(STREAM_OFFLINE)
 
         for event_type in event_types:
             key = (streamer, event_type)
             existing = existing_by_key.get(key)
-            if existing and existing.Status in ("enabled", "pending"):
+            if existing and existing.Status in (SUB_STATUS_ENABLED, SUB_STATUS_PENDING):
                 continue
             try:
                 sub = await twitch_client.create_eventsub_subscription(
@@ -101,14 +103,14 @@ async def _run_cycle(session, twitch_client, config) -> None:
                     continue
                 if existing:
                     existing.TwitchSubscriptionId = sub_id
-                    existing.Status = "pending"
+                    existing.Status = SUB_STATUS_PENDING
                 else:
                     row = TwitchEventSubSubscription(
                         TwitchSubscriptionId=sub_id,
                         StreamerLogin=streamer,
                         StreamerUserId=broadcaster_id,
                         EventType=event_type,
-                        Status="pending",
+                        Status=SUB_STATUS_PENDING,
                         CreatedAt=datetime.now(UTC),
                     )
                     session.add(row)

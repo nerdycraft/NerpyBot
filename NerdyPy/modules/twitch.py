@@ -64,8 +64,8 @@ class TwitchNotificationsCog(NerpyBotCog, GroupCog, group_name="twitch"):
     async def remove(self, interaction: Interaction, config_id: int):
         reply = None
         with self.bot.session_scope() as session:
-            row = TwitchNotifications.get_by_id(config_id, session)
-            if row is None or row.GuildId != interaction.guild_id:
+            row = TwitchNotifications.get_by_id(config_id, interaction.guild_id, session)
+            if row is None:
                 reply = self.bot.get_localized_string(interaction.guild_id, "twitch.remove_not_found")
             else:
                 session.delete(row)

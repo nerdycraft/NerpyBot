@@ -1621,6 +1621,17 @@ async def list_discord_roles(
 # ── Twitch Notifications ──
 
 
+def _twitch_notification_to_schema(n) -> TwitchNotificationSchema:
+    return TwitchNotificationSchema(
+        id=n.Id,
+        channel_id=str(n.ChannelId),
+        streamer=n.Streamer,
+        streamer_display_name=n.StreamerDisplayName,
+        message=n.Message,
+        notify_offline=n.NotifyOffline,
+    )
+
+
 @router.get("/{guild_id}/twitch-notifications", response_model=list[TwitchNotificationSchema])
 async def list_twitch_notifications(
     guild_id: int,
@@ -1631,17 +1642,7 @@ async def list_twitch_notifications(
     from models.twitch import TwitchNotifications
 
     rows = TwitchNotifications.get_all_by_guild(guild_id, session)
-    return [
-        TwitchNotificationSchema(
-            id=r.Id,
-            channel_id=str(r.ChannelId),
-            streamer=r.Streamer,
-            streamer_display_name=r.StreamerDisplayName,
-            message=r.Message,
-            notify_offline=r.NotifyOffline,
-        )
-        for r in rows
-    ]
+    return [_twitch_notification_to_schema(r) for r in rows]
 
 
 @router.post(
@@ -1666,7 +1667,7 @@ async def create_twitch_notification(
     if not config.twitch_client_id:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Twitch integration not configured")
 
-    twitch = TwitchClient(config.twitch_client_id, config.twitch_client_secret)
+    twitch: TwitchClient = request.app.state.twitch_client
     streamer_lower = body.streamer.lower()
     try:
         users = await twitch.get_users([streamer_lower])
@@ -1703,14 +1704,7 @@ async def create_twitch_notification(
 
     background_tasks.add_task(reconcile_once, request.app.state)
 
-    return TwitchNotificationSchema(
-        id=row.Id,
-        channel_id=str(row.ChannelId),
-        streamer=row.Streamer,
-        streamer_display_name=row.StreamerDisplayName,
-        message=row.Message,
-        notify_offline=row.NotifyOffline,
-    )
+    return _twitch_notification_to_schema(row)
 
 
 @router.patch("/{guild_id}/twitch-notifications/{config_id}", response_model=TwitchNotificationSchema)
@@ -1725,8 +1719,8 @@ async def update_twitch_notification(
     _deny_support_write(user)
     from models.twitch import TwitchNotifications
 
-    row = TwitchNotifications.get_by_id(config_id, session)
-    if row is None or row.GuildId != guild_id:
+    row = TwitchNotifications.get_by_id(config_id, guild_id, session)
+    if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification config not found")
 
     if "channel_id" in body.model_fields_set and body.channel_id is not None:
@@ -1736,14 +1730,7 @@ async def update_twitch_notification(
     if "notify_offline" in body.model_fields_set and body.notify_offline is not None:
         row.NotifyOffline = body.notify_offline
 
-    return TwitchNotificationSchema(
-        id=row.Id,
-        channel_id=str(row.ChannelId),
-        streamer=row.Streamer,
-        streamer_display_name=row.StreamerDisplayName,
-        message=row.Message,
-        notify_offline=row.NotifyOffline,
-    )
+    return _twitch_notification_to_schema(row)
 
 
 @router.delete("/{guild_id}/twitch-notifications/{config_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1760,8 +1747,8 @@ async def delete_twitch_notification(
     from models.twitch import TwitchNotifications
     from web.twitch_reconciler import reconcile_once
 
-    row = TwitchNotifications.get_by_id(config_id, session)
-    if row is None or row.GuildId != guild_id:
+    row = TwitchNotifications.get_by_id(config_id, guild_id, session)
+    if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification config not found")
 
     session.delete(row)
