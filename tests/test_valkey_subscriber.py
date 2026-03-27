@@ -604,7 +604,7 @@ class TestTwitchEventHandler:
                 "started_at": "",
             },
         )
-        assert result["ok"] is True
+        assert result["success"] is True
         assert result["notified"] == 1
         mock_channel.send.assert_called_once()
         embed = mock_channel.send.call_args[1]["embed"]
@@ -655,7 +655,7 @@ class TestTwitchEventHandler:
                 "started_at": "",
             },
         )
-        assert result["ok"] is True
+        assert result["success"] is True
         assert result["notified"] == 0
 
     @pytest.mark.asyncio
@@ -675,7 +675,7 @@ class TestTwitchEventHandler:
                     "started_at": "",
                 },
             )
-        assert result["ok"] is False
+        assert result["success"] is False
         assert result["error"] == "DB error"
 
     @pytest.mark.asyncio
@@ -713,5 +713,5 @@ class TestTwitchEventHandler:
                 "started_at": "",
             },
         )
-        assert result["ok"] is True
+        assert result["success"] is True
         assert result["notified"] == 0  # channel not found, so not notified

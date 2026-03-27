@@ -758,3 +758,7 @@ twitch:
   remove_not_found: "No notification with that ID found in this server."
   list_empty: "No Twitch notifications configured for this server."
   list_title: "Twitch Notifications"
+  live_title: "{streamer} is live!"
+  live_message: "**{streamer}** is now live on Twitch!"
+  offline_title: "{streamer} went offline"
+  offline_message: "**{streamer}** has gone offline."

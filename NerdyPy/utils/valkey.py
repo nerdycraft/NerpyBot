@@ -498,7 +498,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
 
         if not broadcaster_login:
             bot.log.warning("twitch_event: received empty broadcaster_login — ignoring")
-            return {"ok": False, "error": "broadcaster_login required"}
+            return {"success": False, "error": "broadcaster_login required"}
 
         try:
             from models.twitch import TwitchNotifications
@@ -510,17 +510,16 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             configs = await to_thread(_get_configs)
         except Exception:
             bot.log.exception("twitch_event: failed to query notification configs for '%s'", broadcaster_login)
-            return {"ok": False, "error": "DB error"}
+            return {"success": False, "error": "DB error"}
 
-        notified = 0
-        for cfg in configs:
+        async def _notify_one(cfg) -> bool:
             if event_type == STREAM_OFFLINE and not cfg.NotifyOffline:
-                continue
+                return False
 
             guild = bot.get_guild(cfg.GuildId)
             if guild is None:
                 bot.log.warning("twitch_event: guild %s not in cache — skipping", cfg.GuildId)
-                continue
+                return False
 
             channel = guild.get_channel(cfg.ChannelId)
             if channel is None:
@@ -530,33 +529,33 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                     bot.log.debug(
                         "twitch_event: channel %s not found/accessible in guild %s", cfg.ChannelId, cfg.GuildId
                     )
-                    continue
+                    return False
 
             stream_url = f"https://twitch.tv/{broadcaster_login}"
             if event_type == STREAM_ONLINE:
-                description = cfg.Message or f"**{broadcaster_name}** is now live on Twitch!"
-                title = f"{broadcaster_name} is live!"
-                color = discord.Color.from_rgb(145, 70, 255)  # Twitch purple
+                description = cfg.Message or bot.get_localized_string(
+                    cfg.GuildId, "twitch.live_message", streamer=broadcaster_name
+                )
+                title = bot.get_localized_string(cfg.GuildId, "twitch.live_title", streamer=broadcaster_name)
+                color = discord.Color.from_rgb(145, 70, 255)
             else:
-                description = f"**{broadcaster_name}** has gone offline."
-                title = f"{broadcaster_name} went offline"
+                description = bot.get_localized_string(cfg.GuildId, "twitch.offline_message", streamer=broadcaster_name)
+                title = bot.get_localized_string(cfg.GuildId, "twitch.offline_title", streamer=broadcaster_name)
                 color = discord.Color.greyple()
 
-            embed = discord.Embed(
-                title=title,
-                description=description,
-                url=stream_url,
-                color=color,
-            )
+            embed = discord.Embed(title=title, description=description, url=stream_url, color=color)
             embed.set_footer(text=f"twitch.tv/{broadcaster_login}")
 
             try:
                 await channel.send(embed=embed)
-                notified += 1
+                return True
             except discord.HTTPException as e:
                 bot.log.debug("twitch_event: could not send to channel %s: %s", cfg.ChannelId, e)
+                return False
 
-        return {"ok": True, "notified": notified}
+        results = await gather(*(_notify_one(cfg) for cfg in configs), return_exceptions=True)
+        notified = sum(1 for r in results if r is True)
+        return {"success": True, "notified": notified}
     else:
         return {"error": f"Unknown command: {command}"}
 

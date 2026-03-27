@@ -741,3 +741,7 @@ twitch:
   remove_not_found: "Keine Benachrichtigung mit dieser ID in diesem Server gefunden."
   list_empty: "Keine Twitch-Benachrichtigungen für diesen Server konfiguriert."
   list_title: "Twitch-Benachrichtigungen"
+  live_title: "{streamer} ist live!"
+  live_message: "**{streamer}** ist jetzt live auf Twitch!"
+  offline_title: "{streamer} ist offline gegangen"
+  offline_message: "**{streamer}** ist offline gegangen."
