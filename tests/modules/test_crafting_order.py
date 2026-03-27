@@ -50,7 +50,7 @@ class TestCraftingOrderTransitions:
 
     def test_accept_sets_in_progress(self, db_session):
         order = self._make_order(db_session)
-        order.Status = "in_progress"
+        order.Status = ORDER_STATUS_IN_PROGRESS
         order.CrafterId = 500
         db_session.flush()
 
@@ -60,7 +60,7 @@ class TestCraftingOrderTransitions:
 
     def test_drop_resets_to_open(self, db_session):
         order = self._make_order(db_session, Status=ORDER_STATUS_IN_PROGRESS, CrafterId=500)
-        order.Status = "open"
+        order.Status = ORDER_STATUS_OPEN
         order.CrafterId = None
         db_session.flush()
 
@@ -70,7 +70,7 @@ class TestCraftingOrderTransitions:
 
     def test_complete_sets_completed(self, db_session):
         order = self._make_order(db_session, Status=ORDER_STATUS_IN_PROGRESS, CrafterId=500)
-        order.Status = "completed"
+        order.Status = ORDER_STATUS_COMPLETED
         db_session.flush()
 
         result = CraftingOrder.get_by_id(order.Id, db_session)
@@ -88,7 +88,7 @@ class TestCraftingOrderTransitions:
 
     def test_cancel_from_open(self, db_session):
         order = self._make_order(db_session, Status=ORDER_STATUS_OPEN)
-        order.Status = "completed"
+        order.Status = ORDER_STATUS_COMPLETED
         db_session.flush()
 
         result = CraftingOrder.get_by_id(order.Id, db_session)
@@ -96,7 +96,7 @@ class TestCraftingOrderTransitions:
 
     def test_cancel_from_in_progress(self, db_session):
         order = self._make_order(db_session, Status=ORDER_STATUS_IN_PROGRESS, CrafterId=500)
-        order.Status = "completed"
+        order.Status = ORDER_STATUS_COMPLETED
         db_session.flush()
 
         result = CraftingOrder.get_by_id(order.Id, db_session)

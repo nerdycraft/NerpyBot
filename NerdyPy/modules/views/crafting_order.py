@@ -2123,6 +2123,7 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
         view = None
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
+            session.expunge(order)
             # Atomic update: only proceeds if status is still 'open', preventing
             # two crafters from both accepting the same order in a race.
             rowcount = session.execute(
@@ -2181,6 +2182,7 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
         embed = view = None
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
+            session.expunge(order)
             conditions = [CraftingOrder.Id == self.order_id, CraftingOrder.Status == ORDER_STATUS_IN_PROGRESS]
             if not interaction.user.guild_permissions.administrator:
                 conditions.append(CraftingOrder.CrafterId == interaction.user.id)
