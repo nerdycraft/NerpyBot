@@ -29,7 +29,6 @@ def cog(mock_bot):
         "modules.wow": MagicMock(),
         "modules.league": MagicMock(),
         "modules.music": MagicMock(),
-        "modules.voicecontrol": MagicMock(),
     }
     return Operator(mock_bot)
 
