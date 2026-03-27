@@ -3,7 +3,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, Index, Integer, String, Text, UniqueConstraint, text
 from utils import database as db
 
 # EventSub event types
@@ -33,7 +33,7 @@ class TwitchNotifications(db.BASE):
     Streamer = Column(String(25), nullable=False)
     StreamerDisplayName = Column(String(25), nullable=False)
     Message = Column(Text, nullable=True)
-    NotifyOffline = Column(Boolean, default=False, server_default="0", nullable=False)
+    NotifyOffline = Column(Boolean, default=False, server_default=text("0"), nullable=False)
 
     @classmethod
     def get_by_id(cls, notification_id: int, guild_id: int, session):
@@ -79,7 +79,9 @@ class TwitchEventSubSubscription(db.BASE):
     StreamerLogin = Column(String(25), nullable=False)
     StreamerUserId = Column(String(20), nullable=False)
     EventType = Column(String(30), nullable=False)
-    Status = Column(String(20), nullable=False, default=SUB_STATUS_PENDING, server_default=SUB_STATUS_PENDING)
+    Status = Column(
+        String(20), nullable=False, default=SUB_STATUS_PENDING, server_default=text(f"'{SUB_STATUS_PENDING}'")
+    )
     CreatedAt = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 
     @classmethod

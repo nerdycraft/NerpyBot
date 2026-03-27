@@ -100,18 +100,10 @@ class ValkeyClient:
 
     # ── Twitch event deduplication ──
 
-    def is_twitch_event_seen(self, message_id: str) -> bool:
-        """Return True if this Twitch event message_id was already processed."""
+    def claim_twitch_event(self, message_id: str, ttl: int = 300) -> bool:
+        """Atomically claim a Twitch event message_id. Returns True if this caller is first (SET NX succeeded)."""
         key = self._key("twitch", "dedup", message_id)
-        return self._client.get(key) is not None
-
-    def mark_twitch_event_seen(self, message_id: str, ttl: int = 300) -> None:
-        """Mark a Twitch event message_id as seen with a TTL (default 300s).
-
-        Uses SET NX so the first caller wins — duplicate calls are a no-op.
-        """
-        key = self._key("twitch", "dedup", message_id)
-        self._client.set(key, "1", ex=ttl, nx=True)
+        return bool(self._client.set(key, "1", ex=ttl, nx=True))
 
     # ── Pub/Sub for bot commands ──
 
@@ -175,14 +167,15 @@ class _FakeValkeyClient:
         """Initialize the fake client with an empty in-memory store."""
         self._store: dict[str, str] = {}
 
-    def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> None:
+    def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> bool | None:
         """Store a value (TTL ignored in fake).
 
-        If nx=True, only set if the key does not exist (SET NX semantics).
+        If nx=True, only set if the key does not exist (SET NX semantics). Returns True on success, None if key existed.
         """
         if nx and key in self._store:
-            return
+            return None
         self._store[key] = value
+        return True
 
     def get(self, key: str) -> str | None:
         """Return a stored value or None if absent."""

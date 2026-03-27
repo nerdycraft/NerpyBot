@@ -44,26 +44,26 @@ class TestValkeyHelpers:
 
 
 class TestTwitchDedup:
-    def test_mark_and_check_seen(self):
+    def test_claim_first_caller_wins(self):
         from web.cache import ValkeyClient
 
         vk = ValkeyClient.create_fake()
-        assert vk.is_twitch_event_seen("msg-abc") is False
-        vk.mark_twitch_event_seen("msg-abc", ttl=300)
-        assert vk.is_twitch_event_seen("msg-abc") is True
+        assert vk.claim_twitch_event("msg-abc", ttl=300) is True
+        assert vk.claim_twitch_event("msg-abc", ttl=300) is False
 
-    def test_not_seen_for_different_id(self):
+    def test_claim_different_ids_independent(self):
         from web.cache import ValkeyClient
 
         vk = ValkeyClient.create_fake()
-        vk.mark_twitch_event_seen("msg-abc", ttl=300)
-        assert vk.is_twitch_event_seen("msg-xyz") is False
+        assert vk.claim_twitch_event("msg-abc", ttl=300) is True
+        assert vk.claim_twitch_event("msg-xyz", ttl=300) is True
 
-    def test_nx_first_caller_wins(self):
-        """SET NX — second mark call is a no-op."""
+    def test_claim_returns_false_on_duplicate(self):
+        """SET NX — second claim call returns False."""
         from web.cache import ValkeyClient
 
         vk = ValkeyClient.create_fake()
-        vk.mark_twitch_event_seen("msg-abc", ttl=300)
-        vk.mark_twitch_event_seen("msg-abc", ttl=300)  # second call should be no-op
-        assert vk.is_twitch_event_seen("msg-abc") is True
+        first = vk.claim_twitch_event("msg-abc", ttl=300)
+        second = vk.claim_twitch_event("msg-abc", ttl=300)
+        assert first is True
+        assert second is False

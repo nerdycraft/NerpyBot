@@ -74,9 +74,7 @@ wow:
 #   client_secret: your_twitch_client_secret
 #   webhook_url: https://your-domain.com/webhooks/twitch
 #   webhook_secret: random_secret_for_hmac
-#   # Uncomment to enable Twitch notifications slash commands:
-#   # modules:
-#   #   - twitch
+#   # To enable Twitch notifications slash commands, add `twitch` to `bot.modules` above.
 
 # ── Web Dashboard (optional) ──
 # web:

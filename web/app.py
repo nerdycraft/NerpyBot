@@ -84,6 +84,10 @@ def create_app(
 
         if reconciler_task is not None:
             reconciler_task.cancel()
+            try:
+                await reconciler_task
+            except asyncio.CancelledError:
+                pass
         if app.state.twitch_client is not None:
             await app.state.twitch_client.aclose()
         valkey_client.close()

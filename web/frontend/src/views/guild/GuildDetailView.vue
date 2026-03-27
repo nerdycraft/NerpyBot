@@ -306,6 +306,7 @@ const allSectionGroups: SectionGroup[] = [
     id: "integrations",
     labelKey: "nav.groups.integrations",
     accentClass: "text-purple-400",
+    minLevel: "admin",
     items: [
       {
         id: "twitch-notifications",

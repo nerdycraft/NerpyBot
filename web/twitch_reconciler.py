@@ -120,9 +120,11 @@ async def _run_cycle(session, twitch_client, config) -> None:
             except Exception:
                 _log.exception("twitch reconciler: failed to create %s for '%s'", event_type, streamer)
 
-    # Delete orphaned subscriptions (streamer no longer in desired set)
+    # Delete orphaned subscriptions (streamer no longer in desired set, or unneeded offline sub)
     for (streamer, event_type), sub in existing_by_key.items():
-        if streamer not in desired_streamers:
+        is_orphan = streamer not in desired_streamers
+        is_unneeded_offline = event_type == STREAM_OFFLINE and streamer not in offline_needed
+        if is_orphan or is_unneeded_offline:
             try:
                 await twitch_client.delete_eventsub_subscription(sub.TwitchSubscriptionId)
                 session.delete(sub)

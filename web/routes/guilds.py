@@ -1637,8 +1637,10 @@ async def list_twitch_notifications(
     guild_id: int,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
+    response: Response = None,
 ):
     """List all Twitch notification configs for a guild."""
+    _set_support_mode_header(user, response)
     from models.twitch import TwitchNotifications
 
     rows = TwitchNotifications.get_all_by_guild(guild_id, session)
@@ -1700,7 +1702,13 @@ async def create_twitch_notification(
         NotifyOffline=body.notify_offline,
     )
     session.add(row)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Notification already exists for this streamer and channel"
+        )
 
     background_tasks.add_task(reconcile_once, request.app.state)
 
@@ -1724,11 +1732,27 @@ async def update_twitch_notification(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification config not found")
 
     if "channel_id" in body.model_fields_set and body.channel_id is not None:
-        row.ChannelId = int(body.channel_id)
+        new_channel_id = int(body.channel_id)
+        if new_channel_id != row.ChannelId:
+            conflict = TwitchNotifications.get_by_channel_and_streamer(guild_id, new_channel_id, row.Streamer, session)
+            if conflict is not None and conflict.Id != row.Id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Notification already exists for this streamer and channel",
+                )
+        row.ChannelId = new_channel_id
     if "message" in body.model_fields_set:
         row.Message = body.message
     if "notify_offline" in body.model_fields_set and body.notify_offline is not None:
         row.NotifyOffline = body.notify_offline
+
+    try:
+        session.flush()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Notification already exists for this streamer and channel"
+        )
 
     return _twitch_notification_to_schema(row)
 

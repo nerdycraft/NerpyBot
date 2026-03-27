@@ -69,10 +69,9 @@ async def twitch_webhook(
         return Response(content=challenge, media_type="text/plain")
 
     if msg_type == "notification":
-        if vk.is_twitch_event_seen(msg_id):
+        if not vk.claim_twitch_event(msg_id, ttl=_MAX_AGE_SECONDS + 60):
             _log.debug("twitch_webhook: duplicate msg_id=%s — skipping", msg_id)
             return Response(status_code=204)
-        vk.mark_twitch_event_seen(msg_id)
 
         sub = payload.get("subscription", {})
         event = payload.get("event", {})
@@ -95,6 +94,7 @@ async def twitch_webhook(
             row = TwitchEventSubSubscription.get_by_twitch_id(sub_id, session)
             if row:
                 row.Status = SUB_STATUS_REVOKED
+                session.commit()
         return Response(status_code=204)
 
     # Unknown message type — accept and ignore
