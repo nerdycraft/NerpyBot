@@ -31,19 +31,15 @@ async def reconcile_once(app_state) -> None:
         session.close()
 
 
-def _needs_heal(streamer: str, existing_by_key: dict, session) -> bool:
+def _needs_heal(streamer: str, existing_by_key: dict, offline_needed: set[str]) -> bool:
     """Return True if this streamer needs any EventSub subscription created or healed."""
-    from models.twitch import TwitchNotifications
-
     # Always check stream.online
     if (streamer, STREAM_ONLINE) not in existing_by_key:
         return True
     if existing_by_key[(streamer, STREAM_ONLINE)].Status not in (SUB_STATUS_ENABLED, SUB_STATUS_PENDING):
         return True
     # Check stream.offline if any config needs it
-    notifications = TwitchNotifications.get_all_by_streamer(streamer, session)
-    needs_offline = any(n.NotifyOffline for n in notifications)
-    if needs_offline:
+    if streamer in offline_needed:
         key = (streamer, STREAM_OFFLINE)
         if key not in existing_by_key or existing_by_key[key].Status not in (SUB_STATUS_ENABLED, SUB_STATUS_PENDING):
             return True
@@ -55,6 +51,7 @@ async def _run_cycle(session, twitch_client, config) -> None:
 
     # Desired: distinct streamers in notification config
     desired_streamers = set(TwitchNotifications.get_all_distinct_streamers(session))
+    offline_needed = set(TwitchNotifications.get_streamers_needing_offline(session))
 
     # Actual: all EventSub subscriptions in DB
     existing_subs = TwitchEventSubSubscription.get_all(session)
@@ -63,7 +60,7 @@ async def _run_cycle(session, twitch_client, config) -> None:
     }
 
     # Resolve user IDs for missing/broken streamers
-    missing_streamers = {s for s in desired_streamers if _needs_heal(s, existing_by_key, session)}
+    missing_streamers = {s for s in desired_streamers if _needs_heal(s, existing_by_key, offline_needed)}
     user_map: dict[str, dict] = {}
     if missing_streamers:
         try:
@@ -80,8 +77,7 @@ async def _run_cycle(session, twitch_client, config) -> None:
             continue
         broadcaster_id = user_info["id"]
 
-        notifications = TwitchNotifications.get_all_by_streamer(streamer, session)
-        needs_offline = any(n.NotifyOffline for n in notifications)
+        needs_offline = streamer in offline_needed
         event_types = [STREAM_ONLINE]
         if needs_offline:
             event_types.append(STREAM_OFFLINE)

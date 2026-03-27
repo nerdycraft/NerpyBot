@@ -60,6 +60,13 @@ class TwitchNotifications(db.BASE):
         rows = session.query(cls.Streamer).distinct().all()
         return [r[0] for r in rows]
 
+    @classmethod
+    def get_streamers_needing_offline(cls, session) -> list[str]:
+        """Return distinct streamer logins where at least one notification has NotifyOffline=True."""
+        return [
+            row.Streamer for row in session.query(cls.Streamer).filter(cls.NotifyOffline.is_(True)).distinct().all()
+        ]
+
 
 class TwitchEventSubSubscription(db.BASE):
     """Tracks active Twitch-side EventSub subscriptions (shared across guilds)."""
