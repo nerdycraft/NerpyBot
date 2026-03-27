@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from functools import partial
 
+from sqlalchemy import update
+
 import discord
 from discord import Embed
 
@@ -878,13 +880,7 @@ class ApplicationSubmitConversation(Conversation):
                         exc,
                     )
                     await self._notify_responsible(review_channel_id)
-                    _c = "application.conversation.submit"
-                    emb = Embed(
-                        title=get_string(self.lang, f"{_c}.error_title"),
-                        description=get_string(self.lang, f"{_c}.error_description"),
-                    )
-                    await self.send_ns(emb)
-                    await self.close()
+                    await self._abort_with_submit_error()
                     return
 
         # Channel is accessible — save the submission and answers.
@@ -906,23 +902,33 @@ class ApplicationSubmitConversation(Conversation):
 
         # Post review embed to the review channel.
         if channel is not None:
+            embed = None
+            total_pages = 1
+            mention_ids: set[int] = set()
+            submission_user_name = None
             with self.bot.session_scope() as session:
                 submission = ApplicationSubmission.get_by_id(self.submission_id, session)
-                form = ApplicationForm.get_by_id(self.form_id, session)
-                lang = self.lang
-                all_answers = _extract_answers(submission.answers)
-                total_pages = max(1, math.ceil(len(all_answers) / _ANSWERS_PER_PAGE))
-                embed = build_review_embed(submission, form, session, lang, answers=all_answers)
-                # Collect role IDs to mention: non-managed admin roles + all configured manager/reviewer roles
-                mention_ids: set[int] = {
-                    r.id for r in self.guild.roles if r.permissions.administrator and not r.managed
-                }
-                guild_roles = (
-                    session.query(ApplicationGuildRole).filter(ApplicationGuildRole.GuildId == self.guild.id).all()
-                )
-                for gr in guild_roles:
-                    mention_ids.add(gr.RoleId)
-                submission_user_name = submission.UserName
+                if submission is None:
+                    self.bot.log.warning(
+                        "application: submission %d vanished before review embed could be posted", self.submission_id
+                    )
+                else:
+                    form = ApplicationForm.get_by_id(self.form_id, session)
+                    lang = self.lang
+                    all_answers = _extract_answers(submission.answers)
+                    total_pages = max(1, math.ceil(len(all_answers) / _ANSWERS_PER_PAGE))
+                    embed = build_review_embed(submission, form, session, lang, answers=all_answers)
+                    mention_ids = {r.id for r in self.guild.roles if r.permissions.administrator and not r.managed}
+                    guild_roles = (
+                        session.query(ApplicationGuildRole).filter(ApplicationGuildRole.GuildId == self.guild.id).all()
+                    )
+                    for gr in guild_roles:
+                        mention_ids.add(gr.RoleId)
+                    submission_user_name = submission.UserName
+
+            if embed is None:
+                await self._abort_with_submit_error()
+                return
 
             view = ApplicationReviewView(bot=self.bot, lang=self.lang)
             _normalize_review_view(
@@ -934,26 +940,55 @@ class ApplicationSubmitConversation(Conversation):
             )
             mention_content = " ".join(f"<@&{rid}>" for rid in sorted(mention_ids)) or None
 
-            msg = await channel.send(embed=embed, view=view)
-
-            thread_name = submission_user_name or get_string(
-                self.lang, "application.conversation.submit.review_thread_name"
-            )
             try:
-                thread = await msg.create_thread(name=thread_name)
-                if mention_content:
-                    await thread.send(mention_content)
-            except discord.HTTPException:
-                self.bot.log.warning("application: failed to create review thread for msg %d", msg.id)
+                msg = await channel.send(embed=embed, view=view)
 
+                thread_name = submission_user_name or get_string(
+                    self.lang, "application.conversation.submit.review_thread_name"
+                )
+                try:
+                    thread = await msg.create_thread(name=thread_name)
+                    if mention_content:
+                        await thread.send(mention_content)
+                except discord.HTTPException:
+                    self.bot.log.warning("application: failed to create review thread for msg %d", msg.id)
+            except discord.HTTPException as exc:
+                self.bot.log.error(
+                    "application: failed to post review embed to channel %d: %s",
+                    review_channel_id,
+                    exc,
+                )
+                await self._abort_with_submit_error()
+                return
+
+            rows_updated = 0
             with self.bot.session_scope() as session:
-                submission = ApplicationSubmission.get_by_id(self.submission_id, session)
-                submission.ReviewMessageId = msg.id
+                rows_updated = session.execute(
+                    update(ApplicationSubmission)
+                    .where(ApplicationSubmission.Id == self.submission_id)
+                    .values(ReviewMessageId=msg.id)
+                ).rowcount
+
+            if rows_updated == 0:
+                self.bot.log.warning(
+                    "application: submission %d deleted before ReviewMessageId could be persisted",
+                    self.submission_id,
+                )
+                await self._abort_with_submit_error()
+                return
 
         _c = "application.conversation.submit"
         emb = Embed(
             title=get_string(self.lang, f"{_c}.submitted_title"),
             description=get_string(self.lang, f"{_c}.submitted_description"),
+        )
+        await self.send_ns(emb)
+        await self.close()
+
+    async def _abort_with_submit_error(self) -> None:
+        emb = Embed(
+            title=get_string(self.lang, "application.conversation.submit.error_title"),
+            description=get_string(self.lang, "application.conversation.submit.error_description"),
         )
         await self.send_ns(emb)
         await self.close()

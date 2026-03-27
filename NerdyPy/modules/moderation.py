@@ -2,7 +2,6 @@
 
 import asyncio
 from datetime import UTC, datetime, time, timedelta
-from typing import Optional
 
 import discord
 from discord import Color, Embed, HTTPException, Interaction, Member, TextChannel, app_commands
@@ -255,8 +254,8 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         interaction: Interaction,
         enable: bool,
         kick_after: str,
-        kick_reminder_message: Optional[str] = None,
-        reminder_message_source: Optional[str] = None,
+        kick_reminder_message: str | None = None,
+        reminder_message_source: str | None = None,
     ):
         """Activates the AutoKicker. [bot-moderator]"""
         lang = self._lang(interaction.guild_id)
@@ -304,8 +303,8 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         self,
         interaction: Interaction,
         channel: TextChannel,
-        delete_older_than: Optional[str] = None,
-        keep_messages: Optional[int] = None,
+        delete_older_than: str | None = None,
+        keep_messages: int | None = None,
         delete_pinned_message: bool = False,
     ) -> None:
         """
@@ -315,10 +314,10 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         ----------
         interaction
         channel: discord.TextChannel
-        delete_older_than: Optional[str]
+        delete_older_than: str | None
             Time after messages get deleted, like "1 day", "1 week" or "5 minutes".
             Supports also abbreviations like "min" and "h".
-        keep_messages: Optional[int]
+        keep_messages: int | None
             Messages to keep after deletion. Can be used in combination with "delete_older_than".
         delete_pinned_message: bool
         """
@@ -500,8 +499,8 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         self,
         interaction: Interaction,
         channel: TextChannel,
-        delete_older_than: Optional[str] = None,
-        keep_messages: Optional[int] = None,
+        delete_older_than: str | None = None,
+        keep_messages: int | None = None,
         delete_pinned_message: bool = False,
     ):
         """
@@ -511,10 +510,10 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         ----------
         interaction
         channel: discord.TextChannel
-        delete_older_than: Optional[str]
+        delete_older_than: str | None
             Time after messages get deleted, like "1 day", "1 week" or "5 minutes".
             Supports also abbreviations like "min" and "h".
-        keep_messages: Optional[int]
+        keep_messages: int | None
             Messages to keep after deletion. Can be used in combination with "delete_older_than".
         delete_pinned_message: bool
         """
@@ -545,7 +544,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
 
     @user_group.command(name="info")
     @checks.has_permissions(moderate_members=True)
-    async def _get_user_info(self, interaction: Interaction, member: Optional[Member] = None):
+    async def _get_user_info(self, interaction: Interaction, member: Member | None = None):
         """displays information about given user [bot-moderator]"""
         lang = self._lang(interaction.guild_id)
         member = member or interaction.user
@@ -571,14 +570,14 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     @user_group.command(name="list")
     @checks.has_permissions(moderate_members=True)
     async def _list_user_info_from_guild(
-        self, interaction: Interaction, show_only_users_without_roles: Optional[bool] = None
+        self, interaction: Interaction, show_only_users_without_roles: bool | None = None
     ):
         """displays a list of users on your server [bot-moderator]
 
         Parameters
         ----------
         interaction
-        show_only_users_without_roles: Optional[bool]
+        show_only_users_without_roles: bool | None
             If True shows only Users without a Role. (The role everyone is not considered a given role)
         """
         lang = self._lang(interaction.guild_id)
@@ -750,8 +749,8 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
     async def _leavemsg_message(
         self,
         interaction: Interaction,
-        message: Optional[str] = None,
-        message_source: Optional[str] = None,
+        message: str | None = None,
+        message_source: str | None = None,
     ) -> None:
         """Set a custom leave message. Use {member} as placeholder. [administrator]"""
         lang = self._lang(interaction.guild_id)

@@ -319,7 +319,7 @@ export const guild1CraftingOrders: CraftingOrderSchema[] = [
     item_name: "Weathered Harbinger Axe",
     icon_url: null,
     notes: null,
-    status: "claimed",
+    status: "in_progress",
     creator_id: "111000000000000002",
     creator_name: "StargazerX",
     crafter_id: "111000000000000099",
