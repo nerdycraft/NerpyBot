@@ -149,7 +149,7 @@ class Operator(NerpyBotCog, Cog):
                 return
             await ctx.send("Syncing crafting recipes from Blizzard API… this may take a few minutes.")
             try:
-                from utils.blizzard import sync_crafting_recipes
+                from modules.wow.api import sync_crafting_recipes
 
                 expansion = self.bot.config.get("wow", {}).get("expansion")
                 stats = await sync_crafting_recipes(self.bot, expansion=expansion)

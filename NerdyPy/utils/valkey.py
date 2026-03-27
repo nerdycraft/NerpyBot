@@ -381,7 +381,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             return {"queued": False, "error": "WoW module not loaded"}
         if _recipe_sync_running:
             return {"queued": False, "error": "Recipe sync already in progress"}
-        from utils.blizzard import sync_crafting_recipes
+        from modules.wow.api import sync_crafting_recipes
 
         _recipe_sync_running = True
 

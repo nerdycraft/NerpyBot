@@ -1391,7 +1391,7 @@ async def get_wow_news_roster(
     if cfg is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Config not found")
 
-    from utils.blizzard import parse_known_mounts
+    from modules.wow.api import parse_known_mounts
 
     entries = WowCharacterMounts.get_all_by_config(config_id, session)
 
@@ -1478,7 +1478,7 @@ async def list_crafting_orders(
 # Inverted CRAFTING_PROFESSIONS: maps profession_id -> name. Computed once at import time.
 def _get_profession_name_by_id() -> dict:
     try:
-        from utils.blizzard import CRAFTING_PROFESSIONS
+        from modules.wow.api import CRAFTING_PROFESSIONS
 
         return {v: k for k, v in CRAFTING_PROFESSIONS.items()}
     except Exception:
