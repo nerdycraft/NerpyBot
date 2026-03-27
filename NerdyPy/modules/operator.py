@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 from importlib.metadata import version as pkg_version
@@ -185,17 +186,26 @@ class Operator(NerpyBotCog, Cog):
             await ctx.send(f"Synced {len(synced)} commands {'globally' if spec is None else 'to the current guild.'}")
             return
 
-        ret = 0
-        for guild in guilds:
+        async def _sync_one(g):
             try:
-                await self.bot.tree.sync(guild=guild)
-            except HTTPException:
-                pass
+                await self.bot.tree.sync(guild=g)
+                return True
             except (CommandSyncFailure, Forbidden, MissingApplicationID, TranslationError) as ex:
                 self.bot.log.debug(ex)
-                raise NerpyInfraException("Could not sync commands to Discord API.")
-            else:
-                ret += 1
+                raise NerpyInfraException("Could not sync commands to Discord API.") from ex
+            except HTTPException:
+                return False
+
+        results = await asyncio.gather(*(_sync_one(g) for g in guilds), return_exceptions=True)
+        ret = sum(1 for r in results if r is True)
+
+        for r in results:
+            if isinstance(r, NerpyInfraException):
+                raise r
+            elif isinstance(r, Exception):
+                raise NerpyInfraException("Could not sync commands to Discord API.") from r
+            elif isinstance(r, BaseException):
+                raise r
 
         await ctx.send(f"Synced the tree to {ret}/{len(guilds)}.")
 
