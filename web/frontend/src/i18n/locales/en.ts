@@ -748,5 +748,6 @@ export const en = {
     default_message: "(default message)",
     offline_notify_label: "Offline notify:",
     channel_label_short: "Channel:",
+    delete_confirm: "Delete notification for {name}?",
   },
 };

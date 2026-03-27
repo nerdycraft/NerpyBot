@@ -757,5 +757,6 @@ export const de: typeof en = {
     default_message: "(Standardnachricht)",
     offline_notify_label: "Offline-Benachrichtigung:",
     channel_label_short: "Kanal:",
+    delete_confirm: "Benachrichtigung für {name} löschen?",
   },
 };

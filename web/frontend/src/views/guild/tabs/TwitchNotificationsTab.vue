@@ -175,7 +175,7 @@ async function deleteNotification(id: number) {
           <!-- Edit mode -->
           <div class="mb-2">
             <label class="block text-xs uppercase text-gray-400 mb-1">{{ t("twitch.channel_label") }}</label>
-            <DiscordPicker v-model="editDraft.channel_id!" :guild-id="guildId" kind="channel" />
+            <DiscordPicker v-model="(editDraft.channel_id as string)" :guild-id="guildId" kind="channel" />
           </div>
           <div class="mb-2">
             <label class="block text-xs uppercase text-gray-400 mb-1">{{ t("twitch.message_label") }}</label>
@@ -203,9 +203,7 @@ async function deleteNotification(id: number) {
           </div>
         </div>
         <div v-else-if="confirmDeleteId === n.id">
-          <p class="text-sm text-gray-300 mb-3">
-            Delete notification for <strong>{{ n.streamer_display_name }}</strong>?
-          </p>
+          <p class="text-sm text-gray-300 mb-3">{{ t("twitch.delete_confirm", { name: n.streamer_display_name }) }}</p>
           <div class="flex gap-2">
             <button class="px-3 py-1 rounded text-sm bg-red-700 text-white" @click="deleteNotification(n.id)">
               {{ t("common.confirm") }}
