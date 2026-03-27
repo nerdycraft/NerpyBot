@@ -307,7 +307,7 @@ class Operator(NerpyBotCog, Cog):
         """Disable a module at runtime. [operator]
 
         Disables all slash commands in a module. Users will see an ephemeral
-        "disabled for maintenance" message. Protected: `server_admin`, `operator`, `voicecontrol`.
+        "disabled for maintenance" message. Protected: `server_admin`, `operator`.
 
         Usage: `!disable <module>` (e.g. `!disable wow`)"""
         require_operator(ctx)

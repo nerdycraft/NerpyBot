@@ -19,7 +19,7 @@ bot:
   # log_level: INFO
   ops:
     - "your_discord_id_here"  # quoted to prevent formatter corruption
-  # server_admin and operator always auto-load; voicecontrol auto-loads with music
+  # server_admin and operator always auto-load
   modules:
     - application
     - league
@@ -27,7 +27,7 @@ bot:
     - reminder
     - roles
     - wow
-    # - music  # requires music.ytkey; voicecontrol auto-loads with this
+    # - music  # requires music.ytkey
 
 database:
   # db_type: sqlite (default) or postgresql

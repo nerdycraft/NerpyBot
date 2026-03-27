@@ -10,7 +10,6 @@ from discord.ext.commands import Cog
 from modules.music.audio import QueuedSong, QueueMixin
 from modules.music.download import download, fetch_yt_infos
 from modules.music.views import NowPlayingView, build_now_playing_embed
-from utils.cache import build_name_choices, cached_autocomplete
 from utils.checks import can_leave_voice, can_stop_playback, is_connected_to_voice
 from utils.cog import NerpyBotCog
 from utils.helpers import error_context, youtube
@@ -171,21 +170,6 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
     @staticmethod
     def _fetch(song: QueuedSong):
         song.stream = download(song.fetch_data, video_id=song.idn)
-
-    # ── Autocomplete helpers ───────────────────────────────────────────────
-
-    async def _ac_playlist_name(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:
-        """Autocomplete for playlist name from the user's saved playlists."""
-        from models.music import Playlist
-
-        guild_id = interaction.guild_id
-        user_id = interaction.user.id
-
-        def _fetch():
-            with self.bot.session_scope() as session:
-                return [p.Name for p in Playlist.get_by_user(guild_id, user_id, session)]
-
-        return build_name_choices(await cached_autocomplete(("playlists", guild_id, user_id), _fetch), current)
 
     # ── Voice control commands (absorbed from voicecontrol.py) ────────────
 

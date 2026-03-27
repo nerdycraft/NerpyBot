@@ -299,7 +299,8 @@ class NerpyBot(Bot):
         if cog is None:
             return True
 
-        module_name = type(cog).__module__.rsplit(".", 1)[-1]
+        raw = type(cog).__module__
+        module_name = raw.removeprefix("modules.").split(".")[0]
         if module_name in self.disabled_modules:
             try:
                 msg = self.get_localized_string(interaction.guild_id, "bot.module_disabled", module=module_name)
