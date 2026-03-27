@@ -89,18 +89,19 @@ For release procedures (tagging, release branches, hotfixes), see `docs/release-
 
 ### Module System
 
-Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamically based on `config.yaml`:
+Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamically based on `config.yaml`.
+
+Three modules are **folder modules** — they live in a subdirectory and own their views, conversations, and API helpers internally: `wow` (`modules/wow/`), `application` (`modules/application/`), and `music` (`modules/music/`). All other modules are **flat modules** — a single `.py` file.
 
 - **server_admin** - Modrole config and language preference (always auto-loaded)
 - **operator** - Bot operator commands: botpermissions, ping, sync, debug, uptime, errors, disable/enable (always auto-loaded)
-- **application** - Custom application/form system with DM conversations and button-based review
+- **application** _(folder module)_ - Custom application/form system with DM conversations and button-based review
 - **league** - Riot API integration
 - **moderation** - Server moderation tools including leave messages (`/moderation leavemsg`)
-- **music** - Voice channel audio playback
+- **music** _(folder module)_ - Voice channel audio playback; also includes voice stop/leave commands (formerly `voicecontrol`)
 - **reminder** - Timed user reminders
 - **roles** - Delegated role management (`/rolemanage`) and reaction-based role assignment (`/reactionrole`)
-- **voicecontrol** - Voice stop/leave commands (auto-loaded when music module is enabled)
-- **wow** - Blizzard API integration (armory lookup, guild news tracking, crafting order board)
+- **wow** _(folder module)_ - Blizzard API integration (armory lookup, guild news tracking, crafting order board)
 
 ### Database Layer
 
@@ -117,13 +118,11 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 
 `NerdyPy/utils/` contains:
 
-- `audio.py` - Voice channel audio management
 - `checks.py` - Permission check functions for voice/moderator commands
 - `conversation.py` - Interactive dialog state management
 - `errors.py` - Exception hierarchy: `NerpyException` (base) → `NerpyUserException` → `{NerpyNotFoundError, NerpyValidationError, NerpyPermissionError}`; `NerpyInfraException` (infrastructure failures — triggers operator DM notification)
 - `format.py` - Text formatting helpers
 - `helpers.py` - General utilities (incl. `send_hidden_message` for ephemeral responses via Interaction)
-- `download.py` - Audio downloading and ffmpeg conversion (yt-dlp)
 - `logging.py` - Dual-handler log setup (stdout for INFO/DEBUG, stderr for WARNING+)
 - `permissions.py` - Per-module bot permission requirements map and guild-level permission audit helpers
 - `duration.py` - `parse_duration()` for human-friendly duration strings (`2h30m`, `1d12h`, `1w`); wraps `pytimeparse2`
@@ -141,7 +140,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **`sync` is prefix-only** — DM-only operator command (`!sync`). Supports global sync, guild-specific sync via `Greedy[Object]`, and `local`/`copy`/`clear` spec modes.
 - **Check functions accept Interaction, not Context** — All check functions in `checks.py` were converted to accept `discord.Interaction` for slash command compatibility. The `interaction_check` in each cog uses these. The `cog_check` in `operator.py` has inline logic for prefix commands.
 - **`guild_only=True` on Groups that access `interaction.guild`** — Set `guild_only=True` on any `app_commands.Group` that accesses `interaction.guild` unconditionally (e.g. `modrole`, `botpermissions`, `language`, `reactionrole`, `rolemanage`). Without it, DM invocations crash with `AttributeError`.
-- **`@app_commands.guild_only()` on regular `Cog` does NOT propagate to commands** — discord.py's `Command.__init__` reads `guild_only` from the callback function, not the class. Only `GroupCog` propagates the class attribute via `Group.__init__`. The remaining regular `Cog` classes (`server_admin`, `operator`, `roles`, `voicecontrol`) need `@app_commands.guild_only()` on each individual command and `guild_only=True` on each `Group()` definition. Never pass `guild_only=True` to `app_commands.Command(name=..., callback=...)` directly — it raises `TypeError: Command.__init__() got an unexpected keyword argument 'guild_only'`.
+- **`@app_commands.guild_only()` on regular `Cog` does NOT propagate to commands** — discord.py's `Command.__init__` reads `guild_only` from the callback function, not the class. Only `GroupCog` propagates the class attribute via `Group.__init__`. The remaining regular `Cog` classes (`server_admin`, `operator`, `roles`) need `@app_commands.guild_only()` on each individual command and `guild_only=True` on each `Group()` definition. Never pass `guild_only=True` to `app_commands.Command(name=..., callback=...)` directly — it raises `TypeError: Command.__init__() got an unexpected keyword argument 'guild_only'`.
 - **Merging modules with name-conflicting methods** — When two `GroupCog` modules are merged into one `Cog`, private methods often clash (`_list`, `_remove`, `_add`). Prefix with the group name to resolve: `_rolemanage_list`, `_reactionrole_list`, etc.
 - **`default_permissions` on sub-Group constructor, not class decorator** — If a new `app_commands.Group` inside a `GroupCog` needs restricted permissions but the parent cog doesn't (e.g. `leavemsg` sub-group in `Moderation`), pass `default_permissions=discord.Permissions(administrator=True)` to `app_commands.Group(...)` directly. A class-level decorator applies to all commands in the cog.
 - **`get_cog("ClassName")` must match post-merge class name** — After merging a cog (e.g. `LeaveMsg` absorbed into `Moderation`), any `self.bot.get_cog("LeaveMsg")` calls in Modals or callbacks silently return `None`. Update all call sites to the new class name.
@@ -161,6 +160,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **`cog_load` runs before `create_all()`** — `setup_hook` calls `load_extension()` (triggering `cog_load`) before `create_all()`. If a cog accesses new tables in `cog_load`, call `self.bot.create_all()` at the top of `cog_load` to ensure tables exist on existing databases.
 - **SQLite enforces unique constraints row-by-row, not deferred** — Swapping two values under a unique column in a single flush raises `IntegrityError`. Use a two-phase update: write temporary/offset values and flush, then write final values and flush.
 - **Module-specific permission helpers stay with the module** — Only move a permission check to `utils/checks.py` if it is purely based on Discord roles/permissions. If it queries a module-specific table (e.g. `ApplicationGuildConfig`), keep it in the module's own file.
+- **Folder modules own their views and conversations internally** — `wow`, `application`, and `music` are folder modules (`modules/<name>/`). Their views, conversation helpers, and API clients live inside that folder (e.g. `modules/wow/views/board.py`, `modules/application/views.py`). Flat modules are a single `.py` file with no sub-structure. Promote a flat module to a folder when it grows a view or conversation file.
 - **Cannot `send_modal()` after `defer()`** — Once `interaction.response.defer()` is called, `send_modal()` will raise. Design around this: if a button defers (e.g. to show a spinner), any follow-up that needs a modal must be a separate button/action.
 - **Exception narrowing conventions** — Use `SQLAlchemyError` (from `sqlalchemy.exc`) for ops inside `session_scope()`, `discord.HTTPException` for Discord API calls (fetch, edit, send to channels), and `(discord.Forbidden, discord.NotFound)` for user DM attempts. In background task loops that edit persistent messages (e.g. now-playing embeds), catch `(discord.NotFound, discord.Forbidden)` — both mean "this message/channel is no longer accessible" and require the same recovery path (drop the reference, optionally re-create).
 - **`self_mute=True` in `channel.connect()` does NOT silence the bot** — It is a cosmetic gateway hint that shows a muted-mic icon in the Discord client for other users. The bot's UDP RTP audio packets are transmitted regardless. Do not "fix" this.
@@ -170,7 +170,7 @@ Modules live in `NerdyPy/modules/` as discord.py Cogs. They're loaded dynamicall
 - **Adding a new language** — Create `NerdyPy/locales/lang_<code>.yaml`, restart the bot. No code changes needed. English keys are canonical — any missing key in other languages falls back to English automatically.
 - **Guild language is global** — `GuildLanguageConfig` is the single source of truth for a guild's language preference. Modules calling external APIs (Blizzard, Riot) should honor this setting when the API supports it, falling back to English otherwise.
 - **Full env var config** — All config keys can be set via `NERPYBOT_*` environment variables (see `docker-compose.yml` for the full list). Env vars take priority over `config.yaml` when both are present. Lists (`modules`, `ops`, `error_recipients`) use comma-separated values.
-- **`Guild.get_channel()` is cache-only** — Returns `None` on cache miss (e.g. after reconnect). Fall back to `await guild.fetch_channel(channel_id)` and catch `(discord.NotFound, discord.Forbidden)` before treating a channel as missing or deleting related DB rows. Canonical pattern: `NerdyPy/utils/helpers.py`; inline shorthand: `NerdyPy/modules/views/crafting_order.py`.
+- **`Guild.get_channel()` is cache-only** — Returns `None` on cache miss (e.g. after reconnect). Fall back to `await guild.fetch_channel(channel_id)` and catch `(discord.NotFound, discord.Forbidden)` before treating a channel as missing or deleting related DB rows. Canonical pattern: `NerdyPy/utils/helpers.py`; inline shorthand: `NerdyPy/modules/wow/views/board.py`.
 - **`psutil.Process().cpu_percent(interval=None)` returns 0.0 on first call** — psutil needs an initial sample to compute a CPU diff. Prime with a discard call at module init: `_proc = psutil.Process(); _proc.cpu_percent(interval=None)` before the first real use. See `NerdyPy/utils/valkey.py`.
 - **`ruff` only lints Python** — Never pass `.yaml`/`.yml` files to `ruff check`; it produces hundreds of parse errors. YAML is checked by `npx prettier --check` (see dev commands above).
 - **SQLAlchemy 2.x bulk insert** — Use `session.execute(insert(Model), list_of_dicts)` for batch inserts instead of a `session.add()` loop; emits a single `INSERT ... VALUES` instead of N round-trips. Always guard with `if list_of_dicts:` before calling.

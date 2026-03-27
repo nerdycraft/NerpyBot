@@ -323,7 +323,7 @@ Guild/channel IDs are intentionally excluded so forms are portable across server
 
 ## Conversation Flows
 
-Three `Conversation` subclasses in `modules/conversations/application.py`:
+Three `Conversation` subclasses in `modules/application/conversations.py`:
 
 - **ApplicationCreateConversation** — `INIT` -> `COLLECT` (loop) -> `DONE`. Collects questions via text, finishes on cross-mark reaction.
 - **ApplicationEditConversation** — `INIT` shows the current questions with reaction menu (add/remove/reorder/done). Each action transitions through its own confirm state, then returns to `INIT`.
@@ -355,7 +355,7 @@ When a user clicks the button:
 
 ## Persistent Views
 
-`ApplicationReviewView` and `ApplicationApplyView` in `modules/views/application.py` use `timeout=None` and fixed `custom_id` strings so buttons survive bot restarts. Both are registered in `bot.py:setup_hook()` with `self.add_view()`.
+`ApplicationReviewView` and `ApplicationApplyView` in `modules/application/views.py` use `timeout=None` and fixed `custom_id` strings so buttons survive bot restarts. Both are registered in `bot.py:setup_hook()` with `self.add_view()`.
 
 ## Built-In Templates
 

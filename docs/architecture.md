@@ -44,19 +44,24 @@ async def setup(bot):
     await bot.add_cog(MyCog(bot))
 ```
 
-Modules are loaded dynamically based on `config.bot.modules`. Available modules:
+Modules are loaded dynamically based on `config.bot.modules`. Three modules (`wow`, `application`, `music`) are **folder modules** — they live in a subdirectory (e.g. `modules/wow/`) and own their views, conversations, and API helpers internally. All other modules are **flat modules** — a single `.py` file with no sub-structure.
 
-| Module       | Type                  | Background Tasks                       | External APIs           |
-| ------------ | --------------------- | -------------------------------------- | ----------------------- |
-| server_admin | Cog (slash)           | —                                      | —                       |
-| operator     | Cog (slash + prefix)  | —                                      | —                       |
-| league       | GroupCog              | —                                      | Riot API                |
-| moderation   | GroupCog              | AutoKicker (daily), AutoDeleter (5min) | —                       |
-| music        | GroupCog + QueueMixin | —                                      | YouTube API, yt-dlp     |
-| raidplaner   | Cog                   | —                                      | —                       |
-| reminder     | GroupCog              | Reminder loop (30s)                    | —                       |
-| roles        | Cog (slash)           | —                                      | —                       |
-| wow          | GroupCog              | Guild news loop (15min)                | Blizzard API, Raider.io |
+Available modules:
+
+| Module       | Layout | Type                  | Background Tasks                       | External APIs           |
+| ------------ | ------ | --------------------- | -------------------------------------- | ----------------------- |
+| server_admin | flat   | Cog (slash)           | —                                      | —                       |
+| operator     | flat   | Cog (slash + prefix)  | —                                      | —                       |
+| application  | folder | GroupCog              | —                                      | —                       |
+| league       | flat   | GroupCog              | —                                      | Riot API                |
+| moderation   | flat   | GroupCog              | AutoKicker (daily), AutoDeleter (5min) | —                       |
+| music        | folder | GroupCog + QueueMixin | —                                      | YouTube API, yt-dlp     |
+| raidplaner   | flat   | Cog                   | —                                      | —                       |
+| reminder     | flat   | GroupCog              | Reminder loop (30s)                    | —                       |
+| roles        | flat   | Cog (slash)           | —                                      | —                       |
+| wow          | folder | GroupCog              | Guild news loop (15min)                | Blizzard API, Raider.io |
+
+Voice stop/leave commands (`voicecontrol`) are part of the `music` folder module and are no longer a separate loadable module.
 
 ## Database Layer
 
@@ -99,13 +104,13 @@ All models inherit from `db.BASE`. Convention: PascalCase column names (`GuildId
 
 ## Utility Systems
 
-### Audio (`utils/audio.py`)
+### Audio (`modules/music/audio.py`)
 
-Manages voice channel connections, playback, and queuing.
+Manages voice channel connections, playback, and queuing. Lives inside the `music` folder module.
 
 - **`Audio`** — Main class. Maintains per-guild buffers for channel, queue, and voice client.
 - **`QueuedSong`** — Encapsulates a song with a lazy fetcher function.
-- **`QueueMixin`** — Inherited by Music and Tagging cogs for shared queue operations.
+- **`QueueMixin`** — Inherited by the Music cog for shared queue operations.
 - **`_queue_manager`** — 1-second loop that dequeues and starts playback.
 - **`_timeout_manager`** — 10-second loop that disconnects after 600s of inactivity.
 
@@ -118,9 +123,9 @@ State machine framework for interactive DM flows (used by raidplaner).
 - Reactions map emoji strings to target states. Text input is validated by answer handlers.
 - `ConversationManager` tracks active conversations per user.
 
-### Download (`utils/download.py`)
+### Download (`modules/music/download.py`)
 
-Audio downloading and conversion.
+Audio downloading and conversion. Lives inside the `music` folder module.
 
 - **`fetch_yt_infos(url)`** — Cached YouTube metadata extraction via yt-dlp
 - **`download(url, tag=False)`** — Downloads audio, converts via ffmpeg
