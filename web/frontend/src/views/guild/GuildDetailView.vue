@@ -27,6 +27,7 @@ import RemindersTab from "./tabs/RemindersTab.vue";
 import RoleMappingsTab from "./tabs/RoleMappingsTab.vue";
 import ServerOverviewTab from "./tabs/ServerOverviewTab.vue";
 import SupportTab from "./tabs/SupportTab.vue";
+import TwitchNotificationsTab from "./tabs/TwitchNotificationsTab.vue";
 import WowCraftingTab from "./tabs/WowCraftingTab.vue";
 import WowGuildNewsTab from "./tabs/WowGuildNewsTab.vue";
 
@@ -297,6 +298,20 @@ const allSectionGroups: SectionGroup[] = [
         labelKey: "nav.items.wow_crafting",
         icon: "mdi:hammer-wrench",
         component: WowCraftingTab,
+        guildOnly: true,
+      },
+    ],
+  },
+  {
+    id: "integrations",
+    labelKey: "nav.groups.integrations",
+    accentClass: "text-purple-400",
+    items: [
+      {
+        id: "twitch-notifications",
+        labelKey: "nav.items.twitch_notifications",
+        icon: "mdi:twitch",
+        component: TwitchNotificationsTab,
         guildOnly: true,
       },
     ],

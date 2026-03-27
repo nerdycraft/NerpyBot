@@ -30,6 +30,7 @@ import type {
   RecipeSyncStatusResponse,
   ReminderSchema,
   RoleMappingSchema,
+  TwitchNotificationSchema,
   WowGuildNewsSchema,
 } from "@/api/types";
 
@@ -659,6 +660,28 @@ export const operatorErrorStatus: ErrorStatusResponse = {
 export const operatorRecipeSyncStatus: RecipeSyncStatusResponse = {
   counts: { crafting: 1847, gathering: 423 },
 };
+
+export const guild1TwitchNotifications: TwitchNotificationSchema[] = [
+  {
+    id: 1,
+    channel_id: "999000000000000010",
+    streamer: "shroud",
+    streamer_display_name: "shroud",
+    message: "Shroud is streaming! Come watch!",
+    notify_offline: false,
+  },
+  {
+    id: 2,
+    channel_id: "999000000000000011",
+    streamer: "pokimane",
+    streamer_display_name: "pokimane",
+    message: null,
+    notify_offline: true,
+  },
+];
+
+export const guild2TwitchNotifications: TwitchNotificationSchema[] = [];
+export const guild3TwitchNotifications: TwitchNotificationSchema[] = [];
 
 export const operatorRecipeCache: RecipeCacheBrowseResponse = {
   recipes: [
