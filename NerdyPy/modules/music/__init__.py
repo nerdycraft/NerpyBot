@@ -1,4 +1,4 @@
-# modules/music/__init__.py
+# -*- coding: utf-8 -*-
 """Music module — loads playback and playlist cogs."""
 
 
