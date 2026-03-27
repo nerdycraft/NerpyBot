@@ -12,6 +12,9 @@ from discord.ext import tasks
 
 from models.wow import WowCharacterMounts, WowGuildNewsConfig
 from modules.wow.api import (
+    COLOR_ACHIEVEMENT,
+    COLOR_ENCOUNTER,
+    COLOR_MOUNT,
     RateLimited,
     build_account_groups,
     check_rate_limit,
@@ -23,7 +26,6 @@ from modules.wow.api import (
     should_skip_character,
     should_update_mount_set,
 )
-from modules.wow.characters import COLOR_ACHIEVEMENT, COLOR_ENCOUNTER, COLOR_MOUNT
 from utils.errors import NerpyNotFoundError, NerpyPermissionError, NerpyUserException, NerpyValidationError
 from utils.helpers import notify_error, register_before_loop, send_paginated
 from utils.permissions import validate_channel_permissions
@@ -303,6 +305,31 @@ class WowNewsMixin:
     @_guildnews_check.autocomplete("config")
     async def _config_autocomplete_handler(self, interaction: Interaction, current: str):
         return await self._config_autocomplete(interaction, current)
+
+    # ── Shared API helper ────────────────────────────────────────────────
+
+    async def _call_api(self, api_method, config_id, label, *args, rate_limited_event=None, stats=None, **kwargs):
+        """Call a Blizzard API method with standard rate-limit and error handling.
+
+        Returns the result on success, or None on failure (already logged).
+        Sets rate_limited_event and increments stats["skipped_error"] when provided.
+        """
+        self.bot.log.debug(f"Guild news #{config_id}: {label}")
+        try:
+            result = await asyncio.to_thread(api_method, *args, **kwargs)
+            check_rate_limit(result)
+            return result
+        except RateLimited:
+            self.bot.log.warning(f"Guild news #{config_id}: rate limited on {label}")
+            if rate_limited_event:
+                rate_limited_event.set()
+            return None
+        except Exception as ex:
+            log_fn = self.bot.log.debug if stats is not None else self.bot.log.warning
+            log_fn(f"Guild news #{config_id}: {label} failed: {ex}")
+            if stats is not None:
+                stats["skipped_error"] += 1
+            return None
 
     # ── Background task ─────────────────────────────────────────────────
 

@@ -9,6 +9,8 @@ from discord.app_commands import checks
 from discord.ext import tasks
 from discord.ext.commands import Cog
 
+from sqlalchemy import or_
+
 from models.wow import (
     CURRENT_BOARD_VERSION,
     CraftingBoardConfig,
@@ -43,8 +45,6 @@ class WowCraftingMixin:
     async def _migrate_boards(self):
         """Upgrade crafting boards that are behind CURRENT_BOARD_VERSION."""
         with self.bot.session_scope() as session:
-            from sqlalchemy import or_
-
             stale = (
                 session.query(CraftingBoardConfig)
                 .filter(
@@ -74,6 +74,7 @@ class WowCraftingMixin:
         discord.HTTPException (429, 5xx) does NOT bump the version so the migration
         is retried on the next startup.
         """
+        # Local import to break circular dependency: crafting -> views -> cog callbacks -> crafting
         from modules.wow.views.board import CraftingBoardView
 
         lang = self._lang(guild_id)
