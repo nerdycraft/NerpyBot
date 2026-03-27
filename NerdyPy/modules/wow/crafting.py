@@ -417,8 +417,7 @@ class WowCraftingMixin:
                     _mapped, unmapped = self._auto_match_roles(interaction.guild, role_ids, session)
 
         # Show modal pre-filled with current description
-        modal = _BoardDescriptionModal(self.bot, lang, mode="edit", default_text=current_description)
-        modal._unmapped = unmapped
+        modal = _BoardDescriptionModal(self.bot, lang, mode="edit", default_text=current_description, unmapped=unmapped)
         await interaction.response.send_modal(modal)
 
     async def finish_board_edit(
@@ -546,8 +545,7 @@ class WowCraftingMixin:
         from modules.wow.views.board import ManualProfessionMappingView
 
         unmapped_roles = [
-            (rid, (interaction.guild.get_role(rid).name if interaction.guild.get_role(rid) else str(rid)))
-            for rid in unmapped
+            (rid, (role.name if (role := interaction.guild.get_role(rid)) else str(rid))) for rid in unmapped
         ]
         content = get_string(lang, "wow.craftingorder.manual_map.description")
         view = ManualProfessionMappingView(self.bot, interaction.guild_id, unmapped_roles, lang)
@@ -578,6 +576,7 @@ class _BoardDescriptionModal(discord.ui.Modal):
         channel: TextChannel = None,
         roles: str = None,
         default_text: str = None,
+        unmapped: list[int] | None = None,
     ):
         super().__init__(title=get_string(lang, "wow.craftingorder.create.modal_title"))
         self.bot = bot
@@ -585,6 +584,7 @@ class _BoardDescriptionModal(discord.ui.Modal):
         self.mode = mode
         self.channel = channel
         self.roles = roles
+        self.unmapped = unmapped or []
         self.description_input.placeholder = get_string(lang, "wow.craftingorder.create.modal_description")
         if default_text:
             self.description_input.default = default_text
@@ -598,5 +598,6 @@ class _BoardDescriptionModal(discord.ui.Modal):
                 interaction, self.channel, self.roles, self.description_input.value.strip(), self.lang
             )
         else:
-            unmapped = getattr(self, "_unmapped", [])
-            await cog.finish_board_edit(interaction, self.description_input.value.strip(), self.lang, unmapped=unmapped)
+            await cog.finish_board_edit(
+                interaction, self.description_input.value.strip(), self.lang, unmapped=self.unmapped
+            )

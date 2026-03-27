@@ -70,10 +70,10 @@ class WowCharactersMixin:
                         if slug:
                             cache[f"{slug}-{region}"] = {"name": name, "region": region, "slug": slug}
                 except Exception as ex:
-                    self.bot.log.warning(f"Failed to fetch realm index for {region}: {ex}")
+                    self.bot.log.warning("Failed to fetch realm index for %s: %s", region, ex)
 
             self._realm_cache = cache
-            self.bot.log.info(f"Realm cache populated with {len(cache)} entries")
+            self.bot.log.info("Realm cache populated with %d entries", len(cache))
 
     # noinspection PyUnusedLocal
     async def _realm_autocomplete(
@@ -146,7 +146,7 @@ class WowCharactersMixin:
         character = api.character_profile_summary(realmSlug=realm, characterName=name)
         media = api.character_media(realmSlug=realm, characterName=name)
         assets = media.get("assets", []) if isinstance(media, dict) else []
-        profile_picture = "".join(asset.get("value") for asset in assets if asset.get("key") == "avatar")
+        profile_picture = next((asset.get("value") for asset in assets if asset.get("key") == "avatar"), None)
 
         return character, profile_picture
 

@@ -157,3 +157,12 @@ class ApplicationTemplateQuestion(db.BASE):
     SortOrder = Column(Integer, nullable=False)
 
     template = relationship("ApplicationTemplate", back_populates="questions")
+
+
+TEMPLATE_KEY_MAP: dict[str, str] = {
+    "Guild Membership": "guild_membership",
+    "Staff / Moderator": "staff_moderator",
+    "Partnership / Collaboration": "partnership_collaboration",
+    "Volunteer": "volunteer",
+    "Community Access": "community_access",
+}

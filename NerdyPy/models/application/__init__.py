@@ -7,10 +7,10 @@ from models.application.forms import (
     ApplicationQuestion,
     ApplicationTemplate,
     ApplicationTemplateQuestion,
+    TEMPLATE_KEY_MAP,
 )
 from models.application.submissions import (
     BUILT_IN_TEMPLATES,
-    TEMPLATE_KEY_MAP,
     ApplicationAnswer,
     ApplicationSubmission,
     ApplicationVote,

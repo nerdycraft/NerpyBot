@@ -12,7 +12,7 @@ from modules.music.download import download, fetch_yt_infos
 from modules.music.views import NowPlayingView, build_now_playing_embed
 from utils.checks import can_leave_voice, can_stop_playback, is_connected_to_voice
 from utils.cog import NerpyBotCog
-from utils.helpers import error_context, youtube
+from utils.helpers import error_context, register_before_loop, youtube
 from utils.strings import get_string
 
 
@@ -26,6 +26,7 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
         self.config = self.bot.config["music"]
         self.queue = {}
         self.audio = self.bot.audio
+        register_before_loop(bot, self._progress_updater, "Progress Updater")
 
     async def cog_load(self):
         self.audio._on_song_start_hook = self._handle_song_start
@@ -78,11 +79,6 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
                 await msg.edit(embed=emb)
             except (discord.NotFound, discord.Forbidden):
                 self.audio.now_playing_message.pop(guild_id, None)
-
-    @_progress_updater.before_loop
-    async def _before_progress_updater(self):
-        self.bot.log.info("Progress Updater: Waiting for Bot to be ready...")
-        await self.bot.wait_until_ready()
 
     @app_commands.command(name="play")
     @app_commands.guild_only()
@@ -171,7 +167,7 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
     def _fetch(song: QueuedSong):
         song.stream = download(song.fetch_data, video_id=song.idn)
 
-    # ── Voice control commands (absorbed from voicecontrol.py) ────────────
+    # ── Voice control commands ────────────────────────────────────────────
 
     @app_commands.command(name="stop")
     @app_commands.guild_only()

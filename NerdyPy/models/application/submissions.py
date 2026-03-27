@@ -134,14 +134,6 @@ class ApplicationVote(db.BASE):
         return session.query(cls).filter(cls.SubmissionId == submission_id, cls.Vote == vote_type).count()
 
 
-TEMPLATE_KEY_MAP: dict[str, str] = {
-    "Guild Membership": "guild_membership",
-    "Staff / Moderator": "staff_moderator",
-    "Partnership / Collaboration": "partnership_collaboration",
-    "Volunteer": "volunteer",
-    "Community Access": "community_access",
-}
-
 BUILT_IN_TEMPLATES = {
     "Guild Membership": [
         "What is your in-game name or main character?",
