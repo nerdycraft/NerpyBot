@@ -29,6 +29,7 @@ class QueueMixin:
 
     queue: dict
     audio: "Audio"
+    _background_tasks: set
 
     def _has_queue(self, guild_id: int) -> bool:
         return guild_id in self.queue
@@ -81,6 +82,13 @@ class QueueMixin:
         self.bot.log.info(f'{error_context(interaction)}: requesting "{title}" to play')
         await self.audio.play(interaction.guild.id, song)
         return True
+
+    def _create_background_task(self, coro) -> asyncio.Task:
+        """Create a tracked asyncio task that removes itself from the set on completion."""
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
 
     @staticmethod
     def _fetch(song: "QueuedSong"):

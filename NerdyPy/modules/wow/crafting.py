@@ -12,6 +12,7 @@ from discord.ext.commands import Cog
 from typing import Literal
 
 from sqlalchemy import or_, update as sa_update
+from sqlalchemy.exc import SQLAlchemyError
 
 from models.wow import (
     CURRENT_BOARD_VERSION,
@@ -378,7 +379,7 @@ class WowCraftingMixin:
                 config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
                 if config is not None:
                     config.BoardMessageId = msg.id
-        except Exception as exc:
+        except SQLAlchemyError as exc:
             self.bot.log.error("Failed to save board message ID (guild=%d): %s", interaction.guild_id, exc)
             try:
                 await msg.delete()

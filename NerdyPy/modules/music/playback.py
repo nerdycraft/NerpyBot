@@ -113,9 +113,7 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
                 )
                 return
             await interaction.followup.send(get_string(lang, "music.playlist.loading"), ephemeral=True)
-            task = asyncio.create_task(self._load_playlist_entries(interaction, entries))
-            self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
+            self._create_background_task(self._load_playlist_entries(interaction, entries))
             return
 
         await self._enqueue(interaction, url, info)

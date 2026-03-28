@@ -5,6 +5,7 @@ import logging
 from urllib.parse import quote
 
 import discord
+from sqlalchemy.exc import SQLAlchemyError
 from discord import Interaction, ui
 
 from models.wow import (
@@ -174,7 +175,7 @@ class CraftingOrderModal(ui.Modal):
                 order = CraftingOrder.get_by_id(order_id, session)
                 if order is not None:
                     order.OrderMessageId = msg.id
-        except Exception:
+        except SQLAlchemyError:
             log.error("Failed to save order message ID for order #%d", order_id, exc_info=True)
             try:
                 await msg.delete()
