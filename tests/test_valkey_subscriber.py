@@ -570,6 +570,12 @@ class TestBotCommandHandler:
 
 
 class TestTwitchEventHandler:
+    @pytest.fixture(autouse=True)
+    def _load_locale_strings(self):
+        from utils.strings import load_strings
+
+        load_strings()
+
     @pytest.mark.asyncio
     async def test_twitch_event_online_sends_embeds(self, mock_bot, db_session):
         import discord

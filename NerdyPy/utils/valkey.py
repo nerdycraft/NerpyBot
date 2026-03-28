@@ -558,10 +558,16 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                 return False
 
         results = await gather(*(_notify_one(cfg) for cfg in configs), return_exceptions=True)
+        notified = 0
         for r in results:
             if isinstance(r, Exception):
-                bot.log.error("twitch_event: unexpected error notifying channel: %s", r, exc_info=r)
-        notified = sum(1 for r in results if r is True)
+                bot.log.error(
+                    "twitch_event: unexpected error notifying channel: %s",
+                    r,
+                    exc_info=(type(r), r, r.__traceback__),
+                )
+            elif r is True:
+                notified += 1
         return {"success": True, "notified": notified}
     else:
         return {"error": f"Unknown command: {command}"}

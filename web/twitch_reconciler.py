@@ -23,14 +23,14 @@ async def reconcile_once(app_state) -> None:
     session_factory = app_state.session_factory
     config = app_state.config
 
-    session = session_factory()
-    try:
-        async with _reconcile_lock:
+    async with _reconcile_lock:
+        session = session_factory()
+        try:
             await _run_cycle(session, twitch_client, config)
-    except Exception:
-        _log.exception("twitch reconciler: unhandled error in reconcile_once")
-    finally:
-        session.close()
+        except Exception:
+            _log.exception("twitch reconciler: unhandled error in reconcile_once")
+        finally:
+            session.close()
 
 
 def _needs_heal(streamer: str, existing_by_key: dict, offline_needed: set[str]) -> bool:

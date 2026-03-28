@@ -88,7 +88,10 @@ async def twitch_webhook(
             )
         except Exception:
             _log.exception("twitch_webhook: failed to publish event msg_id=%s — releasing claim", msg_id)
-            vk.delete_twitch_event_claim(msg_id)
+            try:
+                vk.delete_twitch_event_claim(msg_id)
+            except Exception:
+                _log.exception("twitch_webhook: failed to release dedup claim for msg_id=%s", msg_id)
             raise
         return Response(status_code=204)
 
