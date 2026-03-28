@@ -144,7 +144,7 @@ class RoleMappingCreate(BaseModel):
 # ── Reminders ──
 
 
-def _normalise_channel_name(v: object) -> object:
+def _normalise_optional_str(v: object) -> object:
     if v is None:
         return None
     if isinstance(v, str):
@@ -152,7 +152,7 @@ def _normalise_channel_name(v: object) -> object:
     return v  # let Pydantic's type system reject it with a proper error
 
 
-ChannelName = Annotated[Annotated[str, Field(max_length=100)] | None, BeforeValidator(_normalise_channel_name)]
+ChannelName = Annotated[Annotated[str, Field(max_length=100)] | None, BeforeValidator(_normalise_optional_str)]
 
 
 class ReminderSchema(BaseModel):
@@ -597,14 +597,6 @@ class RecipeCacheBrowseResponse(BaseModel):
 # ── Twitch Notifications ──
 
 
-def _normalise_str_or_none(v: object) -> object:
-    if v is None:
-        return None
-    if isinstance(v, str):
-        return v.strip() or None
-    return v
-
-
 class TwitchNotificationSchema(BaseModel):
     id: int
     channel_id: str
@@ -620,11 +612,11 @@ _I64_MAX = 9_223_372_036_854_775_807
 class TwitchNotificationCreate(BaseModel):
     channel_id: Annotated[int, Field(ge=1, le=_I64_MAX)]
     streamer: Annotated[str, Field(min_length=1, max_length=25)]
-    message: Annotated[Annotated[str, Field(max_length=500)] | None, BeforeValidator(_normalise_str_or_none)] = None
+    message: Annotated[Annotated[str, Field(max_length=500)] | None, BeforeValidator(_normalise_optional_str)] = None
     notify_offline: bool = False
 
 
 class TwitchNotificationUpdate(BaseModel):
     channel_id: Annotated[int, Field(ge=1, le=_I64_MAX)] | None = None
-    message: Annotated[Annotated[str, Field(max_length=500)] | None, BeforeValidator(_normalise_str_or_none)] = None
+    message: Annotated[Annotated[str, Field(max_length=500)] | None, BeforeValidator(_normalise_optional_str)] = None
     notify_offline: bool | None = None
