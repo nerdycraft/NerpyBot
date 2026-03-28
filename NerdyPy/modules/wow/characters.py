@@ -139,12 +139,14 @@ class WowCharactersMixin:
         except ValueError as ex:
             raise NerpyInfraException("Failed to initialise WoW API client.") from ex
 
-    def _get_character(self, realm: str, region: str, name: str, language: str) -> tuple[dict, LiteralString]:
+    async def _get_character(self, realm: str, region: str, name: str, language: str) -> tuple[dict, LiteralString]:
         """Get character profile and media from the WoW API."""
         api = self._get_retailclient(region, language)
 
-        character = api.character_profile_summary(realmSlug=realm, characterName=name)
-        media = api.character_media(realmSlug=realm, characterName=name)
+        character = await asyncio.to_thread(api.character_profile_summary, realmSlug=realm, characterName=name)
+        check_rate_limit(character)
+        media = await asyncio.to_thread(api.character_media, realmSlug=realm, characterName=name)
+        check_rate_limit(media)
         assets = media.get("assets", []) if isinstance(media, dict) else []
         profile_picture = next((asset.get("value") for asset in assets if asset.get("key") == "avatar"), None)
 
@@ -173,7 +175,7 @@ class WowCharactersMixin:
             profile = f"{region}/{realm_slug}/{name}"
 
             # noinspection PyTypeChecker
-            character, profile_picture = self._get_character(realm_slug, region, name, lang)
+            character, profile_picture = await self._get_character(realm_slug, region, name, lang)
 
             if not isinstance(character, dict) or character.get("code") == 404:
                 raise NerpyNotFoundError(get_string(lang, "wow.armory.not_found"))

@@ -26,6 +26,7 @@ class MusicPlaylist(NerpyBotCog, QueueMixin, Cog):
     def __init__(self, bot):
         super().__init__(bot)
         self.audio = self.bot.audio
+        self._background_tasks: set[asyncio.Task] = set()
 
     # ── Autocomplete helpers ───────────────────────────────────────────────
 
@@ -270,7 +271,9 @@ class MusicPlaylist(NerpyBotCog, QueueMixin, Cog):
             return
 
         await interaction.followup.send(get_string(lang, "music.playlist.loading"), ephemeral=True)
-        asyncio.create_task(self._load_saved_playlist(interaction, entries))
+        task = asyncio.create_task(self._load_saved_playlist(interaction, entries))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     async def _load_saved_playlist(self, interaction: Interaction, entries: list) -> None:
         """Background task: re-fetch yt-dlp info for each saved entry (needed for video_id) and enqueue."""

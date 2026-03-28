@@ -45,7 +45,7 @@ def _localize_field(
     """Set placeholder and default on a TextInput and add it to the modal via a Label wrapper."""
     field.placeholder = get_string(lang, f"{key_prefix}_placeholder")
     field.default = default
-    modal.add_item(discord.ui.Label(text=get_string(lang, f"{key_prefix}_label"), component=field))
+    modal.add_item(discord.ui.Label(label=get_string(lang, f"{key_prefix}_label"), item=field))
 
 
 @app_commands.default_permissions(administrator=True)

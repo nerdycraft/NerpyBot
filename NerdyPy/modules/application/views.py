@@ -544,7 +544,7 @@ class DenyVoteModal(discord.ui.Modal):
         if prefill:
             self._message.default = prefill
         self.add_item(
-            discord.ui.Label(text=get_string(lang, "application.modal.review_note_label"), component=self._message)
+            discord.ui.Label(label=get_string(lang, "application.modal.review_note_label"), item=self._message)
         )
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -610,7 +610,7 @@ class ApproveVoteModal(discord.ui.Modal):
         if prefill:
             self._message.default = prefill
         self.add_item(
-            discord.ui.Label(text=get_string(lang, "application.modal.review_note_label"), component=self._message)
+            discord.ui.Label(label=get_string(lang, "application.modal.review_note_label"), item=self._message)
         )
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -677,9 +677,7 @@ class MessageModal(discord.ui.Modal):
         self._message = discord.ui.TextInput(style=discord.TextStyle.paragraph, required=False, max_length=1000)
         if prefill:
             self._message.default = prefill
-        self.add_item(
-            discord.ui.Label(text=get_string(lang, "application.modal.message_label"), component=self._message)
-        )
+        self.add_item(discord.ui.Label(label=get_string(lang, "application.modal.message_label"), item=self._message))
 
     async def on_submit(self, interaction: discord.Interaction):
         if not self._message.value:
@@ -891,7 +889,7 @@ class EditApproveModal(discord.ui.Modal):
         self.review_message_id = review_message_id
         self._message = discord.ui.TextInput(style=discord.TextStyle.paragraph, required=True, max_length=1000)
         self.add_item(
-            discord.ui.Label(text=get_string(lang, "application.modal.review_note_label"), component=self._message)
+            discord.ui.Label(label=get_string(lang, "application.modal.review_note_label"), item=self._message)
         )
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -946,7 +944,7 @@ class EditDenyModal(discord.ui.Modal):
         self.review_message_id = review_message_id
         self._message = discord.ui.TextInput(style=discord.TextStyle.paragraph, required=True, max_length=1000)
         self.add_item(
-            discord.ui.Label(text=get_string(lang, "application.modal.review_note_label"), component=self._message)
+            discord.ui.Label(label=get_string(lang, "application.modal.review_note_label"), item=self._message)
         )
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -1005,7 +1003,7 @@ class OverrideModal(discord.ui.Modal):
         self.review_message_id = review_message_id
         self._reason = discord.ui.TextInput(style=discord.TextStyle.paragraph, required=True, max_length=1000)
         self.add_item(
-            discord.ui.Label(text=get_string(lang, "application.modal.override_reason_label"), component=self._reason)
+            discord.ui.Label(label=get_string(lang, "application.modal.override_reason_label"), item=self._reason)
         )
 
     async def on_submit(self, interaction: discord.Interaction):

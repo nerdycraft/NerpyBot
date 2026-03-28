@@ -160,24 +160,39 @@ class WowCraftingMixin:
             with self.bot.session_scope() as session:
                 pending = CraftingOrder.get_pending_cleanup(session)
                 # Snapshot the fields we need before closing the session
-                to_process = [(o.Id, o.ChannelId, o.OrderMessageId, o.ThreadId) for o in pending]
+                to_process = [(o.Id, o.GuildId, o.ChannelId, o.OrderMessageId, o.ThreadId) for o in pending]
 
             cleared_ids = []
-            for order_id, channel_id, message_id, thread_id in to_process:
+            for order_id, guild_id, channel_id, message_id, thread_id in to_process:
                 channel = self.bot.get_channel(channel_id)
                 if channel is None:
-                    self.bot.log.debug("Crafting cleanup: channel %d not found for order #%d", channel_id, order_id)
-                    continue
+                    guild = self.bot.get_guild(guild_id)
+                    if guild is None:
+                        self.bot.log.debug("Crafting cleanup: guild %d not in cache for order #%d", guild_id, order_id)
+                        continue
+                    try:
+                        channel = await guild.fetch_channel(channel_id)
+                    except (discord.NotFound, discord.Forbidden):
+                        self.bot.log.debug("Crafting cleanup: channel %d not found for order #%d", channel_id, order_id)
+                        cleared_ids.append(order_id)
+                        continue
+                    except discord.HTTPException as ex:
+                        self.bot.log.warning(
+                            "Crafting cleanup: error fetching channel %d for order #%d: %s", channel_id, order_id, ex
+                        )
+                        continue
                 try:
                     msg = await channel.fetch_message(message_id)
                     if msg.thread:
                         try:
                             await msg.thread.delete()
+                        except (discord.NotFound, discord.Forbidden):
+                            pass  # thread already gone or inaccessible
                         except discord.HTTPException as ex:
                             self.bot.log.debug("Crafting cleanup: thread delete failed for order #%d: %s", order_id, ex)
                     await msg.delete()
-                except discord.NotFound:
-                    pass  # already gone
+                except (discord.NotFound, discord.Forbidden):
+                    pass  # already gone or inaccessible
                 except discord.HTTPException as ex:
                     self.bot.log.warning("Crafting cleanup: failed to delete message for order #%d: %s", order_id, ex)
                     continue
@@ -302,17 +317,19 @@ class WowCraftingMixin:
 
         validate_channel_permissions(channel, interaction.guild, "send_messages", "embed_links", "manage_threads")
 
+        already_exists_msg = None
         with self.bot.session_scope() as session:
             existing = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
             if existing:
                 existing_channel = interaction.guild.get_channel(existing.ChannelId)
                 ch_mention = existing_channel.mention if existing_channel else f"#{existing.ChannelId}"
-                await interaction.followup.send(
-                    get_string(lang, "wow.craftingorder.create.already_exists", channel=ch_mention),
-                    ephemeral=True,
-                )
-                return
+                already_exists_msg = get_string(lang, "wow.craftingorder.create.already_exists", channel=ch_mention)
 
+        if already_exists_msg is not None:
+            await interaction.followup.send(already_exists_msg, ephemeral=True)
+            return
+
+        with self.bot.session_scope() as session:
             config = CraftingBoardConfig(
                 GuildId=interaction.guild_id,
                 ChannelId=channel.id,
@@ -356,10 +373,21 @@ class WowCraftingMixin:
             )
             return
 
-        with self.bot.session_scope() as session:
-            config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
-            if config is not None:
-                config.BoardMessageId = msg.id
+        try:
+            with self.bot.session_scope() as session:
+                config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+                if config is not None:
+                    config.BoardMessageId = msg.id
+        except Exception as exc:
+            self.bot.log.error("Failed to save board message ID (guild=%d): %s", interaction.guild_id, exc)
+            try:
+                await msg.delete()
+            except discord.HTTPException:
+                pass
+            await interaction.followup.send(
+                get_string(lang, "wow.craftingorder.create.send_failed", channel=channel.mention), ephemeral=True
+            )
+            return
 
         await interaction.followup.send(
             get_string(lang, "wow.craftingorder.create.success", channel=channel.mention), ephemeral=True
@@ -376,24 +404,41 @@ class WowCraftingMixin:
         lang = self._lang(interaction.guild_id)
 
         with self.bot.session_scope() as session:
-            config = CraftingBoardConfig.delete_by_guild(interaction.guild_id, session)
+            config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
             if config is None:
-                await interaction.followup.send(get_string(lang, "wow.craftingorder.remove.not_found"), ephemeral=True)
-                return
-            CraftingRoleMapping.delete_by_guild(interaction.guild_id, session)
-            channel_id = config.ChannelId
-            message_id = config.BoardMessageId
+                not_found_msg = get_string(lang, "wow.craftingorder.remove.not_found")
+            else:
+                not_found_msg = None
+                channel_id = config.ChannelId
+                message_id = config.BoardMessageId
 
-        # Try to delete the board embed
-        try:
-            channel = interaction.guild.get_channel(channel_id)
-            if channel and message_id:
+        if not_found_msg is not None:
+            await interaction.followup.send(not_found_msg, ephemeral=True)
+            return
+
+        # Try to delete the board embed before committing DB changes
+        channel = interaction.guild.get_channel(channel_id)
+        if channel is None:
+            try:
+                channel = await interaction.guild.fetch_channel(channel_id)
+            except (discord.NotFound, discord.Forbidden):
+                channel = None
+        if channel and message_id:
+            try:
                 msg = await channel.fetch_message(message_id)
                 if msg.thread:
-                    await msg.thread.delete()
+                    try:
+                        await msg.thread.delete()
+                    except (discord.NotFound, discord.Forbidden):
+                        pass
                 await msg.delete()
-        except discord.HTTPException:
-            self.bot.log.debug("Failed to delete crafting board message (channel=%s, msg=%s)", channel_id, message_id)
+            except (discord.NotFound, discord.Forbidden):
+                pass  # already gone or inaccessible
+
+        # Now delete DB config
+        with self.bot.session_scope() as session:
+            CraftingBoardConfig.delete_by_guild(interaction.guild_id, session)
+            CraftingRoleMapping.delete_by_guild(interaction.guild_id, session)
 
         await interaction.followup.send(get_string(lang, "wow.craftingorder.remove.success"), ephemeral=True)
 

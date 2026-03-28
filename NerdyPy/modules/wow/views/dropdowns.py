@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 import discord
 from discord import Interaction, ui
 from sqlalchemy import update as sa_update
+from sqlalchemy.exc import SQLAlchemyError
 
 from models.wow import (
     CraftingBoardConfig,
@@ -36,7 +37,6 @@ from modules.wow.views.board import (
     build_order_embed,
     build_order_view,
 )
-from utils.errors import NerpyInfraException
 
 log = logging.getLogger(__name__)
 
@@ -58,21 +58,21 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
         return cls(order_id=int(match["order_id"]))
 
     async def interaction_check(self, interaction: Interaction) -> bool:
+        error_msg = None
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
-                return False
-            if order.Status != ORDER_STATUS_OPEN:
-                await interaction.response.send_message(_ls(interaction, _LS_ACCEPT_NOT_OPEN), ephemeral=True)
-                return False
-            role = interaction.guild.get_role(order.ProfessionRoleId)
-            if role is None or role not in interaction.user.roles:
-                role_label = role.name if role else f"<deleted role {order.ProfessionRoleId}>"
-                await interaction.response.send_message(
-                    _ls(interaction, _LS_ACCEPT_NO_ROLE, role=role_label), ephemeral=True
-                )
-                return False
+                error_msg = _ls(interaction, _LS_NOT_FOUND)
+            elif order.Status != ORDER_STATUS_OPEN:
+                error_msg = _ls(interaction, _LS_ACCEPT_NOT_OPEN)
+            else:
+                role = interaction.guild.get_role(order.ProfessionRoleId)
+                if role is None or role not in interaction.user.roles:
+                    role_label = role.name if role else f"<deleted role {order.ProfessionRoleId}>"
+                    error_msg = _ls(interaction, _LS_ACCEPT_NO_ROLE, role=role_label)
+        if error_msg is not None:
+            await interaction.response.send_message(error_msg, ephemeral=True)
+            return False
         return True
 
     async def callback(self, interaction: Interaction):
@@ -396,7 +396,7 @@ def _schedule_thread_cleanup(interaction: Interaction, order_id: int) -> None:
                 .where(CraftingOrder.Id == order_id)
                 .values(MessageDeleteAt=datetime.now(UTC) + timedelta(hours=delay))
             )
-    except NerpyInfraException:
+    except SQLAlchemyError:
         log.error("Failed to schedule thread cleanup for order %s; thread may not be auto-deleted", order_id)
 
 
@@ -416,7 +416,7 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
 
     try:
         channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
-    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+    except (discord.NotFound, discord.Forbidden):
         channel = None
     if channel is None:
         log.warning("Board channel %d not found for order #%d", channel_id, order_id)
@@ -424,7 +424,7 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
     if thread_id:
         try:
             thread = interaction.guild.get_thread(thread_id) or await interaction.guild.fetch_channel(thread_id)
-        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+        except (discord.NotFound, discord.Forbidden):
             thread = None
     else:
         thread = None

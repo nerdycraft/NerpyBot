@@ -37,7 +37,7 @@ class ApplicationGuildRole(db.BASE):
 
     GuildId = Column(BigInteger, primary_key=True)
     RoleId = Column(BigInteger, primary_key=True)
-    RoleType = Column(Unicode(10), nullable=False)  # "manager" | "reviewer"
+    RoleType = Column(Unicode(10), primary_key=True)  # "manager" | "reviewer"
 
     @classmethod
     def get_role_ids(cls, guild_id: int, role_type: str, session) -> list[int]:

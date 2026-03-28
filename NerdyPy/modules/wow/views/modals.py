@@ -148,7 +148,7 @@ class CraftingOrderModal(ui.Modal):
         # Phase 2: send to Discord outside the session.
         try:
             channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
-        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+        except (discord.NotFound, discord.Forbidden):
             channel = None
         if channel is None:
             with self.bot.session_scope() as session:
@@ -169,10 +169,19 @@ class CraftingOrderModal(ui.Modal):
             return
 
         # Phase 3: store the message ID now that Discord has accepted the message.
-        with self.bot.session_scope() as session:
-            order = CraftingOrder.get_by_id(order_id, session)
-            if order is not None:
-                order.OrderMessageId = msg.id
+        try:
+            with self.bot.session_scope() as session:
+                order = CraftingOrder.get_by_id(order_id, session)
+                if order is not None:
+                    order.OrderMessageId = msg.id
+        except Exception:
+            log.error("Failed to save order message ID for order #%d", order_id, exc_info=True)
+            try:
+                await msg.delete()
+            except discord.HTTPException:
+                pass
+            await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            return
 
         await interaction.followup.send(
             _ls(interaction, _LS_ORDER_CREATED, item=item_name_localized or item_name),
@@ -194,21 +203,23 @@ class AskQuestionModal(ui.Modal):
     async def on_submit(self, interaction: Interaction):
         await interaction.response.defer(ephemeral=True)
 
+        item_name = None
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
-            if order is None:
-                await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
-                return
+            if order is not None:
+                item_name = order.ItemName
+                creator_id = order.CreatorId
+                thread_id = order.ThreadId
+                channel_id = order.ChannelId
+                message_id = order.OrderMessageId
 
-            item_name = order.ItemName
-            creator_id = order.CreatorId
-            thread_id = order.ThreadId
-            channel_id = order.ChannelId
-            message_id = order.OrderMessageId
+        if item_name is None:
+            await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            return
 
         try:
             channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
-        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+        except (discord.NotFound, discord.Forbidden):
             channel = None
         if channel is None:
             await interaction.followup.send(_ls(interaction, _LS_ASK_THREAD_FAILED), ephemeral=True)
@@ -218,7 +229,7 @@ class AskQuestionModal(ui.Modal):
         if thread_id:
             try:
                 thread = interaction.guild.get_thread(thread_id) or await interaction.guild.fetch_channel(thread_id)
-            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            except (discord.NotFound, discord.Forbidden):
                 thread = None
 
         is_new_thread = thread is None
@@ -231,8 +242,12 @@ class AskQuestionModal(ui.Modal):
                 await send_hidden_message(interaction, _ls(interaction, _LS_ASK_THREAD_FAILED))
                 return
 
+        escaped_message = discord.utils.escape_mentions(self.message_input.value)
         try:
-            await thread.send(f"**{interaction.user.display_name}:** {self.message_input.value}\n\n<@{creator_id}>")
+            await thread.send(
+                f"**{interaction.user.display_name}:** {escaped_message}\n\n<@{creator_id}>",
+                allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
+            )
         except discord.HTTPException:
             if is_new_thread:
                 from modules.wow.views.dropdowns import _try_delete_thread

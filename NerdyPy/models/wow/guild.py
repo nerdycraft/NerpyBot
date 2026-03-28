@@ -22,7 +22,6 @@ class WoW(db.BASE):
     """Database entity model for World of Warcraft"""
 
     __tablename__ = "WoW"
-    __table_args__ = (Index("WoW_GuildId", "GuildId"),)
 
     GuildId = Column(BigInteger, primary_key=True)
 
@@ -33,7 +32,6 @@ class WowGuildNewsConfig(db.BASE):
     __tablename__ = "WowGuildNewsConfig"
     __table_args__ = (
         Index("WowGuildNewsConfig_GuildId", "GuildId"),
-        Index("WowGuildNewsConfig_Id_GuildId", "Id", "GuildId", unique=True),
         Index(
             "WowGuildNewsConfig_Guild_Realm_Region",
             "GuildId",

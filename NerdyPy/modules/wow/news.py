@@ -6,7 +6,7 @@ import itertools
 import json
 from datetime import UTC, datetime, timedelta
 
-from discord import Embed, HTTPException, Interaction, TextChannel, app_commands
+from discord import Embed, Forbidden, HTTPException, Interaction, NotFound, TextChannel, app_commands
 from discord.app_commands import checks
 from discord.ext import tasks
 
@@ -82,6 +82,7 @@ class WowNewsMixin:
             # Validate the guild exists via API
             api = self._get_retailclient(region, lang)
             roster = await asyncio.to_thread(api.guild_roster, realmSlug=realm_slug, nameSlug=name_slug)
+            check_rate_limit(roster)
 
             if isinstance(roster, dict) and roster.get("code") in (404, 403):
                 raise NerpyNotFoundError(
@@ -154,14 +155,18 @@ class WowNewsMixin:
     async def _guildnews_remove(self, interaction: Interaction, config: int):
         """remove a guild news tracking config [manage_channels]"""
         lang = self._lang(interaction.guild_id)
+        not_found = False
         with self.bot.session_scope() as session:
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
             if not cfg:
-                await interaction.response.send_message(
-                    get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
-                )
-                return
-            WowGuildNewsConfig.delete(config, interaction.guild.id, session)
+                not_found = True
+            else:
+                WowGuildNewsConfig.delete(config, interaction.guild.id, session)
+        if not_found:
+            await interaction.response.send_message(
+                get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
+            )
+            return
         await interaction.response.send_message(
             get_string(lang, "wow.guildnews.remove.success", config=config), ephemeral=True
         )
@@ -170,46 +175,54 @@ class WowNewsMixin:
     async def _guildnews_list(self, interaction: Interaction):
         """list all tracked WoW guilds for this server"""
         lang = self._lang(interaction.guild_id)
+        list_empty = False
+        output = ""
         with self.bot.session_scope() as session:
             configs = WowGuildNewsConfig.get_all_by_guild(interaction.guild.id, session)
             if not configs:
-                await interaction.response.send_message(get_string(lang, "wow.guildnews.list.empty"), ephemeral=True)
-                return
-            output = ""
-            for cfg in configs:
-                channel = interaction.guild.get_channel(cfg.ChannelId)
-                if channel:
-                    channel_name = f"#{channel.name}"
-                else:
-                    channel_name = get_string(lang, "wow.guildnews.list.channel_deleted", channel_id=cfg.ChannelId)
-                if cfg.Enabled:
-                    status = f"\u2705 {get_string(lang, 'wow.guildnews.list.status_active')}"
-                else:
-                    status = f"\u23f8\ufe0f {get_string(lang, 'wow.guildnews.list.status_paused')}"
-                output += f"**#{cfg.Id}** {cfg.WowGuildName} (`{cfg.WowRealmSlug}-{cfg.Region.upper()}`)\n"
-                output += f"> {get_string(lang, 'wow.guildnews.list.entry_details', status=status, active_days=cfg.ActiveDays)}\n"
-                output += f"> {get_string(lang, 'wow.guildnews.list.entry_channel', channel=channel_name)}\n\n"
-            await send_paginated(
-                interaction,
-                output,
-                title=get_string(lang, "wow.guildnews.list.title"),
-                color=0xFFB100,
-                ephemeral=True,
-            )
+                list_empty = True
+            else:
+                for cfg in configs:
+                    channel = interaction.guild.get_channel(cfg.ChannelId)
+                    if channel:
+                        channel_name = f"#{channel.name}"
+                    else:
+                        channel_name = get_string(lang, "wow.guildnews.list.channel_deleted", channel_id=cfg.ChannelId)
+                    if cfg.Enabled:
+                        status = f"\u2705 {get_string(lang, 'wow.guildnews.list.status_active')}"
+                    else:
+                        status = f"\u23f8\ufe0f {get_string(lang, 'wow.guildnews.list.status_paused')}"
+                    output += f"**#{cfg.Id}** {cfg.WowGuildName} (`{cfg.WowRealmSlug}-{cfg.Region.upper()}`)\n"
+                    output += f"> {get_string(lang, 'wow.guildnews.list.entry_details', status=status, active_days=cfg.ActiveDays)}\n"
+                    output += f"> {get_string(lang, 'wow.guildnews.list.entry_channel', channel=channel_name)}\n\n"
+        if list_empty:
+            await interaction.response.send_message(get_string(lang, "wow.guildnews.list.empty"), ephemeral=True)
+            return
+        await send_paginated(
+            interaction,
+            output,
+            title=get_string(lang, "wow.guildnews.list.title"),
+            color=0xFFB100,
+            ephemeral=True,
+        )
 
     @guildnews.command(name="pause")
     @checks.has_permissions(manage_channels=True)
     async def _guildnews_pause(self, interaction: Interaction, config: int):
         """pause guild news tracking [manage_channels]"""
         lang = self._lang(interaction.guild_id)
+        not_found = False
         with self.bot.session_scope() as session:
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
             if not cfg:
-                await interaction.response.send_message(
-                    get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
-                )
-                return
-            cfg.Enabled = False
+                not_found = True
+            else:
+                cfg.Enabled = False
+        if not_found:
+            await interaction.response.send_message(
+                get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
+            )
+            return
         await interaction.response.send_message(
             get_string(lang, "wow.guildnews.pause.success", config=config), ephemeral=True
         )
@@ -219,14 +232,18 @@ class WowNewsMixin:
     async def _guildnews_resume(self, interaction: Interaction, config: int):
         """resume guild news tracking [manage_channels]"""
         lang = self._lang(interaction.guild_id)
+        not_found = False
         with self.bot.session_scope() as session:
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
             if not cfg:
-                await interaction.response.send_message(
-                    get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
-                )
-                return
-            cfg.Enabled = True
+                not_found = True
+            else:
+                cfg.Enabled = True
+        if not_found:
+            await interaction.response.send_message(
+                get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
+            )
+            return
         await interaction.response.send_message(
             get_string(lang, "wow.guildnews.resume.success", config=config), ephemeral=True
         )
@@ -256,24 +273,27 @@ class WowNewsMixin:
         if channel is not None:
             validate_channel_permissions(channel, interaction.guild, "view_channel", "send_messages", "embed_links")
 
+        not_found = False
+        guild_label = None
+        changes = []
         with self.bot.session_scope() as session:
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
             if not cfg:
-                await interaction.response.send_message(
-                    get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
-                )
-                return
+                not_found = True
+            else:
+                if channel is not None:
+                    cfg.ChannelId = channel.id
+                    changes.append(get_string(lang, "wow.guildnews.edit.change_channel", channel=channel.mention))
+                if active_days is not None:
+                    cfg.ActiveDays = active_days
+                    changes.append(get_string(lang, "wow.guildnews.edit.change_active_days", active_days=active_days))
+                guild_label = f"**{cfg.WowGuildName}** ({cfg.WowRealmSlug}-{cfg.Region.upper()})"
 
-            changes = []
-            if channel is not None:
-                cfg.ChannelId = channel.id
-                changes.append(get_string(lang, "wow.guildnews.edit.change_channel", channel=channel.mention))
-            if active_days is not None:
-                cfg.ActiveDays = active_days
-                changes.append(get_string(lang, "wow.guildnews.edit.change_active_days", active_days=active_days))
-
-            guild_label = f"**{cfg.WowGuildName}** ({cfg.WowRealmSlug}-{cfg.Region.upper()})"
-
+        if not_found:
+            await interaction.response.send_message(
+                get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
+            )
+            return
         await interaction.response.send_message(
             get_string(
                 lang, "wow.guildnews.edit.success", config=config, guild=guild_label, changes=", ".join(changes)
@@ -286,15 +306,17 @@ class WowNewsMixin:
         """trigger an immediate poll for testing [operator]"""
         if interaction.user.id not in self.bot.ops:
             raise NerpyPermissionError("This command is restricted to bot operators.")
+        check_msg = None
         with self.bot.session_scope() as session:
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
             if not cfg:
-                await interaction.response.send_message(f"Config #{config} not found.", ephemeral=True)
-                return
-            if not cfg.Enabled:
-                await interaction.response.send_message(f"Config #{config} is paused. Resume it first.", ephemeral=True)
-                return
+                check_msg = f"Config #{config} not found."
+            elif not cfg.Enabled:
+                check_msg = f"Config #{config} is paused. Resume it first."
 
+        if check_msg is not None:
+            await interaction.response.send_message(check_msg, ephemeral=True)
+            return
         await interaction.response.send_message(f"Running manual poll for config #{config}...", ephemeral=True)
         await self._poll_single_config(config, ignore_baseline=True)
 
@@ -364,6 +386,7 @@ class WowNewsMixin:
 
             # Snapshot config values so we can use them outside the session
             channel_id = config.ChannelId
+            guild_id = config.GuildId
             wow_guild = config.WowGuildName
             realm = config.WowRealmSlug
             region = config.Region
@@ -384,9 +407,19 @@ class WowNewsMixin:
         )
 
         channel = self.bot.get_channel(channel_id)
-        if not channel:
-            self.bot.log.warning(f"Guild news config #{cfg_id}: channel {channel_id} not found, skipping.")
-            return
+        if channel is None:
+            guild = self.bot.get_guild(guild_id)
+            if guild is not None:
+                try:
+                    channel = await guild.fetch_channel(channel_id)
+                except (NotFound, Forbidden):
+                    self.bot.log.warning(
+                        f"Guild news config #{cfg_id}: channel {channel_id} not found or inaccessible, skipping."
+                    )
+                    return
+            else:
+                self.bot.log.warning(f"Guild news config #{cfg_id}: channel {channel_id} not in cache, skipping.")
+                return
 
         api = self._get_retailclient(region, language)
 
@@ -883,12 +916,13 @@ class WowNewsMixin:
                 f"checking {len(batch)} characters"
             )
 
-            with self.bot.session_scope() as session:
-                config = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
-                if config:
-                    config.RosterOffset = new_offset
-
             await asyncio.gather(*[_check_character(c) for c in batch])
+
+            if not rate_limited.is_set():
+                with self.bot.session_scope() as session:
+                    config = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
+                    if config:
+                        config.RosterOffset = new_offset
 
             self.bot.log.debug(
                 f"Guild news #{config_id}: batch #{batch_num} done - "

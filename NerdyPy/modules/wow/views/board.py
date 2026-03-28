@@ -507,7 +507,7 @@ def _build_localized_options(
         localized = _get_locale(locales, lang)
         label = localized or name or "Unknown"
         prefix = _emoji_for(name or "") if emojis else ""
-        description = name[:100] if localized else None
+        description = name[:100] if localized and name else None
         sort_key = (localized or name or "").casefold()
         keyed.append(
             (sort_key, discord.SelectOption(label=(prefix + label)[:100], description=description, value=str(item_id)))

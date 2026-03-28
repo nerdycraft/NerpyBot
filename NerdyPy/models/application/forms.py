@@ -101,7 +101,7 @@ class ApplicationTemplate(db.BASE):
 
     Id = Column(Integer, primary_key=True)
     GuildId = Column(BigInteger, nullable=True)
-    Name = Column(Unicode(100))
+    Name = Column(Unicode(100), nullable=False)
     IsBuiltIn = Column(Boolean, default=False)
     ApprovalMessage = Column(UnicodeText, nullable=True)
     DenialMessage = Column(UnicodeText, nullable=True)
@@ -138,7 +138,10 @@ class ApplicationTemplate(db.BASE):
     def get_by_name(cls, name, guild_id, session):
         """Returns a template by name — checks built-in and guild-specific."""
         return (
-            session.query(cls).filter(cls.Name == name, (cls.IsBuiltIn.is_(True)) | (cls.GuildId == guild_id)).first()
+            session.query(cls)
+            .filter(cls.Name == name, (cls.IsBuiltIn.is_(True)) | (cls.GuildId == guild_id))
+            .order_by(cls.IsBuiltIn.asc())
+            .first()
         )
 
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Guild-domain database models: guild registry and per-guild language preference."""
 
-from sqlalchemy import BigInteger, Column, String
+from sqlalchemy import BigInteger, Column, String, insert
 
 from utils import database as db
 
@@ -16,8 +16,8 @@ class BotGuild(db.BASE):
     def sync(cls, guild_ids: list[int], session) -> None:
         """Replace the full set of known guilds with the given list."""
         session.query(cls).delete()
-        for gid in guild_ids:
-            session.add(cls(GuildId=gid))
+        if guild_ids:
+            session.execute(insert(cls), [{"GuildId": gid} for gid in guild_ids])
 
     @classmethod
     def add(cls, guild_id: int, session) -> None:
