@@ -22,5 +22,5 @@ repos:
     rev: "v2.4.9"
     hooks:
       - id: biome-check
-        additional_dependencies: ["@biomejs/biome@2.4.8"]
+        additional_dependencies: ["@biomejs/biome@2.4.9"]
         files: "^web/frontend/src/"
