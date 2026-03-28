@@ -14,6 +14,10 @@ from discord import Interaction, ui
 from sqlalchemy import update as sa_update
 
 from models.wow import (
+    ORDER_STATUS_CANCELLED,
+    ORDER_STATUS_COMPLETED,
+    ORDER_STATUS_IN_PROGRESS,
+    ORDER_STATUS_OPEN,
     RECIPE_TYPE_CRAFTED,
     RECIPE_TYPE_HOUSING,
     CraftingBoardConfig,
@@ -549,7 +553,7 @@ def build_order_embed(order: CraftingOrder, guild: discord.Guild, lang: str = "e
     role_display = role.mention if role else f"Role #{order.ProfessionRoleId}"
 
     status_key = f"wow.craftingorder.order.status_{order.Status}"
-    if order.Status == "in_progress" and order.CrafterId:
+    if order.Status == ORDER_STATUS_IN_PROGRESS and order.CrafterId:
         status_text = get_string(lang, status_key, crafter=f"<@{order.CrafterId}>")
     else:
         status_text = get_string(lang, status_key)
@@ -573,7 +577,7 @@ def build_order_view(order_id: int, status: str, lang: str = "en") -> ui.View:
     """Construct a View with the appropriate buttons for an order's current status."""
     _s = lambda key: get_string(lang, f"wow.craftingorder.order.{key}")  # noqa: E731
     view = ui.View(timeout=None)
-    if status == "open":
+    if status == ORDER_STATUS_OPEN:
         view.add_item(
             ui.Button(
                 label=_s("accept_button"), style=discord.ButtonStyle.success, custom_id=f"crafting:accept:{order_id}"
@@ -587,7 +591,7 @@ def build_order_view(order_id: int, status: str, lang: str = "en") -> ui.View:
         view.add_item(
             ui.Button(label=_s("ask_button"), style=discord.ButtonStyle.secondary, custom_id=f"crafting:ask:{order_id}")
         )
-    elif status == "in_progress":
+    elif status == ORDER_STATUS_IN_PROGRESS:
         view.add_item(
             ui.Button(
                 label=_s("drop_button"), style=discord.ButtonStyle.secondary, custom_id=f"crafting:drop:{order_id}"
@@ -2032,13 +2036,13 @@ class CraftingOrderModal(ui.Modal):
                     IconUrl=icon_url,
                     WowheadUrl=wowhead_url,
                     Notes=notes,
-                    Status="open",
+                    Status=ORDER_STATUS_OPEN,
                 )
                 session.add(order)
                 session.flush()
                 order_id = order.Id
                 embed = build_order_embed(order, interaction.guild, lang)
-                view = build_order_view(order.Id, "open", lang)
+                view = build_order_view(order.Id, ORDER_STATUS_OPEN, lang)
 
         if config is None:
             await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
@@ -2101,7 +2105,7 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
             if order is None:
                 await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
                 return False
-            if order.Status != "open":
+            if order.Status != ORDER_STATUS_OPEN:
                 await interaction.response.send_message(_ls(interaction, _LS_ACCEPT_NOT_OPEN), ephemeral=True)
                 return False
             role = interaction.guild.get_role(order.ProfessionRoleId)
@@ -2118,24 +2122,33 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
         embed = None
         view = None
         with interaction.client.session_scope() as session:
+            order = CraftingOrder.get_by_id(self.order_id, session)
+            if order is not None:
+                session.expunge(order)
+        if order is None:
+            not_open = True
+        else:
             # Atomic update: only proceeds if status is still 'open', preventing
             # two crafters from both accepting the same order in a race.
-            rowcount = session.execute(
-                sa_update(CraftingOrder)
-                .where(CraftingOrder.Id == self.order_id, CraftingOrder.Status == "open")
-                .values(
-                    Status="in_progress",
-                    CrafterId=interaction.user.id,
-                    CrafterName=interaction.user.display_name,
-                )
-            ).rowcount
+            with interaction.client.session_scope() as session:
+                rowcount = session.execute(
+                    sa_update(CraftingOrder)
+                    .where(CraftingOrder.Id == self.order_id, CraftingOrder.Status == ORDER_STATUS_OPEN)
+                    .values(
+                        Status=ORDER_STATUS_IN_PROGRESS,
+                        CrafterId=interaction.user.id,
+                        CrafterName=interaction.user.display_name,
+                    )
+                ).rowcount
             if rowcount == 0:
                 not_open = True
             else:
-                order = CraftingOrder.get_by_id(self.order_id, session)
+                order.Status = ORDER_STATUS_IN_PROGRESS
+                order.CrafterId = interaction.user.id
+                order.CrafterName = interaction.user.display_name
                 lang = interaction.client.get_guild_language(interaction.guild_id)
                 embed = build_order_embed(order, interaction.guild, lang)
-                view = build_order_view(order.Id, "in_progress", lang)
+                view = build_order_view(order.Id, ORDER_STATUS_IN_PROGRESS, lang)
         if not_open:
             await interaction.response.send_message(_ls(interaction, _LS_ACCEPT_NOT_OPEN), ephemeral=True)
             return
@@ -2159,7 +2172,7 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
             if order is None:
                 await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
                 return False
-            if order.Status != "in_progress":
+            if order.Status != ORDER_STATUS_IN_PROGRESS:
                 await interaction.response.send_message(_ls(interaction, _LS_DROP_NOT_IN_PROGRESS), ephemeral=True)
                 return False
             is_crafter = order.CrafterId == interaction.user.id
@@ -2173,19 +2186,30 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
         order_not_found = False
         embed = view = None
         with interaction.client.session_scope() as session:
-            conditions = [CraftingOrder.Id == self.order_id, CraftingOrder.Status == "in_progress"]
+            order = CraftingOrder.get_by_id(self.order_id, session)
+            if order is not None:
+                session.expunge(order)
+        if order is None:
+            order_not_found = True
+        else:
+            conditions = [CraftingOrder.Id == self.order_id, CraftingOrder.Status == ORDER_STATUS_IN_PROGRESS]
             if not interaction.user.guild_permissions.administrator:
                 conditions.append(CraftingOrder.CrafterId == interaction.user.id)
-            rowcount = session.execute(
-                sa_update(CraftingOrder).where(*conditions).values(Status="open", CrafterId=None, CrafterName=None)
-            ).rowcount
+            with interaction.client.session_scope() as session:
+                rowcount = session.execute(
+                    sa_update(CraftingOrder)
+                    .where(*conditions)
+                    .values(Status=ORDER_STATUS_OPEN, CrafterId=None, CrafterName=None)
+                ).rowcount
             if rowcount == 0:
                 order_not_found = True
             else:
-                order = CraftingOrder.get_by_id(self.order_id, session)
+                order.Status = ORDER_STATUS_OPEN
+                order.CrafterId = None
+                order.CrafterName = None
                 lang = interaction.client.get_guild_language(interaction.guild_id)
                 embed = build_order_embed(order, interaction.guild, lang)
-                view = build_order_view(order.Id, "open", lang)
+                view = build_order_view(order.Id, ORDER_STATUS_OPEN, lang)
         if order_not_found:
             await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
@@ -2209,7 +2233,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
             if order is None:
                 await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
                 return False
-            if order.Status != "in_progress":
+            if order.Status != ORDER_STATUS_IN_PROGRESS:
                 await interaction.response.send_message(_ls(interaction, _LS_COMPLETE_NOT_IN_PROGRESS), ephemeral=True)
                 return False
             is_crafter = order.CrafterId == interaction.user.id
@@ -2223,13 +2247,13 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         row_found = False
         item_name = creator_id = crafter_id = thread_id = None
         with interaction.client.session_scope() as session:
-            conditions = [CraftingOrder.Id == self.order_id, CraftingOrder.Status == "in_progress"]
+            conditions = [CraftingOrder.Id == self.order_id, CraftingOrder.Status == ORDER_STATUS_IN_PROGRESS]
             if not interaction.user.guild_permissions.administrator:
                 conditions.append(CraftingOrder.CrafterId == interaction.user.id)
             row = session.execute(
                 sa_update(CraftingOrder)
                 .where(*conditions)
-                .values(Status="completed")
+                .values(Status=ORDER_STATUS_COMPLETED)
                 .returning(
                     CraftingOrder.ItemName,
                     CraftingOrder.ItemNameLocalized,
@@ -2297,7 +2321,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
             if order is None:
                 await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
                 return False
-            if order.Status in ("completed", "cancelled"):
+            if order.Status in (ORDER_STATUS_COMPLETED, ORDER_STATUS_CANCELLED):
                 await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
                 return False
             is_creator = order.CreatorId == interaction.user.id
@@ -2316,9 +2340,9 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
                 sa_update(CraftingOrder)
                 .where(
                     CraftingOrder.Id == self.order_id,
-                    CraftingOrder.Status.not_in(["completed", "cancelled"]),
+                    CraftingOrder.Status.not_in([ORDER_STATUS_COMPLETED, ORDER_STATUS_CANCELLED]),
                 )
-                .values(Status="cancelled")
+                .values(Status=ORDER_STATUS_CANCELLED)
                 .returning(
                     CraftingOrder.ItemName,
                     CraftingOrder.ItemNameLocalized,

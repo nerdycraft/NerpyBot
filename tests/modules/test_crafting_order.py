@@ -1,7 +1,14 @@
 # -*- coding: utf-8 -*-
 """Tests for crafting order feature."""
 
-from models.wow import CraftingBoardConfig, CraftingOrder, CraftingRoleMapping
+from models.wow import (
+    ORDER_STATUS_COMPLETED,
+    ORDER_STATUS_IN_PROGRESS,
+    ORDER_STATUS_OPEN,
+    CraftingBoardConfig,
+    CraftingOrder,
+    CraftingRoleMapping,
+)
 
 
 class TestCraftingBoardConfig:
@@ -33,7 +40,7 @@ class TestCraftingOrderTransitions:
 
     def _make_order(self, db_session, **overrides):
         defaults = dict(
-            GuildId=100, ChannelId=200, CreatorId=300, ProfessionRoleId=400, ItemName="Sword", Status="open"
+            GuildId=100, ChannelId=200, CreatorId=300, ProfessionRoleId=400, ItemName="Sword", Status=ORDER_STATUS_OPEN
         )
         defaults.update(overrides)
         order = CraftingOrder(**defaults)
@@ -43,36 +50,36 @@ class TestCraftingOrderTransitions:
 
     def test_accept_sets_in_progress(self, db_session):
         order = self._make_order(db_session)
-        order.Status = "in_progress"
+        order.Status = ORDER_STATUS_IN_PROGRESS
         order.CrafterId = 500
         db_session.flush()
 
         result = CraftingOrder.get_by_id(order.Id, db_session)
-        assert result.Status == "in_progress"
+        assert result.Status == ORDER_STATUS_IN_PROGRESS
         assert result.CrafterId == 500
 
     def test_drop_resets_to_open(self, db_session):
-        order = self._make_order(db_session, Status="in_progress", CrafterId=500)
-        order.Status = "open"
+        order = self._make_order(db_session, Status=ORDER_STATUS_IN_PROGRESS, CrafterId=500)
+        order.Status = ORDER_STATUS_OPEN
         order.CrafterId = None
         db_session.flush()
 
         result = CraftingOrder.get_by_id(order.Id, db_session)
-        assert result.Status == "open"
+        assert result.Status == ORDER_STATUS_OPEN
         assert result.CrafterId is None
 
     def test_complete_sets_completed(self, db_session):
-        order = self._make_order(db_session, Status="in_progress", CrafterId=500)
-        order.Status = "completed"
+        order = self._make_order(db_session, Status=ORDER_STATUS_IN_PROGRESS, CrafterId=500)
+        order.Status = ORDER_STATUS_COMPLETED
         db_session.flush()
 
         result = CraftingOrder.get_by_id(order.Id, db_session)
-        assert result.Status == "completed"
+        assert result.Status == ORDER_STATUS_COMPLETED
 
     def test_get_active_excludes_completed(self, db_session):
-        self._make_order(db_session, Status="open", ItemName="A")
-        self._make_order(db_session, Status="in_progress", CrafterId=500, ItemName="B")
-        self._make_order(db_session, Status="completed", ItemName="C")
+        self._make_order(db_session, Status=ORDER_STATUS_OPEN, ItemName="A")
+        self._make_order(db_session, Status=ORDER_STATUS_IN_PROGRESS, CrafterId=500, ItemName="B")
+        self._make_order(db_session, Status=ORDER_STATUS_COMPLETED, ItemName="C")
 
         active = CraftingOrder.get_active_by_guild(100, db_session)
         assert len(active) == 2
@@ -80,20 +87,20 @@ class TestCraftingOrderTransitions:
         assert names == {"A", "B"}
 
     def test_cancel_from_open(self, db_session):
-        order = self._make_order(db_session, Status="open")
-        order.Status = "completed"
+        order = self._make_order(db_session, Status=ORDER_STATUS_OPEN)
+        order.Status = ORDER_STATUS_COMPLETED
         db_session.flush()
 
         result = CraftingOrder.get_by_id(order.Id, db_session)
-        assert result.Status == "completed"
+        assert result.Status == ORDER_STATUS_COMPLETED
 
     def test_cancel_from_in_progress(self, db_session):
-        order = self._make_order(db_session, Status="in_progress", CrafterId=500)
-        order.Status = "completed"
+        order = self._make_order(db_session, Status=ORDER_STATUS_IN_PROGRESS, CrafterId=500)
+        order.Status = ORDER_STATUS_COMPLETED
         db_session.flush()
 
         result = CraftingOrder.get_by_id(order.Id, db_session)
-        assert result.Status == "completed"
+        assert result.Status == ORDER_STATUS_COMPLETED
 
 
 class TestRoleMapping:
