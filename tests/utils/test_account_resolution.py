@@ -3,7 +3,7 @@
 
 import json
 
-from utils.blizzard import (
+from modules.wow.api import (
     strip_diacritics,
     name_similarity_score,
     temporal_score,

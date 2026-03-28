@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 import discord
 from discord import Interaction, VoiceChannel, VoiceClient
 from discord.ext import tasks
-from utils.helpers import send_paginated
+from utils.helpers import error_context, send_paginated
 
 
 class BufferKey(enum.Enum):
@@ -54,6 +54,39 @@ class QueueMixin:
         """Stop playback, flush the audio queue, and clear the module queue."""
         self.audio.stop_and_clear(guild_id)
         self._clear_queue(guild_id)
+
+    async def _enqueue(self, interaction: Interaction, url: str, info: dict) -> bool:
+        """Build a QueuedSong from yt-dlp info and add it to the audio queue. Returns True on success."""
+        if interaction.user.voice is None:
+            self.bot.log.warning(f"{error_context(interaction)}: _enqueue skipped — user has no voice state")
+            return False
+        title = info.get("title", url)
+        idn = info.get("id")
+        duration = info.get("duration")
+        thumbnails = info.get("thumbnails") or []
+        thumbnail_url = thumbnails[0].get("url") if thumbnails else None
+        artist = info.get("uploader") or info.get("channel")
+
+        song = QueuedSong(
+            channel=interaction.user.voice.channel,
+            fetcher=self._fetch,
+            fetch_data=url,
+            title=title,
+            idn=idn,
+            duration=duration,
+            requester=interaction.user,
+            thumbnail=thumbnail_url,
+            artist=artist,
+        )
+        self.bot.log.info(f'{error_context(interaction)}: requesting "{title}" to play')
+        await self.audio.play(interaction.guild.id, song)
+        return True
+
+    @staticmethod
+    def _fetch(song: "QueuedSong"):
+        from modules.music.download import download
+
+        song.stream = download(song.fetch_data, video_id=song.idn)
 
 
 class QueuedSong:

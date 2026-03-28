@@ -133,11 +133,11 @@ class TestCacheRecipeQueryDecorator:
         """After TTL expires, the decorator must issue a fresh DB query."""
         import time
 
-        import models.wow as wow_module
+        import models.wow.crafting as wow_crafting_module
         from cachetools import TTLCache
 
         short_ttl_cache = TTLCache(maxsize=256, ttl=0.01)
-        monkeypatch.setattr(wow_module, "_recipe_cache", short_ttl_cache)
+        monkeypatch.setattr(wow_crafting_module, "_recipe_cache", short_ttl_cache)
 
         db_session.add(_recipe(RecipeId=1, ProfessionId=164))
         db_session.commit()

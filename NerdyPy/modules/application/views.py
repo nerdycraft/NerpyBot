@@ -1456,7 +1456,7 @@ class ApplicationApplyView(discord.ui.View):
                 return
 
         # 6. Start ApplicationSubmitConversation
-        from modules.conversations.application import ApplicationSubmitConversation
+        from modules.application.conversations import ApplicationSubmitConversation
 
         conv = ApplicationSubmitConversation(
             self.bot,

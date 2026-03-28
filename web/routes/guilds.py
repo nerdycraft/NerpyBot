@@ -75,7 +75,7 @@ def _get_guild_language_cached(guild_id: int, session) -> str:
         return _guild_lang_cache[guild_id]
     except KeyError:
         pass
-    from models.admin import GuildLanguageConfig
+    from models.guild import GuildLanguageConfig
 
     try:
         config = GuildLanguageConfig.get(guild_id, session)
@@ -136,7 +136,7 @@ async def set_language(
 ):
     """Set or update the bot language for a guild."""
     _deny_support_write(user)
-    from models.admin import GuildLanguageConfig
+    from models.guild import GuildLanguageConfig
 
     cfg = GuildLanguageConfig.get(guild_id, session)
     if cfg is None:
@@ -161,7 +161,7 @@ async def list_moderator_roles(
     session: Session = Depends(get_db_session),
 ):
     """List the configured moderator role(s) for a guild."""
-    from models.admin import BotModeratorRole
+    from models.permissions import BotModeratorRole
 
     role = BotModeratorRole.get(guild_id, session)
     if role is None:
@@ -179,7 +179,7 @@ async def add_moderator_role(
 ):
     """Set or replace the moderator role for a guild."""
     _deny_support_write(user)
-    from models.admin import BotModeratorRole
+    from models.permissions import BotModeratorRole
 
     new_role_id = int(body.role_id)
     existing = BotModeratorRole.get(guild_id, session)
@@ -202,7 +202,7 @@ async def delete_moderator_role(
 ):
     """Remove the moderator role for a guild. Returns 404 if the role is not configured."""
     _deny_support_write(user)
-    from models.admin import BotModeratorRole
+    from models.permissions import BotModeratorRole
 
     existing = BotModeratorRole.get(guild_id, session)
     if existing is None or existing.RoleId != role_id:
@@ -1298,7 +1298,7 @@ async def create_wow_news_config(
 ):
     """Create a WoW guild news tracker for a Discord guild. Returns 409 if already tracked."""
     _deny_support_write(user)
-    from models.admin import GuildLanguageConfig
+    from models.guild import GuildLanguageConfig
     from models.wow import WowGuildNewsConfig
 
     normalized_name = " ".join(body.wow_guild_name.split())
@@ -1391,7 +1391,7 @@ async def get_wow_news_roster(
     if cfg is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Config not found")
 
-    from utils.blizzard import parse_known_mounts
+    from modules.wow.api import parse_known_mounts
 
     entries = WowCharacterMounts.get_all_by_config(config_id, session)
 
@@ -1478,7 +1478,7 @@ async def list_crafting_orders(
 # Inverted CRAFTING_PROFESSIONS: maps profession_id -> name. Computed once at import time.
 def _get_profession_name_by_id() -> dict:
     try:
-        from utils.blizzard import CRAFTING_PROFESSIONS
+        from modules.wow.api import CRAFTING_PROFESSIONS
 
         return {v: k for k, v in CRAFTING_PROFESSIONS.items()}
     except Exception:

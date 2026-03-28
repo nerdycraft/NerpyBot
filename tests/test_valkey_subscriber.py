@@ -153,7 +153,7 @@ class TestBotCommandHandler:
 
         mock_bot.load_extension = AsyncMock(return_value=None)
 
-        result = await handle_valkey_command(mock_bot, "module_load", {"module": "tagging"})
+        result = await handle_valkey_command(mock_bot, "module_load", {"module": "music"})
         assert result["success"] is True
 
     async def test_module_load_invalid_name(self, mock_bot):

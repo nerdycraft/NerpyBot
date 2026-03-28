@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 from models.wow import CraftingRecipeCache, _recipe_cache
-from utils.blizzard import CRAFTING_PROFESSIONS
+from modules.wow.api import CRAFTING_PROFESSIONS
 
 
 class TestRoleAutoMatch:
@@ -73,7 +73,7 @@ class TestSyncCraftingRecipesGuard:
         bot, session = _make_bot()
         with patch("blizzapi.RetailClient", return_value=_make_client(fail=False)):
             with patch.object(CraftingRecipeCache, "count", return_value=5):
-                from utils.blizzard import sync_crafting_recipes
+                from modules.wow.api import sync_crafting_recipes
 
                 result = await sync_crafting_recipes(bot)
 
@@ -85,7 +85,7 @@ class TestSyncCraftingRecipesGuard:
         bot, session = _make_bot()
         with patch("blizzapi.RetailClient", return_value=_make_client(fail=True)):
             with patch.object(CraftingRecipeCache, "count", return_value=10):
-                from utils.blizzard import sync_crafting_recipes
+                from modules.wow.api import sync_crafting_recipes
 
                 result = await sync_crafting_recipes(bot)
 
@@ -130,7 +130,7 @@ class TestSyncCraftingRecipesGuard:
 
         with patch("blizzapi.RetailClient", return_value=client):
             with patch.object(CraftingRecipeCache, "count", return_value=0):
-                from utils.blizzard import sync_crafting_recipes
+                from modules.wow.api import sync_crafting_recipes
 
                 result = await sync_crafting_recipes(bot)
 
@@ -147,7 +147,7 @@ class TestSyncCraftingRecipesGuard:
 
         with patch("blizzapi.RetailClient", return_value=_make_client(fail=False)):
             with patch.object(CraftingRecipeCache, "count", return_value=5):
-                from utils.blizzard import sync_crafting_recipes
+                from modules.wow.api import sync_crafting_recipes
 
                 result = await sync_crafting_recipes(bot)
 

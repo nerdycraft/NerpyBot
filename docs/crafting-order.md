@@ -215,10 +215,10 @@ The `WowheadUrl` column was added in migration `012`.
 
 | File                                                                 | Contents                                                                         |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `NerdyPy/modules/wow.py`                                             | `craftingorder` command group (create, edit, remove)                             |
-| `NerdyPy/modules/views/crafting_order.py`                            | Board view, select views (type/subtype/item/expansion/housing profession), modal |
-| `NerdyPy/models/wow.py`                                              | CraftingBoardConfig, CraftingRoleMapping, CraftingRecipeCache, CraftingOrder     |
-| `NerdyPy/utils/blizzard.py`                                          | `sync_crafting_recipes()`, `_resolve_expansion()`, expansion map                 |
+| `NerdyPy/modules/wow/crafting.py`                                    | `craftingorder` command group (create, edit, remove)                             |
+| `NerdyPy/modules/wow/views/board.py`                                 | Board view, select views (type/subtype/item/expansion/housing profession), modal |
+| `NerdyPy/models/wow/crafting.py`                                     | CraftingBoardConfig, CraftingRoleMapping, CraftingRecipeCache, CraftingOrder     |
+| `NerdyPy/modules/wow/api.py`                                         | `sync_crafting_recipes()`, `_resolve_expansion()`, expansion map                 |
 | `NerdyPy/utils/valkey.py`                                            | `recipe_sync` + `recipe_sync_status` Valkey IPC handlers                         |
 | `NerdyPy/modules/admin.py`                                           | `!sync recipes` CLI command                                                      |
 | `web/routes/operator.py`                                             | `/operator/recipe-sync` POST + GET endpoints                                     |

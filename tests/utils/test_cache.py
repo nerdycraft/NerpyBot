@@ -6,7 +6,8 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.exc import OperationalError
 
-from models.admin import BotModeratorRole, GuildLanguageConfig
+from models.guild import GuildLanguageConfig
+from models.permissions import BotModeratorRole
 from models.leavemsg import LeaveMessage
 from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage
 from utils.cache import (

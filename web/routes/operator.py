@@ -75,7 +75,7 @@ async def list_premium_users(
     session: Session = Depends(get_db_session),
 ):
     """List all users who have been granted premium dashboard access."""
-    from models.admin import PremiumUser
+    from models.premium import PremiumUser
 
     return [_premium_to_schema(p) for p in PremiumUser.get_all(session)]
 
@@ -87,7 +87,7 @@ async def grant_premium(
     session: Session = Depends(get_db_session),
 ):
     """Grant premium dashboard access to a user."""
-    from models.admin import PremiumUser
+    from models.premium import PremiumUser
 
     try:
         target_user_id = int(body.user_id)
@@ -108,7 +108,7 @@ async def revoke_premium(
     session: Session = Depends(get_db_session),
 ):
     """Revoke premium dashboard access from a user."""
-    from models.admin import PremiumUser
+    from models.premium import PremiumUser
 
     if not PremiumUser.revoke(user_id, session):
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="User not found in premium list")
@@ -331,7 +331,7 @@ async def list_permission_subscriptions(
     session: Session = Depends(get_db_session),
 ):
     """Return which guilds the current operator is subscribed to for missing-permission DMs."""
-    from models.admin import PermissionSubscriber
+    from models.permissions import PermissionSubscriber
 
     user_id = int(user["sub"])
     rows = session.query(PermissionSubscriber).filter(PermissionSubscriber.UserId == user_id).all()
@@ -345,7 +345,7 @@ async def subscribe_bot_permissions(
     session: Session = Depends(get_db_session),
 ):
     """Subscribe to missing-permission DMs for a guild."""
-    from models.admin import PermissionSubscriber
+    from models.permissions import PermissionSubscriber
 
     user_id = int(user["sub"])
     try:
@@ -365,7 +365,7 @@ async def unsubscribe_bot_permissions(
     session: Session = Depends(get_db_session),
 ):
     """Unsubscribe from missing-permission DMs for a guild."""
-    from models.admin import PermissionSubscriber
+    from models.permissions import PermissionSubscriber
 
     user_id = int(user["sub"])
     try:

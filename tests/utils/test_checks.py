@@ -170,7 +170,7 @@ class TestIsBotModerator:
         assert await is_bot_moderator(mock_interaction) is True
 
     async def test_returns_true_for_configured_role(self, mock_interaction, db_session):
-        from models.admin import BotModeratorRole
+        from models.permissions import BotModeratorRole
 
         entry = BotModeratorRole(GuildId=900, RoleId=42)
         db_session.add(entry)
@@ -183,7 +183,7 @@ class TestIsBotModerator:
         assert await is_bot_moderator(mock_interaction) is True
 
     async def test_returns_false_for_wrong_configured_role(self, mock_interaction, db_session):
-        from models.admin import BotModeratorRole
+        from models.permissions import BotModeratorRole
 
         entry = BotModeratorRole(GuildId=900, RoleId=42)
         db_session.add(entry)

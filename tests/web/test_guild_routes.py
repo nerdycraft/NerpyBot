@@ -19,7 +19,7 @@ def seed_permissions(fake_valkey):
 @pytest.fixture(autouse=True)
 def seed_premium_user(web_db_session):
     """Grant premium to the default test user so guild endpoints pass require_premium."""
-    from models.admin import PremiumUser
+    from models.premium import PremiumUser
 
     PremiumUser.grant(123456, 111222333, web_db_session)
     web_db_session.commit()
@@ -49,7 +49,7 @@ class TestLanguageEndpoints:
     def test_put_language_write_through_and_notifies_bot(self, client, fake_valkey, auth_header, web_db_session):
         """PUT language must populate _guild_lang_cache, persist to DB, and publish set_guild_language to the bot."""
         import json
-        from models.admin import GuildLanguageConfig
+        from models.guild import GuildLanguageConfig
         from web.routes.guilds import _guild_lang_cache
 
         # Pre-populate cache with stale value to confirm write-through replaces it.
@@ -813,7 +813,7 @@ class TestSupportModeGuildAccess:
 
     def test_non_operator_without_guild_perms_is_rejected(self, client, fake_valkey, web_db_session):
         """Non-operator with no guild permissions → 403 from require_guild_access (not require_premium)."""
-        from models.admin import PremiumUser
+        from models.premium import PremiumUser
 
         # Grant premium so the request passes require_premium and reaches require_guild_access
         PremiumUser.grant(999888777, 111222333, web_db_session)
@@ -976,7 +976,7 @@ class TestPremiumCacheBehavior:
         from web.dependencies import _premium_ids_cache
 
         _premium_ids_cache.clear()  # force cache miss so DB is actually hit
-        with patch("models.admin.PremiumUser.get_all", side_effect=SQLAlchemyError("DB down")):
+        with patch("models.premium.PremiumUser.get_all", side_effect=SQLAlchemyError("DB down")):
             response = client.get(f"/api/guilds/{GUILD_ID}/language", headers=auth_header)
         assert response.status_code == 503
 
@@ -985,7 +985,7 @@ class TestPremiumCacheBehavior:
 
         Flow: new user has no premium → 403; grant premium + invalidate → 200.
         """
-        from models.admin import PremiumUser
+        from models.premium import PremiumUser
         from web.dependencies import _premium_ids_cache, invalidate_premium_cache
 
         new_user_id = 555444333

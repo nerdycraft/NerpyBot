@@ -131,41 +131,6 @@ reactionrole:
   clear:
     success: "Alle Reaktionsrollen-Zuordnungen von Nachricht `{message_id}` entfernt."
 
-tagging:
-  not_found: 'Tag "{name}" existiert nicht!'
-  skip:
-    success: "Übersprungen."
-  queue:
-    drop_success: "Warteschlange geleert."
-  create:
-    success: 'Tag "{name}" erstellt!'
-    already_exists: 'Tag "{name}" existiert bereits!'
-  add:
-    success: 'Eintrag zu Tag "{name}" hinzugefügt!'
-  volume:
-    success: 'Lautstärke von "{name}" auf {volume} geändert.'
-    out_of_range: "Lautstärke muss zwischen 0 und 200 liegen."
-  delete:
-    success: 'Tag "{name}" gelöscht!'
-  get:
-    not_found: 'Konnte keinen Tag namens "{name}" finden.'
-    playing: "Spiele **{name}**"
-  list:
-    title: "🏷️ Tags"
-    empty: "Keine Tags gefunden."
-    entry_count_one: "{count} Eintrag"
-    entry_count_other: "{count} Einträge"
-  info:
-    author: "Autor"
-    type: "Typ"
-    created: "Erstellt"
-    hits: "Aufrufe"
-    entries: "Einträge"
-    volume: "Lautstärke"
-  raw:
-    title: "🏷️ {name} — Rohdaten"
-    binary_data: "*(Binäre Audiodaten)*"
-
 leavemsg:
   enable:
     success: "Abschiedsnachrichten in {channel} aktiviert."

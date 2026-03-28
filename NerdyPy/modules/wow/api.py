@@ -21,6 +21,14 @@ from datetime import datetime as dt
 from datetime import timedelta as td
 
 import requests
+from discord import Color
+
+
+# ── Embed colors for guild news notifications ────────────────────────
+
+COLOR_ACHIEVEMENT = Color.gold()
+COLOR_ENCOUNTER = Color.red()
+COLOR_MOUNT = Color.purple()
 
 
 # ── Blizzard API helpers ─────────────────────────────────────────────

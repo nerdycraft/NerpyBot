@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from utils.audio import Audio, BufferKey, QueuedSong
+from modules.music.audio import Audio, BufferKey, QueuedSong
 
 
 class TestQueuedSong:
