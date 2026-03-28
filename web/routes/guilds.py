@@ -1674,7 +1674,7 @@ async def create_twitch_notification(
 
     twitch: TwitchClient = request.app.state.twitch_client
     streamer_lower = body.streamer.strip().lower()
-    channel_id = int(body.channel_id)
+    channel_id = body.channel_id
 
     existing = TwitchNotifications.get_by_channel_and_streamer(guild_id, channel_id, streamer_lower, session)
     if existing:
@@ -1741,7 +1741,7 @@ async def update_twitch_notification(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="channel_id cannot be null",
             )
-        row.ChannelId = int(body.channel_id)
+        row.ChannelId = body.channel_id
     if "message" in body.model_fields_set:
         row.Message = body.message
     if "notify_offline" in body.model_fields_set:

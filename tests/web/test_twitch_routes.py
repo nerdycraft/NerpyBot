@@ -81,7 +81,7 @@ class TestCreateTwitchNotification:
         twitch_client.app.state.twitch_client.get_users = AsyncMock(return_value=mock_users)
         resp = twitch_client.post(
             f"/api/guilds/{GUILD_ID}/twitch-notifications",
-            json={"channel_id": "111222333", "streamer": "shroud"},
+            json={"channel_id": 111222333, "streamer": "shroud"},
             headers=auth_header,
         )
         assert resp.status_code == 201
@@ -93,7 +93,7 @@ class TestCreateTwitchNotification:
         twitch_client.app.state.twitch_client.get_users = AsyncMock(return_value=[])
         resp = twitch_client.post(
             f"/api/guilds/{GUILD_ID}/twitch-notifications",
-            json={"channel_id": "111", "streamer": "doesnotexist"},
+            json={"channel_id": 111, "streamer": "doesnotexist"},
             headers=auth_header,
         )
         assert resp.status_code == 422
@@ -110,7 +110,7 @@ class TestCreateTwitchNotification:
         twitch_client.app.state.twitch_client.get_users = AsyncMock(return_value=mock_users)
         resp = twitch_client.post(
             f"/api/guilds/{GUILD_ID}/twitch-notifications",
-            json={"channel_id": "111222333", "streamer": "shroud"},
+            json={"channel_id": 111222333, "streamer": "shroud"},
             headers=auth_header,
         )
         assert resp.status_code == 409

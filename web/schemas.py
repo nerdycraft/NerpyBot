@@ -598,8 +598,10 @@ class RecipeCacheBrowseResponse(BaseModel):
 
 
 def _normalise_str_or_none(v: object) -> object:
-    if v is None or (isinstance(v, str) and not v):
+    if v is None:
         return None
+    if isinstance(v, str):
+        return v.strip() or None
     return v
 
 
@@ -612,14 +614,17 @@ class TwitchNotificationSchema(BaseModel):
     notify_offline: bool
 
 
+_I64_MAX = 9_223_372_036_854_775_807
+
+
 class TwitchNotificationCreate(BaseModel):
-    channel_id: Annotated[str, Field(pattern=r"^\d+$")]
+    channel_id: Annotated[int, Field(ge=1, le=_I64_MAX)]
     streamer: Annotated[str, Field(min_length=1, max_length=25)]
     message: Annotated[Annotated[str, Field(max_length=500)] | None, BeforeValidator(_normalise_str_or_none)] = None
     notify_offline: bool = False
 
 
 class TwitchNotificationUpdate(BaseModel):
-    channel_id: Annotated[str, Field(pattern=r"^\d+$")] | None = None
+    channel_id: Annotated[int, Field(ge=1, le=_I64_MAX)] | None = None
     message: Annotated[Annotated[str, Field(max_length=500)] | None, BeforeValidator(_normalise_str_or_none)] = None
     notify_offline: bool | None = None
