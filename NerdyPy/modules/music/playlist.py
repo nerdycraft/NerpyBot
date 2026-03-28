@@ -28,6 +28,10 @@ class MusicPlaylist(NerpyBotCog, QueueMixin, Cog):
         self.audio = self.bot.audio
         self._background_tasks: set[asyncio.Task] = set()
 
+    async def cog_unload(self):
+        for task in list(self._background_tasks):
+            task.cancel()
+
     # ── Autocomplete helpers ───────────────────────────────────────────────
 
     async def _ac_playlist_name(self, interaction: Interaction, current: str) -> list[app_commands.Choice[str]]:

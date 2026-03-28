@@ -175,8 +175,8 @@ class CraftingOrderModal(ui.Modal):
                 order = CraftingOrder.get_by_id(order_id, session)
                 if order is not None:
                     order.OrderMessageId = msg.id
-        except SQLAlchemyError:
-            log.error("Failed to save order message ID for order #%d", order_id, exc_info=True)
+        except SQLAlchemyError as exc:
+            log.error("Failed to save order message ID for order #%d: %s", order_id, exc)
             try:
                 await msg.delete()
             except discord.HTTPException:
