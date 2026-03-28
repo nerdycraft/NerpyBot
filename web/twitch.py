@@ -25,7 +25,7 @@ class TwitchClient:
         self._client_secret = client_secret
         self._token: str | None = None
         self._token_expires_at: float = 0.0
-        self._http = httpx.AsyncClient()
+        self._http = httpx.AsyncClient(timeout=httpx.Timeout(10.0))
 
     async def aclose(self) -> None:
         """Close the underlying HTTP client."""

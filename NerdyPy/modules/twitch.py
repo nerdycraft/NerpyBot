@@ -3,6 +3,7 @@
 import discord
 from discord import Interaction, TextChannel, app_commands
 from discord.ext.commands import GroupCog
+from sqlalchemy.exc import IntegrityError
 
 from models.twitch import TwitchNotifications
 from utils.cog import NerpyBotCog
@@ -51,6 +52,16 @@ class TwitchNotificationsCog(NerpyBotCog, GroupCog, group_name="twitch"):
                     NotifyOffline=notify_offline,
                 )
                 session.add(row)
+                try:
+                    session.flush()
+                except IntegrityError:
+                    session.rollback()
+                    reply = self.bot.get_localized_string(
+                        interaction.guild_id,
+                        "twitch.add_already_exists",
+                        streamer=streamer_lower,
+                        channel=channel.mention,
+                    )
         if reply:
             await send_hidden_message(interaction, reply)
             return
@@ -89,18 +100,20 @@ class TwitchNotificationsCog(NerpyBotCog, GroupCog, group_name="twitch"):
             )
             return
 
-        embed = discord.Embed(
-            title=self.bot.get_localized_string(interaction.guild_id, "twitch.list_title"),
-            color=discord.Color.from_rgb(145, 70, 255),
-        )
-        for row in rows:
-            offline_note = " (offline)" if row.NotifyOffline else ""
-            embed.add_field(
-                name=f"ID {row.Id}: {row.StreamerDisplayName}{offline_note}",
-                value=f"<#{row.ChannelId}>" + (f"\n_{row.Message}_" if row.Message else ""),
-                inline=False,
-            )
-        await send_hidden_message(interaction, embed=embed)
+        title = self.bot.get_localized_string(interaction.guild_id, "twitch.list_title")
+        color = discord.Color.from_rgb(145, 70, 255)
+        chunk_size = 25
+        for chunk_start in range(0, len(rows), chunk_size):
+            chunk = rows[chunk_start : chunk_start + chunk_size]
+            embed = discord.Embed(title=title, color=color)
+            for row in chunk:
+                offline_note = " (offline)" if row.NotifyOffline else ""
+                embed.add_field(
+                    name=f"ID {row.Id}: {row.StreamerDisplayName}{offline_note}",
+                    value=f"<#{row.ChannelId}>" + (f"\n_{row.Message}_" if row.Message else ""),
+                    inline=False,
+                )
+            await send_hidden_message(interaction, embed=embed)
 
 
 async def setup(bot):

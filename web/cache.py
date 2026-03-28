@@ -105,6 +105,11 @@ class ValkeyClient:
         key = self._key("twitch", "dedup", message_id)
         return bool(self._client.set(key, "1", ex=ttl, nx=True))
 
+    def delete_twitch_event_claim(self, message_id: str) -> None:
+        """Delete a previously claimed Twitch event dedup key, allowing retries."""
+        key = self._key("twitch", "dedup", message_id)
+        self._client.delete(key)
+
     # ── Pub/Sub for bot commands ──
 
     async def send_bot_command(self, command: str, payload: dict, timeout: float = 3.0) -> dict | None:
@@ -204,6 +209,10 @@ class _FakeValkeyClient:
     def expire(self, key: str, seconds: int) -> None:
         """No-op — expiry is not simulated in the fake."""
         pass  # no-op in fake
+
+    def delete_twitch_event_claim(self, message_id: str) -> None:
+        """No-op stub for fake client."""
+        pass
 
     def getdel(self, key: str) -> str | None:
         """Atomically get and delete a key. Returns the value or None if absent."""

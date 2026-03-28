@@ -110,6 +110,13 @@ class WebConfig:
         twitch_webhook_url = _get(sources, "twitch", "webhook_url")
         twitch_webhook_secret = _get(sources, "twitch", "webhook_secret")
 
+        _twitch_values = [twitch_client_id, twitch_client_secret, twitch_webhook_url, twitch_webhook_secret]
+        if any(_twitch_values) and not all(_twitch_values):
+            raise ValueError(
+                "Twitch config is incomplete: all four of twitch.client_id, twitch.client_secret, "
+                "twitch.webhook_url, twitch.webhook_secret must be set together"
+            )
+
         legal_enabled = _get(sources, "web", "legal_enabled").lower() in ("true", "1", "yes")
         if legal_enabled:
             legal_name = _require(_get(sources, "web", "legal_name"), "web.legal_name / NERPYBOT_WEB_LEGAL_NAME")
@@ -219,10 +226,10 @@ def _env_to_dict() -> dict:
         (("NERPYBOT_WEB_DB_PORT", "NERPYBOT_DB_PORT"), ("database", "db_port")),
         (("NERPYBOT_WEB_NAME", "NERPYBOT_NAME"), ("bot", "name")),
         (("NERPYBOT_WEB_DESCRIPTION", "NERPYBOT_DESCRIPTION"), ("bot", "description")),
-        (("NERPYBOT_WEB_TWITCH_CLIENT_ID",), ("twitch", "client_id")),
-        (("NERPYBOT_WEB_TWITCH_CLIENT_SECRET",), ("twitch", "client_secret")),
-        (("NERPYBOT_WEB_TWITCH_WEBHOOK_URL",), ("twitch", "webhook_url")),
-        (("NERPYBOT_WEB_TWITCH_WEBHOOK_SECRET",), ("twitch", "webhook_secret")),
+        (("NERPYBOT_WEB_TWITCH_CLIENT_ID", "NERPYBOT_TWITCH_CLIENT_ID"), ("twitch", "client_id")),
+        (("NERPYBOT_WEB_TWITCH_CLIENT_SECRET", "NERPYBOT_TWITCH_CLIENT_SECRET"), ("twitch", "client_secret")),
+        (("NERPYBOT_WEB_TWITCH_WEBHOOK_URL", "NERPYBOT_TWITCH_WEBHOOK_URL"), ("twitch", "webhook_url")),
+        (("NERPYBOT_WEB_TWITCH_WEBHOOK_SECRET", "NERPYBOT_TWITCH_WEBHOOK_SECRET"), ("twitch", "webhook_secret")),
     ]
     for env_vars, keys in mappings:
         value = ""

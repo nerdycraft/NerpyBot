@@ -500,6 +500,10 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
             bot.log.warning("twitch_event: received empty broadcaster_login — ignoring")
             return {"success": False, "error": "broadcaster_login required"}
 
+        if event_type not in (STREAM_ONLINE, STREAM_OFFLINE):
+            bot.log.warning("twitch_event: unsupported event_type=%r — ignoring", event_type)
+            return {"success": False, "error": f"unsupported event_type: {event_type}"}
+
         try:
             from models.twitch import TwitchNotifications
 
@@ -554,6 +558,9 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                 return False
 
         results = await gather(*(_notify_one(cfg) for cfg in configs), return_exceptions=True)
+        for r in results:
+            if isinstance(r, Exception):
+                bot.log.error("twitch_event: unexpected error notifying channel: %s", r, exc_info=r)
         notified = sum(1 for r in results if r is True)
         return {"success": True, "notified": notified}
     else:

@@ -22,13 +22,13 @@ _MAX_AGE_SECONDS = 10 * 60  # 10 minutes — replay protection window
 
 
 def _parse_timestamp(ts: str) -> datetime | None:
-    """Parse ISO 8601 timestamp from Twitch header. Returns None on parse failure."""
-    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S+00:00"):
-        try:
-            return datetime.strptime(ts, fmt).replace(tzinfo=UTC)
-        except ValueError:
-            continue
-    return None
+    """Parse RFC3339 timestamp from Twitch header. Returns None on parse failure."""
+    try:
+        normalized = ts.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(normalized)
+        return dt.astimezone(UTC)
+    except (ValueError, AttributeError):
+        return None
 
 
 @router.post("/webhooks/twitch", include_in_schema=False)
@@ -76,15 +76,20 @@ async def twitch_webhook(
         sub = payload.get("subscription", {})
         event = payload.get("event", {})
         event_type = sub.get("type", "")
-        vk.notify_bot(
-            "twitch_event",
-            {
-                "event_type": event_type,
-                "broadcaster_login": event.get("broadcaster_user_login", ""),
-                "broadcaster_name": event.get("broadcaster_user_name", ""),
-                "started_at": event.get("started_at", ""),
-            },
-        )
+        try:
+            vk.notify_bot(
+                "twitch_event",
+                {
+                    "event_type": event_type,
+                    "broadcaster_login": event.get("broadcaster_user_login", ""),
+                    "broadcaster_name": event.get("broadcaster_user_name", ""),
+                    "started_at": event.get("started_at", ""),
+                },
+            )
+        except Exception:
+            _log.exception("twitch_webhook: failed to publish event msg_id=%s — releasing claim", msg_id)
+            vk.delete_twitch_event_claim(msg_id)
+            raise
         return Response(status_code=204)
 
     if msg_type == "revocation":

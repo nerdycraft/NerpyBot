@@ -11,6 +11,7 @@ from models.twitch import STREAM_OFFLINE, STREAM_ONLINE, SUB_STATUS_ENABLED, SUB
 _log = logging.getLogger(__name__)
 
 _RECONCILE_INTERVAL = 5 * 60  # 5 minutes
+_reconcile_lock = asyncio.Lock()
 
 
 async def reconcile_once(app_state) -> None:
@@ -24,7 +25,8 @@ async def reconcile_once(app_state) -> None:
 
     session = session_factory()
     try:
-        await _run_cycle(session, twitch_client, config)
+        async with _reconcile_lock:
+            await _run_cycle(session, twitch_client, config)
     except Exception:
         _log.exception("twitch reconciler: unhandled error in reconcile_once")
     finally:
@@ -96,6 +98,12 @@ async def _run_cycle(session, twitch_client, config) -> None:
                 )
                 sub_id = sub.get("id", "")
                 if not sub_id:
+                    _log.warning(
+                        "twitch reconciler: create_eventsub_subscription returned no id for %s '%s' "
+                        "— subscription may be orphaned on Twitch",
+                        event_type,
+                        streamer,
+                    )
                     continue
                 if existing:
                     existing.TwitchSubscriptionId = sub_id

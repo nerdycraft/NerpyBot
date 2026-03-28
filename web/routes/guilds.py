@@ -1721,6 +1721,8 @@ async def update_twitch_notification(
     guild_id: int,
     config_id: int,
     body: TwitchNotificationUpdate,
+    background_tasks: BackgroundTasks,
+    request: Request,
     user: dict = Depends(require_guild_access),
     session: Session = Depends(get_db_session),
 ):
@@ -1744,6 +1746,12 @@ async def update_twitch_notification(
     except IntegrityError:
         session.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_TWITCH_NOTIFICATION_EXISTS)
+
+    if "notify_offline" in body.model_fields_set:
+        from web.twitch_reconciler import reconcile_once
+
+        session.commit()
+        background_tasks.add_task(reconcile_once, request.app.state)
 
     return _twitch_notification_to_schema(row)
 
@@ -1770,3 +1778,4 @@ async def delete_twitch_notification(
     session.commit()
 
     background_tasks.add_task(reconcile_once, request.app.state)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

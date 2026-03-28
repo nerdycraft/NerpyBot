@@ -715,3 +715,4 @@ class TestTwitchEventHandler:
         )
         assert result["success"] is True
         assert result["notified"] == 0  # channel not found, so not notified
+        mock_guild.fetch_channel.assert_awaited_once_with(222)
