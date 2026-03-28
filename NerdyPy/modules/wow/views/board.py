@@ -9,8 +9,6 @@ import discord
 from discord import Interaction, ui
 
 from models.wow import (
-    ORDER_STATUS_CANCELLED,
-    ORDER_STATUS_COMPLETED,
     ORDER_STATUS_IN_PROGRESS,
     ORDER_STATUS_OPEN,
     RECIPE_TYPE_CRAFTED,
