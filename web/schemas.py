@@ -613,13 +613,13 @@ class TwitchNotificationSchema(BaseModel):
 
 
 class TwitchNotificationCreate(BaseModel):
-    channel_id: str
+    channel_id: Annotated[str, Field(pattern=r"^\d+$")]
     streamer: Annotated[str, Field(min_length=1, max_length=25)]
     message: Annotated[Annotated[str, Field(max_length=500)] | None, BeforeValidator(_normalise_str_or_none)] = None
     notify_offline: bool = False
 
 
 class TwitchNotificationUpdate(BaseModel):
-    channel_id: str | None = None
+    channel_id: Annotated[str, Field(pattern=r"^\d+$")] | None = None
     message: Annotated[Annotated[str, Field(max_length=500)] | None, BeforeValidator(_normalise_str_or_none)] = None
     notify_offline: bool | None = None
