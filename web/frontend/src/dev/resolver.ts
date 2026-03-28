@@ -6,6 +6,7 @@
  * (add/delete) are reflected within the current browser session.
  */
 
+import type { TwitchNotificationCreate, TwitchNotificationSchema, TwitchNotificationUpdate } from "@/api/types";
 import {
   CHANNELS,
   guild1ApplicationForms,
@@ -22,6 +23,7 @@ import {
   guild1ReactionRoles,
   guild1Reminders,
   guild1RoleMappings,
+  guild1TwitchNotifications,
   guild1WowGuildNews,
   guild2ApplicationForms,
   guild2ApplicationSubmissions,
@@ -34,6 +36,7 @@ import {
   guild2ReactionRoles,
   guild2Reminders,
   guild2RoleMappings,
+  guild2TwitchNotifications,
   guild2WowGuildNews,
   guild3ApplicationForms,
   guild3ApplicationSubmissions,
@@ -50,6 +53,7 @@ import {
   guild3ReactionRoles,
   guild3Reminders,
   guild3RoleMappings,
+  guild3TwitchNotifications,
   guild3WowGuildNews,
   operatorBotGuilds,
   operatorBotPermissions,
@@ -83,6 +87,7 @@ const stores: Record<string, Record<string, unknown>> = {
     craftingBoard: { ...guild1CraftingBoard },
     craftingMappings: [...guild1CraftingMappings],
     craftingOrders: [...guild1CraftingOrders],
+    twitchNotifications: [...guild1TwitchNotifications],
     leaveMessages: { ...guild1LeaveMessages },
     autoKicker: { ...guild1AutoKicker },
     language: { ...guild1Language },
@@ -100,6 +105,7 @@ const stores: Record<string, Record<string, unknown>> = {
     craftingBoard: null,
     craftingMappings: [],
     craftingOrders: [],
+    twitchNotifications: [...guild2TwitchNotifications],
     leaveMessages: { ...guild2LeaveMessages },
     autoKicker: { ...guild2AutoKicker },
     language: { ...guild2Language },
@@ -118,6 +124,7 @@ const stores: Record<string, Record<string, unknown>> = {
     craftingBoard: { ...guild3CraftingBoard },
     craftingMappings: [...guild3CraftingMappings],
     craftingOrders: [...guild3CraftingOrders],
+    twitchNotifications: [...guild3TwitchNotifications],
     leaveMessages: { ...guild3LeaveMessages },
     autoKicker: { ...guild3AutoKicker },
     language: { ...guild3Language },
@@ -549,6 +556,47 @@ const routes: Route[] = [
   {
     pattern: /^\/guilds\/(\d+)\/wow\/crafting-orders$/,
     handler: (_m, [, guildId]) => ok(guildStore(guildId, "craftingOrders")),
+  },
+
+  // ── Twitch notifications ───────────────────────────────────────────────────
+  {
+    pattern: /^\/guilds\/(\d+)\/twitch-notifications$/,
+    handler: (_m, [, guildId], body) => {
+      if (_m === "POST" && body) {
+        const b = body as TwitchNotificationCreate;
+        const newItem: TwitchNotificationSchema = {
+          id: nextId(),
+          channel_id: b.channel_id,
+          streamer: b.streamer.toLowerCase(),
+          streamer_display_name: b.streamer,
+          message: b.message ?? null,
+          notify_offline: b.notify_offline ?? false,
+        };
+        (guildStore(guildId, "twitchNotifications") as TwitchNotificationSchema[]).push(newItem);
+        return ok(newItem);
+      }
+      return ok(guildStore(guildId, "twitchNotifications"));
+    },
+  },
+  {
+    pattern: /^\/guilds\/(\d+)\/twitch-notifications\/(\d+)$/,
+    handler: (_m, [, guildId, notifId], body) => {
+      const items = guildStore(guildId, "twitchNotifications") as TwitchNotificationSchema[];
+      const id = Number(notifId);
+      if (_m === "PATCH" && body) {
+        const b = body as TwitchNotificationUpdate;
+        const idx = items.findIndex((x) => x.id === id);
+        if (idx >= 0) {
+          items[idx] = { ...items[idx]!, ...b };
+          return ok(items[idx]);
+        }
+        return ok(undefined);
+      }
+      if (_m === "DELETE") {
+        stores[guildId]!["twitchNotifications"] = items.filter((x) => x.id !== id);
+      }
+      return ok(undefined);
+    },
   },
 
   // ── Operator ──────────────────────────────────────────────────────────────

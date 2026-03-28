@@ -98,6 +98,18 @@ class ValkeyClient:
             self._key("user", user_id, "token"),
         )
 
+    # ── Twitch event deduplication ──
+
+    def claim_twitch_event(self, message_id: str, ttl: int = 300) -> bool:
+        """Atomically claim a Twitch event message_id. Returns True if this caller is first (SET NX succeeded)."""
+        key = self._key("twitch", "dedup", message_id)
+        return bool(self._client.set(key, "1", ex=ttl, nx=True))
+
+    def delete_twitch_event_claim(self, message_id: str) -> None:
+        """Delete a previously claimed Twitch event dedup key, allowing retries."""
+        key = self._key("twitch", "dedup", message_id)
+        self._client.delete(key)
+
     # ── Pub/Sub for bot commands ──
 
     async def send_bot_command(self, command: str, payload: dict, timeout: float = 3.0) -> dict | None:
@@ -160,9 +172,15 @@ class _FakeValkeyClient:
         """Initialize the fake client with an empty in-memory store."""
         self._store: dict[str, str] = {}
 
-    def set(self, key: str, value: str, ex: int | None = None) -> None:
-        """Store a value (TTL ignored in fake)."""
+    def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> bool | None:
+        """Store a value (TTL ignored in fake).
+
+        If nx=True, only set if the key does not exist (SET NX semantics). Returns True on success, None if key existed.
+        """
+        if nx and key in self._store:
+            return None
         self._store[key] = value
+        return True
 
     def get(self, key: str) -> str | None:
         """Return a stored value or None if absent."""
@@ -191,6 +209,11 @@ class _FakeValkeyClient:
     def expire(self, key: str, seconds: int) -> None:
         """No-op — expiry is not simulated in the fake."""
         pass  # no-op in fake
+
+    def delete_twitch_event_claim(self, message_id: str) -> None:
+        """Delete the dedup key so retries can succeed."""
+        key = f"{ValkeyClient.PREFIX}:twitch:dedup:{message_id}"
+        self._store.pop(key, None)
 
     def getdel(self, key: str) -> str | None:
         """Atomically get and delete a key. Returns the value or None if absent."""

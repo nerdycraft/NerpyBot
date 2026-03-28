@@ -488,6 +488,86 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         except Exception as exc:
             bot.log.error("sync_commands failed: %s", exc)
             return {"success": False, "error": str(exc)}
+    elif command == "twitch_event":
+        import discord
+        from models.twitch import STREAM_OFFLINE, STREAM_ONLINE
+
+        event_type = payload.get("event_type", "")
+        broadcaster_login = payload.get("broadcaster_login", "").lower()
+        broadcaster_name = payload.get("broadcaster_name", broadcaster_login)
+
+        if not broadcaster_login:
+            bot.log.warning("twitch_event: received empty broadcaster_login — ignoring")
+            return {"success": False, "error": "broadcaster_login required"}
+
+        if event_type not in (STREAM_ONLINE, STREAM_OFFLINE):
+            bot.log.warning("twitch_event: unsupported event_type=%r — ignoring", event_type)
+            return {"success": False, "error": f"unsupported event_type: {event_type}"}
+
+        try:
+            from models.twitch import TwitchNotifications
+
+            def _get_configs():
+                with bot.session_scope() as session:
+                    return TwitchNotifications.get_all_by_streamer(broadcaster_login, session)
+
+            configs = await to_thread(_get_configs)
+        except Exception:
+            bot.log.exception("twitch_event: failed to query notification configs for '%s'", broadcaster_login)
+            return {"success": False, "error": "DB error"}
+
+        async def _notify_one(cfg) -> bool:
+            if event_type == STREAM_OFFLINE and not cfg.NotifyOffline:
+                return False
+
+            guild = bot.get_guild(cfg.GuildId)
+            if guild is None:
+                bot.log.warning("twitch_event: guild %s not in cache — skipping", cfg.GuildId)
+                return False
+
+            channel = guild.get_channel(cfg.ChannelId)
+            if channel is None:
+                try:
+                    channel = await guild.fetch_channel(cfg.ChannelId)
+                except (discord.NotFound, discord.Forbidden):
+                    bot.log.debug(
+                        "twitch_event: channel %s not found/accessible in guild %s", cfg.ChannelId, cfg.GuildId
+                    )
+                    return False
+
+            stream_url = f"https://twitch.tv/{broadcaster_login}"
+            if event_type == STREAM_ONLINE:
+                description = cfg.Message or bot.get_localized_string(
+                    cfg.GuildId, "twitch.live_message", streamer=broadcaster_name
+                )
+                title = bot.get_localized_string(cfg.GuildId, "twitch.live_title", streamer=broadcaster_name)
+                color = discord.Color.from_rgb(145, 70, 255)
+            else:
+                description = bot.get_localized_string(cfg.GuildId, "twitch.offline_message", streamer=broadcaster_name)
+                title = bot.get_localized_string(cfg.GuildId, "twitch.offline_title", streamer=broadcaster_name)
+                color = discord.Color.greyple()
+
+            embed = discord.Embed(title=title, description=description, url=stream_url, color=color)
+            embed.set_footer(text=f"twitch.tv/{broadcaster_login}")
+
+            try:
+                await channel.send(embed=embed)
+                return True
+            except discord.HTTPException as e:
+                bot.log.debug("twitch_event: could not send to channel %s: %s", cfg.ChannelId, e)
+                return False
+
+        results = await gather(*(_notify_one(cfg) for cfg in configs), return_exceptions=True)
+        notified = 0
+        for r in results:
+            if isinstance(r, Exception):
+                bot.log.error(
+                    "twitch_event: unexpected error notifying channel",
+                    exc_info=(type(r), r, r.__traceback__),
+                )
+            elif r is True:
+                notified += 1
+        return {"success": True, "notified": notified}
     else:
         return {"error": f"Unknown command: {command}"}
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -33,6 +34,7 @@ def create_app(
     from web.config import WebConfig
     from web.dependencies import _TEST_MODE, get_config, get_db_session, get_valkey
     from web.routes import auth, guilds, health, legal, operator, sse, support, wow
+    from web.webhooks import twitch as webhooks_twitch
 
     if config is None:
         config = WebConfig.load(config_path)
@@ -66,7 +68,28 @@ def create_app(
         app.state.session_factory = session_factory
         app.state.config = config
         app.state.valkey = valkey_client
+
+        # Initialize Twitch client and reconciler if configured
+        reconciler_task = None
+        if config.twitch_client_id:
+            from web.twitch import TwitchClient
+            from web.twitch_reconciler import reconciler_loop
+
+            app.state.twitch_client = TwitchClient(config.twitch_client_id, config.twitch_client_secret)
+            reconciler_task = asyncio.create_task(reconciler_loop(app.state))
+        else:
+            app.state.twitch_client = None
+
         yield
+
+        if reconciler_task is not None:
+            reconciler_task.cancel()
+            try:
+                await reconciler_task
+            except asyncio.CancelledError:
+                pass  # expected during shutdown — cancellation is intentional
+        if app.state.twitch_client is not None:
+            await app.state.twitch_client.aclose()
         valkey_client.close()
         engine.dispose()
 
@@ -106,6 +129,7 @@ def create_app(
     app.dependency_overrides[get_db_session] = _get_db_session
 
     # Register routers
+    app.include_router(webhooks_twitch.router)
     app.include_router(auth.router, prefix="/api")
     app.include_router(guilds.router, prefix="/api")
     app.include_router(health.router, prefix="/api")

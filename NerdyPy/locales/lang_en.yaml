@@ -750,3 +750,16 @@ application:
 
 
         The submission was not saved. Please check the channel permissions or reconfigure the form."
+
+twitch:
+  add_success: "Notification added for **{streamer}**. It may take a few minutes to activate."
+  add_already_exists: "A notification for **{streamer}** in {channel} already exists."
+  invalid_streamer: "Invalid streamer name. Must be 1-25 characters."
+  remove_success: "Notification removed."
+  remove_not_found: "No notification with that ID found in this server."
+  list_empty: "No Twitch notifications configured for this server."
+  list_title: "Twitch Notifications"
+  live_title: "{streamer} is live!"
+  live_message: "**{streamer}** is now live on Twitch!"
+  offline_title: "{streamer} went offline"
+  offline_message: "**{streamer}** has gone offline."

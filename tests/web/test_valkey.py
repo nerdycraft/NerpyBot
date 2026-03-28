@@ -41,3 +41,29 @@ class TestValkeyHelpers:
         client.delete_user_cache("123")
         assert client.get_permissions("123") is None
         assert client.get_discord_token("123") is None
+
+
+class TestTwitchDedup:
+    def test_claim_first_caller_wins(self):
+        from web.cache import ValkeyClient
+
+        vk = ValkeyClient.create_fake()
+        assert vk.claim_twitch_event("msg-abc", ttl=300) is True
+        assert vk.claim_twitch_event("msg-abc", ttl=300) is False
+
+    def test_claim_different_ids_independent(self):
+        from web.cache import ValkeyClient
+
+        vk = ValkeyClient.create_fake()
+        assert vk.claim_twitch_event("msg-abc", ttl=300) is True
+        assert vk.claim_twitch_event("msg-xyz", ttl=300) is True
+
+    def test_claim_returns_false_on_duplicate(self):
+        """SET NX — second claim call returns False."""
+        from web.cache import ValkeyClient
+
+        vk = ValkeyClient.create_fake()
+        first = vk.claim_twitch_event("msg-abc", ttl=300)
+        second = vk.claim_twitch_event("msg-abc", ttl=300)
+        assert first is True
+        assert second is False

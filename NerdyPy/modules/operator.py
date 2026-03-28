@@ -186,7 +186,7 @@ class Operator(NerpyBotCog, Cog):
             await ctx.send(f"Synced {len(synced)} commands {'globally' if spec is None else 'to the current guild.'}")
             return
 
-        async def _sync_one(g):
+        async def _sync_one(g: Object) -> bool:
             try:
                 await self.bot.tree.sync(guild=g)
                 return True
