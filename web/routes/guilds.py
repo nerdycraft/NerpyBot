@@ -1674,19 +1674,6 @@ async def create_twitch_notification(
 
     twitch: TwitchClient = request.app.state.twitch_client
     streamer_lower = body.streamer.lower()
-    try:
-        users = await twitch.get_users([streamer_lower])
-    except Exception as exc:
-        _log.warning("create_twitch_notification: Twitch API error: %s", exc)
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Could not reach Twitch API")
-
-    if not users:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Twitch user '{body.streamer}' not found",
-        )
-
-    user_info = users[0]
     channel_id = int(body.channel_id)
 
     existing = TwitchNotifications.get_by_channel_and_streamer(guild_id, channel_id, streamer_lower, session)
@@ -1695,6 +1682,20 @@ async def create_twitch_notification(
             status_code=status.HTTP_409_CONFLICT,
             detail=_TWITCH_NOTIFICATION_EXISTS,
         )
+
+    try:
+        users = await twitch.get_users([streamer_lower])
+    except Exception as exc:
+        _log.warning("create_twitch_notification: Twitch API error: %s", exc)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Could not reach Twitch API")
+
+    if not users:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Twitch user '{body.streamer}' not found",
+        )
+
+    user_info = users[0]
 
     row = TwitchNotifications(
         GuildId=guild_id,
@@ -1734,11 +1735,21 @@ async def update_twitch_notification(
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification config not found")
 
-    if "channel_id" in body.model_fields_set and body.channel_id is not None:
+    if "channel_id" in body.model_fields_set:
+        if body.channel_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="channel_id cannot be null",
+            )
         row.ChannelId = int(body.channel_id)
     if "message" in body.model_fields_set:
         row.Message = body.message
-    if "notify_offline" in body.model_fields_set and body.notify_offline is not None:
+    if "notify_offline" in body.model_fields_set:
+        if body.notify_offline is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="notify_offline cannot be null",
+            )
         row.NotifyOffline = body.notify_offline
 
     try:

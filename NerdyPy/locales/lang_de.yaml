@@ -737,6 +737,7 @@ application:
 twitch:
   add_success: "Benachrichtigung für **{streamer}** hinzugefügt. Es kann einige Minuten dauern, bis sie aktiv ist."
   add_already_exists: "Eine Benachrichtigung für **{streamer}** in {channel} existiert bereits."
+  invalid_streamer: "Ungültiger Streamer-Name. Muss 1-25 Zeichen lang sein."
   remove_success: "Benachrichtigung entfernt."
   remove_not_found: "Keine Benachrichtigung mit dieser ID in diesem Server gefunden."
   list_empty: "Keine Twitch-Benachrichtigungen für diesen Server konfiguriert."

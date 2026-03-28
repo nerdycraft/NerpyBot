@@ -615,11 +615,11 @@ class TwitchNotificationSchema(BaseModel):
 class TwitchNotificationCreate(BaseModel):
     channel_id: str
     streamer: Annotated[str, Field(min_length=1, max_length=25)]
-    message: Annotated[str | None, BeforeValidator(_normalise_str_or_none), Field(max_length=500)] = None
+    message: Annotated[Annotated[str, Field(max_length=500)] | None, BeforeValidator(_normalise_str_or_none)] = None
     notify_offline: bool = False
 
 
 class TwitchNotificationUpdate(BaseModel):
     channel_id: str | None = None
-    message: Annotated[str | None, BeforeValidator(_normalise_str_or_none), Field(max_length=500)] = None
+    message: Annotated[Annotated[str, Field(max_length=500)] | None, BeforeValidator(_normalise_str_or_none)] = None
     notify_offline: bool | None = None

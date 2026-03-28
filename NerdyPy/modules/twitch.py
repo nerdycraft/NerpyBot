@@ -33,6 +33,12 @@ class TwitchNotificationsCog(NerpyBotCog, GroupCog, group_name="twitch"):
         notify_offline: bool = False,
     ):
         streamer_lower = streamer.lower().strip()
+        if not streamer_lower or len(streamer_lower) > 25:
+            await send_hidden_message(
+                interaction,
+                self.bot.get_localized_string(interaction.guild_id, "twitch.invalid_streamer"),
+            )
+            return
         reply = None
         with self.bot.session_scope() as session:
             existing = TwitchNotifications.get_by_channel_and_streamer(
@@ -54,8 +60,11 @@ class TwitchNotificationsCog(NerpyBotCog, GroupCog, group_name="twitch"):
                 session.add(row)
                 try:
                     session.flush()
-                except IntegrityError:
+                except IntegrityError as exc:
                     session.rollback()
+                    err = str(getattr(exc, "orig", exc)).lower()
+                    if not any(kw in err for kw in ("unique constraint failed", "unique", "duplicate key", "23505")):
+                        raise
                     reply = self.bot.get_localized_string(
                         interaction.guild_id,
                         "twitch.add_already_exists",

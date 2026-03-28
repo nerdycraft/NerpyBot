@@ -211,8 +211,9 @@ class _FakeValkeyClient:
         pass  # no-op in fake
 
     def delete_twitch_event_claim(self, message_id: str) -> None:
-        """No-op stub for fake client."""
-        pass
+        """Delete the dedup key so retries can succeed."""
+        key = f"{ValkeyClient.PREFIX}:twitch:dedup:{message_id}"
+        self._store.pop(key, None)
 
     def getdel(self, key: str) -> str | None:
         """Atomically get and delete a key. Returns the value or None if absent."""

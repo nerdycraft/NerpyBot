@@ -76,23 +76,15 @@ async def twitch_webhook(
         sub = payload.get("subscription", {})
         event = payload.get("event", {})
         event_type = sub.get("type", "")
-        try:
-            vk.notify_bot(
-                "twitch_event",
-                {
-                    "event_type": event_type,
-                    "broadcaster_login": event.get("broadcaster_user_login", ""),
-                    "broadcaster_name": event.get("broadcaster_user_name", ""),
-                    "started_at": event.get("started_at", ""),
-                },
-            )
-        except Exception:
-            _log.exception("twitch_webhook: failed to publish event msg_id=%s — releasing claim", msg_id)
-            try:
-                vk.delete_twitch_event_claim(msg_id)
-            except Exception:
-                _log.exception("twitch_webhook: failed to release dedup claim for msg_id=%s", msg_id)
-            raise
+        vk.notify_bot(
+            "twitch_event",
+            {
+                "event_type": event_type,
+                "broadcaster_login": event.get("broadcaster_user_login", ""),
+                "broadcaster_name": event.get("broadcaster_user_name", ""),
+                "started_at": event.get("started_at", ""),
+            },
+        )
         return Response(status_code=204)
 
     if msg_type == "revocation":

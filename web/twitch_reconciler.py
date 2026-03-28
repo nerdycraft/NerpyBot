@@ -145,6 +145,7 @@ async def _run_cycle(session, twitch_client, config) -> None:
 async def reconciler_loop(app_state) -> None:
     """Background loop that reconciles every 5 minutes. Started in app lifespan."""
     try:
+        await reconcile_once(app_state)
         while True:
             await asyncio.sleep(_RECONCILE_INTERVAL)
             await reconcile_once(app_state)
