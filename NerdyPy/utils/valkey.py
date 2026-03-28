@@ -562,8 +562,7 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
         for r in results:
             if isinstance(r, Exception):
                 bot.log.error(
-                    "twitch_event: unexpected error notifying channel: %s",
-                    r,
+                    "twitch_event: unexpected error notifying channel",
                     exc_info=(type(r), r, r.__traceback__),
                 )
             elif r is True:
