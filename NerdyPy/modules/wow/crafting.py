@@ -9,7 +9,9 @@ from discord.app_commands import checks
 from discord.ext import tasks
 from discord.ext.commands import Cog
 
-from sqlalchemy import or_
+from typing import Literal
+
+from sqlalchemy import or_, update as sa_update
 
 from models.wow import (
     CURRENT_BOARD_VERSION,
@@ -160,6 +162,7 @@ class WowCraftingMixin:
                 # Snapshot the fields we need before closing the session
                 to_process = [(o.Id, o.ChannelId, o.OrderMessageId, o.ThreadId) for o in pending]
 
+            cleared_ids = []
             for order_id, channel_id, message_id, thread_id in to_process:
                 channel = self.bot.get_channel(channel_id)
                 if channel is None:
@@ -179,10 +182,13 @@ class WowCraftingMixin:
                     self.bot.log.warning("Crafting cleanup: failed to delete message for order #%d: %s", order_id, ex)
                     continue
 
+                cleared_ids.append(order_id)
+
+            if cleared_ids:
                 with self.bot.session_scope() as session:
-                    order = CraftingOrder.get_by_id(order_id, session)
-                    if order:
-                        order.MessageDeleteAt = None
+                    session.execute(
+                        sa_update(CraftingOrder).where(CraftingOrder.Id.in_(cleared_ids)).values(MessageDeleteAt=None)
+                    )
         except Exception as ex:
             self.bot.log.error("Crafting cleanup loop error: %s", ex)
             await notify_error(self.bot, "Crafting cleanup background loop", ex)
@@ -510,34 +516,28 @@ class WowCraftingMixin:
 
         with self.bot.session_scope() as session:
             orders = CraftingOrder.get_active_by_guild(guild_id, session)
-            order_data = [
-                (order.Id, order.ChannelId, order.OrderMessageId)
-                for order in orders
-                if order.OrderMessageId and order.ChannelId
-            ]
+            active_orders = [o for o in orders if o.OrderMessageId and o.ChannelId]
+            for o in active_orders:
+                session.expunge(o)
 
         guild = self.bot.get_guild(guild_id)
-        for i, (order_id, channel_id, message_id) in enumerate(order_data):
+        for i, order in enumerate(active_orders):
             try:
-                channel = guild.get_channel(channel_id) if guild else None
+                channel = guild.get_channel(order.ChannelId) if guild else None
                 if channel is None:
-                    channel = await self.bot.fetch_channel(channel_id)
-                msg = await channel.fetch_message(message_id)
-                with self.bot.session_scope() as session:
-                    order = CraftingOrder.get_by_id(order_id, session)
-                    if order is None:
-                        continue
-                    embed = build_order_embed(order, guild, new_lang)
-                    view = build_order_view(order.Id, order.Status, new_lang)
+                    channel = await self.bot.fetch_channel(order.ChannelId)
+                msg = await channel.fetch_message(order.OrderMessageId)
+                embed = build_order_embed(order, guild, new_lang)
+                view = build_order_view(order.Id, order.Status, new_lang)
                 await msg.edit(embed=embed, view=view)
-                self.bot.log.info("wow: refreshed order #%d embed for guild %d (lang=%s)", order_id, guild_id, new_lang)
+                self.bot.log.info("wow: refreshed order #%d embed for guild %d (lang=%s)", order.Id, guild_id, new_lang)
             except (discord.NotFound, discord.Forbidden):
                 self.bot.log.warning(
-                    "wow: order #%d message not accessible for guild %d - skipping refresh", order_id, guild_id
+                    "wow: order #%d message not accessible for guild %d - skipping refresh", order.Id, guild_id
                 )
             except discord.HTTPException as exc:
-                self.bot.log.warning("wow: failed to refresh order #%d for guild %d: %s", order_id, guild_id, exc)
-            if i < len(order_data) - 1:
+                self.bot.log.warning("wow: failed to refresh order #%d for guild %d: %s", order.Id, guild_id, exc)
+            if i < len(active_orders) - 1:
                 await asyncio.sleep(1)
 
     async def _send_manual_mapping_view(self, interaction: Interaction, unmapped: list[int], lang: str):
@@ -572,7 +572,7 @@ class _BoardDescriptionModal(discord.ui.Modal):
         bot,
         lang: str,
         *,
-        mode: str = "create",
+        mode: Literal["create", "edit"] = "create",
         channel: TextChannel = None,
         roles: str = None,
         default_text: str = None,

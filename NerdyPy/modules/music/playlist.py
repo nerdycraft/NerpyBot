@@ -5,8 +5,10 @@ import asyncio
 from discord import Interaction, app_commands
 from discord.ext.commands import Cog
 
+from sqlalchemy import func, insert as sa_insert
+
 from models.music import Playlist, PlaylistEntry
-from modules.music.audio import QueuedSong
+from modules.music.audio import QueueMixin, QueuedSong
 from utils.cache import build_name_choices, cached_autocomplete, invalidate_autocomplete
 from utils.checks import is_connected_to_voice
 from utils.cog import NerpyBotCog
@@ -16,7 +18,7 @@ from utils.strings import get_string
 
 @app_commands.guild_only()
 @app_commands.checks.bot_has_permissions(send_messages=True, speak=True)
-class MusicPlaylist(NerpyBotCog, Cog):
+class MusicPlaylist(NerpyBotCog, QueueMixin, Cog):
     """Playlist save/load management."""
 
     playlist = app_commands.Group(name="playlist", description="Manage your saved playlists", guild_only=True)
@@ -151,11 +153,14 @@ class MusicPlaylist(NerpyBotCog, Cog):
             if pl is None:
                 await interaction.followup.send(get_string(lang, "music.playlist.not_found", name=name), ephemeral=True)
                 return
-            existing = PlaylistEntry.get_by_playlist(pl.Id, session)
-            if any(e.Url == url for e in existing):
+            duplicate = (
+                session.query(PlaylistEntry).filter(PlaylistEntry.PlaylistId == pl.Id, PlaylistEntry.Url == url).count()
+            )
+            if duplicate:
                 await interaction.followup.send(get_string(lang, "music.playlist.already_in_playlist"), ephemeral=True)
                 return
-            position = (max(e.Position for e in existing) + 1) if existing else 0
+            max_pos = session.query(func.max(PlaylistEntry.Position)).filter(PlaylistEntry.PlaylistId == pl.Id).scalar()
+            position = (max_pos + 1) if max_pos is not None else 0
             session.add(PlaylistEntry(PlaylistId=pl.Id, Url=url, Title=title, Position=position))
         await interaction.followup.send(
             get_string(lang, "music.playlist.added_song", title=title, name=name), ephemeral=True
@@ -199,15 +204,12 @@ class MusicPlaylist(NerpyBotCog, Cog):
                 session.query(PlaylistEntry).filter(PlaylistEntry.PlaylistId == pl.Id).delete()
                 session.flush()
 
-            for pos, song in enumerate(songs):
-                session.add(
-                    PlaylistEntry(
-                        PlaylistId=pl.Id,
-                        Url=song.fetch_data,
-                        Title=song.title or song.fetch_data,
-                        Position=pos,
-                    )
-                )
+            entries = [
+                {"PlaylistId": pl.Id, "Url": song.fetch_data, "Title": song.title or song.fetch_data, "Position": pos}
+                for pos, song in enumerate(songs)
+            ]
+            if entries:
+                session.execute(sa_insert(PlaylistEntry), entries)
 
         invalidate_autocomplete(("playlists", interaction.guild_id, interaction.user.id))
         await interaction.followup.send(
@@ -283,38 +285,3 @@ class MusicPlaylist(NerpyBotCog, Cog):
                 await self._enqueue(interaction, entry.Url, info)
         except Exception as e:
             self.bot.log.error(f"[{interaction.guild_id}]: saved playlist load failed mid-stream: {e}")
-
-    async def _enqueue(self, interaction: Interaction, url: str, info: dict) -> bool:
-        """Build a QueuedSong from yt-dlp info and add it to the audio queue. Returns True on success."""
-        from utils.helpers import error_context
-
-        if interaction.user.voice is None:
-            self.bot.log.warning(f"{error_context(interaction)}: _enqueue skipped — user has no voice state")
-            return False
-        title = info.get("title", url)
-        idn = info.get("id")
-        duration = info.get("duration")
-        thumbnails = info.get("thumbnails") or []
-        thumbnail_url = thumbnails[0].get("url") if thumbnails else None
-        artist = info.get("uploader") or info.get("channel")
-
-        song = QueuedSong(
-            channel=interaction.user.voice.channel,
-            fetcher=self._fetch,
-            fetch_data=url,
-            title=title,
-            idn=idn,
-            duration=duration,
-            requester=interaction.user,
-            thumbnail=thumbnail_url,
-            artist=artist,
-        )
-        self.bot.log.info(f'{error_context(interaction)}: requesting "{title}" to play')
-        await self.audio.play(interaction.guild.id, song)
-        return True
-
-    @staticmethod
-    def _fetch(song: QueuedSong):
-        from modules.music.download import download
-
-        song.stream = download(song.fetch_data, video_id=song.idn)

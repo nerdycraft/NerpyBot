@@ -8,11 +8,11 @@ from discord.ext import tasks
 from discord.ext.commands import Cog
 
 from modules.music.audio import QueuedSong, QueueMixin
-from modules.music.download import download, fetch_yt_infos
+from modules.music.download import fetch_yt_infos
 from modules.music.views import NowPlayingView, build_now_playing_embed
 from utils.checks import can_leave_voice, can_stop_playback, is_connected_to_voice
 from utils.cog import NerpyBotCog
-from utils.helpers import error_context, register_before_loop, youtube
+from utils.helpers import register_before_loop, youtube
 from utils.strings import get_string
 
 
@@ -135,37 +135,6 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
                 await self._enqueue(interaction, entry_url, entry_info)
         except Exception as e:
             self.bot.log.error(f"[{interaction.guild_id}]: playlist load failed mid-stream: {e}")
-
-    async def _enqueue(self, interaction: Interaction, url: str, info: dict) -> bool:
-        """Build a QueuedSong from yt-dlp info and add it to the audio queue. Returns True on success."""
-        if interaction.user.voice is None:
-            self.bot.log.warning(f"{error_context(interaction)}: _enqueue skipped — user has no voice state")
-            return False
-        title = info.get("title", url)
-        idn = info.get("id")
-        duration = info.get("duration")
-        thumbnails = info.get("thumbnails") or []
-        thumbnail_url = thumbnails[0].get("url") if thumbnails else None
-        artist = info.get("uploader") or info.get("channel")
-
-        song = QueuedSong(
-            channel=interaction.user.voice.channel,
-            fetcher=self._fetch,
-            fetch_data=url,
-            title=title,
-            idn=idn,
-            duration=duration,
-            requester=interaction.user,
-            thumbnail=thumbnail_url,
-            artist=artist,
-        )
-        self.bot.log.info(f'{error_context(interaction)}: requesting "{title}" to play')
-        await self.audio.play(interaction.guild.id, song)
-        return True
-
-    @staticmethod
-    def _fetch(song: QueuedSong):
-        song.stream = download(song.fetch_data, video_id=song.idn)
 
     # ── Voice control commands ────────────────────────────────────────────
 

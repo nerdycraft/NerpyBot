@@ -16,7 +16,7 @@ def seed_permissions(fake_valkey):
 
 @pytest.fixture(autouse=True)
 def seed_premium_user(web_db_session):
-    from models.admin import PremiumUser
+    from models.premium import PremiumUser
 
     PremiumUser.grant(123456, 111222333, web_db_session)
     web_db_session.commit()
