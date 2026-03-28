@@ -1673,7 +1673,7 @@ async def create_twitch_notification(
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Twitch integration not configured")
 
     twitch: TwitchClient = request.app.state.twitch_client
-    streamer_lower = body.streamer.lower()
+    streamer_lower = body.streamer.strip().lower()
     channel_id = int(body.channel_id)
 
     existing = TwitchNotifications.get_by_channel_and_streamer(guild_id, channel_id, streamer_lower, session)
