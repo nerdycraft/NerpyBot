@@ -34,12 +34,12 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
         self.audio._on_song_start_hook = self._handle_song_start
         self._progress_updater.start()
 
-    async def cog_unload(self):
+    def cog_unload(self):
         self._progress_updater.cancel()
         self.audio._queue_manager.cancel()
         self.audio._timeout_manager.cancel()
         self.audio._on_song_start_hook = None
-        await super().cog_unload()
+        super().cog_unload()
 
     async def _handle_song_start(self, guild_id: int, song: QueuedSong) -> None:
         """Called by Audio._play() when a new song starts. Creates or updates the now-playing embed."""

@@ -57,10 +57,10 @@ class QueueMixin:
         await self.audio.play(interaction.guild.id, song)
         return True
 
-    async def cog_unload(self):
+    def cog_unload(self):
         for task in list(self._background_tasks):
             task.cancel()
-        await super().cog_unload()
+        super().cog_unload()
 
     def _create_background_task(self, coro) -> asyncio.Task:
         task = asyncio.create_task(coro)

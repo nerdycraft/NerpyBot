@@ -8,8 +8,10 @@ Adds:
 - Unique index on ApplicationAnswer(SubmissionId, QuestionId) to prevent
   duplicate answers for the same question in a single submission.
 - Unique index on ApplicationTemplate(Name, GuildId) to prevent duplicate
-  template names per guild (NULL GuildId is treated as distinct by both
-  SQLite and PostgreSQL, so built-in templates are unaffected).
+  template names per guild. SQLite uses COALESCE("GuildId", -1) so NULL
+  GuildIds are treated as equal; PostgreSQL groups by "GuildId" so NULLs
+  are treated as distinct. The difference is safe because
+  seed_built_in_templates guarantees unique built-in names.
 
 Both upgrades deduplicate existing rows (keeping the lowest Id) before
 creating the index and guard against a schema that is already up-to-date

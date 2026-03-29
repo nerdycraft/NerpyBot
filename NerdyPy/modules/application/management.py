@@ -776,6 +776,13 @@ class ApplicationManagement(NerpyBotCog, GroupCog, group_name="application"):
                 # Re-query template (session closed after permission checks above)
                 tmpl = ApplicationManagement._resolve_template(template, guild_id, db_session)
 
+                if template is not None and tmpl is None:
+                    await send_hidden_message(
+                        modal_interaction,
+                        get_string(lang, "application.template.not_found", name=template),
+                    )
+                    return
+
                 # Resolve questions: for built-in templates, use localized YAML questions
                 questions = None
                 if tmpl and tmpl.IsBuiltIn:
@@ -1334,13 +1341,13 @@ class ApplicationManagement(NerpyBotCog, GroupCog, group_name="application"):
 
     async def _refresh_apply_embeds(self, guild_id: int) -> None:
         """Re-post or edit the Apply button embed for each configured form in the guild."""
-        from modules.application.views import _ApplyEmbedData, edit_apply_button_message
+        from modules.application.views import ApplyEmbedData, edit_apply_button_message
 
         lang = self._lang(guild_id)
         with self.bot.session_scope() as session:
             forms = ApplicationForm.get_all_by_guild(guild_id, session)
             preloaded = [
-                _ApplyEmbedData(
+                ApplyEmbedData(
                     channel_id=f.ApplyChannelId,
                     message_id=f.ApplyMessageId,
                     form_name=f.Name,
@@ -1368,10 +1375,10 @@ class ApplicationManagement(NerpyBotCog, GroupCog, group_name="application"):
     async def _refresh_review_embeds(self, guild_id: int) -> None:
         """Re-render each pending review embed in the guild with the new language."""
         from modules.application.views import (
-            _ReviewEmbedData,
-            _RoutedReviewEmbed,
-            _extract_answers,
-            _update_review_embed,
+            ReviewEmbedData,
+            RoutedReviewEmbed,
+            extract_answers,
+            update_review_embed,
         )
 
         lang = self._lang(guild_id)
@@ -1384,8 +1391,8 @@ class ApplicationManagement(NerpyBotCog, GroupCog, group_name="application"):
                 ):
                     continue
                 pending.append(
-                    _RoutedReviewEmbed(
-                        data=_ReviewEmbedData(
+                    RoutedReviewEmbed(
+                        data=ReviewEmbedData(
                             user_id=s.UserId,
                             user_name=s.UserName,
                             submitted_at=s.SubmittedAt,
@@ -1397,7 +1404,7 @@ class ApplicationManagement(NerpyBotCog, GroupCog, group_name="application"):
                             lang=lang,
                             approve_count=sum(1 for v in s.votes if v.Vote == VoteType.APPROVE),
                             deny_count=sum(1 for v in s.votes if v.Vote == VoteType.DENY),
-                            answers=_extract_answers(s.answers),
+                            answers=extract_answers(s.answers),
                         ),
                         channel_id=s.form.ReviewChannelId,
                         message_id=s.ReviewMessageId,
@@ -1406,7 +1413,7 @@ class ApplicationManagement(NerpyBotCog, GroupCog, group_name="application"):
 
         for i, routed in enumerate(pending):
             try:
-                await _update_review_embed(
+                await update_review_embed(
                     self.bot,
                     review_channel_id=routed.channel_id,
                     review_message_id=routed.message_id,

@@ -68,7 +68,7 @@ class WowCraftingMixin:
         )
 
     async def _migrate_single_board(
-        self, config_id: int, guild_id: int, channel_id: int, message_id: int | None, version: int
+        self, config_id: int, guild_id: int, channel_id: int, message_id: int | None, version: int | None
     ):
         """Migrate a single crafting board to CURRENT_BOARD_VERSION.
 
@@ -117,7 +117,7 @@ class WowCraftingMixin:
             except (discord.NotFound, discord.Forbidden) as exc:
                 raise LookupError(f"board message {message_id} edit failed") from exc
             self.bot.log.info(
-                "Board migration v%d->v%d: guild=%d config=%d", version, CURRENT_BOARD_VERSION, guild_id, config_id
+                "Board migration v%s->v%d: guild=%d config=%d", version, CURRENT_BOARD_VERSION, guild_id, config_id
             )
 
         except LookupError as exc:
@@ -130,8 +130,8 @@ class WowCraftingMixin:
                 if guild is None:
                     try:
                         guild = await self.bot.fetch_guild(guild_id)
-                    except (discord.NotFound, discord.Forbidden):
-                        pass
+                    except (discord.NotFound, discord.Forbidden) as fetch_exc:
+                        self.bot.log.debug("Could not re-fetch guild %d for notification: %s", guild_id, fetch_exc)
                 if guild:
                     channel = guild.get_channel(channel_id) or await guild.fetch_channel(channel_id)
                     await channel.send(

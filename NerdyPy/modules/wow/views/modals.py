@@ -155,6 +155,10 @@ class CraftingOrderModal(ui.Modal):
             channel = None
         except discord.HTTPException as exc:
             log.warning("Transient error fetching channel %d for order #%d: %s", channel_id, order_id, exc)
+            with self.bot.session_scope() as session:
+                order = CraftingOrder.get_by_id(order_id, session)
+                if order is not None:
+                    session.delete(order)
             await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
         if channel is None:
@@ -277,7 +281,7 @@ class AskQuestionModal(ui.Modal):
                 try:
                     await thread.delete()
                 except discord.HTTPException:
-                    pass
+                    log.warning("Failed to delete thread for order #%d after infra error", self.order_id)
                 raise
 
         if thread_orphaned:

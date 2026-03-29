@@ -175,7 +175,7 @@ class TestPlayCommand:
 
         await MusicPlayback._play.callback(music_cog_new, mock_interaction, "https://youtube.com/playlist?list=PL")
         # Drain background tasks spawned by create_task
-        pending = {t for t in asyncio.all_tasks() if t is not asyncio.current_task()}
+        pending = set(music_cog_new._background_tasks)
         if pending:
             await asyncio.gather(*pending, return_exceptions=True)
 
@@ -458,7 +458,7 @@ class TestPlaylistLoad:
 
         await MusicPlaylist.playlist._children["load"].callback(playlist_cog, mock_interaction, name="mylist")
         # Drain background tasks spawned by create_task
-        pending = {t for t in asyncio.all_tasks() if t is not asyncio.current_task()}
+        pending = set(playlist_cog._background_tasks)
         if pending:
             await asyncio.gather(*pending, return_exceptions=True)
 

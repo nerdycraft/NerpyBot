@@ -114,7 +114,7 @@ class WowNewsMixin:
                     WowRealmSlug=realm_slug,
                     Region=region,
                     Language=lang,
-                    ActiveDays=active_days or self._default_active_days,
+                    ActiveDays=active_days if active_days is not None else self._default_active_days,
                     LastActivityTimestamp=datetime.now(UTC),
                     Enabled=True,
                     CreateDate=datetime.now(UTC),

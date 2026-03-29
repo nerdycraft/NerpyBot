@@ -29,7 +29,7 @@ from models.application import (
 )
 from modules.application.views import (
     _ANSWERS_PER_PAGE,
-    _extract_answers,
+    extract_answers,
     _normalize_review_view,
     ApplicationReviewView,
     build_review_embed,
@@ -915,7 +915,7 @@ class ApplicationSubmitConversation(Conversation):
                 else:
                     form = ApplicationForm.get_by_id(self.form_id, session)
                     lang = self.lang
-                    all_answers = _extract_answers(submission.answers)
+                    all_answers = extract_answers(submission.answers)
                     total_pages = max(1, math.ceil(len(all_answers) / _ANSWERS_PER_PAGE))
                     embed = build_review_embed(submission, form, session, lang, answers=all_answers)
                     mention_ids = {r.id for r in self.guild.roles if r.permissions.administrator and not r.managed}

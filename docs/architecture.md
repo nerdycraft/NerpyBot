@@ -48,17 +48,17 @@ Modules are loaded dynamically based on `config.bot.modules`. Three modules (`wo
 
 Available modules:
 
-| Module       | Layout | Type                  | Background Tasks                       | External APIs           |
-| ------------ | ------ | --------------------- | -------------------------------------- | ----------------------- |
-| server_admin | flat   | Cog (slash)           | —                                      | —                       |
-| operator     | flat   | Cog (slash + prefix)  | —                                      | —                       |
-| application  | folder | GroupCog              | —                                      | —                       |
-| league       | flat   | GroupCog              | —                                      | Riot API                |
-| moderation   | flat   | GroupCog              | AutoKicker (daily), AutoDeleter (5min) | —                       |
-| music        | folder | GroupCog + QueueMixin | —                                      | YouTube API, yt-dlp     |
-| reminder     | flat   | GroupCog              | Reminder loop (30s)                    | —                       |
-| roles        | flat   | Cog (slash)           | —                                      | —                       |
-| wow          | folder | GroupCog              | Guild news loop (15min)                | Blizzard API, Raider.io |
+| Module       | Layout | Type                                 | Background Tasks                       | External APIs           |
+| ------------ | ------ | ------------------------------------ | -------------------------------------- | ----------------------- |
+| server_admin | flat   | Cog (slash)                          | —                                      | —                       |
+| operator     | flat   | Cog (slash + prefix)                 | —                                      | —                       |
+| application  | folder | GroupCog                             | —                                      | —                       |
+| league       | flat   | GroupCog                             | —                                      | Riot API                |
+| moderation   | flat   | GroupCog                             | AutoKicker (daily), AutoDeleter (5min) | —                       |
+| music        | folder | GroupCog (playlist) + Cog (playback) | —                                      | YouTube API, yt-dlp     |
+| reminder     | flat   | GroupCog                             | Reminder loop (30s)                    | —                       |
+| roles        | flat   | Cog (slash)                          | —                                      | —                       |
+| wow          | folder | GroupCog                             | Guild news loop (15min)                | Blizzard API, Raider.io |
 
 Voice stop/leave commands (`voicecontrol`) are part of the `music` folder module and are no longer a separate loadable module.
 
@@ -202,7 +202,7 @@ bot:
   client_id: discord_app_id
   token: discord_bot_token
   ops: [operator_user_ids]
-  modules: [admin, league, ...]
+  modules: [server_admin, league, ...]
 
 database:
   db_type: sqlite # sqlite, postgresql

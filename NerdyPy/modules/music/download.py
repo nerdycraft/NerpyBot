@@ -78,7 +78,7 @@ def download(url: str, video_id: str = None):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.7204.143 Safari/537.36",
         }
 
-        with requests.get(url, headers=req_headers, stream=True) as response:
+        with requests.get(url, headers=req_headers, stream=True, timeout=(5, 30)) as response:
             response.raise_for_status()
             audio_bytes = BytesIO(response.content)
 
