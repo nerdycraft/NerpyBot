@@ -7,7 +7,7 @@ from discord import Interaction, app_commands
 from discord.ext import tasks
 from discord.ext.commands import Cog
 
-from modules.music.audio import QueuedSong, QueueMixin
+from modules.music.audio import Audio, QueuedSong, QueueMixin
 from modules.music.download import fetch_yt_infos
 from modules.music.views import NowPlayingView, build_now_playing_embed
 from utils.checks import can_leave_voice, can_stop_playback, is_connected_to_voice
@@ -25,16 +25,20 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
         super().__init__(bot)
         self.config = self.bot.config["music"]
         self.queue = {}
+        self.bot.audio = Audio(self.bot)
         self.audio = self.bot.audio
         self._background_tasks: set[asyncio.Task] = set()
         register_before_loop(bot, self._progress_updater, "Progress Updater")
 
     async def cog_load(self):
+        await self.audio.setup_loops()
         self.audio._on_song_start_hook = self._handle_song_start
         self._progress_updater.start()
 
     async def cog_unload(self):
         self._progress_updater.cancel()
+        self.audio._queue_manager.cancel()
+        self.audio._timeout_manager.cancel()
         self.audio._on_song_start_hook = None
         await super().cog_unload()
 

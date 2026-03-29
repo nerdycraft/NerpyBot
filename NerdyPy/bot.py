@@ -43,7 +43,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from models.guild import BotGuild
 from utils import logging
-from modules.music.audio import Audio
 from utils.cache import GuildConfigCache
 from utils.config import parse_config
 from utils.conversation import AnswerType, ConversationManager
@@ -110,7 +109,7 @@ class NerpyBot(Bot):
         """
         Initialize the NerpyBot instance, configure subsystems, and prepare database access.
 
-        This sets up bot identity and operator lists from the provided config, initializes audio,
+        This sets up bot identity and operator lists from the provided config, initializes
         conversation and error-throttling subsystems, tracks uptime, prepares module state, and
         creates a SQLAlchemy engine and session factory (with connection pre-ping enabled). If no
         "database" section is present in config, a warning is logged and a local SQLite fallback is used.
@@ -147,7 +146,6 @@ class NerpyBot(Bot):
         self.log = logging.get_logger("nerpybot")
         self.uptime = datetime.now(UTC)
 
-        self.audio = Audio(self)
         self.convMan = ConversationManager(self)
         self.error_throttle = ErrorThrottle()
         self.error_counter = ErrorCounter()
@@ -234,8 +232,6 @@ class NerpyBot(Bot):
         for module in self.modules:
             try:
                 await self.load_extension(f"modules.{module}")
-                if module == "music":
-                    await self.audio.setup_loops()
             except (ImportError, ExtensionFailed, ClientException) as e:
                 self.log.error(f"failed to load extension {module}. {e}")
                 self.log.debug(print_exc())

@@ -37,6 +37,7 @@ def music_cog_new(mock_bot):
         cog.bot = mock_bot
         cog.config = mock_bot.config["music"]
         cog.audio = mock_bot.audio
+        cog._background_tasks = set()
         cog._progress_updater = MagicMock()
         cog._progress_updater.start = MagicMock()
         cog._progress_updater.cancel = MagicMock()
@@ -61,6 +62,7 @@ def playlist_cog(mock_bot):
     cog = MusicPlaylist.__new__(MusicPlaylist)
     cog.bot = mock_bot
     cog.audio = mock_bot.audio
+    cog._background_tasks = set()
     return cog
 
 

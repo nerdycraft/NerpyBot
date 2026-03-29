@@ -11,9 +11,8 @@ from NerdyPy.utils.valkey import valkey_listener_loop as _valkey_listener_loop
 
 @pytest.fixture(autouse=True)
 def _patch_bot_subsystems():
-    """Prevent Audio/ConversationManager/ErrorThrottle from touching real config."""
+    """Prevent ConversationManager/ErrorThrottle from touching real config."""
     with (
-        patch("NerdyPy.bot.Audio"),
         patch("NerdyPy.bot.ConversationManager"),
         patch("NerdyPy.bot.ErrorThrottle"),
     ):
