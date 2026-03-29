@@ -734,7 +734,7 @@ class WowNewsMixin:
 
         cutoff = None if active_days == 0 else datetime.now(UTC) - timedelta(days=active_days)
         semaphore = asyncio.Semaphore(5)
-        rate_limited = asyncio.Event()
+        batch_rate_limited = asyncio.Event()
         total_stats = {
             "checked": 0,
             "skipped_error": 0,
@@ -750,7 +750,7 @@ class WowNewsMixin:
             char_realm = candidate["realm"]
 
             # Skip remaining work if we already hit a rate limit
-            if rate_limited.is_set():
+            if batch_rate_limited.is_set():
                 return
 
             if should_skip_character(character_failures, char_name, char_realm):
@@ -764,7 +764,7 @@ class WowNewsMixin:
                     f"profile for {char_name}",
                     realmSlug=char_realm,
                     characterName=char_name,
-                    rate_limited_event=rate_limited,
+                    rate_limited_event=batch_rate_limited,
                     stats=total_stats,
                 )
                 if profile is None:
@@ -793,7 +793,7 @@ class WowNewsMixin:
                     f"mounts for {char_name}",
                     realmSlug=char_realm,
                     characterName=char_name,
-                    rate_limited_event=rate_limited,
+                    rate_limited_event=batch_rate_limited,
                     stats=total_stats,
                 )
                 if mount_data is None:
@@ -977,7 +977,7 @@ class WowNewsMixin:
 
             await asyncio.gather(*[_check_character(c) for c in batch])
 
-            if not rate_limited.is_set():
+            if not batch_rate_limited.is_set():
                 with self.bot.session_scope() as session:
                     config = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
                     if config:
@@ -992,7 +992,7 @@ class WowNewsMixin:
             )
 
             # Rate limited - stop immediately, resume from current offset next cycle
-            if rate_limited.is_set():
+            if batch_rate_limited.is_set():
                 self.bot.log.warning(
                     f"Guild news #{config_id}: stopping mount poll due to rate limit, "
                     f"will resume from offset {new_offset} next cycle"
@@ -1044,7 +1044,7 @@ class WowNewsMixin:
 
                     config_record.AccountGroupData = json.dumps(temporal_data)
 
-        if initial_sync and not rate_limited.is_set():
+        if initial_sync and not batch_rate_limited.is_set():
             self.bot.log.debug(
                 f"Guild news #{config_id}: initial sync finished in {batch_num} batches - "
                 f"baselined={total_stats['baselined']}, skipped_inactive={total_stats['skipped_inactive']}, "

@@ -18,6 +18,7 @@ from modules.wow.api import (
     get_raiderio_score,
 )
 from utils.errors import NerpyInfraException, NerpyNotFoundError, NerpyPermissionError, NerpyUserException
+from utils.helpers import send_hidden_message
 from utils.strings import get_string
 
 
@@ -238,9 +239,9 @@ class WowCharactersMixin:
 
             await interaction.followup.send(embed=emb)
         except NerpyUserException as ex:
-            await interaction.followup.send(str(ex), ephemeral=True)
+            await send_hidden_message(interaction, str(ex))
         except RateLimited:
-            await interaction.followup.send(get_string(lang, "wow.rate_limited"), ephemeral=True)
+            await send_hidden_message(interaction, get_string(lang, "wow.rate_limited"))
 
     @_wow_armory.autocomplete("realm")
     async def _realm_autocomplete_handler(self, interaction: discord.Interaction, current: str):
