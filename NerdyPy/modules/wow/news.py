@@ -26,14 +26,14 @@ from modules.wow.api import (
     should_skip_character,
     should_update_mount_set,
 )
+from utils.checks import require_operator
 from utils.errors import (
     NerpyInfraException,
     NerpyNotFoundError,
-    NerpyPermissionError,
     NerpyUserException,
     NerpyValidationError,
 )
-from utils.helpers import notify_error, register_before_loop, send_paginated
+from utils.helpers import notify_error, register_before_loop, send_hidden_message, send_paginated
 from utils.permissions import validate_channel_permissions
 from utils.strings import get_string
 
@@ -78,14 +78,12 @@ class WowNewsMixin:
         realm: Realm with region (e.g. blackrock-eu). Autocomplete available.
         channel: Discord channel for notifications
         """
+        await interaction.response.defer(ephemeral=True)
         try:
-            await interaction.response.defer(ephemeral=True)
             lang = self._lang(interaction.guild_id)
 
             if active_days is not None and active_days < 0:
-                await interaction.followup.send(
-                    get_string(lang, "wow.guildnews.edit.invalid_active_days"), ephemeral=True
-                )
+                await send_hidden_message(interaction, get_string(lang, "wow.guildnews.edit.invalid_active_days"))
                 return
 
             realm_slug, region = await self._parse_realm(realm, lang)
@@ -138,7 +136,8 @@ class WowNewsMixin:
                 )
                 session.add(config)
 
-            await interaction.followup.send(
+            await send_hidden_message(
+                interaction,
                 get_string(
                     lang,
                     "wow.guildnews.setup.success",
@@ -146,12 +145,11 @@ class WowNewsMixin:
                     realm_region=realm_region,
                     channel=channel.mention,
                 ),
-                ephemeral=True,
             )
         except NerpyUserException as ex:
-            await interaction.followup.send(str(ex), ephemeral=True)
+            await send_hidden_message(interaction, str(ex))
         except RateLimited:
-            await interaction.followup.send(get_string(lang, "wow.rate_limited"), ephemeral=True)
+            await send_hidden_message(interaction, get_string(lang, "wow.rate_limited"))
 
     @_guildnews_setup.autocomplete("realm")
     async def _guildnews_setup_realm_autocomplete(self, interaction, current: str):
@@ -173,6 +171,7 @@ class WowNewsMixin:
     @checks.has_permissions(manage_channels=True)
     async def _guildnews_remove(self, interaction: Interaction, config: int):
         """remove a guild news tracking config [manage_channels]"""
+        await interaction.response.defer(ephemeral=True)
         lang = self._lang(interaction.guild_id)
         not_found = False
         with self.bot.session_scope() as session:
@@ -182,13 +181,9 @@ class WowNewsMixin:
             else:
                 WowGuildNewsConfig.delete(config, interaction.guild.id, session)
         if not_found:
-            await interaction.response.send_message(
-                get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
-            )
+            await send_hidden_message(interaction, get_string(lang, "wow.guildnews.config_not_found", config=config))
             return
-        await interaction.response.send_message(
-            get_string(lang, "wow.guildnews.remove.success", config=config), ephemeral=True
-        )
+        await send_hidden_message(interaction, get_string(lang, "wow.guildnews.remove.success", config=config))
 
     @guildnews.command(name="list")
     async def _guildnews_list(self, interaction: Interaction):
@@ -235,7 +230,7 @@ class WowNewsMixin:
                 output += f"> {get_string(lang, 'wow.guildnews.list.entry_details', status=status, active_days=cfg['active_days'])}\n"
                 output += f"> {get_string(lang, 'wow.guildnews.list.entry_channel', channel=channel_name)}\n\n"
         if list_empty:
-            await interaction.followup.send(get_string(lang, "wow.guildnews.list.empty"), ephemeral=True)
+            await send_hidden_message(interaction, get_string(lang, "wow.guildnews.list.empty"))
             return
         await send_paginated(
             interaction,
@@ -249,6 +244,7 @@ class WowNewsMixin:
     @checks.has_permissions(manage_channels=True)
     async def _guildnews_pause(self, interaction: Interaction, config: int):
         """pause guild news tracking [manage_channels]"""
+        await interaction.response.defer(ephemeral=True)
         lang = self._lang(interaction.guild_id)
         not_found = False
         with self.bot.session_scope() as session:
@@ -258,18 +254,15 @@ class WowNewsMixin:
             else:
                 cfg.Enabled = False
         if not_found:
-            await interaction.response.send_message(
-                get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
-            )
+            await send_hidden_message(interaction, get_string(lang, "wow.guildnews.config_not_found", config=config))
             return
-        await interaction.response.send_message(
-            get_string(lang, "wow.guildnews.pause.success", config=config), ephemeral=True
-        )
+        await send_hidden_message(interaction, get_string(lang, "wow.guildnews.pause.success", config=config))
 
     @guildnews.command(name="resume")
     @checks.has_permissions(manage_channels=True)
     async def _guildnews_resume(self, interaction: Interaction, config: int):
         """resume guild news tracking [manage_channels]"""
+        await interaction.response.defer(ephemeral=True)
         lang = self._lang(interaction.guild_id)
         not_found = False
         with self.bot.session_scope() as session:
@@ -279,13 +272,9 @@ class WowNewsMixin:
             else:
                 cfg.Enabled = True
         if not_found:
-            await interaction.response.send_message(
-                get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
-            )
+            await send_hidden_message(interaction, get_string(lang, "wow.guildnews.config_not_found", config=config))
             return
-        await interaction.response.send_message(
-            get_string(lang, "wow.guildnews.resume.success", config=config), ephemeral=True
-        )
+        await send_hidden_message(interaction, get_string(lang, "wow.guildnews.resume.success", config=config))
 
     @guildnews.command(name="edit")
     @checks.has_permissions(manage_channels=True)
@@ -302,20 +291,17 @@ class WowNewsMixin:
         channel: Move notifications to this channel
         active_days: Change activity window (days)
         """
+        await interaction.response.defer(ephemeral=True)
         lang = self._lang(interaction.guild_id)
         if channel is None and active_days is None:
-            await interaction.response.send_message(
-                get_string(lang, "wow.guildnews.edit.nothing_to_change"), ephemeral=True
-            )
+            await send_hidden_message(interaction, get_string(lang, "wow.guildnews.edit.nothing_to_change"))
             return
 
         if channel is not None:
             validate_channel_permissions(channel, interaction.guild, "view_channel", "send_messages", "embed_links")
 
         if active_days is not None and active_days < 0:
-            await interaction.response.send_message(
-                get_string(lang, "wow.guildnews.edit.invalid_active_days"), ephemeral=True
-            )
+            await send_hidden_message(interaction, get_string(lang, "wow.guildnews.edit.invalid_active_days"))
             return
 
         not_found = False
@@ -335,22 +321,20 @@ class WowNewsMixin:
                 guild_label = f"**{cfg.WowGuildName}** ({cfg.WowRealmSlug}-{cfg.Region.upper()})"
 
         if not_found:
-            await interaction.response.send_message(
-                get_string(lang, "wow.guildnews.config_not_found", config=config), ephemeral=True
-            )
+            await send_hidden_message(interaction, get_string(lang, "wow.guildnews.config_not_found", config=config))
             return
-        await interaction.response.send_message(
+        await send_hidden_message(
+            interaction,
             get_string(
                 lang, "wow.guildnews.edit.success", config=config, guild=guild_label, changes=", ".join(changes)
             ),
-            ephemeral=True,
         )
 
     @guildnews.command(name="check")
     async def _guildnews_check(self, interaction: Interaction, config: int):
         """trigger an immediate poll for testing [operator]"""
-        if interaction.user.id not in self.bot.ops:
-            raise NerpyPermissionError("This command is restricted to bot operators.")
+        require_operator(interaction)
+        await interaction.response.defer(ephemeral=True)
         check_msg = None
         with self.bot.session_scope() as session:
             cfg = WowGuildNewsConfig.get_by_id(config, interaction.guild.id, session)
@@ -360,9 +344,9 @@ class WowNewsMixin:
                 check_msg = f"Config #{config} is paused. Resume it first."
 
         if check_msg is not None:
-            await interaction.response.send_message(check_msg, ephemeral=True)
+            await send_hidden_message(interaction, check_msg)
             return
-        await interaction.response.send_message(f"Running manual poll for config #{config}...", ephemeral=True)
+        await send_hidden_message(interaction, f"Running manual poll for config #{config}...")
         await self._poll_single_config(config, ignore_baseline=True)
 
     @_guildnews_remove.autocomplete("config")
@@ -749,7 +733,6 @@ class WowNewsMixin:
             char_name = candidate["name"]
             char_realm = candidate["realm"]
 
-            # Skip remaining work if we already hit a rate limit
             if batch_rate_limited.is_set():
                 return
 
