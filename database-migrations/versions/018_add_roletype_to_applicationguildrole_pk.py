@@ -8,6 +8,12 @@ The original PK was (GuildId, RoleId), which prevented the same role from being
 assigned both "manager" and "reviewer" types for the same guild.  The helper
 methods already filter on (GuildId, RoleId, RoleType), so extending the PK to
 include RoleType makes the schema consistent with the application logic.
+
+WARNING - downgrade() risk: do not run downgrade() after data is live.
+If rows with the same (GuildId, RoleId) but different RoleType values exist,
+restoring the 2-column PK (GuildId, RoleId) will fail with a uniqueness
+violation.  Deduplicate the table (keep one RoleType per GuildId+RoleId pair)
+before attempting a downgrade.
 """
 
 import sqlalchemy as sa

@@ -177,24 +177,43 @@ class WowNewsMixin:
         lang = self._lang(interaction.guild_id)
         list_empty = False
         output = ""
+        configs = []
         with self.bot.session_scope() as session:
-            configs = WowGuildNewsConfig.get_all_by_guild(interaction.guild.id, session)
-            if not configs:
+            raw_configs = WowGuildNewsConfig.get_all_by_guild(interaction.guild.id, session)
+            if not raw_configs:
                 list_empty = True
             else:
-                for cfg in configs:
-                    channel = interaction.guild.get_channel(cfg.ChannelId)
-                    if channel:
-                        channel_name = f"#{channel.name}"
-                    else:
-                        channel_name = get_string(lang, "wow.guildnews.list.channel_deleted", channel_id=cfg.ChannelId)
-                    if cfg.Enabled:
-                        status = f"\u2705 {get_string(lang, 'wow.guildnews.list.status_active')}"
-                    else:
-                        status = f"\u23f8\ufe0f {get_string(lang, 'wow.guildnews.list.status_paused')}"
-                    output += f"**#{cfg.Id}** {cfg.WowGuildName} (`{cfg.WowRealmSlug}-{cfg.Region.upper()}`)\n"
-                    output += f"> {get_string(lang, 'wow.guildnews.list.entry_details', status=status, active_days=cfg.ActiveDays)}\n"
-                    output += f"> {get_string(lang, 'wow.guildnews.list.entry_channel', channel=channel_name)}\n\n"
+                for cfg in raw_configs:
+                    configs.append(
+                        {
+                            "id": cfg.Id,
+                            "guild_name": cfg.WowGuildName,
+                            "realm_slug": cfg.WowRealmSlug,
+                            "region": cfg.Region,
+                            "channel_id": cfg.ChannelId,
+                            "enabled": cfg.Enabled,
+                            "active_days": cfg.ActiveDays,
+                        }
+                    )
+        if not list_empty:
+            for cfg in configs:
+                channel = interaction.guild.get_channel(cfg["channel_id"])
+                if channel is None:
+                    try:
+                        channel = await interaction.guild.fetch_channel(cfg["channel_id"])
+                    except (NotFound, Forbidden):
+                        channel = None
+                if channel:
+                    channel_name = f"#{channel.name}"
+                else:
+                    channel_name = get_string(lang, "wow.guildnews.list.channel_deleted", channel_id=cfg["channel_id"])
+                if cfg["enabled"]:
+                    status = f"\u2705 {get_string(lang, 'wow.guildnews.list.status_active')}"
+                else:
+                    status = f"\u23f8\ufe0f {get_string(lang, 'wow.guildnews.list.status_paused')}"
+                output += f"**#{cfg['id']}** {cfg['guild_name']} (`{cfg['realm_slug']}-{cfg['region'].upper()}`)\n"
+                output += f"> {get_string(lang, 'wow.guildnews.list.entry_details', status=status, active_days=cfg['active_days'])}\n"
+                output += f"> {get_string(lang, 'wow.guildnews.list.entry_channel', channel=channel_name)}\n\n"
         if list_empty:
             await interaction.response.send_message(get_string(lang, "wow.guildnews.list.empty"), ephemeral=True)
             return
@@ -272,6 +291,12 @@ class WowNewsMixin:
 
         if channel is not None:
             validate_channel_permissions(channel, interaction.guild, "view_channel", "send_messages", "embed_links")
+
+        if active_days is not None and active_days < 0:
+            await interaction.response.send_message(
+                get_string(lang, "wow.guildnews.edit.invalid_active_days"), ephemeral=True
+            )
+            return
 
         not_found = False
         guild_label = None

@@ -56,7 +56,7 @@ class WowGuildNewsConfig(db.BASE):
     LastActivityTimestamp = Column(DateTime, nullable=True)
     Enabled = Column(Boolean, default=True)
     CreateDate = Column(DateTime, default=lambda: datetime.now(UTC))
-    AccountGroupData = Column(Text, default="{}")
+    AccountGroupData = Column(Text, default="{}", server_default="{}")
 
     @classmethod
     def get_by_id(cls, config_id, guild_id, session):

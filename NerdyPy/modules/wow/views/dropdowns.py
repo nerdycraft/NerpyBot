@@ -125,19 +125,21 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
         return cls(order_id=int(match["order_id"]))
 
     async def interaction_check(self, interaction: Interaction) -> bool:
+        error_msg = None
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
-                return False
-            if order.Status != ORDER_STATUS_IN_PROGRESS:
-                await interaction.response.send_message(_ls(interaction, _LS_DROP_NOT_IN_PROGRESS), ephemeral=True)
-                return False
-            is_crafter = order.CrafterId == interaction.user.id
-            is_admin = interaction.user.guild_permissions.administrator
-            if not is_crafter and not is_admin:
-                await interaction.response.send_message(_ls(interaction, _LS_DROP_NOT_CRAFTER), ephemeral=True)
-                return False
+                error_msg = _ls(interaction, _LS_NOT_FOUND)
+            elif order.Status != ORDER_STATUS_IN_PROGRESS:
+                error_msg = _ls(interaction, _LS_DROP_NOT_IN_PROGRESS)
+            else:
+                is_crafter = order.CrafterId == interaction.user.id
+                is_admin = interaction.user.guild_permissions.administrator
+                if not is_crafter and not is_admin:
+                    error_msg = _ls(interaction, _LS_DROP_NOT_CRAFTER)
+        if error_msg is not None:
+            await interaction.response.send_message(error_msg, ephemeral=True)
+            return False
         return True
 
     async def callback(self, interaction: Interaction):
@@ -186,19 +188,21 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         return cls(order_id=int(match["order_id"]))
 
     async def interaction_check(self, interaction: Interaction) -> bool:
+        error_msg = None
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
-                return False
-            if order.Status != ORDER_STATUS_IN_PROGRESS:
-                await interaction.response.send_message(_ls(interaction, _LS_COMPLETE_NOT_IN_PROGRESS), ephemeral=True)
-                return False
-            is_crafter = order.CrafterId == interaction.user.id
-            is_admin = interaction.user.guild_permissions.administrator
-            if not is_crafter and not is_admin:
-                await interaction.response.send_message(_ls(interaction, _LS_COMPLETE_NOT_CRAFTER), ephemeral=True)
-                return False
+                error_msg = _ls(interaction, _LS_NOT_FOUND)
+            elif order.Status != ORDER_STATUS_IN_PROGRESS:
+                error_msg = _ls(interaction, _LS_COMPLETE_NOT_IN_PROGRESS)
+            else:
+                is_crafter = order.CrafterId == interaction.user.id
+                is_admin = interaction.user.guild_permissions.administrator
+                if not is_crafter and not is_admin:
+                    error_msg = _ls(interaction, _LS_COMPLETE_NOT_CRAFTER)
+        if error_msg is not None:
+            await interaction.response.send_message(error_msg, ephemeral=True)
+            return False
         return True
 
     async def callback(self, interaction: Interaction):
@@ -236,7 +240,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         try:
             creator = await interaction.client.fetch_user(creator_id)
             await creator.send(_ls(interaction, _LS_COMPLETE_DM_COMPLETE, item=item_name, crafter=crafter_mention))
-        except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+        except (discord.Forbidden, discord.NotFound):
             used_thread = await _thread_fallback(
                 interaction,
                 self.order_id,
@@ -274,19 +278,21 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
         return cls(order_id=int(match["order_id"]))
 
     async def interaction_check(self, interaction: Interaction) -> bool:
+        error_msg = None
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
-                return False
-            if order.Status in (ORDER_STATUS_COMPLETED, ORDER_STATUS_CANCELLED):
-                await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
-                return False
-            is_creator = order.CreatorId == interaction.user.id
-            is_admin = interaction.user.guild_permissions.administrator
-            if not is_creator and not is_admin:
-                await interaction.response.send_message(_ls(interaction, _LS_CANCEL_NOT_ALLOWED), ephemeral=True)
-                return False
+                error_msg = _ls(interaction, _LS_NOT_FOUND)
+            elif order.Status in (ORDER_STATUS_COMPLETED, ORDER_STATUS_CANCELLED):
+                error_msg = _ls(interaction, _LS_NOT_FOUND)
+            else:
+                is_creator = order.CreatorId == interaction.user.id
+                is_admin = interaction.user.guild_permissions.administrator
+                if not is_creator and not is_admin:
+                    error_msg = _ls(interaction, _LS_CANCEL_NOT_ALLOWED)
+        if error_msg is not None:
+            await interaction.response.send_message(error_msg, ephemeral=True)
+            return False
         return True
 
     async def callback(self, interaction: Interaction):
@@ -324,7 +330,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
             try:
                 creator = await interaction.client.fetch_user(creator_id)
                 await creator.send(_ls(interaction, _LS_CANCEL_DM_CANCEL, item=item_name))
-            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+            except (discord.Forbidden, discord.NotFound):
                 used_thread = await _thread_fallback(
                     interaction, self.order_id, _ls(interaction, _LS_CANCEL_DM_CANCEL, item=item_name), creator_id
                 )

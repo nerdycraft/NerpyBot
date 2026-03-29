@@ -383,8 +383,15 @@ class WowCraftingMixin:
             self.bot.log.error("Failed to save board message ID (guild=%d): %s", interaction.guild_id, exc)
             try:
                 await msg.delete()
-            except discord.HTTPException:
-                pass
+            except discord.HTTPException as exc:
+                self.bot.log.warning(
+                    "Failed to delete orphaned board message (guild=%d): %s", interaction.guild_id, exc
+                )
+            with self.bot.session_scope() as session:
+                orphaned = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
+                if orphaned is not None:
+                    session.delete(orphaned)
+                CraftingRoleMapping.delete_by_guild(interaction.guild_id, session)
             await interaction.followup.send(
                 get_string(lang, "wow.craftingorder.create.send_failed", channel=channel.mention), ephemeral=True
             )
@@ -431,10 +438,10 @@ class WowCraftingMixin:
                     try:
                         await msg.thread.delete()
                     except (discord.NotFound, discord.Forbidden):
-                        pass
+                        pass  # thread/message already gone — nothing to clean up
                 await msg.delete()
             except (discord.NotFound, discord.Forbidden):
-                pass  # already gone or inaccessible
+                pass  # thread/message already gone — nothing to clean up
 
         # Now delete DB config
         with self.bot.session_scope() as session:
@@ -450,14 +457,17 @@ class WowCraftingMixin:
         """edit the crafting order board [manage_channels]"""
         lang = self._lang(interaction.guild_id)
 
+        current_description = None
         with self.bot.session_scope() as session:
             config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
-            if config is None:
-                await interaction.response.send_message(
-                    get_string(lang, "wow.craftingorder.edit.not_found"), ephemeral=True
-                )
-                return
-            current_description = config.Description
+            if config is not None:
+                current_description = config.Description
+
+        if current_description is None:
+            await interaction.response.send_message(
+                get_string(lang, "wow.craftingorder.edit.not_found"), ephemeral=True
+            )
+            return
 
         # If new roles provided, update the mapping before showing the modal
         unmapped: list[int] = []
@@ -476,14 +486,18 @@ class WowCraftingMixin:
         self, interaction: Interaction, new_description: str, lang: str, unmapped: list[int] | None = None
     ):
         """Update the board description and edit the embed in-place."""
+        channel_id = None
+        message_id = None
         with self.bot.session_scope() as session:
             config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
-            if config is None:
-                await interaction.followup.send(get_string(lang, "wow.craftingorder.edit.not_found"), ephemeral=True)
-                return
-            config.Description = new_description
-            channel_id = config.ChannelId
-            message_id = config.BoardMessageId
+            if config is not None:
+                config.Description = new_description
+                channel_id = config.ChannelId
+                message_id = config.BoardMessageId
+
+        if channel_id is None:
+            await interaction.followup.send(get_string(lang, "wow.craftingorder.edit.not_found"), ephemeral=True)
+            return
 
         # Edit the board embed in-place and refresh the view with the housing button.
         # Pre-set True when there is no message to update - description was saved, nothing to fail.
@@ -572,6 +586,8 @@ class WowCraftingMixin:
                 channel = guild.get_channel(order.ChannelId) if guild else None
                 if channel is None:
                     channel = await self.bot.fetch_channel(order.ChannelId)
+                    if channel is not None and guild is None:
+                        guild = channel.guild
                 msg = await channel.fetch_message(order.OrderMessageId)
                 embed = build_order_embed(order, guild, new_lang)
                 view = build_order_view(order.Id, order.Status, new_lang)

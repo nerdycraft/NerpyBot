@@ -276,6 +276,7 @@ wow:
       success: "Resumed tracking for config #{config}."
     edit:
       nothing_to_change: "Nothing to change. Specify at least one of: channel, active_days."
+      invalid_active_days: "active_days must be 0 or greater."
       success: "Updated config #{config} for {guild}: {changes}."
       change_channel: "channel → {channel}"
       change_active_days: "active_days → {active_days}"

@@ -179,8 +179,8 @@ class CraftingOrderModal(ui.Modal):
             log.error("Failed to save order message ID for order #%d: %s", order_id, exc)
             try:
                 await msg.delete()
-            except discord.HTTPException:
-                pass
+            except discord.HTTPException as exc:
+                log.warning("Failed to delete orphaned order message (order_id=%d): %s", order_id, exc)
             await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
 

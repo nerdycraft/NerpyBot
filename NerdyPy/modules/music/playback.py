@@ -62,6 +62,8 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
                     self.audio.now_playing_message[guild_id] = msg
                 except discord.HTTPException as e:
                     self.bot.log.error(f"[{guild_id}]: Failed to re-send now-playing embed: {e}")
+            except discord.HTTPException as e:
+                self.bot.log.warning(f"[{guild_id}]: Transient error editing now-playing embed: {e}")
 
     @tasks.loop(seconds=10)
     async def _progress_updater(self):
@@ -81,6 +83,8 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
                 await msg.edit(embed=emb)
             except (discord.NotFound, discord.Forbidden):
                 self.audio.now_playing_message.pop(guild_id, None)
+            except discord.HTTPException as e:
+                self.bot.log.warning(f"[{guild_id}]: Transient error updating progress embed: {e}")
 
     @app_commands.command(name="play")
     @app_commands.guild_only()
@@ -117,9 +121,10 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
             self._create_background_task(self._load_playlist_entries(interaction, entries))
             return
 
-        await self._enqueue(interaction, url, info)
-        title = info.get("title", url)
-        await interaction.followup.send(get_string(lang, "music.play.added", title=title), ephemeral=True)
+        enqueued = await self._enqueue(interaction, url, info)
+        if enqueued:
+            title = info.get("title", url)
+            await interaction.followup.send(get_string(lang, "music.play.added", title=title), ephemeral=True)
 
     async def _load_playlist_entries(self, interaction: Interaction, entries: list) -> None:
         """Background task: fetch info and enqueue each playlist entry without blocking interactions."""
@@ -145,8 +150,7 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
     @app_commands.check(can_stop_playback)
     async def _bot_stop_playing(self, interaction: Interaction):
         """bot stops playing audio [bot-moderator]"""
-        self.bot.audio.stop(interaction.guild.id)
-        self.bot.audio.clear_buffer(interaction.guild.id)
+        self.bot.audio.stop_and_clear(interaction.guild.id)
         await interaction.response.send_message("\U0001f44d", ephemeral=True)
 
     @app_commands.command(name="leave")

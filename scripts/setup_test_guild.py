@@ -89,7 +89,6 @@ CATEGORIES: list[tuple[str, list[tuple[str, str, set[str] | None]]]] = [
         "Voice",
         [
             ("Music", "voice", None),
-            ("Tagging Test", "voice", None),
         ],
     ),
     # Channels with specific permissions denied — for testing error-handling paths

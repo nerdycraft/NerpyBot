@@ -2,6 +2,7 @@
 """WoW characters cog: armory lookup, realm cache, shared API helpers."""
 
 import asyncio
+import functools
 from enum import Enum
 from typing import LiteralString
 
@@ -180,8 +181,8 @@ class WowCharactersMixin:
             if not isinstance(character, dict) or character.get("code") == 404:
                 raise NerpyNotFoundError(get_string(lang, "wow.armory.not_found"))
 
-            best_keys = get_best_mythic_keys(region, realm_slug, name)
-            rio_score = get_raiderio_score(region, realm_slug, name)
+            best_keys = await asyncio.to_thread(functools.partial(get_best_mythic_keys, region, realm_slug, name))
+            rio_score = await asyncio.to_thread(functools.partial(get_raiderio_score, region, realm_slug, name))
 
             armory = get_profile_link("armory", profile)
             raiderio = get_profile_link("raiderio", profile)
