@@ -265,12 +265,12 @@ class NerpyBot(Bot):
         # Register crafting order persistent views and dynamic items
         if "wow" in self.modules:
             try:
-                from modules.wow.views import (
+                from modules.wow.views.board import CraftingBoardView
+                from modules.wow.views.dropdowns import (
                     AcceptOrderButton,
                     AskQuestionButton,
                     CancelOrderButton,
                     CompleteOrderButton,
-                    CraftingBoardView,
                     DropOrderButton,
                 )
 

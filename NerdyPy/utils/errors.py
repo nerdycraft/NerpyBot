@@ -16,7 +16,7 @@ class NerpyUserException(NerpyException):
 
 
 class NerpyNotFoundError(NerpyUserException):
-    """A requested entity (tag, character, guild, realm) does not exist."""
+    """A requested entity (character, guild, realm) does not exist."""
 
     pass
 

@@ -17,7 +17,14 @@ from models.moderation import AutoDelete, AutoKicker
 from utils.cache import LEAVE_CONFIG_DB_ERROR
 from utils.cog import NerpyBotCog
 from utils.errors import NerpyValidationError
-from utils.helpers import fetch_message_content, notify_error, register_before_loop, send_hidden_message, send_paginated
+from utils.helpers import (
+    DISCORD_MESSAGE_LIMIT,
+    fetch_message_content,
+    notify_error,
+    register_before_loop,
+    send_hidden_message,
+    send_paginated,
+)
 from utils.permissions import validate_channel_permissions
 from utils.strings import get_string
 
@@ -801,7 +808,7 @@ class _LeaveMessageModal(discord.ui.Modal):
     message_input = discord.ui.TextInput(
         label="Leave Message",
         style=discord.TextStyle.paragraph,
-        max_length=2000,
+        max_length=DISCORD_MESSAGE_LIMIT,
         required=True,
     )
 

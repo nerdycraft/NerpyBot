@@ -4,7 +4,6 @@ download and conversion method for Audio Content
 """
 
 import logging
-import subprocess
 import tempfile
 from io import BytesIO
 from pathlib import Path
@@ -46,45 +45,10 @@ YTDL_ARGS = {
 YTDL = YoutubeDL(YTDL_ARGS)
 
 
-def convert(source, tag=False, is_stream=True):
+def convert(source, is_stream=True):
     """Convert downloaded file to playable ByteStream"""
     LOG.info("Converting File...")
-    if tag:
-        cmd = [
-            "ffmpeg",
-            "-loglevel",
-            "quiet",
-            "-y",
-            "-i",
-            "pipe:",
-            "-af",
-            "loudnorm",
-            "-f",
-            "mp3",
-            "-ac",
-            "2",
-            "-ar",
-            "48000",
-            "pipe:",
-        ]
-        try:
-            with subprocess.Popen(
-                cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-            ) as process:
-                try:
-                    stream, stderr_out = process.communicate(input=source.read(), timeout=30)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
-                    raise NerpyValidationError("ffmpeg conversion timed out")
-        except FileNotFoundError:
-            raise NerpyValidationError("ffmpeg is not installed or not found in PATH")
-        if process.returncode != 0:
-            detail = stderr_out.decode(errors="replace").strip()
-            raise NerpyValidationError(f"ffmpeg conversion failed (exit {process.returncode}): {detail}")
-        return stream
-    else:
-        return FFmpegOpusAudio(source, **FFMPEG_OPTIONS, pipe=is_stream)
+    return FFmpegOpusAudio(source, **FFMPEG_OPTIONS, pipe=is_stream)
 
 
 def lookup_file(file_name):
@@ -106,8 +70,8 @@ def fetch_yt_infos(url: str):
     return data
 
 
-def download(url: str, tag: bool = False, video_id: str = None):
-    """download audio content (maybe transform?)"""
+def download(url: str, video_id: str = None):
+    """Download audio content and convert to a playable stream."""
 
     if video_id is None:
         req_headers = {
@@ -121,7 +85,7 @@ def download(url: str, tag: bool = False, video_id: str = None):
         if audio_bytes is None:
             raise NerpyValidationError(f"Could not find a valid source in: {url}")
 
-        return convert(audio_bytes, tag)
+        return convert(audio_bytes)
     else:
         dl_file = lookup_file(video_id)
 

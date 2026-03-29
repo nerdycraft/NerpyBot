@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""WoW domain models — re-exported from submodules for backward-compatible imports."""
+"""WoW domain models — package-level API surface aggregated from submodules."""
 
 from models.wow.characters import WowCharacterMounts
 from models.wow.crafting import (
@@ -17,12 +17,10 @@ from models.wow.crafting import (
     CraftingOrder,
     CraftingRecipeCache,
     CraftingRoleMapping,
-    _recipe_cache,  # noqa: F401 — re-exported for tests that monkeypatch this name
-    _recipe_cache_generation,  # noqa: F401
-    _recipe_cache_lock,  # noqa: F401
+    _recipe_cache,  # noqa: F401 — re-exported for tests that monkeypatch the cache
     invalidate_recipe_cache,
 )
-from models.wow.guild import WoW, WowGuildNewsConfig
+from models.wow.guild import WowGuildNewsConfig
 
 __all__ = [
     "BIND_ON_ACQUIRE",
@@ -40,7 +38,6 @@ __all__ = [
     "CraftingRecipeCache",
     "CraftingRoleMapping",
     "invalidate_recipe_cache",
-    "WoW",
     "WowCharacterMounts",
     "WowGuildNewsConfig",
 ]

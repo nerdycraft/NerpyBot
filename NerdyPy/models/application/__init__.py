@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Application domain models — re-exported from submodules for backward-compatible imports."""
+"""Application domain models — package-level API surface aggregated from submodules."""
 
 from models.application.config import ApplicationGuildConfig, ApplicationGuildRole
 from models.application.forms import (

@@ -24,7 +24,6 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
     def __init__(self, bot):
         super().__init__(bot)
         self.config = self.bot.config["music"]
-        self.queue = {}
         self.bot.audio = Audio(self.bot)
         self.audio = self.bot.audio
         self._background_tasks: set[asyncio.Task] = set()

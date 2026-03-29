@@ -35,7 +35,7 @@ from utils.cache import (
     invalidate_autocomplete_app_templates,
 )
 from utils.cog import NerpyBotCog
-from utils.helpers import fetch_message_content, send_hidden_message
+from utils.helpers import DISCORD_MESSAGE_LIMIT, fetch_message_content, send_hidden_message
 from utils.strings import get_raw, get_string
 
 
@@ -1438,8 +1438,12 @@ class _TemplateMessagesModal(discord.ui.Modal):
         self.bot = bot
         self.template_name = template_name
         self.lang = lang
-        self.approval_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
-        self.denial_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
+        self.approval_input = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
+        )
+        self.denial_input = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
+        )
         _p = "application.template.edit_messages.modal_approval"
         _localize_field(self, self.approval_input, lang, _p, current_approval)
         _p = "application.template.edit_messages.modal_denial"
@@ -1468,10 +1472,14 @@ class _FormMessagesModal(discord.ui.Modal):
         super().__init__(title=title)
         self._callback = callback
         self.description_input = discord.ui.TextInput(
-            style=discord.TextStyle.paragraph, max_length=2000, required=False
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
         )
-        self.approval_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
-        self.denial_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
+        self.approval_input = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
+        )
+        self.denial_input = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
+        )
         _f = "application.modal_fields"
         _localize_field(self, self.description_input, lang, f"{_f}.description", default_description)
         _localize_field(self, self.approval_input, lang, f"{_f}.approval", default_approval)
@@ -1494,8 +1502,12 @@ class _TemplateCreateMessagesModal(discord.ui.Modal):
         self.guild = guild
         self.template_name = template_name
         self.lang = lang
-        self.approval_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
-        self.denial_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
+        self.approval_input = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
+        )
+        self.denial_input = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
+        )
         _f = "application.modal_fields"
         _localize_field(self, self.approval_input, lang, f"{_f}.approval")
         _localize_field(self, self.denial_input, lang, f"{_f}.denial")
@@ -1517,7 +1529,7 @@ class _SettingsDescriptionModal(discord.ui.Modal):
         self.settings_kwargs = settings_kwargs
         self.lang = lang
         self.description_input = discord.ui.TextInput(
-            style=discord.TextStyle.paragraph, max_length=2000, required=False
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
         )
         _localize_field(self, self.description_input, lang, "application.modal_fields.description", current_description)
 
