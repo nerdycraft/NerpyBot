@@ -735,7 +735,9 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         """Validate and persist a leave message, then confirm to the user."""
         if "{member}" not in message:
             raise NerpyValidationError(get_string(lang, "leavemsg.message.missing_placeholder"))
-        if len(message) > DISCORD_MESSAGE_LIMIT - _LEAVE_MSG_MEMBER_RESERVE:
+        occurrences = message.count("{member}")
+        total_reserve = occurrences * _LEAVE_MSG_MEMBER_RESERVE
+        if len(message) > DISCORD_MESSAGE_LIMIT - total_reserve:
             raise NerpyValidationError(get_string(lang, "leavemsg.message.too_long"))
         with self.bot.session_scope() as session:
             leave_config = LeaveMessage.get(interaction.guild.id, session)

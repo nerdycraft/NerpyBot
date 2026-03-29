@@ -61,6 +61,7 @@ class WowCharactersMixin:
                 return
 
             cache = {}
+            failed_regions = []
             for region in self.regions:
                 try:
                     api = self._get_retailclient(region, "en")
@@ -73,9 +74,13 @@ class WowCharactersMixin:
                             cache[f"{slug}-{region}"] = {"name": name, "region": region, "slug": slug}
                 except Exception as ex:
                     self.bot.log.warning("Failed to fetch realm index for %s: %s", region, ex)
+                    failed_regions.append(region)
 
-            self._realm_cache = cache
-            self.bot.log.info("Realm cache populated with %d entries", len(cache))
+            if failed_regions:
+                self.bot.log.error("Realm cache not stored due to failed regions: %s", failed_regions)
+            else:
+                self._realm_cache = cache
+                self.bot.log.info("Realm cache populated with %d entries", len(cache))
 
     # noinspection PyUnusedLocal
     async def _realm_autocomplete(

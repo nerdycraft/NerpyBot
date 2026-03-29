@@ -26,7 +26,13 @@ from modules.wow.api import (
     should_skip_character,
     should_update_mount_set,
 )
-from utils.errors import NerpyNotFoundError, NerpyPermissionError, NerpyUserException, NerpyValidationError
+from utils.errors import (
+    NerpyInfraException,
+    NerpyNotFoundError,
+    NerpyPermissionError,
+    NerpyUserException,
+    NerpyValidationError,
+)
 from utils.helpers import notify_error, register_before_loop, send_paginated
 from utils.permissions import validate_channel_permissions
 from utils.strings import get_string
@@ -75,6 +81,13 @@ class WowNewsMixin:
         try:
             await interaction.response.defer(ephemeral=True)
             lang = self._lang(interaction.guild_id)
+
+            if active_days is not None and active_days < 0:
+                await interaction.followup.send(
+                    get_string(lang, "wow.guildnews.edit.invalid_active_days"), ephemeral=True
+                )
+                return
+
             realm_slug, region = await self._parse_realm(realm, lang)
             name_slug = guild_name.lower().replace(" ", "-")
             realm_region = f"{realm_slug}-{region.upper()}"
@@ -86,6 +99,10 @@ class WowNewsMixin:
 
             if isinstance(roster, dict) and roster.get("code") in (404, 403):
                 raise NerpyNotFoundError(
+                    get_string(lang, "wow.guildnews.setup.guild_not_found", guild=guild_name, realm_region=realm_region)
+                )
+            if isinstance(roster, dict) and roster.get("code"):
+                raise NerpyInfraException(
                     get_string(lang, "wow.guildnews.setup.guild_not_found", guild=guild_name, realm_region=realm_region)
                 )
 
@@ -715,7 +732,7 @@ class WowNewsMixin:
                 f"characters not yet baselined, will process all batches"
             )
 
-        cutoff = datetime.now(UTC) - timedelta(days=active_days)
+        cutoff = None if active_days == 0 else datetime.now(UTC) - timedelta(days=active_days)
         semaphore = asyncio.Semaphore(5)
         rate_limited = asyncio.Event()
         total_stats = {
@@ -762,7 +779,7 @@ class WowNewsMixin:
                 clear_character_failure(character_failures, char_name, char_realm)
 
                 last_login_ms = profile.get("last_login_timestamp", 0)
-                if last_login_ms:
+                if last_login_ms and cutoff is not None:
                     last_login = datetime.fromtimestamp(last_login_ms / 1000, tz=UTC)
                     if last_login < cutoff:
                         total_stats["skipped_inactive"] += 1
