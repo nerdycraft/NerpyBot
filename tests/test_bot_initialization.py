@@ -31,7 +31,7 @@ class TestNerpyBotInitialization:
                 "client_id": "123456789",
                 "token": "test_token",
                 "ops": ["111", "222"],
-                "modules": ["admin", "music"],
+                "modules": ["server_admin", "music"],
             }
         }
         intents = Intents.default()
@@ -41,7 +41,7 @@ class TestNerpyBotInitialization:
         assert bot.client_id == 123456789
         assert bot.token == "test_token"
         assert bot.ops == [111, 222]
-        assert bot.modules == ["admin", "music"]
+        assert bot.modules == ["server_admin", "music"]
         assert bot.debug is False
         assert bot.restart is True
 

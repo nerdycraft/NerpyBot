@@ -209,7 +209,12 @@ class TestNerpyBotInit:
         from discord import Intents
 
         config = {
-            "bot": {"token": "test_token", "client_id": "12345", "ops": ["111", "222"], "modules": ["admin", "music"]}
+            "bot": {
+                "token": "test_token",
+                "client_id": "12345",
+                "ops": ["111", "222"],
+                "modules": ["server_admin", "music"],
+            }
         }
 
         with (
@@ -221,7 +226,7 @@ class TestNerpyBotInit:
             assert bot.client_id == 12345
             assert bot.token == "test_token"
             assert bot.ops == [111, 222]
-            assert bot.modules == ["admin", "music"]
+            assert bot.modules == ["server_admin", "music"]
             assert bot.debug is False
             assert bot.restart is True
             assert bot.disabled_modules == set()
