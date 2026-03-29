@@ -210,10 +210,8 @@ class CraftingOrder(db.BASE):
         return session.query(cls).filter(cls.Id == order_id).first()
 
     @classmethod
-    def delete_by_id(cls, order_id, session):
-        order = cls.get_by_id(order_id, session)
-        if order is not None:
-            session.delete(order)
+    def delete(cls, order_id, session):
+        session.query(cls).filter(cls.Id == order_id).delete()
 
     @classmethod
     def get_active_by_guild(cls, guild_id, session):
