@@ -140,6 +140,7 @@ leavemsg:
   message:
     success: "Abschiedsnachricht aktualisiert auf: {message}"
     missing_placeholder: "Die Nachricht muss den Platzhalter {member} für den Mitgliedsnamen enthalten."
+    too_long: "Die Nachricht ist zu lang. Nach dem Ersetzen von Mitgliedsnamen könnte die gerenderte Nachricht Discords Limit überschreiten."
     not_enabled: "Bitte aktiviere zuerst Abschiedsnachrichten mit `/moderation leavemsg enable #channel`."
     modal_title: "Abschiedsnachricht"
     modal_placeholder: "Verwende {member} für den Mitgliedsnamen, z.B. Tschüss {member}!"
@@ -274,6 +275,7 @@ wow:
       success: "Tracking für Konfiguration #{config} fortgesetzt."
     edit:
       nothing_to_change: "Nichts zu ändern. Gib mindestens einen der folgenden Parameter an: channel, active_days."
+      invalid_active_days: "active_days muss 0 oder größer sein."
       success: "Konfiguration #{config} für {guild} aktualisiert: {changes}."
       change_channel: "Kanal → {channel}"
       change_active_days: "Aktive Tage → {active_days}"

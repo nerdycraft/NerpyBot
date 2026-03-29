@@ -5,13 +5,12 @@ download and conversion method for Audio Content
 
 import logging
 import tempfile
-from io import BytesIO
 from pathlib import Path
 
 import requests
 from cachetools import TTLCache
 from discord import FFmpegOpusAudio
-from utils.errors import NerpyValidationError
+
 from yt_dlp import YoutubeDL
 
 LOG = logging.getLogger("nerpybot")
@@ -80,12 +79,12 @@ def download(url: str, video_id: str = None):
 
         with requests.get(url, headers=req_headers, stream=True, timeout=(5, 30)) as response:
             response.raise_for_status()
-            audio_bytes = BytesIO(response.content)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".audio", dir=DL_DIR) as tmp:
+                for chunk in response.iter_content(chunk_size=65536):
+                    tmp.write(chunk)
+                audio_path = tmp.name
 
-        if audio_bytes is None:
-            raise NerpyValidationError(f"Could not find a valid source in: {url}")
-
-        return convert(audio_bytes)
+        return convert(audio_path, is_stream=False)
     else:
         dl_file = lookup_file(video_id)
 

@@ -179,7 +179,7 @@ class CraftingOrderModal(ui.Modal):
                 order = CraftingOrder.get_by_id(order_id, session)
                 if order is not None:
                     order.OrderMessageId = msg.id
-        except SQLAlchemyError as exc:
+        except (SQLAlchemyError, NerpyInfraException) as exc:
             log.error("Failed to save order message ID for order #%d: %s", order_id, exc)
             try:
                 await msg.delete()

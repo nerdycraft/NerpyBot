@@ -451,18 +451,24 @@ class WowNewsMixin:
 
         api = self._get_retailclient(region, language)
 
+        rate_limited = asyncio.Event()
+
         # Phase 1: Guild Activity Feed
-        await self._poll_activity(api, cfg_id, wow_guild, realm, last_activity_ts, channel, language)
+        await self._poll_activity(api, cfg_id, wow_guild, realm, last_activity_ts, channel, language, rate_limited)
 
         # Phase 2: Mount Tracking
         if self._track_mounts:
-            await self._poll_mounts(api, cfg_id, wow_guild, realm, min_level, active_days, channel, language)
+            await self._poll_mounts(
+                api, cfg_id, wow_guild, realm, min_level, active_days, channel, language, rate_limited
+            )
         else:
             self.bot.log.debug(f"Guild news #{cfg_id}: mount tracking disabled, skipping phase 2")
 
         self.bot.log.debug(f"Guild news #{cfg_id}: poll complete")
 
-    async def _poll_activity(self, api, config_id, wow_guild, realm, last_activity_ts, channel, language="en"):
+    async def _poll_activity(
+        self, api, config_id, wow_guild, realm, last_activity_ts, channel, language="en", rate_limited=None
+    ):
         """Fetch guild_activity and post new achievements/encounters."""
         activities = await self._call_api(
             api.guild_activity,
@@ -470,6 +476,7 @@ class WowNewsMixin:
             "fetching activity feed",
             realmSlug=realm,
             nameSlug=wow_guild,
+            rate_limited_event=rate_limited,
         )
         if activities is None:
             return
@@ -606,7 +613,9 @@ class WowNewsMixin:
                 if config:
                     config.LastActivityTimestamp = new_timestamp
 
-    async def _poll_mounts(self, api, config_id, wow_guild, realm, min_level, active_days, channel, language="en"):
+    async def _poll_mounts(
+        self, api, config_id, wow_guild, realm, min_level, active_days, channel, language="en", rate_limited=None
+    ):
         """Check roster for new mount acquisitions.
 
         On initial sync (unbaselined characters exist), processes all batches
@@ -615,12 +624,17 @@ class WowNewsMixin:
         Detects character renames via the profile API and migrates stored data.
         Backs off on Blizzard 429 rate limits.
         """
+        if rate_limited is not None and rate_limited.is_set():
+            self.bot.log.debug(f"Guild news #{config_id}: skipping mount tracking due to rate limit in phase 1")
+            return
+
         roster = await self._call_api(
             api.guild_roster,
             config_id,
             "fetching roster for mount tracking",
             realmSlug=realm,
             nameSlug=wow_guild,
+            rate_limited_event=rate_limited,
         )
         if roster is None:
             return

@@ -225,7 +225,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
             ).fetchone()
             row_found = row is not None
             if row_found:
-                item_name = _display_item_name(row)
+                item_name = discord.utils.escape_mentions(_display_item_name(row))
                 creator_id = row.CreatorId
                 crafter_id = row.CrafterId
                 thread_id = row.ThreadId
@@ -440,13 +440,13 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
             msg = await channel.fetch_message(message_id)
             thread_name = _ls(interaction, _LS_ASK_THREAD_NAME, item=item_name)[:100]
             thread = await msg.create_thread(name=thread_name)
-        except discord.HTTPException:
+        except (discord.Forbidden, discord.NotFound):
             log.warning("Failed to create DM fallback thread for order #%d", order_id)
             return False
 
     try:
         await thread.send(f"{message}\n<@{creator_id}>")
-    except discord.HTTPException:
+    except (discord.Forbidden, discord.NotFound):
         if is_new_thread:
             await _try_delete_thread(thread, order_id, "unsent DM fallback")
         log.warning("Failed to send message to DM fallback thread for order #%d", order_id)

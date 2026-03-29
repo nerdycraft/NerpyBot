@@ -21,6 +21,7 @@ from models.wow import (
     CraftingRoleMapping,
 )
 from modules.wow.api import CRAFTING_PROFESSIONS
+from utils.errors import NerpyInfraException
 from utils.helpers import notify_error, register_before_loop
 from utils.permissions import validate_channel_permissions
 from utils.strings import get_string
@@ -386,7 +387,7 @@ class WowCraftingMixin:
                 config = CraftingBoardConfig.get_by_guild(interaction.guild_id, session)
                 if config is not None:
                     config.BoardMessageId = msg.id
-        except SQLAlchemyError as exc:
+        except (SQLAlchemyError, NerpyInfraException) as exc:
             self.bot.log.error("Failed to save board message ID (guild=%d): %s", interaction.guild_id, exc)
             try:
                 await msg.delete()

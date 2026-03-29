@@ -772,61 +772,67 @@ class ApplicationManagement(NerpyBotCog, GroupCog, group_name="application"):
 
         async def _on_submit(modal_interaction: Interaction, description, approval_message, denial_message):
             form_id = None
+            tmpl_not_found = False
             with bot.session_scope() as db_session:
                 # Re-query template (session closed after permission checks above)
                 tmpl = ApplicationManagement._resolve_template(template, guild_id, db_session)
 
                 if template is not None and tmpl is None:
-                    await send_hidden_message(
-                        modal_interaction,
-                        get_string(lang, "application.template.not_found", name=template),
+                    tmpl_not_found = True
+                else:
+                    # Resolve questions: for built-in templates, use localized YAML questions
+                    questions = None
+                    if tmpl and tmpl.IsBuiltIn:
+                        yaml_key = TEMPLATE_KEY_MAP.get(tmpl.Name)
+                        if yaml_key:
+                            try:
+                                questions = get_raw(lang, f"application.builtin_templates.{yaml_key}.questions")
+                            except KeyError:
+                                bot.log.warning(
+                                    "No YAML questions for built-in template %s (lang=%s, key=%s); falling back to DB",
+                                    tmpl.Name,
+                                    lang,
+                                    yaml_key,
+                                )
+
+                    # Use user-provided values; fall back to template defaults when user leaves a field empty
+                    final_approval = (
+                        approval_message if approval_message is not None else (tmpl.ApprovalMessage if tmpl else None)
                     )
-                    return
+                    final_denial = (
+                        denial_message if denial_message is not None else (tmpl.DenialMessage if tmpl else None)
+                    )
 
-                # Resolve questions: for built-in templates, use localized YAML questions
-                questions = None
-                if tmpl and tmpl.IsBuiltIn:
-                    yaml_key = TEMPLATE_KEY_MAP.get(tmpl.Name)
-                    if yaml_key:
-                        try:
-                            questions = get_raw(lang, f"application.builtin_templates.{yaml_key}.questions")
-                        except KeyError:
-                            bot.log.warning(
-                                "No YAML questions for built-in template %s (lang=%s, key=%s); falling back to DB",
-                                tmpl.Name,
-                                lang,
-                                yaml_key,
+                    form = ApplicationForm(
+                        GuildId=guild_id,
+                        Name=name,
+                        ReviewChannelId=review_channel_id,
+                        ApplyChannelId=apply_channel_id,
+                        ApplyDescription=description,
+                        ApprovalMessage=final_approval,
+                        DenialMessage=final_denial,
+                    )
+                    db_session.add(form)
+                    db_session.flush()
+
+                    if questions is not None:
+                        for i, q_text in enumerate(questions, start=1):
+                            db_session.add(ApplicationQuestion(FormId=form.Id, QuestionText=q_text, SortOrder=i))
+                    elif tmpl:
+                        for tpl_q in tmpl.questions:
+                            db_session.add(
+                                ApplicationQuestion(
+                                    FormId=form.Id, QuestionText=tpl_q.QuestionText, SortOrder=tpl_q.SortOrder
+                                )
                             )
+                    form_id = form.Id
 
-                # Use user-provided values; fall back to template defaults when user leaves a field empty
-                final_approval = (
-                    approval_message if approval_message is not None else (tmpl.ApprovalMessage if tmpl else None)
+            if tmpl_not_found:
+                await send_hidden_message(
+                    modal_interaction,
+                    get_string(lang, "application.template.not_found", name=template),
                 )
-                final_denial = denial_message if denial_message is not None else (tmpl.DenialMessage if tmpl else None)
-
-                form = ApplicationForm(
-                    GuildId=guild_id,
-                    Name=name,
-                    ReviewChannelId=review_channel_id,
-                    ApplyChannelId=apply_channel_id,
-                    ApplyDescription=description,
-                    ApprovalMessage=final_approval,
-                    DenialMessage=final_denial,
-                )
-                db_session.add(form)
-                db_session.flush()
-
-                if questions is not None:
-                    for i, q_text in enumerate(questions, start=1):
-                        db_session.add(ApplicationQuestion(FormId=form.Id, QuestionText=q_text, SortOrder=i))
-                elif tmpl:
-                    for tpl_q in tmpl.questions:
-                        db_session.add(
-                            ApplicationQuestion(
-                                FormId=form.Id, QuestionText=tpl_q.QuestionText, SortOrder=tpl_q.SortOrder
-                            )
-                        )
-                form_id = form.Id
+                return
 
             invalidate_autocomplete(("app_forms", guild_id))
             await modal_interaction.response.send_message(

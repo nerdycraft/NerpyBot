@@ -30,6 +30,8 @@ from utils.strings import get_string
 
 DEFAULT_LEAVE_MESSAGE = "{member} left the server :("
 
+_LEAVE_MSG_MEMBER_RESERVE = 80
+
 # If no tzinfo is given then UTC is assumed.
 LOOP_RUN_TIME = time(hour=12, minute=30, tzinfo=UTC)
 
@@ -733,6 +735,8 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         """Validate and persist a leave message, then confirm to the user."""
         if "{member}" not in message:
             raise NerpyValidationError(get_string(lang, "leavemsg.message.missing_placeholder"))
+        if len(message) > DISCORD_MESSAGE_LIMIT - _LEAVE_MSG_MEMBER_RESERVE:
+            raise NerpyValidationError(get_string(lang, "leavemsg.message.too_long"))
         with self.bot.session_scope() as session:
             leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
@@ -808,7 +812,7 @@ class _LeaveMessageModal(discord.ui.Modal):
     message_input = discord.ui.TextInput(
         label="Leave Message",
         style=discord.TextStyle.paragraph,
-        max_length=DISCORD_MESSAGE_LIMIT,
+        max_length=DISCORD_MESSAGE_LIMIT - _LEAVE_MSG_MEMBER_RESERVE,
         required=True,
     )
 

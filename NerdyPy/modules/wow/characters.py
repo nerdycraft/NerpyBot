@@ -186,6 +186,8 @@ class WowCharactersMixin:
                 raise NerpyNotFoundError(get_string(lang, "wow.armory.not_found"))
             if code == 403:
                 raise NerpyPermissionError(get_string(lang, "wow.armory.private_profile"))
+            if code:
+                raise NerpyInfraException(get_string(lang, "wow.armory.not_found"))
 
             best_keys = await asyncio.to_thread(functools.partial(get_best_mythic_keys, region, realm_slug, name))
             rio_score = await asyncio.to_thread(functools.partial(get_raiderio_score, region, realm_slug, name))

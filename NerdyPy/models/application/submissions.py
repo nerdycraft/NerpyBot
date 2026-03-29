@@ -38,6 +38,7 @@ class ApplicationSubmission(db.BASE):
     __table_args__ = (
         Index("ApplicationSubmission_GuildId", "GuildId"),
         Index("ApplicationSubmission_FormId", "FormId"),
+        Index("ApplicationSubmission_ReviewMessageId", "ReviewMessageId"),
     )
 
     Id = Column(Integer, primary_key=True)

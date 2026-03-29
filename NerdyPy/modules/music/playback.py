@@ -16,8 +16,6 @@ from utils.helpers import register_before_loop, youtube
 from utils.strings import get_string
 
 
-@app_commands.guild_only()
-@app_commands.checks.bot_has_permissions(send_messages=True, speak=True)
 class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
     """Music playback commands and progress tracking."""
 

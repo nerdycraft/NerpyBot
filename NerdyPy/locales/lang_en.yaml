@@ -140,6 +140,7 @@ leavemsg:
   message:
     success: "Leave message updated to: {message}"
     missing_placeholder: "Message must contain {member} placeholder for the member name."
+    too_long: "Message is too long. After substituting member names the rendered message could exceed Discord's limit."
     not_enabled: "Please enable leave messages first using `/moderation leavemsg enable #channel`."
     modal_title: "Leave Message"
     modal_placeholder: "Use {member} for the member's name, e.g. Goodbye {member}!"
