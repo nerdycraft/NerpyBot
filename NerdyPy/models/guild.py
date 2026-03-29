@@ -39,7 +39,7 @@ class BotGuild(db.BASE):
     @classmethod
     def get_ids(cls, session) -> set[str]:
         """Return all known bot guild IDs as a set of strings."""
-        return {str(row.GuildId) for row in session.query(cls).all()}
+        return {str(row[0]) for row in session.query(cls.GuildId).all()}
 
 
 class GuildLanguageConfig(db.BASE):

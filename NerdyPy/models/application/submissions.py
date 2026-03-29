@@ -8,7 +8,12 @@ from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import relationship, selectinload
 from utils import database as db
 
-from models.application.forms import ApplicationForm, ApplicationTemplate, ApplicationTemplateQuestion
+from models.application.forms import (
+    ApplicationForm,
+    ApplicationTemplate,
+    ApplicationTemplateQuestion,
+    BUILT_IN_TEMPLATES,
+)
 
 
 class SubmissionStatus(str, enum.Enum):
@@ -134,61 +139,19 @@ class ApplicationVote(db.BASE):
         return session.query(cls).filter(cls.SubmissionId == submission_id, cls.Vote == vote_type).count()
 
 
-BUILT_IN_TEMPLATES = {
-    "Guild Membership": [
-        "What is your in-game name or main character?",
-        "How did you hear about our guild/community?",
-        "What games or activities are you most interested in?",
-        "Do you have any previous guild or community experience?",
-        "What timezone are you in, and when are you typically available?",
-        "Is there anything else you'd like us to know about you?",
-    ],
-    "Staff / Moderator": [
-        "Why are you interested in becoming a staff member or moderator?",
-        "Do you have any previous moderation or leadership experience?",
-        "How would you handle a situation where two members are in a heated argument?",
-        "How many hours per week can you dedicate to moderation duties?",
-        "What timezone are you in, and when are you typically available?",
-        "Is there anything else you'd like us to know about your qualifications?",
-    ],
-    "Partnership / Collaboration": [
-        "Tell us about your community or project — what do you do?",
-        "How many active members or participants do you have?",
-        "What kind of collaboration are you looking for?",
-        "What value would this partnership bring to both communities?",
-        "Who is the primary point of contact, and how can we reach them?",
-    ],
-    "Volunteer": [
-        "What areas or tasks are you most interested in volunteering for?",
-        "How many hours per week can you commit?",
-        "Do you have any relevant skills or experience?",
-        "What timezone are you in, and when are you typically available?",
-        "Why do you want to volunteer with us?",
-    ],
-    "Community Access": [
-        "Which channel or area are you requesting access to, and why?",
-        "How long have you been a member of this server?",
-        "Have you read and agreed to the server rules?",
-        "How do you plan to use this access?",
-    ],
-}
-
-
 def seed_built_in_templates(session):
     """Seed built-in templates into DB if not already present, and remove stale ones."""
+    existing_templates = session.query(ApplicationTemplate).filter(ApplicationTemplate.IsBuiltIn.is_(True)).all()
+    existing_names = {tpl.Name for tpl in existing_templates}
+
     # Remove built-in templates no longer in the current dict
-    for tpl in session.query(ApplicationTemplate).filter(ApplicationTemplate.IsBuiltIn.is_(True)).all():
+    for tpl in existing_templates:
         if tpl.Name not in BUILT_IN_TEMPLATES:
             session.delete(tpl)
 
     # Seed missing templates
     for name, questions in BUILT_IN_TEMPLATES.items():
-        existing = (
-            session.query(ApplicationTemplate)
-            .filter(ApplicationTemplate.Name == name, ApplicationTemplate.IsBuiltIn.is_(True))
-            .first()
-        )
-        if existing:
+        if name in existing_names:
             continue
         template = ApplicationTemplate(Name=name, GuildId=None, IsBuiltIn=True)
         session.add(template)

@@ -8,7 +8,6 @@ from datetime import UTC, datetime, timedelta
 import discord
 from discord import Interaction, ui
 from sqlalchemy import update as sa_update
-from sqlalchemy.exc import SQLAlchemyError
 
 from models.wow import (
     CraftingBoardConfig,
@@ -402,7 +401,7 @@ def _schedule_thread_cleanup(interaction: Interaction, order_id: int) -> None:
                 .where(CraftingOrder.Id == order_id)
                 .values(MessageDeleteAt=datetime.now(UTC) + timedelta(hours=delay))
             )
-    except SQLAlchemyError:
+    except Exception:
         log.error("Failed to schedule thread cleanup for order %s; thread may not be auto-deleted", order_id)
 
 
