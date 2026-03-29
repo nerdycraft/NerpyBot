@@ -5,9 +5,10 @@ import logging
 from urllib.parse import quote
 
 import discord
-from sqlalchemy.exc import SQLAlchemyError
-from utils.errors import NerpyInfraException
 from discord import Interaction, ui
+from sqlalchemy.exc import SQLAlchemyError
+
+from utils.errors import NerpyInfraException
 
 from models.wow import (
     CraftingBoardConfig,

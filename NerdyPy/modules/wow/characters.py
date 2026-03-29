@@ -179,9 +179,12 @@ class WowCharactersMixin:
             # noinspection PyTypeChecker
             character, profile_picture = await self._get_character(realm_slug, region, name, lang)
 
-            if not isinstance(character, dict) or character.get("code") == 404:
+            if not isinstance(character, dict):
                 raise NerpyNotFoundError(get_string(lang, "wow.armory.not_found"))
-            if character.get("code") == 403:
+            code = character.get("code")
+            if code == 404:
+                raise NerpyNotFoundError(get_string(lang, "wow.armory.not_found"))
+            if code == 403:
                 raise NerpyPermissionError(get_string(lang, "wow.armory.private_profile"))
 
             best_keys = await asyncio.to_thread(functools.partial(get_best_mythic_keys, region, realm_slug, name))
