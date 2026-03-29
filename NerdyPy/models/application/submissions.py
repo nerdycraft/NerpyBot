@@ -95,7 +95,10 @@ class ApplicationAnswer(db.BASE):
     """Database entity model for an answer to a question in a submission."""
 
     __tablename__ = "ApplicationAnswer"
-    __table_args__ = (Index("ApplicationAnswer_SubmissionId", "SubmissionId"),)
+    __table_args__ = (
+        Index("ApplicationAnswer_SubmissionId", "SubmissionId"),
+        Index("ApplicationAnswer_SubmissionId_QuestionId", "SubmissionId", "QuestionId", unique=True),
+    )
 
     Id = Column(Integer, primary_key=True)
     SubmissionId = Column(Integer, ForeignKey("ApplicationSubmission.Id"), nullable=False)

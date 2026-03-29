@@ -127,8 +127,8 @@ State machine framework for interactive DM flows (used by application).
 Audio downloading and conversion. Lives inside the `music` folder module.
 
 - **`fetch_yt_infos(url)`** — Cached YouTube metadata extraction via yt-dlp
-- **`download(url, tag=False)`** — Downloads audio, converts via ffmpeg
-- **`convert(source, tag=False)`** — Applies `loudnorm` filter for tags, returns `FFmpegOpusAudio`
+- **`download(url, video_id=None)`** — Downloads audio to a temp file; uses cached file if video_id matches an existing download
+- **`convert(source, is_stream=True)`** — Wraps source in `FFmpegOpusAudio` for playback; set `is_stream=False` for file-based sources
 - **Cache:** `TTLCache(maxsize=100, ttl=600)` for video metadata
 
 ### Format (`utils/format.py`)

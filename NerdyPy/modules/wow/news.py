@@ -133,6 +133,8 @@ class WowNewsMixin:
             )
         except NerpyUserException as ex:
             await interaction.followup.send(str(ex), ephemeral=True)
+        except RateLimited:
+            await interaction.followup.send("Blizzard API rate limit (429) — please retry in a moment.", ephemeral=True)
 
     @_guildnews_setup.autocomplete("realm")
     async def _guildnews_setup_realm_autocomplete(self, interaction, current: str):
@@ -174,6 +176,7 @@ class WowNewsMixin:
     @guildnews.command(name="list")
     async def _guildnews_list(self, interaction: Interaction):
         """list all tracked WoW guilds for this server"""
+        await interaction.response.defer(ephemeral=True)
         lang = self._lang(interaction.guild_id)
         list_empty = False
         output = ""
@@ -215,7 +218,7 @@ class WowNewsMixin:
                 output += f"> {get_string(lang, 'wow.guildnews.list.entry_details', status=status, active_days=cfg['active_days'])}\n"
                 output += f"> {get_string(lang, 'wow.guildnews.list.entry_channel', channel=channel_name)}\n\n"
         if list_empty:
-            await interaction.response.send_message(get_string(lang, "wow.guildnews.list.empty"), ephemeral=True)
+            await interaction.followup.send(get_string(lang, "wow.guildnews.list.empty"), ephemeral=True)
             return
         await send_paginated(
             interaction,

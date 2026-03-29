@@ -151,6 +151,10 @@ class CraftingOrderModal(ui.Modal):
             channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
         except (discord.NotFound, discord.Forbidden):
             channel = None
+        except discord.HTTPException as exc:
+            log.warning("Transient error fetching channel %d for order #%d: %s", channel_id, order_id, exc)
+            await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            return
         if channel is None:
             with self.bot.session_scope() as session:
                 order = CraftingOrder.get_by_id(order_id, session)
@@ -244,9 +248,10 @@ class AskQuestionModal(ui.Modal):
                 return
 
         escaped_message = discord.utils.escape_mentions(self.message_input.value)
+        escaped_name = discord.utils.escape_mentions(interaction.user.display_name)
         try:
             await thread.send(
-                f"**{interaction.user.display_name}:** {escaped_message}\n\n<@{creator_id}>",
+                f"**{escaped_name}:** {escaped_message}\n\n<@{creator_id}>",
                 allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False),
             )
         except discord.HTTPException:
@@ -259,12 +264,19 @@ class AskQuestionModal(ui.Modal):
 
         thread_orphaned = False
         if is_new_thread:
-            with interaction.client.session_scope() as session:
-                order = CraftingOrder.get_by_id(self.order_id, session)
-                if order is None:
-                    thread_orphaned = True
-                else:
-                    order.ThreadId = thread.id
+            try:
+                with interaction.client.session_scope() as session:
+                    order = CraftingOrder.get_by_id(self.order_id, session)
+                    if order is None:
+                        thread_orphaned = True
+                    else:
+                        order.ThreadId = thread.id
+            except Exception:
+                try:
+                    await thread.delete()
+                except discord.HTTPException:
+                    pass
+                raise
 
         if thread_orphaned:
             from modules.wow.views.dropdowns import _try_delete_thread

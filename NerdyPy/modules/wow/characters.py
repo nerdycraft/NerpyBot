@@ -11,6 +11,7 @@ from blizzapi import Language, Region, RetailClient
 from discord import Color, Embed, Interaction, app_commands
 
 from modules.wow.api import (
+    RateLimited,
     check_rate_limit,
     get_best_mythic_keys,
     get_profile_link,
@@ -178,7 +179,7 @@ class WowCharactersMixin:
             # noinspection PyTypeChecker
             character, profile_picture = await self._get_character(realm_slug, region, name, lang)
 
-            if not isinstance(character, dict) or character.get("code") == 404:
+            if not isinstance(character, dict) or character.get("code") in (403, 404):
                 raise NerpyNotFoundError(get_string(lang, "wow.armory.not_found"))
 
             best_keys = await asyncio.to_thread(functools.partial(get_best_mythic_keys, region, realm_slug, name))
@@ -221,6 +222,8 @@ class WowCharactersMixin:
             await interaction.followup.send(embed=emb)
         except NerpyUserException as ex:
             await interaction.followup.send(str(ex), ephemeral=True)
+        except RateLimited:
+            await interaction.followup.send("Blizzard API rate limit (429) — please retry in a moment.", ephemeral=True)
 
     @_wow_armory.autocomplete("realm")
     async def _realm_autocomplete_handler(self, interaction: discord.Interaction, current: str):

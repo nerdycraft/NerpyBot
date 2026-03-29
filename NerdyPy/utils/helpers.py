@@ -145,7 +145,7 @@ async def send_paginated(
         if total > 1:
             embed.set_footer(text=f"Page {i + 1}/{total}")
 
-        if i == 0:
+        if i == 0 and not interaction.response.is_done():
             await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
         else:
             await interaction.followup.send(embed=embed, ephemeral=ephemeral)

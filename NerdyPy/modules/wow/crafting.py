@@ -83,9 +83,10 @@ class WowCraftingMixin:
         lang = self._lang(guild_id)
 
         try:
-            guild = self.bot.get_guild(guild_id)
-            if not guild:
-                raise LookupError(f"guild {guild_id} not in cache")
+            try:
+                guild = await self.bot.fetch_guild(guild_id)
+            except (discord.NotFound, discord.Forbidden) as exc:
+                raise LookupError(f"guild {guild_id} inaccessible") from exc
 
             try:
                 channel = guild.get_channel(channel_id) or await guild.fetch_channel(channel_id)
@@ -124,7 +125,10 @@ class WowCraftingMixin:
                 "Board migration failed (terminal) for config=%d guild=%d: %s", config_id, guild_id, exc
             )
             try:
-                guild = self.bot.get_guild(guild_id)
+                try:
+                    guild = await self.bot.fetch_guild(guild_id)
+                except (discord.NotFound, discord.Forbidden):
+                    guild = None
                 if guild:
                     channel = guild.get_channel(channel_id) or await guild.fetch_channel(channel_id)
                     await channel.send(

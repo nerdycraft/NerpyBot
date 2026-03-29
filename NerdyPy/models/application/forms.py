@@ -93,6 +93,7 @@ class ApplicationTemplate(db.BASE):
     __tablename__ = "ApplicationTemplate"
     __table_args__ = (
         Index("ApplicationTemplate_GuildId", "GuildId"),
+        Index("ApplicationTemplate_Name_GuildId", "Name", "GuildId", unique=True),
         CheckConstraint(
             '("IsBuiltIn" IS TRUE AND "GuildId" IS NULL) OR ("IsBuiltIn" IS FALSE AND "GuildId" IS NOT NULL)',
             name="ck_template_builtin_guild",
