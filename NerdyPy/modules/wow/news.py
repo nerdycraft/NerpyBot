@@ -134,7 +134,7 @@ class WowNewsMixin:
         except NerpyUserException as ex:
             await interaction.followup.send(str(ex), ephemeral=True)
         except RateLimited:
-            await interaction.followup.send("Blizzard API rate limit (429) — please retry in a moment.", ephemeral=True)
+            await interaction.followup.send(get_string(lang, "wow.rate_limited"), ephemeral=True)
 
     @_guildnews_setup.autocomplete("realm")
     async def _guildnews_setup_realm_autocomplete(self, interaction, current: str):

@@ -6,6 +6,7 @@ from urllib.parse import quote
 
 import discord
 from sqlalchemy.exc import SQLAlchemyError
+from utils.errors import NerpyInfraException
 from discord import Interaction, ui
 
 from models.wow import (
@@ -271,7 +272,7 @@ class AskQuestionModal(ui.Modal):
                         thread_orphaned = True
                     else:
                         order.ThreadId = thread.id
-            except Exception:
+            except NerpyInfraException:
                 try:
                     await thread.delete()
                 except discord.HTTPException:

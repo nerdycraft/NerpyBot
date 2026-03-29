@@ -242,8 +242,10 @@ moderation:
 
 wow:
   realm_not_found: "Unbekanntes Realm '{realm}' in {region}. Verwende die Autovervollständigung oder überprüfe deine Schreibweise."
+  rate_limited: "Blizzard-API Rate-Limit (429) — bitte versuche es gleich nochmal."
   armory:
     not_found: "Kein Charakter mit diesem Namen gefunden."
+    private_profile: "Das Profil dieses Charakters ist privat."
     level: "Stufe"
     faction: "Fraktion"
     guild: "Gilde"

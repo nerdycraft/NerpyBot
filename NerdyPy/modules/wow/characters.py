@@ -17,7 +17,7 @@ from modules.wow.api import (
     get_profile_link,
     get_raiderio_score,
 )
-from utils.errors import NerpyInfraException, NerpyNotFoundError, NerpyUserException
+from utils.errors import NerpyInfraException, NerpyNotFoundError, NerpyPermissionError, NerpyUserException
 from utils.strings import get_string
 
 
@@ -179,8 +179,10 @@ class WowCharactersMixin:
             # noinspection PyTypeChecker
             character, profile_picture = await self._get_character(realm_slug, region, name, lang)
 
-            if not isinstance(character, dict) or character.get("code") in (403, 404):
+            if not isinstance(character, dict) or character.get("code") == 404:
                 raise NerpyNotFoundError(get_string(lang, "wow.armory.not_found"))
+            if character.get("code") == 403:
+                raise NerpyPermissionError(get_string(lang, "wow.armory.private_profile"))
 
             best_keys = await asyncio.to_thread(functools.partial(get_best_mythic_keys, region, realm_slug, name))
             rio_score = await asyncio.to_thread(functools.partial(get_raiderio_score, region, realm_slug, name))
@@ -223,7 +225,7 @@ class WowCharactersMixin:
         except NerpyUserException as ex:
             await interaction.followup.send(str(ex), ephemeral=True)
         except RateLimited:
-            await interaction.followup.send("Blizzard API rate limit (429) — please retry in a moment.", ephemeral=True)
+            await interaction.followup.send(get_string(lang, "wow.rate_limited"), ephemeral=True)
 
     @_wow_armory.autocomplete("realm")
     async def _realm_autocomplete_handler(self, interaction: discord.Interaction, current: str):
