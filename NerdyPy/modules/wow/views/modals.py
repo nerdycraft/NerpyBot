@@ -156,16 +156,12 @@ class CraftingOrderModal(ui.Modal):
         except discord.HTTPException as exc:
             log.warning("Transient error fetching channel %d for order #%d: %s", channel_id, order_id, exc)
             with self.bot.session_scope() as session:
-                order = CraftingOrder.get_by_id(order_id, session)
-                if order is not None:
-                    session.delete(order)
+                CraftingOrder.delete_by_id(order_id, session)
             await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
         if channel is None:
             with self.bot.session_scope() as session:
-                order = CraftingOrder.get_by_id(order_id, session)
-                if order is not None:
-                    session.delete(order)
+                CraftingOrder.delete_by_id(order_id, session)
             await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
         try:
@@ -173,9 +169,7 @@ class CraftingOrderModal(ui.Modal):
             msg = await channel.send(content=role_mention, embed=embed, view=view)
         except discord.HTTPException:
             with self.bot.session_scope() as session:
-                order = CraftingOrder.get_by_id(order_id, session)
-                if order is not None:
-                    session.delete(order)
+                CraftingOrder.delete_by_id(order_id, session)
             await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
             return
 
