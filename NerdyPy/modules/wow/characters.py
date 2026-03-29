@@ -60,21 +60,26 @@ class WowCharactersMixin:
             if self._realm_cache:
                 return
 
+            async def _fetch_one(region):
+                api = self._get_retailclient(region, "en")
+                data = await asyncio.to_thread(api.realms_index)
+                check_rate_limit(data)
+                return data
+
+            fetched = await asyncio.gather(*(_fetch_one(r) for r in self.regions), return_exceptions=True)
+
             cache = {}
             failed_regions = []
-            for region in self.regions:
-                try:
-                    api = self._get_retailclient(region, "en")
-                    data = await asyncio.to_thread(api.realms_index)
-                    check_rate_limit(data)
-                    for realm in data.get("realms", []):
-                        slug = realm.get("slug", "")
-                        name = realm.get("name", slug)
-                        if slug:
-                            cache[f"{slug}-{region}"] = {"name": name, "region": region, "slug": slug}
-                except Exception as ex:
-                    self.bot.log.warning("Failed to fetch realm index for %s: %s", region, ex)
+            for region, result in zip(self.regions, fetched):
+                if isinstance(result, Exception):
+                    self.bot.log.warning("Failed to fetch realm index for %s: %s", region, result)
                     failed_regions.append(region)
+                    continue
+                for realm in result.get("realms", []):
+                    slug = realm.get("slug", "")
+                    name = realm.get("name", slug)
+                    if slug:
+                        cache[f"{slug}-{region}"] = {"name": name, "region": region, "slug": slug}
 
             if failed_regions:
                 self.bot.log.error("Realm cache not stored due to failed regions: %s", failed_regions)
