@@ -978,7 +978,7 @@ class WowNewsMixin:
             if batch_rate_limited.is_set():
                 self.bot.log.warning(
                     f"Guild news #{config_id}: stopping mount poll due to rate limit, "
-                    f"will resume from offset {new_offset} next cycle"
+                    f"will resume from offset {offset} next cycle"
                 )
                 break
 

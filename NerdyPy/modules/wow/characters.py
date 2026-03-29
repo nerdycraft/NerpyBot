@@ -4,7 +4,6 @@
 import asyncio
 import functools
 from enum import Enum
-from typing import LiteralString
 
 import discord
 from blizzapi import Language, Region, RetailClient
@@ -152,7 +151,7 @@ class WowCharactersMixin:
         except ValueError as ex:
             raise NerpyInfraException("Failed to initialise WoW API client.") from ex
 
-    async def _get_character(self, realm: str, region: str, name: str, language: str) -> tuple[dict, LiteralString]:
+    async def _get_character(self, realm: str, region: str, name: str, language: str) -> tuple[dict, str | None]:
         """Get character profile and media from the WoW API."""
         api = self._get_retailclient(region, language)
 
