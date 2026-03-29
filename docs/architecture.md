@@ -32,7 +32,7 @@ NerpyBot is a Discord bot built with discord.py using the Cog extension system. 
 | ---------------------- | -------------------------------------------------------------------------- |
 | `on_app_command_error` | Logs errors and sends user-friendly messages for slash commands            |
 | `on_command_error`     | Handles errors for the few remaining prefix commands (operator sync/debug) |
-| `on_raw_reaction_add`  | Routes reactions to active conversations (raidplaner)                      |
+| `on_raw_reaction_add`  | Routes reactions to active conversations (application)                     |
 | `on_message`           | Routes DMs to active conversations, then processes prefix commands         |
 
 ## Module System
@@ -56,7 +56,6 @@ Available modules:
 | league       | flat   | GroupCog              | —                                      | Riot API                |
 | moderation   | flat   | GroupCog              | AutoKicker (daily), AutoDeleter (5min) | —                       |
 | music        | folder | GroupCog + QueueMixin | —                                      | YouTube API, yt-dlp     |
-| raidplaner   | flat   | Cog                   | —                                      | —                       |
 | reminder     | flat   | GroupCog              | Reminder loop (30s)                    | —                       |
 | roles        | flat   | Cog (slash)           | —                                      | —                       |
 | wow          | folder | GroupCog              | Guild news loop (15min)                | Blizzard API, Raider.io |
@@ -116,7 +115,7 @@ Manages voice channel connections, playback, and queuing. Lives inside the `musi
 
 ### Conversation (`utils/conversation.py`)
 
-State machine framework for interactive DM flows (used by raidplaner).
+State machine framework for interactive DM flows (used by application).
 
 - **`Conversation`** — Base class. Subclass must implement `create_state_handler()` returning a dict mapping states to async methods.
 - **`AnswerType`** — Enum: `REACTION`, `TEXT`, `BOTH`
@@ -169,7 +168,7 @@ Format: `[DD/MM/YYYY HH:MM] - LEVEL - module line: message`
 
 ### Slash Commands
 
-All user-facing commands are slash commands (`/command`) using `@app_commands.command`. The `GroupCog` pattern creates command groups (e.g., `/wow armory`, `/reminder create`). Exceptions: `operator` `ping` is a hybrid command (slash + prefix), `operator` `sync`/`debug`/`uptime` are prefix-only (DM-only), and raidplaner remains fully prefix-only (interactive DM conversations).
+All user-facing commands are slash commands (`/command`) using `@app_commands.command`. The `GroupCog` pattern creates command groups (e.g., `/wow armory`, `/reminder create`). Exceptions: `operator` `ping` is a hybrid command (slash + prefix), and `operator` `sync`/`debug`/`uptime` are prefix-only (DM-only).
 
 ### Ephemeral Messaging
 
