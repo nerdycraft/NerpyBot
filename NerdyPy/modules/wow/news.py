@@ -600,14 +600,16 @@ class WowNewsMixin:
         )
 
         # Send embeds oldest-first
+        send_failed = False
         for emb in reversed(embeds_to_send):
             try:
                 await channel.send(embed=emb)
             except HTTPException as ex:
                 self.bot.log.warning(f"Guild news #{config_id}: failed to send embed: {ex}")
+                send_failed = True
 
         # Update last activity timestamp
-        if new_timestamp and new_timestamp != last_activity_ts:
+        if new_timestamp and new_timestamp != last_activity_ts and not send_failed:
             self.bot.log.debug(f"Guild news #{config_id}: advancing activity timestamp to {new_timestamp}")
             with self.bot.session_scope() as session:
                 config = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
@@ -688,6 +690,7 @@ class WowNewsMixin:
             config_record = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
             temporal_data = json.loads(config_record.AccountGroupData or "{}") if config_record else {}
             character_failures = temporal_data.pop("_failures", {})
+            had_stored_failures = bool(character_failures)
 
         account_groups = build_account_groups(candidate_list, stored_mounts, temporal_data)
 
@@ -831,6 +834,7 @@ class WowNewsMixin:
                     session.add(entry)
                     total_stats["baselined"] += 1
                 else:
+                    mount_send_failed = False
                     known_ids, last_count, _ = parse_known_mounts(stored.KnownMountIds)
                     new_ids = current_ids - known_ids
                     removed_ids = known_ids - current_ids
@@ -919,18 +923,20 @@ class WowNewsMixin:
                                 await channel.send(embed=emb)
                             except HTTPException as exc:
                                 self.bot.log.warning(f"Guild news #{config_id}: failed to send mount embed: {exc}")
+                                mount_send_failed = True
 
                         total_stats["new_mounts"] += len(new_ids)
 
-                    mount_json = {
-                        "ids": sorted(known_ids | current_ids),
-                        "last_count": len(current_ids),
-                    }
-                    if achievement_points is not None:
-                        mount_json["achievement_points"] = achievement_points
-                    stored.KnownMountIds = json.dumps(mount_json)
-                    stored.LastChecked = datetime.now(UTC)
-                    cycle_new_mounts[(char_name, char_realm)] = new_ids
+                    if not mount_send_failed:
+                        mount_json = {
+                            "ids": sorted(known_ids | current_ids),
+                            "last_count": len(current_ids),
+                        }
+                        if achievement_points is not None:
+                            mount_json["achievement_points"] = achievement_points
+                        stored.KnownMountIds = json.dumps(mount_json)
+                        stored.LastChecked = datetime.now(UTC)
+                        cycle_new_mounts[(char_name, char_realm)] = new_ids
 
         # Process batches - loop through all during initial sync, single batch otherwise
         with self.bot.session_scope() as session:
@@ -1000,7 +1006,7 @@ class WowNewsMixin:
                 start_offset = offset
 
         # Update AccountGroupData (temporal correlation + failure tracking)
-        if cycle_new_mounts or character_failures:
+        if cycle_new_mounts or character_failures or had_stored_failures:
             with self.bot.session_scope() as session:
                 config_record = session.query(WowGuildNewsConfig).filter(WowGuildNewsConfig.Id == config_id).first()
                 if config_record:

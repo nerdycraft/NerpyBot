@@ -248,6 +248,7 @@ moderation:
 wow:
   realm_not_found: "Unknown realm '{realm}' in {region}. Use the autocomplete suggestions or check your spelling."
   rate_limited: "Blizzard API rate limit (429) — please retry in a moment."
+  api_error: "The WoW API returned an unexpected error. Please try again later."
   armory:
     not_found: "No character with this name found."
     private_profile: "This character's profile is private."
