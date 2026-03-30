@@ -1,0 +1,34 @@
+name: PR Agent
+
+on:
+  pull_request:
+    types: [opened, reopened, labeled]
+  issue_comment:
+    types: [created]
+
+jobs:
+  pr_agent:
+    name: Run PR Agent
+    runs-on: [self-hosted, linux]
+    # Mirror CodeRabbit behavior: only review when 'review' label is applied.
+    # For issue_comment events, PR-Agent handles /command parsing internally.
+    if: |
+      (github.event_name == 'pull_request' &&
+       contains(github.event.pull_request.labels.*.name, 'review')) ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null)
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Run PR Agent
+        uses: Codium-ai/pr-agent@main
+        env:
+          ANTHROPIC.KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CONFIG.AI_PROVIDER: anthropic
+          CONFIG.MODEL: anthropic/claude-haiku-4-5-20251001
+          github_action_config.auto_review: "true"
+          github_action_config.auto_describe: "false"
+          github_action_config.auto_improve: "false"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
