@@ -25,6 +25,7 @@ from modules.wow.views.board import (
     _LS_ASK_THREAD_NAME,
     _LS_CANCEL_DM_CANCEL,
     _LS_CANCEL_DONE,
+    _LS_CANCEL_ALREADY_CLOSED,
     _LS_CANCEL_NOT_ALLOWED,
     _LS_COMPLETE_DM_COMPLETE,
     _LS_COMPLETE_DONE,
@@ -284,7 +285,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
             if order is None:
                 error_msg = _ls(interaction, _LS_ORDER_NOT_FOUND)
             elif order.Status in (ORDER_STATUS_COMPLETED, ORDER_STATUS_CANCELLED):
-                error_msg = _ls(interaction, _LS_ORDER_NOT_FOUND)
+                error_msg = _ls(interaction, _LS_CANCEL_ALREADY_CLOSED)
             else:
                 is_creator = order.CreatorId == interaction.user.id
                 is_admin = interaction.user.guild_permissions.administrator

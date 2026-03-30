@@ -387,6 +387,7 @@ wow:
     cancel:
       not_allowed: "Nur der Auftragsersteller oder ein Admin kann diesen Auftrag abbrechen."
       done: "Auftrag abgebrochen."
+      already_closed: "Dieser Auftrag wurde bereits abgeschlossen oder abgebrochen."
       dm_cancel: "Dein Handwerksauftrag für **{item}** wurde abgebrochen."
     ask:
       modal_title: "Eine Frage stellen"

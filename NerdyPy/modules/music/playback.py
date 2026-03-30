@@ -17,20 +17,13 @@ from utils.helpers import register_before_loop
 from utils.strings import get_string
 
 
-def youtube(yt_key: str, return_type: str, query: str) -> str | None:
+def youtube(yt_key: str, query: str) -> str | None:
     yt = build("youtube", "v3", developerKey=yt_key)
     search_response = yt.search().list(q=query, part="id,snippet", type="video", maxResults=1).execute()
     items = search_response.get("items", [])
-
-    if len(items) > 0:
-        if return_type == "url":
-            ret = f"https://www.youtube.com/watch?v={items[0]['id']['videoId']}"
-        else:
-            ret = items[0]["id"]["videoId"]
-    else:
-        ret = None
-
-    return ret
+    if not items:
+        return None
+    return f"https://www.youtube.com/watch?v={items[0]['id']['videoId']}"
 
 
 class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
@@ -115,7 +108,7 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
 
         is_url = "://" in url
         if not is_url:
-            found = youtube(self.config.get("ytkey", ""), "url", url)
+            found = youtube(self.config.get("ytkey", ""), url)
             if found is None:
                 await interaction.followup.send(get_string(lang, "music.play.not_found"), ephemeral=True)
                 return

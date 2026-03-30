@@ -392,6 +392,7 @@ wow:
     cancel:
       not_allowed: "Only the order creator or an admin can cancel this order."
       done: "Order cancelled."
+      already_closed: "This order has already been completed or cancelled."
       dm_cancel: "Your crafting order for **{item}** has been cancelled."
     ask:
       modal_title: "Ask a Question"
