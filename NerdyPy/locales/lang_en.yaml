@@ -392,6 +392,7 @@ wow:
     cancel:
       not_allowed: "Only the order creator or an admin can cancel this order."
       done: "Order cancelled."
+      already_closed: "This order has already been completed or cancelled."
       dm_cancel: "Your crafting order for **{item}** has been cancelled."
     ask:
       modal_title: "Ask a Question"
@@ -400,6 +401,11 @@ wow:
       sent: "Your question has been posted."
       thread_failed: "Failed to create a discussion thread."
     not_found: "Order not found."
+    order_not_found: "Order not found."
+    board_not_configured: "No crafting order board is configured for this server."
+    category_empty: "No recipes found in this category."
+    recipe_not_found: "This recipe is no longer available."
+    order_post_failed: "Failed to post your crafting order — the board channel may be unavailable. Please try again."
     no_profession_mapped: "No profession role is configured for this item. An admin needs to map the profession via `/wow craftingorder edit`."
     board_migration_failed: "⚠️ **Crafting Order Board — Action Required**\n\nThe crafting order board in {channel} on **{guild}** could not be automatically updated to the latest version.\n\nPlease use `/wow craftingorder remove` followed by `/wow craftingorder create` to recreate it."
     manual_map:

@@ -6,14 +6,27 @@ import discord
 from discord import Interaction, app_commands
 from discord.ext import tasks
 from discord.ext.commands import Cog
-
 from modules.music.audio import Audio, QueuedSong, QueueMixin
 from modules.music.download import fetch_yt_infos
 from modules.music.views import NowPlayingView, build_now_playing_embed
 from utils.checks import can_leave_voice, can_stop_playback, is_connected_to_voice
 from utils.cog import NerpyBotCog
-from utils.helpers import register_before_loop, youtube
+from utils.helpers import register_before_loop
 from utils.strings import get_string
+
+
+def youtube(yt_key: str, query: str, lang: str = "en") -> str | None:
+    from googleapiclient.discovery import build
+
+    lang_code = lang.replace("_", "-").split("-", 1)[0]
+    yt = build("youtube", "v3", developerKey=yt_key)
+    search_response = (
+        yt.search().list(q=query, part="id,snippet", type="video", maxResults=1, relevanceLanguage=lang_code).execute()
+    )
+    items = search_response.get("items", [])
+    if not items:
+        return None
+    return f"https://www.youtube.com/watch?v={items[0]['id']['videoId']}"
 
 
 class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
@@ -98,7 +111,12 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
 
         is_url = "://" in url
         if not is_url:
-            found = youtube(self.config.get("ytkey", ""), "url", url)
+            try:
+                found = await asyncio.to_thread(youtube, self.config.get("ytkey", ""), url, lang)
+            except Exception:
+                self.bot.log.exception("[%s]: YouTube search failed for query=%r", interaction.guild_id, url)
+                await interaction.followup.send(get_string(lang, "music.play.fetch_error"), ephemeral=True)
+                return
             if found is None:
                 await interaction.followup.send(get_string(lang, "music.play.not_found"), ephemeral=True)
                 return

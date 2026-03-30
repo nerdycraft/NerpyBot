@@ -238,7 +238,11 @@ _KEY_PAGE_INFO = "wow.craftingorder.page_info"
 
 # Short keys for _ls() — suffix only (wow.craftingorder. is prepended by _ls at call time).
 # Typos in values surface as missing locale keys at runtime, not NameError at import.
-_LS_NOT_FOUND = "not_found"
+_LS_ORDER_NOT_FOUND = "order_not_found"
+_LS_BOARD_NOT_CONFIGURED = "board_not_configured"
+_LS_CATEGORY_EMPTY = "category_empty"
+_LS_RECIPE_NOT_FOUND = "recipe_not_found"
+_LS_ORDER_POST_FAILED = "order_post_failed"
 _LS_CREATE_NO_ROLES = "create.no_roles"
 _LS_PROFESSION_SELECT = "profession_select"
 _LS_NO_PROFESSION_MAPPED = "no_profession_mapped"
@@ -252,6 +256,7 @@ _LS_COMPLETE_NOT_IN_PROGRESS = "complete.not_in_progress"
 _LS_COMPLETE_NOT_CRAFTER = "complete.not_crafter"
 _LS_COMPLETE_DM_COMPLETE = "complete.dm_complete"
 _LS_COMPLETE_DONE = "complete.done"
+_LS_CANCEL_ALREADY_CLOSED = "cancel.already_closed"
 _LS_CANCEL_NOT_ALLOWED = "cancel.not_allowed"
 _LS_CANCEL_DM_CANCEL = "cancel.dm_cancel"
 _LS_CANCEL_DONE = "cancel.done"
@@ -309,7 +314,7 @@ async def _navigate_prof_gear(
     """Shared navigation helper: fetch profession gear subclasses and show ItemSubTypeSelectView."""
     class_id = item_class_ids.get(_VCAT_TO_CLASS_NAME[_VCAT_PROFESSIONS])
     if class_id is None:
-        await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), embed=None, view=None)
+        await interaction.response.edit_message(content=_ls(interaction, _LS_CATEGORY_EMPTY), embed=None, view=None)
         return
     with ctx.bot.session_scope() as session:
         subclasses = CraftingRecipeCache.get_item_subclasses(
@@ -662,7 +667,7 @@ class CraftingBoardView(ui.View):
                 )
 
         if board_ctx is None:
-            await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_BOARD_NOT_CONFIGURED), ephemeral=True)
             return
 
         roles = [r for rid in mapping_role_ids if (r := interaction.guild.get_role(rid))]
@@ -702,7 +707,7 @@ class CraftingBoardView(ui.View):
                     housing_professions = []
 
         if board_ctx is None:
-            await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_BOARD_NOT_CONFIGURED), ephemeral=True)
             return
 
         if not housing_professions:
@@ -1049,7 +1054,7 @@ class VirtualCategorySelectView(ui.View):
                 )
             if not categories:
                 await interaction.response.edit_message(
-                    content=_ls(interaction, _LS_NOT_FOUND),
+                    content=_ls(interaction, _LS_CATEGORY_EMPTY),
                     embed=None,
                     view=None,
                 )
@@ -1073,7 +1078,9 @@ class VirtualCategorySelectView(ui.View):
         elif vcat in (_VCAT_ARMOR, _VCAT_WEAPONS):
             class_id = self.item_class_ids.get(_VCAT_TO_CLASS_NAME[vcat])
             if class_id is None:
-                await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), embed=None, view=None)
+                await interaction.response.edit_message(
+                    content=_ls(interaction, _LS_CATEGORY_EMPTY), embed=None, view=None
+                )
                 return
 
             with self.bot.session_scope() as session:
@@ -1141,7 +1148,7 @@ class VirtualCategorySelectView(ui.View):
                 )
             if not categories:
                 await interaction.response.edit_message(
-                    content=_ls(interaction, _LS_NOT_FOUND),
+                    content=_ls(interaction, _LS_CATEGORY_EMPTY),
                     embed=None,
                     view=None,
                 )
@@ -1231,7 +1238,7 @@ class PvPGroupSelectView(ui.View):
     async def _on_weapons(self, interaction: Interaction):
         weapon_class_id = self.item_class_ids.get(_VCAT_TO_CLASS_NAME[_VCAT_WEAPONS])
         if weapon_class_id is None:
-            await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), embed=None, view=None)
+            await interaction.response.edit_message(content=_ls(interaction, _LS_CATEGORY_EMPTY), embed=None, view=None)
             return
         new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, _KEY_WEAPONS_CATEGORY)]
         await _navigate_pvp_weapons(
@@ -1245,7 +1252,7 @@ class PvPGroupSelectView(ui.View):
     async def _on_gear(self, interaction: Interaction):
         armor_class_id = self.item_class_ids.get(_VCAT_TO_CLASS_NAME[_VCAT_ARMOR])
         if armor_class_id is None:
-            await interaction.response.edit_message(content=_ls(interaction, _LS_NOT_FOUND), embed=None, view=None)
+            await interaction.response.edit_message(content=_ls(interaction, _LS_CATEGORY_EMPTY), embed=None, view=None)
             return
         new_breadcrumbs = self._breadcrumbs + [get_string(self.lang, _KEY_ARMOR_CATEGORY)]
         await _navigate_pvp_armor(
@@ -1519,7 +1526,7 @@ class CategoryPickerView(ui.View):
             recipes = self._fetch_fn(category_name, session, profession_ids=self.mapped_prof_ids)
         if not recipes:
             await interaction.response.edit_message(
-                content=_ls(interaction, _LS_NOT_FOUND),
+                content=_ls(interaction, _LS_CATEGORY_EMPTY),
                 embed=None,
                 view=None,
             )
@@ -1680,7 +1687,7 @@ class ItemSelectView(ui.View):
         value = interaction.data["values"][0]
         recipe = self._recipes_by_id.get(value)
         if not recipe:
-            await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_RECIPE_NOT_FOUND), ephemeral=True)
             return
 
         self._selected_recipe = recipe
@@ -1734,7 +1741,7 @@ class ItemSelectView(ui.View):
     async def _on_choose(self, interaction: Interaction):
         recipe = self._selected_recipe
         if not recipe:
-            await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            await interaction.response.send_message(_ls(interaction, _LS_RECIPE_NOT_FOUND), ephemeral=True)
             return
 
         role_id = None

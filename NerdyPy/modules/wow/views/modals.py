@@ -23,7 +23,9 @@ from modules.wow.views.board import (
     _LS_ASK_THREAD_FAILED,
     _LS_ASK_THREAD_NAME,
     _LS_MODAL_ITEM_NAME_EMPTY,
-    _LS_NOT_FOUND,
+    _LS_BOARD_NOT_CONFIGURED,
+    _LS_ORDER_NOT_FOUND,
+    _LS_ORDER_POST_FAILED,
     _LS_ORDER_CREATED,
     _KEY_ASK_MODAL_MESSAGE,
     _KEY_ASK_MODAL_TITLE,
@@ -145,7 +147,7 @@ class CraftingOrderModal(ui.Modal):
                 view = build_order_view(order.Id, ORDER_STATUS_OPEN, lang)
 
         if config is None:
-            await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            await interaction.followup.send(_ls(interaction, _LS_BOARD_NOT_CONFIGURED), ephemeral=True)
             return
 
         # Phase 2: send to Discord outside the session.
@@ -157,12 +159,12 @@ class CraftingOrderModal(ui.Modal):
             log.warning("Transient error fetching channel %d for order #%d: %s", channel_id, order_id, exc)
             with self.bot.session_scope() as session:
                 CraftingOrder.delete(order_id, session)
-            await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            await interaction.followup.send(_ls(interaction, _LS_ORDER_POST_FAILED), ephemeral=True)
             return
         if channel is None:
             with self.bot.session_scope() as session:
                 CraftingOrder.delete(order_id, session)
-            await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            await interaction.followup.send(_ls(interaction, _LS_ORDER_POST_FAILED), ephemeral=True)
             return
         try:
             role_mention = self.role.mention if self.role else f"<@&{self.role_id}>"
@@ -170,7 +172,7 @@ class CraftingOrderModal(ui.Modal):
         except discord.HTTPException:
             with self.bot.session_scope() as session:
                 CraftingOrder.delete(order_id, session)
-            await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            await interaction.followup.send(_ls(interaction, _LS_ORDER_POST_FAILED), ephemeral=True)
             return
 
         # Phase 3: store the message ID now that Discord has accepted the message.
@@ -185,7 +187,7 @@ class CraftingOrderModal(ui.Modal):
                 await msg.delete()
             except discord.HTTPException as exc:
                 log.warning("Failed to delete orphaned order message (order_id=%d): %s", order_id, exc)
-            await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            await interaction.followup.send(_ls(interaction, _LS_ORDER_POST_FAILED), ephemeral=True)
             return
 
         await interaction.followup.send(
@@ -219,7 +221,7 @@ class AskQuestionModal(ui.Modal):
                 message_id = order.OrderMessageId
 
         if item_name is None:
-            await interaction.followup.send(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            await interaction.followup.send(_ls(interaction, _LS_ORDER_NOT_FOUND), ephemeral=True)
             return
 
         try:
