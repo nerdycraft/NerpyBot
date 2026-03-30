@@ -7,7 +7,6 @@ from traceback import format_exception
 import discord
 from discord import Color, Embed, Interaction, TextChannel
 from discord.ext.commands import Context
-from googleapiclient.discovery import build
 
 log = logging.getLogger("nerpybot")
 
@@ -205,19 +204,3 @@ def register_before_loop(bot, loop, label: str):
     async def _before(*_args):
         bot.log.info(f"{label}: Waiting for Bot to be ready...")
         await bot.wait_until_ready()
-
-
-def youtube(yt_key: str, return_type: str, query: str) -> str | None:
-    yt = build("youtube", "v3", developerKey=yt_key)
-    search_response = yt.search().list(q=query, part="id,snippet", type="video", maxResults=1).execute()
-    items = search_response.get("items", [])
-
-    if len(items) > 0:
-        if return_type == "url":
-            ret = f"https://www.youtube.com/watch?v={items[0]['id']['videoId']}"
-        else:
-            ret = items[0]["id"]["videoId"]
-    else:
-        ret = None
-
-    return ret

@@ -6,14 +6,31 @@ import discord
 from discord import Interaction, app_commands
 from discord.ext import tasks
 from discord.ext.commands import Cog
+from googleapiclient.discovery import build
 
 from modules.music.audio import Audio, QueuedSong, QueueMixin
 from modules.music.download import fetch_yt_infos
 from modules.music.views import NowPlayingView, build_now_playing_embed
 from utils.checks import can_leave_voice, can_stop_playback, is_connected_to_voice
 from utils.cog import NerpyBotCog
-from utils.helpers import register_before_loop, youtube
+from utils.helpers import register_before_loop
 from utils.strings import get_string
+
+
+def youtube(yt_key: str, return_type: str, query: str) -> str | None:
+    yt = build("youtube", "v3", developerKey=yt_key)
+    search_response = yt.search().list(q=query, part="id,snippet", type="video", maxResults=1).execute()
+    items = search_response.get("items", [])
+
+    if len(items) > 0:
+        if return_type == "url":
+            ret = f"https://www.youtube.com/watch?v={items[0]['id']['videoId']}"
+        else:
+            ret = items[0]["id"]["videoId"]
+    else:
+        ret = None
+
+    return ret
 
 
 class MusicPlayback(NerpyBotCog, QueueMixin, Cog):

@@ -43,6 +43,7 @@ REQUIRED_PERMISSIONS: dict[str, set[str]] = {
         "read_message_history",
     },
     "reminder": {"send_messages"},
+    "twitch": {"send_messages", "embed_links"},
     "wow": {"send_messages", "embed_links", "manage_threads"},
 }
 
