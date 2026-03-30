@@ -6,8 +6,6 @@ import discord
 from discord import Interaction, app_commands
 from discord.ext import tasks
 from discord.ext.commands import Cog
-from googleapiclient.discovery import build
-
 from modules.music.audio import Audio, QueuedSong, QueueMixin
 from modules.music.download import fetch_yt_infos
 from modules.music.views import NowPlayingView, build_now_playing_embed
@@ -18,6 +16,8 @@ from utils.strings import get_string
 
 
 def youtube(yt_key: str, query: str, lang: str = "en") -> str | None:
+    from googleapiclient.discovery import build
+
     lang_code = lang.replace("_", "-").split("-", 1)[0]
     yt = build("youtube", "v3", developerKey=yt_key)
     search_response = (
