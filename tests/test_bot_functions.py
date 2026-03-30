@@ -11,9 +11,8 @@ from NerdyPy.utils.valkey import valkey_listener_loop as _valkey_listener_loop
 
 @pytest.fixture(autouse=True)
 def _patch_bot_subsystems():
-    """Prevent Audio/ConversationManager/ErrorThrottle from touching real config."""
+    """Prevent ConversationManager/ErrorThrottle from touching real config."""
     with (
-        patch("NerdyPy.bot.Audio"),
         patch("NerdyPy.bot.ConversationManager"),
         patch("NerdyPy.bot.ErrorThrottle"),
     ):
@@ -210,7 +209,12 @@ class TestNerpyBotInit:
         from discord import Intents
 
         config = {
-            "bot": {"token": "test_token", "client_id": "12345", "ops": ["111", "222"], "modules": ["admin", "music"]}
+            "bot": {
+                "token": "test_token",
+                "client_id": "12345",
+                "ops": ["111", "222"],
+                "modules": ["server_admin", "music"],
+            }
         }
 
         with (
@@ -222,7 +226,7 @@ class TestNerpyBotInit:
             assert bot.client_id == 12345
             assert bot.token == "test_token"
             assert bot.ops == [111, 222]
-            assert bot.modules == ["admin", "music"]
+            assert bot.modules == ["server_admin", "music"]
             assert bot.debug is False
             assert bot.restart is True
             assert bot.disabled_modules == set()
@@ -271,7 +275,7 @@ class TestNerpyBotSessionScope:
         """NerpyBot.session_scope() should commit on success."""
         from NerdyPy.bot import NerpyBot
         from discord import Intents
-        from models.admin import BotGuild
+        from models.guild import BotGuild
 
         config = {"bot": {"token": "test_token", "client_id": "12345", "ops": ["111"], "modules": []}}
 

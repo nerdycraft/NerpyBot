@@ -14,7 +14,7 @@ class TestBotCommandHandler:
         mock_bot.latency = 0.045
         mock_bot.voice_clients = []
         mock_bot.uptime = datetime.now(UTC) - timedelta(hours=1)
-        mock_bot.extensions = {"modules.admin": MagicMock(), "modules.music": MagicMock()}
+        mock_bot.extensions = {"modules.server_admin": MagicMock(), "modules.music": MagicMock()}
         mock_bot.error_counter = MagicMock()
         mock_bot.error_counter.count.return_value = 3
 
@@ -132,12 +132,12 @@ class TestBotCommandHandler:
 
     async def test_list_modules_command(self, mock_bot):
 
-        mock_bot.extensions = {"modules.admin": MagicMock(), "modules.music": MagicMock()}
+        mock_bot.extensions = {"modules.server_admin": MagicMock(), "modules.music": MagicMock()}
 
         result = await handle_valkey_command(mock_bot, "list_modules", {})
         assert len(result["modules"]) == 2
         names = [m["name"] for m in result["modules"]]
-        assert "admin" in names
+        assert "server_admin" in names
         assert "music" in names
 
     async def test_list_modules_empty(self, mock_bot):
@@ -153,7 +153,7 @@ class TestBotCommandHandler:
 
         mock_bot.load_extension = AsyncMock(return_value=None)
 
-        result = await handle_valkey_command(mock_bot, "module_load", {"module": "tagging"})
+        result = await handle_valkey_command(mock_bot, "module_load", {"module": "music"})
         assert result["success"] is True
 
     async def test_module_load_invalid_name(self, mock_bot):

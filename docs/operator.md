@@ -84,7 +84,7 @@ until re-enabled. **Prefix-only, DM-only, operator-only.**
 | --------- | ----- | ------------------------------------------- |
 | `module`  | `str` | Module name (e.g. `wow`, `league`, `music`) |
 
-**Protected modules:** `server_admin`, `operator`, and `voicecontrol` cannot be disabled.
+**Protected modules:** `server_admin` and `operator` cannot be disabled.
 
 **State is in-memory only** — all modules are re-enabled on bot restart.
 

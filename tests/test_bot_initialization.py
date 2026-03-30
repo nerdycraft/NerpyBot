@@ -13,9 +13,8 @@ from NerdyPy.bot import NerpyBot
 
 @pytest.fixture(autouse=True)
 def _patch_bot_subsystems():
-    """Prevent Audio/ConversationManager/ErrorThrottle from touching real config."""
+    """Prevent ConversationManager/ErrorThrottle from touching real config."""
     with (
-        patch("NerdyPy.bot.Audio"),
         patch("NerdyPy.bot.ConversationManager"),
         patch("NerdyPy.bot.ErrorThrottle"),
     ):
@@ -32,7 +31,7 @@ class TestNerpyBotInitialization:
                 "client_id": "123456789",
                 "token": "test_token",
                 "ops": ["111", "222"],
-                "modules": ["admin", "music"],
+                "modules": ["server_admin", "music"],
             }
         }
         intents = Intents.default()
@@ -42,7 +41,7 @@ class TestNerpyBotInitialization:
         assert bot.client_id == 123456789
         assert bot.token == "test_token"
         assert bot.ops == [111, 222]
-        assert bot.modules == ["admin", "music"]
+        assert bot.modules == ["server_admin", "music"]
         assert bot.debug is False
         assert bot.restart is True
 
@@ -130,7 +129,6 @@ class TestNerpyBotInitialization:
 
         bot = NerpyBot(config, intents, debug=False)
 
-        assert bot.audio is not None
         assert bot.convMan is not None
         assert bot.error_throttle is not None
         assert bot.disabled_modules == set()

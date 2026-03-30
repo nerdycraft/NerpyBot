@@ -4,7 +4,7 @@
 #
 # Examples:
 #   NERPYBOT_TOKEN=your_token
-#   NERPYBOT_MODULES=wow,league,tagging
+#   NERPYBOT_MODULES=wow,league,music
 #   NERPYBOT_DB_TYPE=sqlite
 #   NERPYBOT_DB_NAME=/data/db.db
 
@@ -19,16 +19,15 @@ bot:
   # log_level: INFO
   ops:
     - "your_discord_id_here"  # quoted to prevent formatter corruption
-  # server_admin, operator, and voicecontrol auto-load (server_admin+operator always, voicecontrol with tagging/music)
+  # server_admin and operator always auto-load
   modules:
     - application
     - league
     - moderation
     - reminder
     - roles
-    - tagging
     - wow
-    # - music  # requires music.ytkey; voicecontrol auto-loads with this
+    # - music  # requires music.ytkey
 
 database:
   # db_type: sqlite (default) or postgresql

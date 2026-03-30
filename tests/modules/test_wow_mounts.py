@@ -3,7 +3,7 @@
 
 import json
 
-from utils.blizzard import parse_known_mounts, should_update_mount_set
+from modules.wow.api import parse_known_mounts, should_update_mount_set
 
 
 class TestParseKnownMounts:
@@ -82,7 +82,7 @@ class TestFailureTracking:
     """Verify 404 failure tracking via AccountGroupData._failures."""
 
     def test_record_failure_new_character(self):
-        from utils.blizzard import record_character_failure
+        from modules.wow.api import record_character_failure
 
         failures = {}
         record_character_failure(failures, "stabtain", "blackrock")
@@ -90,38 +90,38 @@ class TestFailureTracking:
         assert "last" in failures["stabtain:blackrock"]
 
     def test_record_failure_increment(self):
-        from utils.blizzard import record_character_failure
+        from modules.wow.api import record_character_failure
 
         failures = {"stabtain:blackrock": {"count": 2, "last": "2026-01-01T00:00:00"}}
         record_character_failure(failures, "stabtain", "blackrock")
         assert failures["stabtain:blackrock"]["count"] == 3
 
     def test_should_skip_below_threshold(self):
-        from utils.blizzard import should_skip_character
+        from modules.wow.api import should_skip_character
 
         failures = {"stabtain:blackrock": {"count": 2, "last": "2026-01-01T00:00:00"}}
         assert should_skip_character(failures, "stabtain", "blackrock") is False
 
     def test_should_skip_at_threshold(self):
-        from utils.blizzard import should_skip_character
+        from modules.wow.api import should_skip_character
 
         failures = {"stabtain:blackrock": {"count": 3, "last": "2026-01-01T00:00:00"}}
         assert should_skip_character(failures, "stabtain", "blackrock") is True
 
     def test_should_not_skip_unknown(self):
-        from utils.blizzard import should_skip_character
+        from modules.wow.api import should_skip_character
 
         assert should_skip_character({}, "newchar", "blackrock") is False
 
     def test_clear_failure_on_success(self):
-        from utils.blizzard import clear_character_failure
+        from modules.wow.api import clear_character_failure
 
         failures = {"stabtain:blackrock": {"count": 3, "last": "2026-01-01T00:00:00"}}
         clear_character_failure(failures, "stabtain", "blackrock")
         assert "stabtain:blackrock" not in failures
 
     def test_clear_failure_noop_for_unknown(self):
-        from utils.blizzard import clear_character_failure
+        from modules.wow.api import clear_character_failure
 
         failures = {}
         clear_character_failure(failures, "stabtain", "blackrock")

@@ -30,7 +30,7 @@ def _get_premium_ids(session: Session) -> set[int]:
     ids = _premium_ids_cache.get("ids")
     if ids is not None:
         return ids
-    from models.admin import PremiumUser
+    from models.premium import PremiumUser
 
     try:
         ids = {u.UserId for u in PremiumUser.get_all(session)}

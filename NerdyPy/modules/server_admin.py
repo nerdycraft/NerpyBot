@@ -3,7 +3,8 @@
 from discord import Interaction, Role, app_commands
 from discord.ext.commands import Cog
 
-from models.admin import BotModeratorRole, GuildLanguageConfig
+from models.guild import GuildLanguageConfig
+from models.permissions import BotModeratorRole
 from utils.checks import is_admin_or_operator
 from utils.cog import NerpyBotCog
 from utils.strings import available_languages, get_string

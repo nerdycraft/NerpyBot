@@ -13,7 +13,7 @@ NerpyBot is a Discord bot built with discord.py using the Cog extension system. 
 3. `setup_hook()`:
    - Load each module listed in `config.bot.modules` via `bot.load_extension(f"modules.{name}")`
    - Call `create_all()` to auto-create missing database tables
-   - Start audio loops if `tagging` or `music` modules are loaded
+   - Start audio loops if `music` module is loaded
 4. `on_ready()` — log successful connection
 
 ### CLI Arguments
@@ -32,7 +32,7 @@ NerpyBot is a Discord bot built with discord.py using the Cog extension system. 
 | ---------------------- | -------------------------------------------------------------------------- |
 | `on_app_command_error` | Logs errors and sends user-friendly messages for slash commands            |
 | `on_command_error`     | Handles errors for the few remaining prefix commands (operator sync/debug) |
-| `on_raw_reaction_add`  | Routes reactions to active conversations (raidplaner)                      |
+| `on_raw_reaction_add`  | Routes reactions to active conversations (application)                     |
 | `on_message`           | Routes DMs to active conversations, then processes prefix commands         |
 
 ## Module System
@@ -44,20 +44,23 @@ async def setup(bot):
     await bot.add_cog(MyCog(bot))
 ```
 
-Modules are loaded dynamically based on `config.bot.modules`. Available modules:
+Modules are loaded dynamically based on `config.bot.modules`. Three modules (`wow`, `application`, `music`) are **folder modules** — they live in a subdirectory (e.g. `modules/wow/`) and own their views, conversations, and API helpers internally. All other modules are **flat modules** — a single `.py` file with no sub-structure.
 
-| Module       | Type                  | Background Tasks                       | External APIs           |
-| ------------ | --------------------- | -------------------------------------- | ----------------------- |
-| server_admin | Cog (slash)           | —                                      | —                       |
-| operator     | Cog (slash + prefix)  | —                                      | —                       |
-| league       | GroupCog              | —                                      | Riot API                |
-| moderation   | GroupCog              | AutoKicker (daily), AutoDeleter (5min) | —                       |
-| music        | GroupCog + QueueMixin | —                                      | YouTube API, yt-dlp     |
-| raidplaner   | Cog                   | —                                      | —                       |
-| reminder     | GroupCog              | Reminder loop (30s)                    | —                       |
-| roles        | Cog (slash)           | —                                      | —                       |
-| tagging      | GroupCog + QueueMixin | —                                      | —                       |
-| wow          | GroupCog              | Guild news loop (15min)                | Blizzard API, Raider.io |
+Available modules:
+
+| Module       | Layout | Type                                 | Background Tasks                       | External APIs           |
+| ------------ | ------ | ------------------------------------ | -------------------------------------- | ----------------------- |
+| server_admin | flat   | Cog (slash)                          | —                                      | —                       |
+| operator     | flat   | Cog (slash + prefix)                 | —                                      | —                       |
+| application  | folder | GroupCog                             | —                                      | —                       |
+| league       | flat   | GroupCog                             | —                                      | Riot API                |
+| moderation   | flat   | GroupCog                             | AutoKicker (daily), AutoDeleter (5min) | —                       |
+| music        | folder | GroupCog (playlist) + Cog (playback) | —                                      | YouTube API, yt-dlp     |
+| reminder     | flat   | GroupCog                             | Reminder loop (30s)                    | —                       |
+| roles        | flat   | Cog (slash)                          | —                                      | —                       |
+| wow          | folder | GroupCog                             | Guild news loop (15min)                | Blizzard API, Raider.io |
+
+Voice stop/leave commands (`voicecontrol`) are part of the `music` folder module and are no longer a separate loadable module.
 
 ## Database Layer
 
@@ -100,32 +103,32 @@ All models inherit from `db.BASE`. Convention: PascalCase column names (`GuildId
 
 ## Utility Systems
 
-### Audio (`utils/audio.py`)
+### Audio (`modules/music/audio.py`)
 
-Manages voice channel connections, playback, and queuing.
+Manages voice channel connections, playback, and queuing. Lives inside the `music` folder module.
 
 - **`Audio`** — Main class. Maintains per-guild buffers for channel, queue, and voice client.
 - **`QueuedSong`** — Encapsulates a song with a lazy fetcher function.
-- **`QueueMixin`** — Inherited by Music and Tagging cogs for shared queue operations.
+- **`QueueMixin`** — Inherited by the Music cog for shared queue operations.
 - **`_queue_manager`** — 1-second loop that dequeues and starts playback.
 - **`_timeout_manager`** — 10-second loop that disconnects after 600s of inactivity.
 
 ### Conversation (`utils/conversation.py`)
 
-State machine framework for interactive DM flows (used by raidplaner).
+State machine framework for interactive DM flows (used by application).
 
 - **`Conversation`** — Base class. Subclass must implement `create_state_handler()` returning a dict mapping states to async methods.
 - **`AnswerType`** — Enum: `REACTION`, `TEXT`, `BOTH`
 - Reactions map emoji strings to target states. Text input is validated by answer handlers.
 - `ConversationManager` tracks active conversations per user.
 
-### Download (`utils/download.py`)
+### Download (`modules/music/download.py`)
 
-Audio downloading and conversion.
+Audio downloading and conversion. Lives inside the `music` folder module.
 
 - **`fetch_yt_infos(url)`** — Cached YouTube metadata extraction via yt-dlp
-- **`download(url, tag=False)`** — Downloads audio, converts via ffmpeg
-- **`convert(source, tag=False)`** — Applies `loudnorm` filter for tags, returns `FFmpegOpusAudio`
+- **`download(url, video_id=None)`** — Downloads audio to a temp file; uses cached file if video_id matches an existing download
+- **`convert(source, is_stream=True)`** — Wraps source in `FFmpegOpusAudio` for playback; set `is_stream=False` for file-based sources
 - **Cache:** `TTLCache(maxsize=100, ttl=600)` for video metadata
 
 ### Format (`utils/format.py`)
@@ -165,7 +168,7 @@ Format: `[DD/MM/YYYY HH:MM] - LEVEL - module line: message`
 
 ### Slash Commands
 
-All user-facing commands are slash commands (`/command`) using `@app_commands.command`. The `GroupCog` pattern creates command groups (e.g., `/wow armory`, `/reminder create`). Exceptions: `operator` `ping` is a hybrid command (slash + prefix), `operator` `sync`/`debug`/`uptime` are prefix-only (DM-only), and raidplaner remains fully prefix-only (interactive DM conversations).
+All user-facing commands are slash commands (`/command`) using `@app_commands.command`. The `GroupCog` pattern creates command groups (e.g., `/wow armory`, `/reminder create`). Exceptions: `operator` `ping` is a hybrid command (slash + prefix), and `operator` `sync`/`debug`/`uptime` are prefix-only (DM-only).
 
 ### Ephemeral Messaging
 
@@ -199,7 +202,7 @@ bot:
   client_id: discord_app_id
   token: discord_bot_token
   ops: [operator_user_ids]
-  modules: [admin, league, ...]
+  modules: [server_admin, league, ...]
 
 database:
   db_type: sqlite # sqlite, postgresql

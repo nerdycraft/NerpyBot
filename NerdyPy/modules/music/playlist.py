@@ -2,178 +2,33 @@
 
 import asyncio
 
-import discord
 from discord import Interaction, app_commands
-from discord.ext import tasks
 from discord.ext.commands import Cog
 
+from sqlalchemy import func, insert as sa_insert
+
 from models.music import Playlist, PlaylistEntry
-from modules.views.music import NowPlayingView, build_now_playing_embed
-from utils.audio import QueuedSong, QueueMixin
+from modules.music.audio import QueueMixin, QueuedSong
 from utils.cache import build_name_choices, cached_autocomplete, invalidate_autocomplete
 from utils.checks import is_connected_to_voice
 from utils.cog import NerpyBotCog
-from utils.download import download, fetch_yt_infos
-from utils.helpers import error_context, youtube
+from modules.music.download import fetch_yt_infos
 from utils.strings import get_string
 
 
 @app_commands.guild_only()
 @app_commands.checks.bot_has_permissions(send_messages=True, speak=True)
-class Music(NerpyBotCog, QueueMixin, Cog):
-    """Music playback and playlist management."""
+class MusicPlaylist(NerpyBotCog, QueueMixin, Cog):
+    """Playlist save/load management."""
 
     playlist = app_commands.Group(name="playlist", description="Manage your saved playlists", guild_only=True)
 
     def __init__(self, bot):
         super().__init__(bot)
-        self.config = self.bot.config["music"]
-        self.queue = {}
+        self._background_tasks: set[asyncio.Task] = set()
+
+    async def cog_load(self) -> None:
         self.audio = self.bot.audio
-
-    async def cog_load(self):
-        self.audio._on_song_start_hook = self._handle_song_start
-        self._progress_updater.start()
-
-    async def cog_unload(self):
-        self._progress_updater.cancel()
-        self.audio._on_song_start_hook = None
-
-    async def _handle_song_start(self, guild_id: int, song: QueuedSong) -> None:
-        """Called by Audio._play() when a new song starts. Creates or updates the now-playing embed."""
-        lang = self._lang(guild_id)
-        elapsed = self.audio.get_elapsed(guild_id)
-        emb = build_now_playing_embed(song, elapsed, lang)
-        view = NowPlayingView(self.audio, lang)
-
-        existing_msg = self.audio.now_playing_message.get(guild_id)
-        if existing_msg is None:
-            try:
-                msg = await song.channel.send(embed=emb, view=view)
-                self.audio.now_playing_message[guild_id] = msg
-            except discord.HTTPException as e:
-                self.bot.log.error(f"[{guild_id}]: Failed to send now-playing embed: {e}")
-        else:
-            try:
-                await existing_msg.edit(embed=emb, view=view)
-            except (discord.NotFound, discord.Forbidden):
-                self.audio.now_playing_message.pop(guild_id, None)
-                try:
-                    msg = await song.channel.send(embed=emb, view=view)
-                    self.audio.now_playing_message[guild_id] = msg
-                except discord.HTTPException as e:
-                    self.bot.log.error(f"[{guild_id}]: Failed to re-send now-playing embed: {e}")
-
-    @tasks.loop(seconds=10)
-    async def _progress_updater(self):
-        """Edit the now-playing embed for every active guild to update the progress bar."""
-        for guild_id, msg in list(self.audio.now_playing_message.items()):
-            if msg is None:
-                continue
-            if self.audio.is_paused(guild_id):
-                continue
-            song = self.audio.current_song.get(guild_id)
-            if song is None:
-                continue
-            lang = self._lang(guild_id)
-            elapsed = self.audio.get_elapsed(guild_id)
-            emb = build_now_playing_embed(song, elapsed, lang)
-            try:
-                await msg.edit(embed=emb)
-            except (discord.NotFound, discord.Forbidden):
-                self.audio.now_playing_message.pop(guild_id, None)
-
-    @_progress_updater.before_loop
-    async def _before_progress_updater(self):
-        self.bot.log.info("Progress Updater: Waiting for Bot to be ready...")
-        await self.bot.wait_until_ready()
-
-    @app_commands.command(name="play")
-    @app_commands.guild_only()
-    @app_commands.check(is_connected_to_voice)
-    @app_commands.describe(url="Song URL, playlist URL, or search query")
-    async def _play(self, interaction: Interaction, url: str):
-        """Play a song, playlist, or search YouTube. Joins your voice channel automatically."""
-        await interaction.response.defer(ephemeral=True)
-        lang = self._lang(interaction.guild_id)
-
-        is_url = "://" in url
-        if not is_url:
-            found = youtube(self.config.get("ytkey", ""), "url", url)
-            if found is None:
-                await interaction.followup.send(get_string(lang, "music.play.not_found"), ephemeral=True)
-                return
-            url = found
-
-        try:
-            info = await asyncio.to_thread(fetch_yt_infos, url)
-        except Exception:
-            await interaction.followup.send(get_string(lang, "music.play.fetch_error"), ephemeral=True)
-            return
-
-        if info.get("_type") == "playlist":
-            entries = info.get("entries", [])
-            if not entries:
-                await interaction.followup.send(
-                    get_string(lang, "music.play.added_playlist", count=0, title=info.get("title", "Playlist")),
-                    ephemeral=True,
-                )
-                return
-            await interaction.followup.send(get_string(lang, "music.playlist.loading"), ephemeral=True)
-            asyncio.create_task(self._load_playlist_entries(interaction, entries))
-            return
-
-        await self._enqueue(interaction, url, info)
-        title = info.get("title", url)
-        await interaction.followup.send(get_string(lang, "music.play.added", title=title), ephemeral=True)
-
-    async def _load_playlist_entries(self, interaction: Interaction, entries: list) -> None:
-        """Background task: fetch info and enqueue each playlist entry without blocking interactions."""
-        try:
-            for entry in entries:
-                if interaction.user.voice is None:
-                    break
-                entry_url = entry.get("webpage_url", entry.get("url", ""))
-                if not entry_url:
-                    continue
-                try:
-                    entry_info = await asyncio.to_thread(fetch_yt_infos, entry_url)
-                except Exception:
-                    continue
-                await self._enqueue(interaction, entry_url, entry_info)
-        except Exception as e:
-            self.bot.log.error(f"[{interaction.guild_id}]: playlist load failed mid-stream: {e}")
-
-    async def _enqueue(self, interaction: Interaction, url: str, info: dict) -> bool:
-        """Build a QueuedSong from yt-dlp info and add it to the audio queue. Returns True on success."""
-        if interaction.user.voice is None:
-            self.bot.log.warning(f"{error_context(interaction)}: _enqueue skipped — user has no voice state")
-            return False
-        title = info.get("title", url)
-        idn = info.get("id")
-        duration = info.get("duration")
-        thumbnails = info.get("thumbnails") or []
-        thumbnail_url = thumbnails[0].get("url") if thumbnails else None
-        artist = info.get("uploader") or info.get("channel")
-
-        song = QueuedSong(
-            channel=interaction.user.voice.channel,
-            fetcher=self._fetch,
-            fetch_data=url,
-            title=title,
-            idn=idn,
-            duration=duration,
-            requester=interaction.user,
-            thumbnail=thumbnail_url,
-            artist=artist,
-        )
-        self.bot.log.info(f'{error_context(interaction)}: requesting "{title}" to play')
-        await self.audio.play(interaction.guild.id, song)
-        return True
-
-    @staticmethod
-    def _fetch(song: QueuedSong):
-        song.stream = download(song.fetch_data, video_id=song.idn)
 
     # ── Autocomplete helpers ───────────────────────────────────────────────
 
@@ -301,11 +156,14 @@ class Music(NerpyBotCog, QueueMixin, Cog):
             if pl is None:
                 await interaction.followup.send(get_string(lang, "music.playlist.not_found", name=name), ephemeral=True)
                 return
-            existing = PlaylistEntry.get_by_playlist(pl.Id, session)
-            if any(e.Url == url for e in existing):
+            duplicate = (
+                session.query(PlaylistEntry).filter(PlaylistEntry.PlaylistId == pl.Id, PlaylistEntry.Url == url).count()
+            )
+            if duplicate:
                 await interaction.followup.send(get_string(lang, "music.playlist.already_in_playlist"), ephemeral=True)
                 return
-            position = (max(e.Position for e in existing) + 1) if existing else 0
+            max_pos = session.query(func.max(PlaylistEntry.Position)).filter(PlaylistEntry.PlaylistId == pl.Id).scalar()
+            position = (max_pos + 1) if max_pos is not None else 0
             session.add(PlaylistEntry(PlaylistId=pl.Id, Url=url, Title=title, Position=position))
         await interaction.followup.send(
             get_string(lang, "music.playlist.added_song", title=title, name=name), ephemeral=True
@@ -349,15 +207,12 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                 session.query(PlaylistEntry).filter(PlaylistEntry.PlaylistId == pl.Id).delete()
                 session.flush()
 
-            for pos, song in enumerate(songs):
-                session.add(
-                    PlaylistEntry(
-                        PlaylistId=pl.Id,
-                        Url=song.fetch_data,
-                        Title=song.title or song.fetch_data,
-                        Position=pos,
-                    )
-                )
+            entries = [
+                {"PlaylistId": pl.Id, "Url": song.fetch_data, "Title": song.title or song.fetch_data, "Position": pos}
+                for pos, song in enumerate(songs)
+            ]
+            if entries:
+                session.execute(sa_insert(PlaylistEntry), entries)
 
         invalidate_autocomplete(("playlists", interaction.guild_id, interaction.user.id))
         await interaction.followup.send(
@@ -418,7 +273,7 @@ class Music(NerpyBotCog, QueueMixin, Cog):
             return
 
         await interaction.followup.send(get_string(lang, "music.playlist.loading"), ephemeral=True)
-        asyncio.create_task(self._load_saved_playlist(interaction, entries))
+        self._create_background_task(self._load_saved_playlist(interaction, entries))
 
     async def _load_saved_playlist(self, interaction: Interaction, entries: list) -> None:
         """Background task: re-fetch yt-dlp info for each saved entry (needed for video_id) and enqueue."""
@@ -433,8 +288,3 @@ class Music(NerpyBotCog, QueueMixin, Cog):
                 await self._enqueue(interaction, entry.Url, info)
         except Exception as e:
             self.bot.log.error(f"[{interaction.guild_id}]: saved playlist load failed mid-stream: {e}")
-
-
-async def setup(bot):
-    """adds this module to the bot"""
-    await bot.add_cog(Music(bot))

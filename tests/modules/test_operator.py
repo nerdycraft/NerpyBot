@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from discord import Forbidden, HTTPException, Object
 from discord.app_commands import MissingApplicationID
-from models.admin import PermissionSubscriber
+from models.permissions import PermissionSubscriber
 from modules.operator import Operator, _format_remaining
 from utils.errors import NerpyInfraException
 from utils.strings import load_strings
@@ -29,7 +29,6 @@ def cog(mock_bot):
         "modules.wow": MagicMock(),
         "modules.league": MagicMock(),
         "modules.music": MagicMock(),
-        "modules.voicecontrol": MagicMock(),
     }
     return Operator(mock_bot)
 

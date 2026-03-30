@@ -50,7 +50,7 @@ def _parse_page_from_footer(footer: str) -> tuple[int, int] | None:
     return (int(matches[-1][0]), int(matches[-1][1])) if matches else None
 
 
-# Button custom_id constants — shared by decorators, __init__ label lookup, and _update_review_embed.
+# Button custom_id constants — shared by decorators, __init__ label lookup, and update_review_embed.
 _BTN_VOTE = "app_review_vote"
 _BTN_EDIT_VOTE = "app_review_edit_vote"
 _BTN_MESSAGE = "app_review_message"
@@ -95,7 +95,7 @@ def _normalize_review_view(
 
 
 @dataclass
-class _ApplyEmbedData:
+class ApplyEmbedData:
     """Scalar data needed to edit an Apply button embed without a DB session."""
 
     channel_id: int
@@ -106,7 +106,7 @@ class _ApplyEmbedData:
 
 
 @dataclass
-class _ReviewEmbedData:
+class ReviewEmbedData:
     """Scalar data needed to rebuild a review embed without a DB session."""
 
     user_id: int
@@ -126,15 +126,15 @@ class _ReviewEmbedData:
 
 
 @dataclass
-class _RoutedReviewEmbed:
+class RoutedReviewEmbed:
     """Pairs pre-extracted review embed data with its Discord message location."""
 
-    data: "_ReviewEmbedData"
+    data: "ReviewEmbedData"
     channel_id: int
     message_id: int
 
 
-def _extract_answers(answers) -> list[tuple[str, str | None]]:
+def extract_answers(answers) -> list[tuple[str, str | None]]:
     """Extract (question_text, answer_text) pairs from an answer collection."""
     return [(a.question.QuestionText if a.question else f"Question {a.QuestionId}", a.AnswerText) for a in answers]
 
@@ -186,14 +186,14 @@ def build_review_embed(
 ) -> discord.Embed:
     """Build the review embed shown in the review channel for a submission.
 
-    Pass pre-extracted *answers* to skip the internal ``_extract_answers`` call
+    Pass pre-extracted *answers* to skip the internal ``extract_answers`` call
     when the caller already has the list (avoids a second traversal).
     """
-    all_answers = answers if answers is not None else _extract_answers(submission.answers)
+    all_answers = answers if answers is not None else extract_answers(submission.answers)
     total_pages = max(1, math.ceil(len(all_answers) / _ANSWERS_PER_PAGE))
     page = max(1, min(page, total_pages))
     return _build_review_embed_from_data(
-        _ReviewEmbedData(
+        ReviewEmbedData(
             user_id=submission.UserId,
             user_name=submission.UserName,
             submitted_at=submission.SubmittedAt,
@@ -212,7 +212,7 @@ def build_review_embed(
     )
 
 
-def _build_review_embed_from_data(data: "_ReviewEmbedData") -> discord.Embed:
+def _build_review_embed_from_data(data: "ReviewEmbedData") -> discord.Embed:
     """Build the review embed from pre-extracted scalar data (no DB session needed).
 
     Renders only the answers for the current page (up to ``_ANSWERS_PER_PAGE`` per page).
@@ -261,13 +261,13 @@ def _build_review_embed_from_data(data: "_ReviewEmbedData") -> discord.Embed:
     return embed
 
 
-async def _update_review_embed(
+async def update_review_embed(
     bot,
     *,
     interaction: discord.Interaction | None = None,
     review_channel_id: int | None = None,
     review_message_id: int | None = None,
-    preloaded: "_ReviewEmbedData | None" = None,
+    preloaded: "ReviewEmbedData | None" = None,
     page: int | None = None,
 ):
     """Rebuild and edit the review embed with current vote counts.
@@ -320,7 +320,7 @@ async def _update_review_embed(
                 return
             form = ApplicationForm.get_by_id(submission.FormId, session)
             lang = bot.get_guild_language(submission.GuildId)
-            all_answers = _extract_answers(submission.answers)
+            all_answers = extract_answers(submission.answers)
             total_pages = max(1, math.ceil(len(all_answers) / _ANSWERS_PER_PAGE))
             current_page = max(1, min(current_page, total_pages))
             embed = build_review_embed(submission, form, session, lang, page=current_page, answers=all_answers)
@@ -490,7 +490,7 @@ async def _post_edit_and_update_embed(
         bot.log.error("application: failed to post edit-vote message to review thread", exc_info=True)
 
     try:
-        await _update_review_embed(bot, review_channel_id=review_channel_id, review_message_id=review_message_id)
+        await update_review_embed(bot, review_channel_id=review_channel_id, review_message_id=review_message_id)
     except discord.HTTPException:
         bot.log.error("application: failed to update review embed after edit vote", exc_info=True)
 
@@ -572,7 +572,7 @@ class DenyVoteModal(discord.ui.Modal):
             self.bot.log.error("application: failed to post deny message to review thread", exc_info=True)
 
         try:
-            await _update_review_embed(
+            await update_review_embed(
                 self.bot,
                 review_channel_id=self.review_channel_id,
                 review_message_id=self.review_message_id,
@@ -638,7 +638,7 @@ class ApproveVoteModal(discord.ui.Modal):
             self.bot.log.error("application: failed to post approve message to review thread", exc_info=True)
 
         try:
-            await _update_review_embed(
+            await update_review_embed(
                 self.bot,
                 review_channel_id=self.review_channel_id,
                 review_message_id=self.review_message_id,
@@ -714,7 +714,7 @@ class MessageModal(discord.ui.Modal):
 
             if self.review_channel_id and self.review_message_id:
                 try:
-                    await _update_review_embed(
+                    await update_review_embed(
                         self.bot,
                         review_channel_id=self.review_channel_id,
                         review_message_id=self.review_message_id,
@@ -1035,7 +1035,7 @@ class OverrideModal(discord.ui.Modal):
             self.bot.log.error("application: failed to post override message to review thread", exc_info=True)
 
         try:
-            await _update_review_embed(
+            await update_review_embed(
                 self.bot, review_channel_id=self.review_channel_id, review_message_id=self.review_message_id
             )
         except discord.HTTPException:
@@ -1061,7 +1061,7 @@ class ApplicationReviewView(discord.ui.View):
     across all guilds — the submission is looked up via ``interaction.message.id``.
 
     ◀/▶ (row 1) are hidden when the form has ≤23 answers and disabled at page
-    boundaries.  ``_update_review_embed`` handles both via ``remove_item`` /
+    boundaries.  ``update_review_embed`` handles both via ``remove_item`` /
     per-item ``disabled`` assignment on each fresh view instance.
     """
 
@@ -1267,7 +1267,7 @@ class ApplicationReviewView(discord.ui.View):
 
         _review_page_cache[msg_id] = (new_page, total_pages)
         await interaction.response.defer()
-        await _update_review_embed(self.bot, interaction=interaction, page=new_page)
+        await update_review_embed(self.bot, interaction=interaction, page=new_page)
 
 
 # ---------------------------------------------------------------------------
@@ -1344,7 +1344,7 @@ async def post_apply_button_message(bot, form_id: int) -> None:
 
 
 async def edit_apply_button_message(
-    bot, form_id: int | None = None, *, preloaded: "_ApplyEmbedData | None" = None
+    bot, form_id: int | None = None, *, preloaded: "ApplyEmbedData | None" = None
 ) -> None:
     """Edit the Apply button message in-place (e.g. after description change).
 
@@ -1456,7 +1456,7 @@ class ApplicationApplyView(discord.ui.View):
                 return
 
         # 6. Start ApplicationSubmitConversation
-        from modules.conversations.application import ApplicationSubmitConversation
+        from modules.application.conversations import ApplicationSubmitConversation
 
         conv = ApplicationSubmitConversation(
             self.bot,

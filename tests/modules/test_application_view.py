@@ -18,7 +18,7 @@ from models.application import (
     SubmissionStatus,
     VoteType,
 )
-from modules.views.application import (
+from modules.application.views import (
     ApplicationApplyView,
     ApproveVoteModal,
     ApplicationReviewView,
@@ -290,9 +290,9 @@ class TestVoteButton:
         mock_channel.fetch_message = AsyncMock(return_value=mock_message)
         mock_bot.get_channel = MagicMock(return_value=mock_channel)
 
-        from modules.views.application import _update_review_embed
+        from modules.application.views import update_review_embed
 
-        await _update_review_embed(mock_bot, review_channel_id=REVIEW_CHANNEL_ID, review_message_id=REVIEW_MSG_ID)
+        await update_review_embed(mock_bot, review_channel_id=REVIEW_CHANNEL_ID, review_message_id=REVIEW_MSG_ID)
 
         call_kwargs = mock_message.edit.call_args[1]
         view = call_kwargs["view"]

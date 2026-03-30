@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 import discord
 from discord import Interaction, VoiceChannel, VoiceClient
 from discord.ext import tasks
-from utils.helpers import send_paginated
+from utils.helpers import error_context
 
 
 class BufferKey(enum.Enum):
@@ -27,33 +27,52 @@ class BufferKey(enum.Enum):
 class QueueMixin:
     """Mixin providing queue management methods."""
 
-    queue: dict
     audio: "Audio"
+    _background_tasks: set[asyncio.Task]
 
-    def _has_queue(self, guild_id: int) -> bool:
-        return guild_id in self.queue
+    async def _enqueue(self, interaction: Interaction, url: str, info: dict) -> bool:
+        """Build a QueuedSong from yt-dlp info and add it to the audio queue. Returns True on success."""
+        if interaction.user.voice is None:
+            self.bot.log.warning(f"{error_context(interaction)}: _enqueue skipped — user has no voice state")
+            return False
+        title = info.get("title", url)
+        idn = info.get("id")
+        duration = info.get("duration")
+        thumbnails = info.get("thumbnails") or []
+        thumbnail_url = thumbnails[0].get("url") if thumbnails else None
+        artist = info.get("uploader") or info.get("channel")
 
-    def _clear_queue(self, guild_id: int) -> None:
-        if self._has_queue(guild_id):
-            self.queue[guild_id].clear()
+        song = QueuedSong(
+            channel=interaction.user.voice.channel,
+            fetcher=self._fetch,
+            fetch_data=url,
+            title=title,
+            idn=idn,
+            duration=duration,
+            requester=interaction.user,
+            thumbnail=thumbnail_url,
+            artist=artist,
+        )
+        self.bot.log.info(f'{error_context(interaction)}: requesting "{title}" to play')
+        await self.audio.play(interaction.guild.id, song)
+        return True
 
-    async def _send_queue_list(self, interaction: Interaction) -> None:
-        """Format and send the paginated queue listing."""
-        audio_queue = self.audio.list_queue(interaction.guild.id)
-        if not audio_queue:
-            await interaction.response.send_message("Queue is empty.", ephemeral=True)
-            return
+    def cog_unload(self):
+        for task in list(self._background_tasks):
+            task.cancel()
+        super().cog_unload()
 
-        msg = ""
-        for i, t in enumerate(audio_queue, start=1):
-            msg += f"`{i}` {t.title}\n"
+    def _create_background_task(self, coro) -> asyncio.Task:
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
 
-        await send_paginated(interaction, msg, title="\U0001f3b5 Queue", color=0x0099FF)
+    @staticmethod
+    def _fetch(song: "QueuedSong"):
+        from modules.music.download import download
 
-    def _stop_and_clear_queue(self, guild_id: int) -> None:
-        """Stop playback, flush the audio queue, and clear the module queue."""
-        self.audio.stop_and_clear(guild_id)
-        self._clear_queue(guild_id)
+        song.stream = download(song.fetch_data, video_id=song.idn)
 
 
 class QueuedSong:

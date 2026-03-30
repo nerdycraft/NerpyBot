@@ -43,8 +43,6 @@ REQUIRED_PERMISSIONS: dict[str, set[str]] = {
         "read_message_history",
     },
     "reminder": {"send_messages"},
-    "tagging": {"send_messages", "connect", "speak"},
-    "voicecontrol": {"send_messages", "connect", "speak"},
     "wow": {"send_messages", "embed_links", "manage_threads"},
 }
 

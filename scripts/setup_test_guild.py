@@ -89,7 +89,6 @@ CATEGORIES: list[tuple[str, list[tuple[str, str, set[str] | None]]]] = [
         "Voice",
         [
             ("Music", "voice", None),
-            ("Tagging Test", "voice", None),
         ],
     ),
     # Channels with specific permissions denied — for testing error-handling paths
@@ -103,7 +102,7 @@ CATEGORIES: list[tuple[str, list[tuple[str, str, set[str] | None]]]] = [
             ("no-read-history", "text", {"read_message_history"}),  # moderation, reactionrole, _core
             ("no-manage-threads", "text", {"manage_threads"}),  # wow (crafting orders)
             ("no-add-reactions", "text", {"add_reactions"}),  # reactionrole
-            ("no-connect", "voice", {"connect", "speak"}),  # music, tagging
+            ("no-connect", "voice", {"connect", "speak"}),  # music
         ],
     ),
 ]

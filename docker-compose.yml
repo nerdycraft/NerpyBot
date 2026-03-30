@@ -12,7 +12,7 @@ services:
       NERPYBOT_TOKEN: "your_bot_token_here"
       NERPYBOT_CLIENT_ID: "your_client_id_here"
       NERPYBOT_OPS: "your_discord_id_here"
-      NERPYBOT_MODULES: "application,league,moderation,reminder,roles,tagging,wow"
+      NERPYBOT_MODULES: "application,league,moderation,reminder,roles,wow"
       # ── Database (SQLite default) ──
       NERPYBOT_DB_TYPE: sqlite
       NERPYBOT_DB_NAME: /data/db.db
@@ -23,7 +23,7 @@ services:
       # NERPYBOT_DB_PASSWORD: changeme
       # NERPYBOT_DB_HOST: postgres
       # NERPYBOT_DB_PORT: "5432"
-      # ── Music (requires tagging in NERPYBOT_MODULES) ──
+      # ── Music ──
       # NERPYBOT_YOUTUBE_KEY: "your_youtube_key_here"
       # ── League of Legends ──
       # NERPYBOT_RIOT_KEY: "your_riot_api_key_here"

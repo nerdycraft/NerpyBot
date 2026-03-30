@@ -41,9 +41,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
-from models.admin import BotGuild
+from models.guild import BotGuild
 from utils import logging
-from utils.audio import Audio
 from utils.cache import GuildConfigCache
 from utils.config import parse_config
 from utils.conversation import AnswerType, ConversationManager
@@ -110,7 +109,7 @@ class NerpyBot(Bot):
         """
         Initialize the NerpyBot instance, configure subsystems, and prepare database access.
 
-        This sets up bot identity and operator lists from the provided config, initializes audio,
+        This sets up bot identity and operator lists from the provided config, initializes
         conversation and error-throttling subsystems, tracks uptime, prepares module state, and
         creates a SQLAlchemy engine and session factory (with connection pre-ping enabled). If no
         "database" section is present in config, a warning is logged and a local SQLite fallback is used.
@@ -147,7 +146,6 @@ class NerpyBot(Bot):
         self.log = logging.get_logger("nerpybot")
         self.uptime = datetime.now(UTC)
 
-        self.audio = Audio(self)
         self.convMan = ConversationManager(self)
         self.error_throttle = ErrorThrottle()
         self.error_counter = ErrorCounter()
@@ -231,13 +229,9 @@ class NerpyBot(Bot):
         self.tree.interaction_check = self._global_interaction_check
 
         # load modules
-        audio_module_loaded = False
         for module in self.modules:
             try:
                 await self.load_extension(f"modules.{module}")
-                if module in ("tagging", "music") and not audio_module_loaded:
-                    await self.audio.setup_loops()
-                    audio_module_loaded = True
             except (ImportError, ExtensionFailed, ClientException) as e:
                 self.log.error(f"failed to load extension {module}. {e}")
                 self.log.debug(print_exc())
@@ -245,8 +239,6 @@ class NerpyBot(Bot):
         # noinspection GrazieInspection
         # auto-load essential extensions not explicitly listed in config
         auto_load = ["server_admin", "operator"]
-        if audio_module_loaded:
-            auto_load.append("voicecontrol")
 
         for module in auto_load:
             if module not in self.modules:
@@ -262,7 +254,7 @@ class NerpyBot(Bot):
         # Register persistent views so buttons on old messages keep working
         if "application" in self.modules:
             try:
-                from modules.views.application import ApplicationApplyView, ApplicationReviewView
+                from modules.application.views import ApplicationApplyView, ApplicationReviewView
 
                 self.add_view(ApplicationReviewView(bot=self))
                 self.add_view(ApplicationApplyView(bot=self))
@@ -273,12 +265,12 @@ class NerpyBot(Bot):
         # Register crafting order persistent views and dynamic items
         if "wow" in self.modules:
             try:
-                from modules.views.crafting_order import (
+                from modules.wow.views.board import CraftingBoardView
+                from modules.wow.views.dropdowns import (
                     AcceptOrderButton,
                     AskQuestionButton,
                     CancelOrderButton,
                     CompleteOrderButton,
-                    CraftingBoardView,
                     DropOrderButton,
                 )
 
@@ -303,7 +295,8 @@ class NerpyBot(Bot):
         if cog is None:
             return True
 
-        module_name = type(cog).__module__.rsplit(".", 1)[-1]
+        raw = type(cog).__module__
+        module_name = raw.removeprefix("modules.").split(".")[0]
         if module_name in self.disabled_modules:
             try:
                 msg = self.get_localized_string(interaction.guild_id, "bot.module_disabled", module=module_name)
@@ -335,7 +328,7 @@ class NerpyBot(Bot):
 
         Starts the activity status loop and the Valkey listener (if configured), synchronizes guild membership state to the database, checks each guild for required permissions and notifies subscribed guild admins of any missing permissions, and writes the readiness sentinel file to signal that the bot is healthy and ready.
         """
-        from models.admin import PermissionSubscriber
+        from models.permissions import PermissionSubscriber
 
         self.log.info(f"Logged in as {self.user} (ID: {self.user.id})")
 

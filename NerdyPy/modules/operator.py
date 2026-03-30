@@ -10,7 +10,7 @@ from discord import Embed, Forbidden, HTTPException, Interaction, Object, app_co
 from discord.app_commands import CommandSyncFailure, MissingApplicationID, TranslationError
 from discord.ext.commands import Cog, Context, Greedy, command, hybrid_command
 
-from models.admin import PermissionSubscriber
+from models.permissions import PermissionSubscriber
 from utils.checks import is_admin_or_operator, require_operator
 from utils.cog import NerpyBotCog
 from utils.constants import PROTECTED_MODULES
@@ -149,7 +149,7 @@ class Operator(NerpyBotCog, Cog):
                 return
             await ctx.send("Syncing crafting recipes from Blizzard API… this may take a few minutes.")
             try:
-                from utils.blizzard import sync_crafting_recipes
+                from modules.wow.api import sync_crafting_recipes
 
                 expansion = self.bot.config.get("wow", {}).get("expansion")
                 stats = await sync_crafting_recipes(self.bot, expansion=expansion)
@@ -307,7 +307,7 @@ class Operator(NerpyBotCog, Cog):
         """Disable a module at runtime. [operator]
 
         Disables all slash commands in a module. Users will see an ephemeral
-        "disabled for maintenance" message. Protected: `server_admin`, `operator`, `voicecontrol`.
+        "disabled for maintenance" message. Protected: `server_admin`, `operator`.
 
         Usage: `!disable <module>` (e.g. `!disable wow`)"""
         require_operator(ctx)

@@ -22,11 +22,11 @@ from models.application import (
     VoteType,
     seed_built_in_templates,
 )
-from modules.conversations.application import (
+from modules.application.conversations import (
     ApplicationCreateConversation,
     ApplicationEditConversation,
 )
-from modules.views.application import check_override_permission
+from modules.application.views import check_override_permission
 from sqlalchemy.exc import SQLAlchemyError
 from utils.cache import (
     build_id_choices,
@@ -35,7 +35,7 @@ from utils.cache import (
     invalidate_autocomplete_app_templates,
 )
 from utils.cog import NerpyBotCog
-from utils.helpers import fetch_message_content, send_hidden_message
+from utils.helpers import DISCORD_MESSAGE_LIMIT, fetch_message_content, send_hidden_message
 from utils.strings import get_raw, get_string
 
 
@@ -50,7 +50,7 @@ def _localize_field(
 
 @app_commands.default_permissions(administrator=True)
 @app_commands.guild_only()
-class Application(NerpyBotCog, GroupCog, group_name="application"):
+class ApplicationManagement(NerpyBotCog, GroupCog, group_name="application"):
     """Cog for managing application forms, templates, and guild config."""
 
     template_group = app_commands.Group(name="template", description="Manage form templates", guild_only=True)
@@ -151,7 +151,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         lang: str,
     ) -> None:
         """Start the DM conversation flow for template creation (called from modal on_submit)."""
-        from modules.conversations.application import ApplicationTemplateCreateConversation
+        from modules.application.conversations import ApplicationTemplateCreateConversation
 
         conv = ApplicationTemplateCreateConversation(
             self.bot,
@@ -200,7 +200,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
     ) -> tuple[str, "ApplicationForm"] | None:
         """Look up a form by autocomplete value or name; returns (lang, form) or sends an error."""
         lang = interaction.client.get_guild_language(interaction.guild_id)
-        form = Application._resolve_form(name, interaction.guild.id, session)
+        form = ApplicationManagement._resolve_form(name, interaction.guild.id, session)
         if not form:
             await interaction.response.send_message(
                 get_string(lang, "application.form_not_found", name=name), ephemeral=True
@@ -319,14 +319,14 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         await send_hidden_message(interaction, msg)
 
         if repost_apply:
-            from modules.views.application import post_apply_button_message
+            from modules.application.views import post_apply_button_message
 
             try:
                 await post_apply_button_message(self.bot, form_id)
             except discord.HTTPException:
                 self.bot.log.error("application: failed to repost apply button after settings change", exc_info=True)
         elif edit_apply:
-            from modules.views.application import edit_apply_button_message
+            from modules.application.views import edit_apply_button_message
 
             try:
                 await edit_apply_button_message(self.bot, form_id)
@@ -427,7 +427,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
         )
 
         if apply_channel_id and apply_message_id:
-            from modules.views.application import delete_apply_message
+            from modules.application.views import delete_apply_message
 
             try:
                 await delete_apply_message(self.bot, apply_channel_id, apply_message_id)
@@ -772,54 +772,67 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         async def _on_submit(modal_interaction: Interaction, description, approval_message, denial_message):
             form_id = None
+            tmpl_not_found = False
             with bot.session_scope() as db_session:
                 # Re-query template (session closed after permission checks above)
-                tmpl = Application._resolve_template(template, guild_id, db_session)
+                tmpl = ApplicationManagement._resolve_template(template, guild_id, db_session)
 
-                # Resolve questions: for built-in templates, use localized YAML questions
-                questions = None
-                if tmpl and tmpl.IsBuiltIn:
-                    yaml_key = TEMPLATE_KEY_MAP.get(tmpl.Name)
-                    if yaml_key:
-                        try:
-                            questions = get_raw(lang, f"application.builtin_templates.{yaml_key}.questions")
-                        except KeyError:
-                            bot.log.warning(
-                                "No YAML questions for built-in template %s (lang=%s, key=%s); falling back to DB",
-                                tmpl.Name,
-                                lang,
-                                yaml_key,
+                if template is not None and tmpl is None:
+                    tmpl_not_found = True
+                else:
+                    # Resolve questions: for built-in templates, use localized YAML questions
+                    questions = None
+                    if tmpl and tmpl.IsBuiltIn:
+                        yaml_key = TEMPLATE_KEY_MAP.get(tmpl.Name)
+                        if yaml_key:
+                            try:
+                                questions = get_raw(lang, f"application.builtin_templates.{yaml_key}.questions")
+                            except KeyError:
+                                bot.log.warning(
+                                    "No YAML questions for built-in template %s (lang=%s, key=%s); falling back to DB",
+                                    tmpl.Name,
+                                    lang,
+                                    yaml_key,
+                                )
+
+                    # Use user-provided values; fall back to template defaults when user leaves a field empty
+                    final_approval = (
+                        approval_message if approval_message is not None else (tmpl.ApprovalMessage if tmpl else None)
+                    )
+                    final_denial = (
+                        denial_message if denial_message is not None else (tmpl.DenialMessage if tmpl else None)
+                    )
+
+                    form = ApplicationForm(
+                        GuildId=guild_id,
+                        Name=name,
+                        ReviewChannelId=review_channel_id,
+                        ApplyChannelId=apply_channel_id,
+                        ApplyDescription=description,
+                        ApprovalMessage=final_approval,
+                        DenialMessage=final_denial,
+                    )
+                    db_session.add(form)
+                    db_session.flush()
+
+                    if questions is not None:
+                        for i, q_text in enumerate(questions, start=1):
+                            db_session.add(ApplicationQuestion(FormId=form.Id, QuestionText=q_text, SortOrder=i))
+                    elif tmpl:
+                        for tpl_q in tmpl.questions:
+                            db_session.add(
+                                ApplicationQuestion(
+                                    FormId=form.Id, QuestionText=tpl_q.QuestionText, SortOrder=tpl_q.SortOrder
+                                )
                             )
+                    form_id = form.Id
 
-                # Use user-provided values; fall back to template defaults when user leaves a field empty
-                final_approval = (
-                    approval_message if approval_message is not None else (tmpl.ApprovalMessage if tmpl else None)
+            if tmpl_not_found:
+                await send_hidden_message(
+                    modal_interaction,
+                    get_string(lang, "application.template.not_found", name=template),
                 )
-                final_denial = denial_message if denial_message is not None else (tmpl.DenialMessage if tmpl else None)
-
-                form = ApplicationForm(
-                    GuildId=guild_id,
-                    Name=name,
-                    ReviewChannelId=review_channel_id,
-                    ApplyChannelId=apply_channel_id,
-                    ApplyDescription=description,
-                    ApprovalMessage=final_approval,
-                    DenialMessage=final_denial,
-                )
-                db_session.add(form)
-                db_session.flush()
-
-                if questions is not None:
-                    for i, q_text in enumerate(questions, start=1):
-                        db_session.add(ApplicationQuestion(FormId=form.Id, QuestionText=q_text, SortOrder=i))
-                elif tmpl:
-                    for tpl_q in tmpl.questions:
-                        db_session.add(
-                            ApplicationQuestion(
-                                FormId=form.Id, QuestionText=tpl_q.QuestionText, SortOrder=tpl_q.SortOrder
-                            )
-                        )
-                form_id = form.Id
+                return
 
             invalidate_autocomplete(("app_forms", guild_id))
             await modal_interaction.response.send_message(
@@ -830,7 +843,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
             )
 
             if apply_channel_id and form_id:
-                from modules.views.application import post_apply_button_message
+                from modules.application.views import post_apply_button_message
 
                 try:
                     await post_apply_button_message(bot, form_id)
@@ -1334,13 +1347,13 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     async def _refresh_apply_embeds(self, guild_id: int) -> None:
         """Re-post or edit the Apply button embed for each configured form in the guild."""
-        from modules.views.application import _ApplyEmbedData, edit_apply_button_message
+        from modules.application.views import ApplyEmbedData, edit_apply_button_message
 
         lang = self._lang(guild_id)
         with self.bot.session_scope() as session:
             forms = ApplicationForm.get_all_by_guild(guild_id, session)
             preloaded = [
-                _ApplyEmbedData(
+                ApplyEmbedData(
                     channel_id=f.ApplyChannelId,
                     message_id=f.ApplyMessageId,
                     form_name=f.Name,
@@ -1367,11 +1380,11 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
     async def _refresh_review_embeds(self, guild_id: int) -> None:
         """Re-render each pending review embed in the guild with the new language."""
-        from modules.views.application import (
-            _ReviewEmbedData,
-            _RoutedReviewEmbed,
-            _extract_answers,
-            _update_review_embed,
+        from modules.application.views import (
+            ReviewEmbedData,
+            RoutedReviewEmbed,
+            extract_answers,
+            update_review_embed,
         )
 
         lang = self._lang(guild_id)
@@ -1384,8 +1397,8 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                 ):
                     continue
                 pending.append(
-                    _RoutedReviewEmbed(
-                        data=_ReviewEmbedData(
+                    RoutedReviewEmbed(
+                        data=ReviewEmbedData(
                             user_id=s.UserId,
                             user_name=s.UserName,
                             submitted_at=s.SubmittedAt,
@@ -1397,7 +1410,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
                             lang=lang,
                             approve_count=sum(1 for v in s.votes if v.Vote == VoteType.APPROVE),
                             deny_count=sum(1 for v in s.votes if v.Vote == VoteType.DENY),
-                            answers=_extract_answers(s.answers),
+                            answers=extract_answers(s.answers),
                         ),
                         channel_id=s.form.ReviewChannelId,
                         message_id=s.ReviewMessageId,
@@ -1406,7 +1419,7 @@ class Application(NerpyBotCog, GroupCog, group_name="application"):
 
         for i, routed in enumerate(pending):
             try:
-                await _update_review_embed(
+                await update_review_embed(
                     self.bot,
                     review_channel_id=routed.channel_id,
                     review_message_id=routed.message_id,
@@ -1438,8 +1451,12 @@ class _TemplateMessagesModal(discord.ui.Modal):
         self.bot = bot
         self.template_name = template_name
         self.lang = lang
-        self.approval_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
-        self.denial_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
+        self.approval_input = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
+        )
+        self.denial_input = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
+        )
         _p = "application.template.edit_messages.modal_approval"
         _localize_field(self, self.approval_input, lang, _p, current_approval)
         _p = "application.template.edit_messages.modal_denial"
@@ -1448,7 +1465,7 @@ class _TemplateMessagesModal(discord.ui.Modal):
     async def on_submit(self, interaction: Interaction):
         approval = self.approval_input.value.strip() or None
         denial = self.denial_input.value.strip() or None
-        cog = self.bot.get_cog("Application")
+        cog = self.bot.get_cog("ApplicationManagement")
         await cog.save_template_messages(interaction, self.template_name, approval, denial, self.lang)
 
 
@@ -1468,10 +1485,14 @@ class _FormMessagesModal(discord.ui.Modal):
         super().__init__(title=title)
         self._callback = callback
         self.description_input = discord.ui.TextInput(
-            style=discord.TextStyle.paragraph, max_length=2000, required=False
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
         )
-        self.approval_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
-        self.denial_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
+        self.approval_input = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
+        )
+        self.denial_input = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
+        )
         _f = "application.modal_fields"
         _localize_field(self, self.description_input, lang, f"{_f}.description", default_description)
         _localize_field(self, self.approval_input, lang, f"{_f}.approval", default_approval)
@@ -1494,8 +1515,12 @@ class _TemplateCreateMessagesModal(discord.ui.Modal):
         self.guild = guild
         self.template_name = template_name
         self.lang = lang
-        self.approval_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
-        self.denial_input = discord.ui.TextInput(style=discord.TextStyle.paragraph, max_length=2000, required=False)
+        self.approval_input = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
+        )
+        self.denial_input = discord.ui.TextInput(
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
+        )
         _f = "application.modal_fields"
         _localize_field(self, self.approval_input, lang, f"{_f}.approval")
         _localize_field(self, self.denial_input, lang, f"{_f}.denial")
@@ -1503,7 +1528,7 @@ class _TemplateCreateMessagesModal(discord.ui.Modal):
     async def on_submit(self, interaction: Interaction):
         approval = self.approval_input.value.strip() or None
         denial = self.denial_input.value.strip() or None
-        cog = self.bot.get_cog("Application")
+        cog = self.bot.get_cog("ApplicationManagement")
         await cog.start_template_create_conversation(interaction, self.template_name, approval, denial, self.lang)
 
 
@@ -1517,16 +1542,11 @@ class _SettingsDescriptionModal(discord.ui.Modal):
         self.settings_kwargs = settings_kwargs
         self.lang = lang
         self.description_input = discord.ui.TextInput(
-            style=discord.TextStyle.paragraph, max_length=2000, required=False
+            style=discord.TextStyle.paragraph, max_length=DISCORD_MESSAGE_LIMIT, required=False
         )
         _localize_field(self, self.description_input, lang, "application.modal_fields.description", current_description)
 
     async def on_submit(self, interaction: Interaction):
         desc = self.description_input.value.strip() or None
-        cog = self.bot.get_cog("Application")
+        cog = self.bot.get_cog("ApplicationManagement")
         await cog.apply_settings(interaction, self.form_name, description=desc, lang=self.lang, **self.settings_kwargs)
-
-
-async def setup(bot):
-    """adds this module to the bot"""
-    await bot.add_cog(Application(bot))

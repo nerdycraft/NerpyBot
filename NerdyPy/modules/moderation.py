@@ -17,11 +17,20 @@ from models.moderation import AutoDelete, AutoKicker
 from utils.cache import LEAVE_CONFIG_DB_ERROR
 from utils.cog import NerpyBotCog
 from utils.errors import NerpyValidationError
-from utils.helpers import fetch_message_content, notify_error, register_before_loop, send_hidden_message, send_paginated
+from utils.helpers import (
+    DISCORD_MESSAGE_LIMIT,
+    fetch_message_content,
+    notify_error,
+    register_before_loop,
+    send_hidden_message,
+    send_paginated,
+)
 from utils.permissions import validate_channel_permissions
 from utils.strings import get_string
 
 DEFAULT_LEAVE_MESSAGE = "{member} left the server :("
+
+_LEAVE_MSG_MEMBER_RESERVE = 80
 
 # If no tzinfo is given then UTC is assumed.
 LOOP_RUN_TIME = time(hour=12, minute=30, tzinfo=UTC)
@@ -726,6 +735,10 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
         """Validate and persist a leave message, then confirm to the user."""
         if "{member}" not in message:
             raise NerpyValidationError(get_string(lang, "leavemsg.message.missing_placeholder"))
+        occurrences = message.count("{member}")
+        total_reserve = occurrences * _LEAVE_MSG_MEMBER_RESERVE
+        if len(message) > DISCORD_MESSAGE_LIMIT - total_reserve:
+            raise NerpyValidationError(get_string(lang, "leavemsg.message.too_long"))
         with self.bot.session_scope() as session:
             leave_config = LeaveMessage.get(interaction.guild.id, session)
             if leave_config is None:
@@ -801,7 +814,7 @@ class _LeaveMessageModal(discord.ui.Modal):
     message_input = discord.ui.TextInput(
         label="Leave Message",
         style=discord.TextStyle.paragraph,
-        max_length=2000,
+        max_length=DISCORD_MESSAGE_LIMIT - _LEAVE_MSG_MEMBER_RESERVE,
         required=True,
     )
 

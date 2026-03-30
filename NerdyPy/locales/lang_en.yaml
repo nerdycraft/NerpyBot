@@ -131,41 +131,6 @@ reactionrole:
   clear:
     success: "Cleared all reaction role mappings from message `{message_id}`."
 
-tagging:
-  not_found: 'Tag "{name}" doesn''t exist!'
-  skip:
-    success: "Skipped."
-  queue:
-    drop_success: "Queue dropped."
-  create:
-    success: 'Tag "{name}" created!'
-    already_exists: 'Tag "{name}" already exists!'
-  add:
-    success: 'Entry added to tag "{name}"!'
-  volume:
-    success: 'Changed volume of "{name}" to {volume}.'
-    out_of_range: "Volume must be between 0 and 200."
-  delete:
-    success: 'Tag "{name}" deleted!'
-  get:
-    not_found: 'Could not find a tag called "{name}".'
-    playing: "Playing **{name}**"
-  list:
-    title: "🏷️ Tags"
-    empty: "No tags found."
-    entry_count_one: "{count} entry"
-    entry_count_other: "{count} entries"
-  info:
-    author: "Author"
-    type: "Type"
-    created: "Created"
-    hits: "Hits"
-    entries: "Entries"
-    volume: "Volume"
-  raw:
-    title: "🏷️ {name} — Raw"
-    binary_data: "*(binary audio data)*"
-
 leavemsg:
   enable:
     success: "Leave messages enabled in {channel}."
@@ -175,6 +140,7 @@ leavemsg:
   message:
     success: "Leave message updated to: {message}"
     missing_placeholder: "Message must contain {member} placeholder for the member name."
+    too_long: "Message is too long. After substituting member names the rendered message could exceed Discord's limit."
     not_enabled: "Please enable leave messages first using `/moderation leavemsg enable #channel`."
     modal_title: "Leave Message"
     modal_placeholder: "Use {member} for the member's name, e.g. Goodbye {member}!"
@@ -281,8 +247,11 @@ moderation:
 
 wow:
   realm_not_found: "Unknown realm '{realm}' in {region}. Use the autocomplete suggestions or check your spelling."
+  rate_limited: "Blizzard API rate limit (429) — please retry in a moment."
+  api_error: "The WoW API returned an unexpected error. Please try again later."
   armory:
     not_found: "No character with this name found."
+    private_profile: "This character's profile is private."
     level: "Level"
     faction: "Faction"
     guild: "Guild"
@@ -311,6 +280,7 @@ wow:
       success: "Resumed tracking for config #{config}."
     edit:
       nothing_to_change: "Nothing to change. Specify at least one of: channel, active_days."
+      invalid_active_days: "active_days must be 0 or greater."
       success: "Updated config #{config} for {guild}: {changes}."
       change_channel: "channel → {channel}"
       change_active_days: "active_days → {active_days}"

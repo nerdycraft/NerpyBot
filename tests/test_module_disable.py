@@ -109,3 +109,22 @@ class TestGlobalInteractionCheck:
 
         result = await NerpyBot._global_interaction_check(bot, mock_interaction_for_disable)
         assert result is True
+
+    async def test_disabled_module_folder_path(self, mock_interaction_for_disable):
+        """Folder-based modules (e.g. modules.music.playback) must resolve to the top-level name."""
+        from NerdyPy.bot import NerpyBot
+
+        bot = mock_interaction_for_disable.client
+        bot.disabled_modules = {"music"}
+
+        # Simulate a cog whose __module__ is a 3-component path (folder layout)
+        cog = mock_interaction_for_disable.command.binding
+        type(cog).__module__ = "modules.music.playback"
+
+        with pytest.raises(SilentCheckFailure, match="disabled for maintenance"):
+            await NerpyBot._global_interaction_check(bot, mock_interaction_for_disable)
+
+        mock_interaction_for_disable.response.send_message.assert_awaited_once()
+        msg = mock_interaction_for_disable.response.send_message.call_args[0][0]
+        assert "music" in msg
+        assert "maintenance" in msg
