@@ -17,8 +17,8 @@ from utils.helpers import register_before_loop
 from utils.strings import get_string
 
 
-def youtube(yt_key: str, query: str, lang: str | None = None) -> str | None:
-    lang_code = (lang or "en").replace("_", "-").split("-", 1)[0]
+def youtube(yt_key: str, query: str, lang: str = "en") -> str | None:
+    lang_code = lang.replace("_", "-").split("-", 1)[0]
     yt = build("youtube", "v3", developerKey=yt_key)
     search_response = (
         yt.search().list(q=query, part="id,snippet", type="video", maxResults=1, relevanceLanguage=lang_code).execute()
