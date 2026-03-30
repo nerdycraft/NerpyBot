@@ -114,6 +114,7 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
             try:
                 found = await asyncio.to_thread(youtube, self.config.get("ytkey", ""), url, lang)
             except Exception:
+                self.bot.log.exception("[%s]: YouTube search failed for query=%r", interaction.guild_id, url)
                 await interaction.followup.send(get_string(lang, "music.play.fetch_error"), ephemeral=True)
                 return
             if found is None:
