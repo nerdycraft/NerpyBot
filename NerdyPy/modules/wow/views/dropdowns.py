@@ -32,10 +32,11 @@ from modules.wow.views.board import (
     _LS_COMPLETE_NOT_IN_PROGRESS,
     _LS_DROP_NOT_CRAFTER,
     _LS_DROP_NOT_IN_PROGRESS,
-    _LS_NOT_FOUND,
+    _LS_ORDER_NOT_FOUND,
     build_order_embed,
     build_order_view,
 )
+from utils.helpers import send_hidden_message
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                error_msg = _ls(interaction, _LS_NOT_FOUND)
+                error_msg = _ls(interaction, _LS_ORDER_NOT_FOUND)
             elif order.Status != ORDER_STATUS_OPEN:
                 error_msg = _ls(interaction, _LS_ACCEPT_NOT_OPEN)
             else:
@@ -70,7 +71,7 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
                     role_label = role.name if role else f"<deleted role {order.ProfessionRoleId}>"
                     error_msg = _ls(interaction, _LS_ACCEPT_NO_ROLE, role=role_label)
         if error_msg is not None:
-            await interaction.response.send_message(error_msg, ephemeral=True)
+            await send_hidden_message(interaction, error_msg)
             return False
         return True
 
@@ -107,7 +108,7 @@ class AcceptOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:accept:(?
                 embed = build_order_embed(order, interaction.guild, lang)
                 view = build_order_view(order.Id, ORDER_STATUS_IN_PROGRESS, lang)
         if not_open:
-            await interaction.response.send_message(_ls(interaction, _LS_ACCEPT_NOT_OPEN), ephemeral=True)
+            await send_hidden_message(interaction, _ls(interaction, _LS_ACCEPT_NOT_OPEN))
             return
         await interaction.response.edit_message(embed=embed, view=view)
 
@@ -128,7 +129,7 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                error_msg = _ls(interaction, _LS_NOT_FOUND)
+                error_msg = _ls(interaction, _LS_ORDER_NOT_FOUND)
             elif order.Status != ORDER_STATUS_IN_PROGRESS:
                 error_msg = _ls(interaction, _LS_DROP_NOT_IN_PROGRESS)
             else:
@@ -137,7 +138,7 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
                 if not is_crafter and not is_admin:
                     error_msg = _ls(interaction, _LS_DROP_NOT_CRAFTER)
         if error_msg is not None:
-            await interaction.response.send_message(error_msg, ephemeral=True)
+            await send_hidden_message(interaction, error_msg)
             return False
         return True
 
@@ -170,7 +171,7 @@ class DropOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:drop:(?P<or
                 embed = build_order_embed(order, interaction.guild, lang)
                 view = build_order_view(order.Id, ORDER_STATUS_OPEN, lang)
         if order_not_found:
-            await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            await send_hidden_message(interaction, _ls(interaction, _LS_ORDER_NOT_FOUND))
             return
         await interaction.response.edit_message(embed=embed, view=view)
 
@@ -191,7 +192,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                error_msg = _ls(interaction, _LS_NOT_FOUND)
+                error_msg = _ls(interaction, _LS_ORDER_NOT_FOUND)
             elif order.Status != ORDER_STATUS_IN_PROGRESS:
                 error_msg = _ls(interaction, _LS_COMPLETE_NOT_IN_PROGRESS)
             else:
@@ -200,7 +201,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
                 if not is_crafter and not is_admin:
                     error_msg = _ls(interaction, _LS_COMPLETE_NOT_CRAFTER)
         if error_msg is not None:
-            await interaction.response.send_message(error_msg, ephemeral=True)
+            await send_hidden_message(interaction, error_msg)
             return False
         return True
 
@@ -230,7 +231,7 @@ class CompleteOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:complet
                 crafter_id = row.CrafterId
                 thread_id = row.ThreadId
         if not row_found:
-            await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            await send_hidden_message(interaction, _ls(interaction, _LS_ORDER_NOT_FOUND))
             return
 
         crafter_mention = f"<@{crafter_id}>" if crafter_id else interaction.user.mention
@@ -281,16 +282,16 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
         with interaction.client.session_scope() as session:
             order = CraftingOrder.get_by_id(self.order_id, session)
             if order is None:
-                error_msg = _ls(interaction, _LS_NOT_FOUND)
+                error_msg = _ls(interaction, _LS_ORDER_NOT_FOUND)
             elif order.Status in (ORDER_STATUS_COMPLETED, ORDER_STATUS_CANCELLED):
-                error_msg = _ls(interaction, _LS_NOT_FOUND)
+                error_msg = _ls(interaction, _LS_ORDER_NOT_FOUND)
             else:
                 is_creator = order.CreatorId == interaction.user.id
                 is_admin = interaction.user.guild_permissions.administrator
                 if not is_creator and not is_admin:
                     error_msg = _ls(interaction, _LS_CANCEL_NOT_ALLOWED)
         if error_msg is not None:
-            await interaction.response.send_message(error_msg, ephemeral=True)
+            await send_hidden_message(interaction, error_msg)
             return False
         return True
 
@@ -320,7 +321,7 @@ class CancelOrderButton(ui.DynamicItem[ui.Button], template=r"crafting:cancel:(?
                 cancelled_by_creator = interaction.user.id == creator_id
                 thread_id = row.ThreadId
         if not row_found:
-            await interaction.response.send_message(_ls(interaction, _LS_NOT_FOUND), ephemeral=True)
+            await send_hidden_message(interaction, _ls(interaction, _LS_ORDER_NOT_FOUND))
             return
 
         # DM only if cancelled by admin (not by creator); fall back to thread if DM fails
