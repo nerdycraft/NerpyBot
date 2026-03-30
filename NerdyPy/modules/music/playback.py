@@ -17,9 +17,12 @@ from utils.helpers import register_before_loop
 from utils.strings import get_string
 
 
-def youtube(yt_key: str, query: str) -> str | None:
+def youtube(yt_key: str, query: str, lang: str | None = None) -> str | None:
+    lang_code = (lang or "en").replace("_", "-").split("-", 1)[0]
     yt = build("youtube", "v3", developerKey=yt_key)
-    search_response = yt.search().list(q=query, part="id,snippet", type="video", maxResults=1).execute()
+    search_response = (
+        yt.search().list(q=query, part="id,snippet", type="video", maxResults=1, relevanceLanguage=lang_code).execute()
+    )
     items = search_response.get("items", [])
     if not items:
         return None
@@ -109,7 +112,7 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
         is_url = "://" in url
         if not is_url:
             try:
-                found = await asyncio.to_thread(youtube, self.config.get("ytkey", ""), url)
+                found = await asyncio.to_thread(youtube, self.config.get("ytkey", ""), url, lang)
             except Exception:
                 await interaction.followup.send(get_string(lang, "music.play.fetch_error"), ephemeral=True)
                 return
