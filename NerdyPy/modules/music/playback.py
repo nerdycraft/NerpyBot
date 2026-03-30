@@ -108,7 +108,11 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
 
         is_url = "://" in url
         if not is_url:
-            found = youtube(self.config.get("ytkey", ""), url)
+            try:
+                found = await asyncio.to_thread(youtube, self.config.get("ytkey", ""), url)
+            except Exception:
+                await interaction.followup.send(get_string(lang, "music.play.fetch_error"), ephemeral=True)
+                return
             if found is None:
                 await interaction.followup.send(get_string(lang, "music.play.not_found"), ephemeral=True)
                 return
