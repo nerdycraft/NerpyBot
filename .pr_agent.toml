@@ -50,3 +50,6 @@ Rules for .github/workflows/**/*.yml:
 
 [github_pr_description]
 publish_labels = false
+
+[github_action_config]
+pr_actions = ["opened", "reopened", "ready_for_review", "review_requested", "labeled", "synchronize"]
