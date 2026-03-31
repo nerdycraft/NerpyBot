@@ -1,6 +1,8 @@
 [config]
 model = "anthropic/claude-haiku-4-5-20251001"
 ai_provider = "anthropic"
+fallback_models = ["anthropic/claude-3-5-haiku-20241022", "anthropic/claude-3-5-sonnet-20241022"]
+log_level = "INFO"
 
 [pr_reviewer]
 require_focused_review = true
