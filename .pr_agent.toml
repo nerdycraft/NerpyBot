@@ -1,0 +1,52 @@
+[config]
+model = "anthropic/claude-haiku-4-5-20251001"
+ai_provider = "anthropic"
+
+[pr_reviewer]
+require_focused_review = true
+extra_instructions = """
+You are reviewing a Discord bot (discord.py, Python 3.13) with a FastAPI web component and SQLAlchemy ORM.
+Be direct and concise. Focus on bugs, correctness, and architectural issues.
+Skip style comments - Ruff enforces formatting automatically.
+
+Rules for NerdyPy/**/*.py:
+- No `return` inside `finally` blocks - suppresses exceptions. Move cleanup after the try/except.
+- `await` calls (e.g. interaction.followup.send) must be OUTSIDE `with self.bot.session_scope()` blocks
+  to avoid holding the DB connection open during HTTP calls.
+- Exception narrowing: SQLAlchemyError inside session_scope; discord.HTTPException for Discord API calls;
+  (discord.NotFound, discord.Forbidden) together for stale message/channel references.
+- Use asyncio.to_thread(fn, *args) for blocking I/O. Never get_event_loop().run_in_executor() - deprecated in Python 3.13.
+
+Rules for NerdyPy/modules/**/*.py:
+- Regular Cog (not GroupCog) does NOT propagate guild_only to commands. Each @app_commands.command()
+  and Group() needs @app_commands.guild_only() / guild_only=True explicitly.
+  Never pass guild_only=True to app_commands.Command(name=..., callback=...) - raises TypeError.
+- Persistent views/buttons must use discord.ui.View(timeout=None). Default ~3 min timeout silently breaks buttons.
+- User-facing errors: raise NerpyUserException (NerpyNotFoundError, NerpyValidationError, NerpyPermissionError).
+  Infrastructure failures: raise NerpyInfraException (triggers operator DM).
+- Guild.get_channel() is cache-only; returns None on reconnect. Fall back to await guild.fetch_channel(id)
+  and catch (discord.NotFound, discord.Forbidden).
+- Cannot call send_modal() after interaction.response.defer().
+- cog_load runs before create_all(). If a cog accesses new tables in cog_load, call self.bot.create_all() first.
+
+Rules for database-migrations/versions/**/*.py:
+- Guard against both "table absent" AND "schema already current" - fresh installs run create_all() first,
+  so alembic upgrade head must be a no-op on a new install.
+  Check column existence before add_column, index existence before create_index.
+- Always use batch_alter_table for column operations on SQLite.
+- New columns on existing tables need server_default, not just ORM default.
+- Must be dialect-aware: use op.get_bind().dialect.name to branch SQLite vs PostgreSQL logic.
+
+Rules for web/**/*.py:
+- Call session.commit() explicitly before background_tasks.add_task().
+  FastAPI background tasks run after the response is sent, so the yield-dependency commit fires too late.
+- Support-mode GET handlers must not mutate ORM state - SQLAlchemy auto-commits at request end.
+- selectinload for multiple one-to-many collections on the same parent.
+  Two joinedload on different one-to-many relationships produce a Cartesian product.
+
+Rules for .github/workflows/**/*.yml:
+- Never interpolate untrusted event inputs directly into run: steps. Pass through env: variables instead.
+"""
+
+[github_pr_description]
+publish_labels = false
