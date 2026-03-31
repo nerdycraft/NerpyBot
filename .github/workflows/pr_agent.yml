@@ -28,9 +28,10 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ANTHROPIC.KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: dummy
           CONFIG.AI_PROVIDER: anthropic
           CONFIG.MODEL: anthropic/claude-haiku-4-5-20251001
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
-          github_action_config.auto_improve: "false"
+          github_action_config.auto_improve: "true"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
