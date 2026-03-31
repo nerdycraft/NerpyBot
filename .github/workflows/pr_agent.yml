@@ -9,9 +9,9 @@ on:
 jobs:
   pr_agent:
     name: Run PR Agent
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     # Mirror CodeRabbit behavior: only review when 'review' label is applied.
-    # For issue_comment events, PR-Agent handles /command parsing internally.
+    # Also respond to slash commands (/review, /describe, /improve) via PR comments.
     if: |
       (github.event_name == 'pull_request' &&
        contains(github.event.pull_request.labels.*.name, 'review')) ||

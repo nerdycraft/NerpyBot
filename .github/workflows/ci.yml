@@ -7,19 +7,15 @@ on:
 jobs:
   lint:
     name: Ruff Lint & Format Check
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
-      UV_CACHE_DIR: /opt/runner-cache/uv
 
     steps:
       - uses: actions/checkout@v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: false
 
       - name: Install ruff
         run: uv sync --group test
@@ -32,18 +28,14 @@ jobs:
 
   test:
     name: Run Tests
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
-      UV_CACHE_DIR: /opt/runner-cache/uv
 
     steps:
       - uses: actions/checkout@v6
       - name: Install uv
         uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: false
       - name: Set up Python
         run: uv python install 3.13
       - name: Install dependencies
