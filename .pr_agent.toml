@@ -5,7 +5,6 @@ fallback_models = ["anthropic/claude-3-5-haiku-20241022", "anthropic/claude-3-5-
 log_level = "INFO"
 
 [pr_reviewer]
-require_focused_review = true
 extra_instructions = """
 You are reviewing a Discord bot (discord.py, Python 3.13) with a FastAPI web component and SQLAlchemy ORM.
 Be direct and concise. Focus on bugs, correctness, and architectural issues.
