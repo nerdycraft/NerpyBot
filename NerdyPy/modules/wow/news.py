@@ -849,7 +849,7 @@ class WowNewsMixin:
                     self.bot.log.debug(f"Guild news #{config_id}: failed to fetch mount image: {exc}")
                 try:
                     await channel.send(embed=emb)
-                except HTTPException as exc:
+                except Exception as exc:
                     self.bot.log.warning(f"Guild news #{config_id}: failed to send mount embed: {exc}")
                     mount_send_failed = True
 

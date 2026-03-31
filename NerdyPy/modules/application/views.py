@@ -289,6 +289,8 @@ async def update_review_embed(
         msg_id = message.id
     elif review_channel_id is not None and review_message_id is not None:
         channel = await bot_get_or_fetch_channel(bot, review_channel_id)
+        if channel is None:
+            return
         message = await channel.fetch_message(review_message_id)
         msg_id = review_message_id
     else:
