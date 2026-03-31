@@ -19,6 +19,7 @@ from pathlib import Path
 import psutil
 
 from utils.constants import PROTECTED_MODULES
+from utils.helpers import get_or_fetch_channel
 
 _proc = psutil.Process()
 _recipe_sync_running = False
@@ -525,15 +526,10 @@ async def handle_valkey_command(bot, command: str, payload: dict) -> dict:
                 bot.log.warning("twitch_event: guild %s not in cache — skipping", cfg.GuildId)
                 return False
 
-            channel = guild.get_channel(cfg.ChannelId)
+            channel = await get_or_fetch_channel(guild, cfg.ChannelId)
             if channel is None:
-                try:
-                    channel = await guild.fetch_channel(cfg.ChannelId)
-                except (discord.NotFound, discord.Forbidden):
-                    bot.log.debug(
-                        "twitch_event: channel %s not found/accessible in guild %s", cfg.ChannelId, cfg.GuildId
-                    )
-                    return False
+                bot.log.debug("twitch_event: channel %s not found/accessible in guild %s", cfg.ChannelId, cfg.GuildId)
+                return False
 
             stream_url = f"https://twitch.tv/{broadcaster_login}"
             if event_type == STREAM_ONLINE:

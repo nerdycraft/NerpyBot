@@ -116,6 +116,7 @@ rolemanage:
     discord_error: "Discord-Fehler beim Entfernen der Rolle (HTTP {status}). Bitte versuche es erneut."
 
 reactionrole:
+  invalid_message_id: "Ungültige Nachrichten-ID."
   add:
     success: "{emoji} wurde **{role}** auf Nachricht `{message_id}` zugeordnet."
     message_not_found: "Nachricht `{message_id}` in {channel} nicht gefunden."

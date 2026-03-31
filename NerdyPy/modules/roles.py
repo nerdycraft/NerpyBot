@@ -14,9 +14,18 @@ from models.rolemanage import RoleMapping
 from utils.cache import REACTION_ROLE_CACHE_MISS, cached_autocomplete, invalidate_autocomplete
 from utils.checks import is_role_assignable, is_role_below_bot
 from utils.cog import NerpyBotCog
-from utils.helpers import error_context, notify_error, send_paginated
+from utils.helpers import error_context, get_or_fetch_channel, notify_error, send_hidden_message, send_paginated
 from utils.permissions import validate_channel_permissions
 from utils.strings import get_string
+
+
+async def _parse_message_id(interaction: discord.Interaction, message_id: str, lang: str) -> int | None:
+    """Parse a string message ID, sending an ephemeral error and returning None on failure."""
+    try:
+        return int(message_id)
+    except ValueError:
+        await send_hidden_message(interaction, get_string(lang, "reactionrole.invalid_message_id"))
+        return None
 
 
 class Roles(NerpyBotCog, Cog):
@@ -150,12 +159,9 @@ class Roles(NerpyBotCog, Cog):
 
     async def _clear_reaction(self, guild, channel_id, message_id, emoji):
         """Remove all reactions of a specific emoji from a message."""
-        channel = guild.get_channel(channel_id)
+        channel = await get_or_fetch_channel(guild, channel_id)
         if channel is None:
-            try:
-                channel = await guild.fetch_channel(channel_id)
-            except (discord.NotFound, discord.Forbidden):
-                return
+            return
         try:
             discord_msg = await channel.fetch_message(message_id)
             await discord_msg.clear_reaction(emoji)
@@ -433,10 +439,9 @@ class Roles(NerpyBotCog, Cog):
         role: discord.Role
             The role to assign when the emoji is used
         """
-        try:
-            msg_id = int(message_id)
-        except ValueError:
-            await interaction.response.send_message("Invalid message ID.", ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+        msg_id = await _parse_message_id(interaction, message_id, lang)
+        if msg_id is None:
             return
 
         if not await is_role_below_bot(interaction, role):
@@ -445,8 +450,6 @@ class Roles(NerpyBotCog, Cog):
         validate_channel_permissions(
             channel, interaction.guild, "view_channel", "add_reactions", "manage_messages", "read_message_history"
         )
-
-        lang = self._lang(interaction.guild_id)
 
         try:
             discord_msg = await channel.fetch_message(msg_id)
@@ -513,13 +516,11 @@ class Roles(NerpyBotCog, Cog):
         emoji: str
             The emoji mapping to remove
         """
-        try:
-            msg_id = int(message_id)
-        except ValueError:
-            await interaction.response.send_message("Invalid message ID.", ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+        msg_id = await _parse_message_id(interaction, message_id, lang)
+        if msg_id is None:
             return
 
-        lang = self._lang(interaction.guild_id)
         reply = None
         channel_id = None
         last_entry_removed = False
@@ -596,13 +597,11 @@ class Roles(NerpyBotCog, Cog):
         message_id: str
             The Discord message ID to clear all mappings from
         """
-        try:
-            msg_id = int(message_id)
-        except ValueError:
-            await interaction.response.send_message("Invalid message ID.", ephemeral=True)
+        lang = self._lang(interaction.guild_id)
+        msg_id = await _parse_message_id(interaction, message_id, lang)
+        if msg_id is None:
             return
 
-        lang = self._lang(interaction.guild_id)
         channel_id = None
         emojis = []
         with self.bot.session_scope() as session:

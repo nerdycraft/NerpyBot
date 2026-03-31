@@ -5,9 +5,11 @@ from datetime import UTC, datetime, time, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo, available_timezones
 
+import discord
 import humanize
 from discord import Interaction, TextChannel, app_commands
 from discord.ext import tasks
+from sqlalchemy.exc import SQLAlchemyError
 from discord.ext.commands import GroupCog
 from models.reminder import ReminderMessage
 from utils.cog import NerpyBotCog
@@ -83,8 +85,11 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
                 for msg in due:
                     try:
                         await self._fire_reminder(msg, session)
-                    except Exception as ex:
+                    except (discord.HTTPException, SQLAlchemyError) as ex:
                         self.bot.log.error(f"Reminder #{msg.Id} fire failed: {ex}")
+                        await notify_error(self.bot, f"Reminder #{msg.Id} fire", ex)
+                    except Exception as ex:
+                        self.bot.log.error(f"Reminder #{msg.Id} fire failed unexpectedly", exc_info=True)
                         await notify_error(self.bot, f"Reminder #{msg.Id} fire", ex)
 
                 # Adjust interval to next due reminder
@@ -92,8 +97,11 @@ class Reminder(NerpyBotCog, GroupCog, group_name="reminder"):
 
             self._adjust_interval(next_fire)
 
-        except Exception as ex:
+        except (SQLAlchemyError, discord.HTTPException) as ex:
             self.bot.log.error(f"Reminder loop: {ex}")
+            await notify_error(self.bot, "Reminder background loop", ex)
+        except Exception as ex:
+            self.bot.log.error("Reminder loop: unexpected error", exc_info=True)
             await notify_error(self.bot, "Reminder background loop", ex)
 
     async def _fire_reminder(self, msg: ReminderMessage, session):

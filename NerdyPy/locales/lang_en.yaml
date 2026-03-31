@@ -116,6 +116,7 @@ rolemanage:
     discord_error: "Discord error while removing role (HTTP {status}). Please try again."
 
 reactionrole:
+  invalid_message_id: "Invalid message ID."
   add:
     success: "Mapped {emoji} to **{role}** on message `{message_id}`."
     message_not_found: "Could not find message `{message_id}` in {channel}."

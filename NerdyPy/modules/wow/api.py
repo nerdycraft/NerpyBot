@@ -141,6 +141,23 @@ def _extract_locale_dict(source: dict | None) -> dict[str, str]:
     }
 
 
+def _extract_item_locale_dicts(
+    name_val,
+    ic_name_raw,
+    isc_name_raw,
+) -> tuple[dict | None, dict | None, dict | None]:
+    """Extract locale dicts for item name, class, and subclass from Blizzard multi-locale dicts.
+
+    Returns (item_name_locales, item_class_name_locales, item_subclass_name_locales),
+    each being a {bot_lang: localized_name} dict or None when no non-English locales are found.
+    """
+    return (
+        _extract_locale_dict(name_val) or None,
+        _extract_locale_dict(ic_name_raw) or None,
+        _extract_locale_dict(isc_name_raw) or None,
+    )
+
+
 async def sync_crafting_recipes(
     bot,
     region: str = "eu",
@@ -377,9 +394,9 @@ async def sync_crafting_recipes(
                         name_val = data.get("name", {})
                         ic_name_raw = (data.get("item_class") or {}).get("name")
                         isc_name_raw = (data.get("item_subclass") or {}).get("name")
-                        item_name_locales = _extract_locale_dict(name_val) or None
-                        item_class_name_locales = _extract_locale_dict(ic_name_raw) or None
-                        item_subclass_name_locales = _extract_locale_dict(isc_name_raw) or None
+                        item_name_locales, item_class_name_locales, item_subclass_name_locales = (
+                            _extract_item_locale_dicts(name_val, ic_name_raw, isc_name_raw)
+                        )
                         break
         else:
             # Strategy 2: item_search by recipe name (Dragonflight+).
@@ -414,9 +431,9 @@ async def sync_crafting_recipes(
                             )
 
                             # Build locale dicts for non-English bot languages from the multi-locale dicts.
-                            item_name_locales = _extract_locale_dict(name_val) or None
-                            item_class_name_locales = _extract_locale_dict(ic_name_raw) or None
-                            item_subclass_name_locales = _extract_locale_dict(isc_name_raw) or None
+                            item_name_locales, item_class_name_locales, item_subclass_name_locales = (
+                                _extract_item_locale_dicts(name_val, ic_name_raw, isc_name_raw)
+                            )
 
                             item_quality = (data.get("quality") or {}).get("type")
                             item_detail, media = await asyncio.gather(

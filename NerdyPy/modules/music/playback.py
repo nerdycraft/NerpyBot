@@ -7,7 +7,7 @@ from discord import Interaction, app_commands
 from discord.ext import tasks
 from discord.ext.commands import Cog
 from modules.music.audio import Audio, QueuedSong, QueueMixin
-from modules.music.download import fetch_yt_infos
+from modules.music.download import cleanup_stale_files, fetch_yt_infos
 from modules.music.views import NowPlayingView, build_now_playing_embed
 from utils.checks import can_leave_voice, can_stop_playback, is_connected_to_voice
 from utils.cog import NerpyBotCog
@@ -39,14 +39,18 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
         self.audio = self.bot.audio
         self._background_tasks: set[asyncio.Task] = set()
         register_before_loop(bot, self._progress_updater, "Progress Updater")
+        register_before_loop(bot, self._cleanup_dl_dir, "MusicCleanup")
 
     async def cog_load(self):
         await self.audio.setup_loops()
         self.audio._on_song_start_hook = self._handle_song_start
         self._progress_updater.start()
+        await asyncio.to_thread(cleanup_stale_files)
+        self._cleanup_dl_dir.start()
 
     def cog_unload(self):
         self._progress_updater.cancel()
+        self._cleanup_dl_dir.cancel()
         self.audio._queue_manager.cancel()
         self.audio._timeout_manager.cancel()
         self.audio._on_song_start_hook = None
@@ -99,6 +103,13 @@ class MusicPlayback(NerpyBotCog, QueueMixin, Cog):
                 self.audio.now_playing_message.pop(guild_id, None)
             except discord.HTTPException as e:
                 self.bot.log.warning(f"[{guild_id}]: Transient error updating progress embed: {e}")
+
+    @tasks.loop(minutes=30)
+    async def _cleanup_dl_dir(self):
+        """Periodically remove stale audio files from the download cache."""
+        deleted = await asyncio.to_thread(cleanup_stale_files)
+        if deleted:
+            self.bot.log.info(f"Music: cleaned up {deleted} stale file(s) from download cache")
 
     @app_commands.command(name="play")
     @app_commands.guild_only()

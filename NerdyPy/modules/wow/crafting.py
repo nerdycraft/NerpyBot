@@ -22,7 +22,7 @@ from models.wow import (
 )
 from modules.wow.api import CRAFTING_PROFESSIONS
 from utils.errors import NerpyInfraException
-from utils.helpers import notify_error, register_before_loop
+from utils.helpers import get_or_fetch_channel, notify_error, register_before_loop
 from utils.permissions import validate_channel_permissions
 from utils.strings import get_string
 
@@ -91,10 +91,9 @@ class WowCraftingMixin:
                 except (discord.NotFound, discord.Forbidden) as exc:
                     raise LookupError(f"guild {guild_id} inaccessible") from exc
 
-            try:
-                channel = guild.get_channel(channel_id) or await guild.fetch_channel(channel_id)
-            except (discord.NotFound, discord.Forbidden) as exc:
-                raise LookupError(f"channel {channel_id} inaccessible") from exc
+            channel = await get_or_fetch_channel(guild, channel_id)
+            if channel is None:
+                raise LookupError(f"channel {channel_id} inaccessible")
 
             if not message_id:
                 raise LookupError("no board message id")
@@ -134,15 +133,16 @@ class WowCraftingMixin:
                     except (discord.NotFound, discord.Forbidden) as fetch_exc:
                         self.bot.log.debug("Could not re-fetch guild %d for notification: %s", guild_id, fetch_exc)
                 if guild:
-                    channel = guild.get_channel(channel_id) or await guild.fetch_channel(channel_id)
-                    await channel.send(
-                        get_string(
-                            lang,
-                            "wow.craftingorder.board_migration_failed",
-                            channel=channel.mention,
-                            guild=guild.name,
+                    channel = await get_or_fetch_channel(guild, channel_id)
+                    if channel:
+                        await channel.send(
+                            get_string(
+                                lang,
+                                "wow.craftingorder.board_migration_failed",
+                                channel=channel.mention,
+                                guild=guild.name,
+                            )
                         )
-                    )
             except discord.HTTPException as notify_exc:
                 self.bot.log.debug("Board migration: could not notify channel %d: %s", channel_id, notify_exc)
 
@@ -433,12 +433,7 @@ class WowCraftingMixin:
             return
 
         # Try to delete the board embed before committing DB changes
-        channel = interaction.guild.get_channel(channel_id)
-        if channel is None:
-            try:
-                channel = await interaction.guild.fetch_channel(channel_id)
-            except (discord.NotFound, discord.Forbidden):
-                channel = None
+        channel = await get_or_fetch_channel(interaction.guild, channel_id)
         if channel and message_id:
             try:
                 msg = await channel.fetch_message(message_id)
@@ -514,7 +509,7 @@ class WowCraftingMixin:
             try:
                 from modules.wow.views.board import CraftingBoardView
 
-                channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
+                channel = await get_or_fetch_channel(interaction.guild, channel_id)
                 msg = await channel.fetch_message(message_id)
                 embed = msg.embeds[0] if msg.embeds else discord.Embed(color=discord.Color.gold())
                 embed.description = new_description

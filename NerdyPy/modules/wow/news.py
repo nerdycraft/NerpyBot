@@ -4,6 +4,7 @@
 import asyncio
 import itertools
 import json
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from discord import Embed, Forbidden, HTTPException, Interaction, NotFound, TextChannel, app_commands
@@ -33,12 +34,30 @@ from utils.errors import (
     NerpyUserException,
     NerpyValidationError,
 )
-from utils.helpers import notify_error, register_before_loop, send_hidden_message, send_paginated
+from utils.helpers import get_or_fetch_channel, notify_error, register_before_loop, send_hidden_message, send_paginated
 from utils.permissions import validate_channel_permissions
 from utils.strings import get_string
 
 # Stale character cleanup: remove mount data for characters gone from roster after this many days
 STALE_DAYS = 30
+
+
+@dataclass
+class MountCheckContext:
+    """Shared context passed to _check_character for each candidate in a batch."""
+
+    api: object
+    config_id: int
+    channel: object
+    language: str
+    semaphore: asyncio.Semaphore
+    cutoff: datetime | None
+    batch_rate_limited: asyncio.Event
+    total_stats: dict
+    character_failures: dict
+    account_groups: dict
+    reported_by_account: dict
+    cycle_new_mounts: dict = field(default_factory=dict)
 
 
 class WowNewsMixin:
@@ -212,12 +231,7 @@ class WowNewsMixin:
                     )
         if not list_empty:
             for cfg in configs:
-                channel = interaction.guild.get_channel(cfg["channel_id"])
-                if channel is None:
-                    try:
-                        channel = await interaction.guild.fetch_channel(cfg["channel_id"])
-                    except (NotFound, Forbidden):
-                        channel = None
+                channel = await get_or_fetch_channel(interaction.guild, cfg["channel_id"])
                 if channel:
                     channel_name = f"#{channel.name}"
                 else:
@@ -616,6 +630,245 @@ class WowNewsMixin:
                 if config:
                     config.LastActivityTimestamp = new_timestamp
 
+    async def _check_character(self, candidate: dict, ctx: MountCheckContext) -> None:
+        """Check a single roster character for new mount acquisitions.
+
+        Three-phase structure to avoid holding the DB session open during
+        HTTP calls (Blizzard API) and Discord sends:
+          1. Read phase  — short session to load stored data and detect renames.
+          2. IO phase    — Blizzard API calls and Discord channel.send, no session.
+          3. Write phase — short session to persist updated mount sets.
+        """
+        char_name = candidate["name"]
+        char_realm = candidate["realm"]
+        config_id = ctx.config_id
+        api = ctx.api
+        channel = ctx.channel
+        language = ctx.language
+        semaphore = ctx.semaphore
+        cutoff = ctx.cutoff
+        batch_rate_limited = ctx.batch_rate_limited
+        total_stats = ctx.total_stats
+        character_failures = ctx.character_failures
+        account_groups = ctx.account_groups
+        reported_by_account = ctx.reported_by_account
+        cycle_new_mounts = ctx.cycle_new_mounts
+
+        if batch_rate_limited.is_set():
+            return
+
+        if should_skip_character(character_failures, char_name, char_realm):
+            total_stats["skipped_404"] += 1
+            return
+
+        async with semaphore:
+            profile = await self._call_api(
+                api.character_profile_summary,
+                config_id,
+                f"profile for {char_name}",
+                realmSlug=char_realm,
+                characterName=char_name,
+                rate_limited_event=batch_rate_limited,
+                stats=total_stats,
+            )
+            if profile is None:
+                return
+
+            if isinstance(profile, dict) and profile.get("code") in (404, 403):
+                self.bot.log.debug(f"Guild news #{config_id}: {char_name} returned {profile.get('code')}, skipping")
+                record_character_failure(character_failures, char_name, char_realm)
+                total_stats["skipped_error"] += 1
+                return
+
+            clear_character_failure(character_failures, char_name, char_realm)
+
+            last_login_ms = profile.get("last_login_timestamp", 0)
+            if last_login_ms and cutoff is not None:
+                last_login = datetime.fromtimestamp(last_login_ms / 1000, tz=UTC)
+                if last_login < cutoff:
+                    total_stats["skipped_inactive"] += 1
+                    return
+
+            achievement_points = profile.get("achievement_points") or None
+
+            mount_data = await self._call_api(
+                api.character_mounts_collection_summary,
+                config_id,
+                f"mounts for {char_name}",
+                realmSlug=char_realm,
+                characterName=char_name,
+                rate_limited_event=batch_rate_limited,
+                stats=total_stats,
+            )
+            if mount_data is None:
+                return
+
+            if not isinstance(mount_data, dict) or "mounts" not in mount_data:
+                self.bot.log.debug(f"Guild news #{config_id}: no mount data for {char_name}")
+                total_stats["skipped_error"] += 1
+                return
+
+            current_mount_ids = sorted({m.get("mount", {}).get("id") for m in mount_data["mounts"] if m.get("mount")})
+            current_ids = set(current_mount_ids)
+
+        total_stats["checked"] += 1
+
+        # Detect name changes: the API returns the canonical name which may differ
+        # from the roster slug we used to query. If there's an existing entry under
+        # the old name with the same mount set, migrate it.
+        api_name = profile.get("name", "").lower()
+
+        # --- Phase 1: Read phase (short DB session) ---
+        # Load stored mount record, handle rename migration, and extract all data
+        # we need as plain Python values so the session can close before IO begins.
+        is_baseline = False
+        known_ids: set = set()
+        last_count: int = 0
+        new_ids: set = set()
+        with self.bot.session_scope() as session:
+            stored = WowCharacterMounts.get_by_character(config_id, char_name, char_realm, session)
+
+            # Check for a renamed character: no entry under current name, but the
+            # API returns a different canonical name that does have stored data.
+            if stored is None and api_name and api_name != char_name:
+                old_entry = WowCharacterMounts.get_by_character(config_id, api_name, char_realm, session)
+                if old_entry:
+                    self.bot.log.info(f"Guild news #{config_id}: detected rename {api_name} -> {char_name}, migrating")
+                    old_entry.CharacterName = char_name
+                    old_entry.LastChecked = datetime.now(UTC)
+                    stored = old_entry
+
+            if stored is None:
+                # No existing record — baseline this character and return.
+                self.bot.log.debug(f"Guild news #{config_id}: baseline for {char_name} - {len(current_ids)} mounts")
+                mount_json: dict = {"ids": sorted(current_ids), "last_count": len(current_ids)}
+                if achievement_points is not None:
+                    mount_json["achievement_points"] = achievement_points
+                entry = WowCharacterMounts(
+                    ConfigId=config_id,
+                    CharacterName=char_name,
+                    RealmSlug=char_realm,
+                    KnownMountIds=json.dumps(mount_json),
+                    LastChecked=datetime.now(UTC),
+                )
+                session.add(entry)
+                total_stats["baselined"] += 1
+                is_baseline = True
+            else:
+                known_ids, last_count, _ = parse_known_mounts(stored.KnownMountIds)
+                new_ids = current_ids - known_ids
+                removed_ids = known_ids - current_ids
+
+                self.bot.log.debug(
+                    f"Guild news #{config_id}: {char_name} mount diff - "
+                    f"known={len(known_ids)} current={len(current_ids)} new={len(new_ids)} "
+                    f"removed={len(removed_ids)} last_count={last_count}"
+                )
+
+                # Churn detection: if IDs both appeared and disappeared with no
+                # net count increase, it's faction variant ID swapping - not real
+                # new mounts.
+                if removed_ids and new_ids:
+                    net_new = len(current_ids) - last_count
+                    if net_new <= 0:
+                        self.bot.log.debug(
+                            f"Guild news #{config_id}: {char_name} ID churn detected "
+                            f"(+{len(new_ids)}/-{len(removed_ids)}, net={net_new}), "
+                            f"suppressing announcements"
+                        )
+                        new_ids = set()
+
+                if not should_update_mount_set(last_count, len(current_ids)):
+                    self.bot.log.warning(
+                        f"Guild news #{config_id}: {char_name} mount count dropped "
+                        f"(last_count={last_count} current={len(current_ids)}) - "
+                        f"likely degraded API response, skipping update"
+                    )
+                    total_stats["skipped_degraded"] += 1
+                    return
+
+        if is_baseline:
+            return
+
+        # --- Phase 2: IO phase (no DB session) ---
+        # Make Blizzard API calls for mount media, build embeds, send to Discord.
+        mount_send_failed = False
+        if new_ids:
+            mount_names = {}
+            for m in mount_data["mounts"]:
+                mid = m.get("mount", {}).get("id")
+                if mid in new_ids:
+                    mount_names[mid] = m.get("mount", {}).get("name", f"Mount #{mid}")
+
+            display_name = profile.get("name", char_name.capitalize())
+            display_realm = profile.get("realm", {}).get("name", char_realm)
+
+            account_id = account_groups.get((char_name, char_realm), (char_name, char_realm))
+            already_reported = reported_by_account.setdefault(account_id, set())
+
+            for mid, mname in mount_names.items():
+                if mid in already_reported:
+                    self.bot.log.debug(
+                        f"Guild news #{config_id}: skipping {mname} for {display_name} "
+                        f"(already reported for account group {account_id})"
+                    )
+                    continue
+                already_reported.add(mid)
+                self.bot.log.debug(f"Guild news #{config_id}: {display_name} got new mount: {mname}")
+                emb = Embed(
+                    title=get_string(language, "wow.notification.mount_title"),
+                    description=get_string(
+                        language,
+                        "wow.notification.mount_desc",
+                        name=display_name,
+                        realm=display_realm,
+                        mount=mname,
+                    ),
+                    color=COLOR_MOUNT,
+                    timestamp=datetime.now(UTC),
+                )
+                try:
+                    mount_info = await asyncio.to_thread(api.mount, mountId=mid)
+                    check_rate_limit(mount_info)
+                    displays = mount_info.get("creature_displays", [])
+                    if displays:
+                        display_id = displays[0].get("id")
+                        if display_id:
+                            display_media = await asyncio.to_thread(
+                                api.creature_display_media, creatureDisplayId=display_id
+                            )
+                            check_rate_limit(display_media)
+                            mount_url = get_asset_url(display_media, "zoom")
+                            if mount_url:
+                                emb.set_thumbnail(url=mount_url)
+                except RateLimited:
+                    self.bot.log.warning(f"Guild news #{config_id}: rate limited fetching mount media")
+                except Exception as exc:
+                    self.bot.log.debug(f"Guild news #{config_id}: failed to fetch mount image: {exc}")
+                try:
+                    await channel.send(embed=emb)
+                except HTTPException as exc:
+                    self.bot.log.warning(f"Guild news #{config_id}: failed to send mount embed: {exc}")
+                    mount_send_failed = True
+
+            total_stats["new_mounts"] += len(new_ids)
+
+        # --- Phase 3: Write phase (short DB session) ---
+        # Persist updated mount set only if all embeds were sent successfully.
+        if not mount_send_failed:
+            with self.bot.session_scope() as session:
+                stored = WowCharacterMounts.get_by_character(config_id, char_name, char_realm, session)
+                if stored is not None:
+                    mount_json = {
+                        "ids": sorted(known_ids | current_ids),
+                        "last_count": len(current_ids),
+                    }
+                    if achievement_points is not None:
+                        mount_json["achievement_points"] = achievement_points
+                    stored.KnownMountIds = json.dumps(mount_json)
+                    stored.LastChecked = datetime.now(UTC)
+            cycle_new_mounts[(char_name, char_realm)] = new_ids
+
     async def _poll_mounts(
         self, api, config_id, wow_guild, realm, min_level, active_days, channel, language="en", rate_limited=None
     ):
@@ -732,211 +985,20 @@ class WowNewsMixin:
             "new_mounts": 0,
         }
 
-        async def _check_character(candidate):
-            char_name = candidate["name"]
-            char_realm = candidate["realm"]
-
-            if batch_rate_limited.is_set():
-                return
-
-            if should_skip_character(character_failures, char_name, char_realm):
-                total_stats["skipped_404"] += 1
-                return
-
-            async with semaphore:
-                profile = await self._call_api(
-                    api.character_profile_summary,
-                    config_id,
-                    f"profile for {char_name}",
-                    realmSlug=char_realm,
-                    characterName=char_name,
-                    rate_limited_event=batch_rate_limited,
-                    stats=total_stats,
-                )
-                if profile is None:
-                    return
-
-                if isinstance(profile, dict) and profile.get("code") in (404, 403):
-                    self.bot.log.debug(f"Guild news #{config_id}: {char_name} returned {profile.get('code')}, skipping")
-                    record_character_failure(character_failures, char_name, char_realm)
-                    total_stats["skipped_error"] += 1
-                    return
-
-                clear_character_failure(character_failures, char_name, char_realm)
-
-                last_login_ms = profile.get("last_login_timestamp", 0)
-                if last_login_ms and cutoff is not None:
-                    last_login = datetime.fromtimestamp(last_login_ms / 1000, tz=UTC)
-                    if last_login < cutoff:
-                        total_stats["skipped_inactive"] += 1
-                        return
-
-                achievement_points = profile.get("achievement_points") or None
-
-                mount_data = await self._call_api(
-                    api.character_mounts_collection_summary,
-                    config_id,
-                    f"mounts for {char_name}",
-                    realmSlug=char_realm,
-                    characterName=char_name,
-                    rate_limited_event=batch_rate_limited,
-                    stats=total_stats,
-                )
-                if mount_data is None:
-                    return
-
-                if not isinstance(mount_data, dict) or "mounts" not in mount_data:
-                    self.bot.log.debug(f"Guild news #{config_id}: no mount data for {char_name}")
-                    total_stats["skipped_error"] += 1
-                    return
-
-                current_mount_ids = sorted(
-                    {m.get("mount", {}).get("id") for m in mount_data["mounts"] if m.get("mount")}
-                )
-                current_ids = set(current_mount_ids)
-
-            total_stats["checked"] += 1
-
-            # Detect name changes: the API returns the canonical name which may differ
-            # from the roster slug we used to query. If there's an existing entry under
-            # the old name with the same mount set, migrate it.
-            api_name = profile.get("name", "").lower()
-
-            # noinspection PyShadowingNames
-            with self.bot.session_scope() as session:
-                stored = WowCharacterMounts.get_by_character(config_id, char_name, char_realm, session)
-
-                # Check for a renamed character: no entry under current name, but the
-                # API returns a different canonical name that does have stored data.
-                if stored is None and api_name and api_name != char_name:
-                    old_entry = WowCharacterMounts.get_by_character(config_id, api_name, char_realm, session)
-                    if old_entry:
-                        self.bot.log.info(
-                            f"Guild news #{config_id}: detected rename {api_name} -> {char_name}, migrating"
-                        )
-                        old_entry.CharacterName = char_name
-                        old_entry.LastChecked = datetime.now(UTC)
-                        stored = old_entry
-
-                if stored is None:
-                    self.bot.log.debug(f"Guild news #{config_id}: baseline for {char_name} - {len(current_ids)} mounts")
-                    mount_json = {"ids": sorted(current_ids), "last_count": len(current_ids)}
-                    if achievement_points is not None:
-                        mount_json["achievement_points"] = achievement_points
-                    # noinspection PyShadowingNames
-                    entry = WowCharacterMounts(
-                        ConfigId=config_id,
-                        CharacterName=char_name,
-                        RealmSlug=char_realm,
-                        KnownMountIds=json.dumps(mount_json),
-                        LastChecked=datetime.now(UTC),
-                    )
-                    session.add(entry)
-                    total_stats["baselined"] += 1
-                else:
-                    mount_send_failed = False
-                    known_ids, last_count, _ = parse_known_mounts(stored.KnownMountIds)
-                    new_ids = current_ids - known_ids
-                    removed_ids = known_ids - current_ids
-
-                    self.bot.log.debug(
-                        f"Guild news #{config_id}: {char_name} mount diff - "
-                        f"known={len(known_ids)} current={len(current_ids)} new={len(new_ids)} "
-                        f"removed={len(removed_ids)} last_count={last_count}"
-                    )
-
-                    # Churn detection: if IDs both appeared and disappeared with no
-                    # net count increase, it's faction variant ID swapping - not real
-                    # new mounts.
-                    if removed_ids and new_ids:
-                        net_new = len(current_ids) - last_count
-                        if net_new <= 0:
-                            self.bot.log.debug(
-                                f"Guild news #{config_id}: {char_name} ID churn detected "
-                                f"(+{len(new_ids)}/-{len(removed_ids)}, net={net_new}), "
-                                f"suppressing announcements"
-                            )
-                            new_ids = set()
-
-                    if not should_update_mount_set(last_count, len(current_ids)):
-                        self.bot.log.warning(
-                            f"Guild news #{config_id}: {char_name} mount count dropped "
-                            f"(last_count={last_count} current={len(current_ids)}) - "
-                            f"likely degraded API response, skipping update"
-                        )
-                        total_stats["skipped_degraded"] += 1
-                        return
-
-                    if new_ids:
-                        mount_names = {}
-                        for m in mount_data["mounts"]:
-                            mid = m.get("mount", {}).get("id")
-                            if mid in new_ids:
-                                mount_names[mid] = m.get("mount", {}).get("name", f"Mount #{mid}")
-
-                        display_name = profile.get("name", char_name.capitalize())
-                        display_realm = profile.get("realm", {}).get("name", char_realm)
-
-                        account_id = account_groups.get((char_name, char_realm), (char_name, char_realm))
-                        already_reported = reported_by_account.setdefault(account_id, set())
-
-                        for mid, mname in mount_names.items():
-                            if mid in already_reported:
-                                self.bot.log.debug(
-                                    f"Guild news #{config_id}: skipping {mname} for {display_name} "
-                                    f"(already reported for account group {account_id})"
-                                )
-                                continue
-                            already_reported.add(mid)
-                            self.bot.log.debug(f"Guild news #{config_id}: {display_name} got new mount: {mname}")
-                            emb = Embed(
-                                title=get_string(language, "wow.notification.mount_title"),
-                                description=get_string(
-                                    language,
-                                    "wow.notification.mount_desc",
-                                    name=display_name,
-                                    realm=display_realm,
-                                    mount=mname,
-                                ),
-                                color=COLOR_MOUNT,
-                                timestamp=datetime.now(UTC),
-                            )
-                            try:
-                                mount_info = await asyncio.to_thread(api.mount, mountId=mid)
-                                check_rate_limit(mount_info)
-                                displays = mount_info.get("creature_displays", [])
-                                if displays:
-                                    display_id = displays[0].get("id")
-                                    if display_id:
-                                        display_media = await asyncio.to_thread(
-                                            api.creature_display_media, creatureDisplayId=display_id
-                                        )
-                                        check_rate_limit(display_media)
-                                        mount_url = get_asset_url(display_media, "zoom")
-                                        if mount_url:
-                                            emb.set_thumbnail(url=mount_url)
-                            except RateLimited:
-                                self.bot.log.warning(f"Guild news #{config_id}: rate limited fetching mount media")
-                            except Exception as exc:
-                                self.bot.log.debug(f"Guild news #{config_id}: failed to fetch mount image: {exc}")
-                            try:
-                                await channel.send(embed=emb)
-                            except HTTPException as exc:
-                                self.bot.log.warning(f"Guild news #{config_id}: failed to send mount embed: {exc}")
-                                mount_send_failed = True
-
-                        total_stats["new_mounts"] += len(new_ids)
-
-                    if not mount_send_failed:
-                        mount_json = {
-                            "ids": sorted(known_ids | current_ids),
-                            "last_count": len(current_ids),
-                        }
-                        if achievement_points is not None:
-                            mount_json["achievement_points"] = achievement_points
-                        stored.KnownMountIds = json.dumps(mount_json)
-                        stored.LastChecked = datetime.now(UTC)
-                        cycle_new_mounts[(char_name, char_realm)] = new_ids
+        ctx = MountCheckContext(
+            api=api,
+            config_id=config_id,
+            channel=channel,
+            language=language,
+            semaphore=semaphore,
+            cutoff=cutoff,
+            batch_rate_limited=batch_rate_limited,
+            total_stats=total_stats,
+            character_failures=character_failures,
+            account_groups=account_groups,
+            reported_by_account=reported_by_account,
+            cycle_new_mounts=cycle_new_mounts,
+        )
 
         # Process batches - loop through all during initial sync, single batch otherwise
         with self.bot.session_scope() as session:
@@ -964,7 +1026,7 @@ class WowNewsMixin:
                 f"checking {len(batch)} characters"
             )
 
-            await asyncio.gather(*[_check_character(c) for c in batch])
+            await asyncio.gather(*[self._check_character(c, ctx) for c in batch])
 
             if not batch_rate_limited.is_set():
                 with self.bot.session_scope() as session:
