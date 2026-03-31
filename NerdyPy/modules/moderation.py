@@ -126,7 +126,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
             self.bot.log.error(f"Autokicker: {ex}")
             await notify_error(self.bot, "Autokicker background loop", ex)
         except Exception as ex:
-            self.bot.log.error("Autokicker: unexpected error", exc_info=True)
+            self.bot.log.error("Autokicker: unexpected error: %s", ex, exc_info=True)
             await notify_error(self.bot, "Autokicker background loop", ex)
         self.bot.log.debug("Finish Autokicker Loop!")
 
