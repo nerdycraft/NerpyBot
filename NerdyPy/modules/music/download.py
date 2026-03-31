@@ -107,6 +107,6 @@ def cleanup_stale_files(max_age_seconds: int = 3600) -> int:
             try:
                 path.unlink()
                 deleted += 1
-            except OSError:
-                pass
+            except OSError as exc:
+                LOG.debug("cleanup_stale_files: could not delete %s: %s", path, exc)
     return deleted
