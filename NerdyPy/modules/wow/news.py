@@ -725,6 +725,7 @@ class WowNewsMixin:
         known_ids: set = set()
         last_count: int = 0
         new_ids: set = set()
+        stored_id: int | None = None
         with self.bot.session_scope() as session:
             stored = WowCharacterMounts.get_by_character(config_id, char_name, char_realm, session)
 
@@ -755,6 +756,7 @@ class WowNewsMixin:
                 total_stats["baselined"] += 1
                 is_baseline = True
             else:
+                stored_id = stored.Id
                 known_ids, last_count, _ = parse_known_mounts(stored.KnownMountIds)
                 new_ids = current_ids - known_ids
                 removed_ids = known_ids - current_ids
@@ -855,9 +857,9 @@ class WowNewsMixin:
 
         # --- Phase 3: Write phase (short DB session) ---
         # Persist updated mount set only if all embeds were sent successfully.
-        if not mount_send_failed:
+        if not mount_send_failed and stored_id is not None:
             with self.bot.session_scope() as session:
-                stored = WowCharacterMounts.get_by_character(config_id, char_name, char_realm, session)
+                stored = session.get(WowCharacterMounts, stored_id)
                 if stored is not None:
                     mount_json = {
                         "ids": sorted(known_ids | current_ids),

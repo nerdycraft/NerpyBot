@@ -26,7 +26,7 @@ from models.application import (
     SubmissionStatus,
     VoteType,
 )
-from utils.helpers import bot_get_or_fetch_channel
+from utils.helpers import bot_get_or_fetch_channel, send_hidden_message
 from utils.strings import get_string
 
 # Discord enforces a hard 25-field limit per embed.  Two fields are fixed (applicant +
@@ -527,10 +527,7 @@ class _ApplicationModal(discord.ui.Modal):
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
         self.bot.log.error("Error in %s: %s", self.__class__.__name__, error, exc_info=error)
-        if not interaction.response.is_done():
-            await interaction.response.send_message(get_string(self.lang, "application.error_generic"), ephemeral=True)
-        else:
-            await interaction.followup.send(get_string(self.lang, "application.error_generic"), ephemeral=True)
+        await send_hidden_message(interaction, get_string(self.lang, "application.error_generic"))
 
 
 class DenyVoteModal(_ApplicationModal):
@@ -1054,11 +1051,7 @@ class ApplicationReviewView(discord.ui.View):
             lang = self.bot.get_guild_language(interaction.guild_id)
         else:
             lang = "en"
-        msg = get_string(lang, "application.error_generic")
-        if not interaction.response.is_done():
-            await interaction.response.send_message(msg, ephemeral=True)
-        else:
-            await interaction.followup.send(msg, ephemeral=True)
+        await send_hidden_message(interaction, get_string(lang, "application.error_generic"))
 
     # -- Vote --------------------------------------------------------------
 
@@ -1367,11 +1360,7 @@ class ApplicationApplyView(discord.ui.View):
             lang = self.bot.get_guild_language(interaction.guild_id)
         else:
             lang = "en"
-        msg = get_string(lang, "application.error_generic")
-        if not interaction.response.is_done():
-            await interaction.response.send_message(msg, ephemeral=True)
-        else:
-            await interaction.followup.send(msg, ephemeral=True)
+        await send_hidden_message(interaction, get_string(lang, "application.error_generic"))
 
     @discord.ui.button(label="Apply", style=discord.ButtonStyle.green, custom_id=_BTN_APPLY)
     async def apply_button(self, interaction: discord.Interaction, button: discord.ui.Button):

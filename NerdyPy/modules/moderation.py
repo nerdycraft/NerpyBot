@@ -661,12 +661,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 return
 
             channel_id, message_text = leave_config
-            channel = member.guild.get_channel(channel_id)
-            if channel is None:
-                try:
-                    channel = await member.guild.fetch_channel(channel_id)
-                except (discord.NotFound, discord.Forbidden):
-                    channel = None
+            channel = await get_or_fetch_channel(member.guild, channel_id)
             if channel is None or not isinstance(channel, TextChannel):
                 self.bot.log.warning(
                     f"[{member.guild.name} ({member.guild.id})]: leave channel {channel_id} not found or not a text channel"
