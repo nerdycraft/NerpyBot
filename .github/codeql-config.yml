@@ -9,5 +9,6 @@ paths-ignore:
   - web/frontend/dist
   - web/frontend/node_modules
   - .worktrees/
+  - tests/
   - "**/__pycache__/**"
   - "**/*.min.js"

@@ -7,14 +7,13 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-# Add NerdyPy to path so we can import modules
+# Add NerdyPy and tests/ to path so we can import modules
 sys.path.insert(0, str(Path(__file__).parent.parent / "NerdyPy"))
+sys.path.insert(0, str(Path(__file__).parent))
 
-from utils.database import BASE
+from db_helpers import create_test_engine
 
 
 @pytest.fixture(autouse=True)
@@ -38,50 +37,7 @@ def clear_bot_caches():
 @pytest.fixture
 def db_engine():
     """Create an in-memory SQLite engine for testing."""
-    engine = create_engine(
-        "sqlite:///:memory:",
-        echo=False,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-
-    @event.listens_for(engine, "connect")
-    def set_sqlite_pragma(dbapi_conn, _connection_record):
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
-    # Import all models to ensure they're registered with BASE.metadata
-    from models.application import (  # noqa: F401
-        ApplicationForm,
-        ApplicationQuestion,
-        ApplicationSubmission,
-        ApplicationAnswer,
-        ApplicationVote,
-        ApplicationGuildConfig,
-        ApplicationGuildRole,
-        ApplicationTemplate,
-        ApplicationTemplateQuestion,
-    )
-    from models.reminder import ReminderMessage  # noqa: F401
-    from models.guild import GuildLanguageConfig  # noqa: F401
-    from models.permissions import BotModeratorRole, PermissionSubscriber  # noqa: F401
-    from models.leavemsg import LeaveMessage  # noqa: F401
-    from models.moderation import AutoDelete, AutoKicker  # noqa: F401
-    from models.reactionrole import ReactionRoleEntry, ReactionRoleMessage  # noqa: F401
-    from models.rolemanage import RoleMapping  # noqa: F401
-    from models.wow import (  # noqa: F401
-        WowGuildNewsConfig,
-        WowCharacterMounts,
-        CraftingBoardConfig,
-        CraftingRoleMapping,
-        CraftingOrder,
-        CraftingRecipeCache,
-    )
-    from models.music import Playlist, PlaylistEntry  # noqa: F401
-    from models.twitch import TwitchNotifications, TwitchEventSubSubscription  # noqa: F401
-
-    BASE.metadata.create_all(engine)
+    engine = create_test_engine()
     yield engine
     engine.dispose()
 

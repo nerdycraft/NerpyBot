@@ -5,6 +5,7 @@ download and conversion method for Audio Content
 
 import logging
 import tempfile
+import time
 from pathlib import Path
 
 import requests
@@ -93,3 +94,19 @@ def download(url: str, video_id: str = None):
             dl_file = lookup_file(video_id)
 
         return convert(dl_file, is_stream=False)
+
+
+def cleanup_stale_files(max_age_seconds: int = 3600) -> int:
+    """Delete files in DL_DIR older than max_age_seconds. Returns count of deleted files."""
+    now = time.time()
+    deleted = 0
+    if not DL_DIR.exists():
+        return deleted
+    for path in DL_DIR.iterdir():
+        if path.is_file() and (now - path.stat().st_mtime) > max_age_seconds:
+            try:
+                path.unlink()
+                deleted += 1
+            except OSError as exc:
+                LOG.debug("cleanup_stale_files: could not delete %s: %s", path, exc)
+    return deleted

@@ -37,7 +37,7 @@ from modules.wow.views.board import (
     build_order_embed,
     build_order_view,
 )
-from utils.helpers import send_hidden_message
+from utils.helpers import get_or_fetch_channel, send_hidden_message
 
 log = logging.getLogger(__name__)
 
@@ -421,10 +421,7 @@ async def _thread_fallback(interaction: Interaction, order_id: int, message: str
         message_id = order.OrderMessageId
         item_name = order.ItemName
 
-    try:
-        channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
-    except (discord.NotFound, discord.Forbidden):
-        channel = None
+    channel = await get_or_fetch_channel(interaction.guild, channel_id)
     if channel is None:
         log.warning("Board channel %d not found for order #%d", channel_id, order_id)
         return False

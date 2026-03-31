@@ -35,7 +35,7 @@ from modules.wow.views.board import (
     build_order_embed,
     build_order_view,
 )
-from utils.helpers import send_hidden_message
+from utils.helpers import get_or_fetch_channel, send_hidden_message
 from utils.strings import get_string
 
 log = logging.getLogger(__name__)
@@ -152,9 +152,7 @@ class CraftingOrderModal(ui.Modal):
 
         # Phase 2: send to Discord outside the session.
         try:
-            channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
-        except (discord.NotFound, discord.Forbidden):
-            channel = None
+            channel = await get_or_fetch_channel(interaction.guild, channel_id)
         except discord.HTTPException as exc:
             log.warning("Transient error fetching channel %d for order #%d: %s", channel_id, order_id, exc)
             with self.bot.session_scope() as session:
@@ -224,10 +222,7 @@ class AskQuestionModal(ui.Modal):
             await interaction.followup.send(_ls(interaction, _LS_ORDER_NOT_FOUND), ephemeral=True)
             return
 
-        try:
-            channel = interaction.guild.get_channel(channel_id) or await interaction.guild.fetch_channel(channel_id)
-        except (discord.NotFound, discord.Forbidden):
-            channel = None
+        channel = await get_or_fetch_channel(interaction.guild, channel_id)
         if channel is None:
             await interaction.followup.send(_ls(interaction, _LS_ASK_THREAD_FAILED), ephemeral=True)
             return

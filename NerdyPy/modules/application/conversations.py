@@ -36,6 +36,7 @@ from modules.application.views import (
 )
 from utils.cache import invalidate_autocomplete, invalidate_autocomplete_app_templates
 from utils.conversation import Conversation
+from utils.helpers import bot_get_or_fetch_channel
 from utils.strings import get_string
 
 
@@ -868,20 +869,16 @@ class ApplicationSubmitConversation(Conversation):
 
         channel = None
         if review_channel_id:
-            channel = self.bot.get_channel(review_channel_id)
+            channel = await bot_get_or_fetch_channel(self.bot, review_channel_id)
             if channel is None:
-                try:
-                    channel = await self.bot.fetch_channel(review_channel_id)
-                except (discord.NotFound, discord.Forbidden) as exc:
-                    self.bot.log.error(
-                        "application: review channel %d not accessible for form %r: %s",
-                        review_channel_id,
-                        self.form_name,
-                        exc,
-                    )
-                    await self._notify_responsible(review_channel_id)
-                    await self._abort_with_submit_error()
-                    return
+                self.bot.log.error(
+                    "application: review channel %d not accessible for form %r",
+                    review_channel_id,
+                    self.form_name,
+                )
+                await self._notify_responsible(review_channel_id)
+                await self._abort_with_submit_error()
+                return
 
         # Channel is accessible — save the submission and answers.
         with self.bot.session_scope() as session:

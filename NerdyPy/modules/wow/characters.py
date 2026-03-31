@@ -26,6 +26,8 @@ class WowApiLanguage(Enum):
     DE = "de_DE"
     EN = "en_US"
     EN_GB = "en_GB"
+    KO = "ko_KR"
+    ZH_TW = "zh_TW"
 
 
 COLOR_ITEM_LINK = Color(value=0x0099FF)  # WoW blue item link color
@@ -41,7 +43,7 @@ class WowCharactersMixin:
         self.config = bot.config
         self.client_id = self.config["wow"]["wow_id"]
         self.client_secret = self.config["wow"]["wow_secret"]
-        self.regions = ["eu", "us"]
+        self.regions = ["eu", "us", "kr", "tw"]
 
         # Realm cache: "slug-region" -> {"name": "Blackrock", "region": "eu", "slug": "blackrock"}
         self._realm_cache: dict[str, dict] = {}
@@ -132,7 +134,11 @@ class WowCharactersMixin:
         if region not in self.regions:
             raise ValueError(f"Invalid region: {region}. Valid regions are: {', '.join(self.regions)}")
 
-        if language == "de":
+        if region == "kr":
+            api_language = WowApiLanguage.KO.value
+        elif region == "tw":
+            api_language = WowApiLanguage.ZH_TW.value
+        elif language == "de":
             api_language = WowApiLanguage.DE.value
         elif region == "eu":
             api_language = WowApiLanguage.EN_GB.value

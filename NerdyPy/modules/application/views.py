@@ -26,6 +26,7 @@ from models.application import (
     SubmissionStatus,
     VoteType,
 )
+from utils.helpers import bot_get_or_fetch_channel, send_hidden_message
 from utils.strings import get_string
 
 # Discord enforces a hard 25-field limit per embed.  Two fields are fixed (applicant +
@@ -287,9 +288,9 @@ async def update_review_embed(
         message = interaction.message
         msg_id = message.id
     elif review_channel_id is not None and review_message_id is not None:
-        channel = bot.get_channel(review_channel_id)
+        channel = await bot_get_or_fetch_channel(bot, review_channel_id)
         if channel is None:
-            channel = await bot.fetch_channel(review_channel_id)
+            return
         message = await channel.fetch_message(review_message_id)
         msg_id = review_message_id
     else:
@@ -522,7 +523,18 @@ async def _validate_review_interaction(bot, interaction, session):
 # ---------------------------------------------------------------------------
 
 
-class DenyVoteModal(discord.ui.Modal):
+class _ApplicationModal(discord.ui.Modal):
+    """Base class for application modals providing shared on_error handling."""
+
+    bot: object
+    lang: str
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
+        self.bot.log.error("Error in %s: %s", self.__class__.__name__, error, exc_info=error)
+        await send_hidden_message(interaction, get_string(self.lang, "application.error_generic"))
+
+
+class DenyVoteModal(_ApplicationModal):
     """Modal that collects a required message when denying an application."""
 
     def __init__(
@@ -580,15 +592,8 @@ class DenyVoteModal(discord.ui.Modal):
         except discord.HTTPException:
             self.bot.log.error("application: failed to update review embed after deny vote", exc_info=True)
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        self.bot.log.error("Error in DenyVoteModal: %s", error, exc_info=error)
-        if not interaction.response.is_done():
-            await interaction.response.send_message(get_string(self.lang, "application.error_generic"), ephemeral=True)
-        else:
-            await interaction.followup.send(get_string(self.lang, "application.error_generic"), ephemeral=True)
 
-
-class ApproveVoteModal(discord.ui.Modal):
+class ApproveVoteModal(_ApplicationModal):
     """Modal that collects a required message when approving an application."""
 
     def __init__(
@@ -646,15 +651,8 @@ class ApproveVoteModal(discord.ui.Modal):
         except discord.HTTPException:
             self.bot.log.error("application: failed to update review embed after approve vote", exc_info=True)
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        self.bot.log.error("Error in ApproveVoteModal: %s", error, exc_info=error)
-        if not interaction.response.is_done():
-            await interaction.response.send_message(get_string(self.lang, "application.error_generic"), ephemeral=True)
-        else:
-            await interaction.followup.send(get_string(self.lang, "application.error_generic"), ephemeral=True)
 
-
-class MessageModal(discord.ui.Modal):
+class MessageModal(_ApplicationModal):
     """Modal that sends a free-form message to the applicant."""
 
     def __init__(
@@ -723,13 +721,6 @@ class MessageModal(discord.ui.Modal):
                     self.bot.log.error(
                         "application: failed to update review embed after messaging applicant", exc_info=True
                     )
-
-    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        self.bot.log.error("Error in MessageModal: %s", error, exc_info=error)
-        if not interaction.response.is_done():
-            await interaction.response.send_message(get_string(self.lang, "application.error_generic"), ephemeral=True)
-        else:
-            await interaction.followup.send(get_string(self.lang, "application.error_generic"), ephemeral=True)
 
 
 # ---------------------------------------------------------------------------
@@ -870,7 +861,7 @@ class EditVoteSelectView(discord.ui.View):
         await interaction.response.send_modal(modal)
 
 
-class EditApproveModal(discord.ui.Modal):
+class EditApproveModal(_ApplicationModal):
     """Modal for changing an existing vote to Approve."""
 
     def __init__(
@@ -917,15 +908,8 @@ class EditApproveModal(discord.ui.Modal):
             message_text,
         )
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        self.bot.log.error("Error in EditApproveModal: %s", error, exc_info=error)
-        if not interaction.response.is_done():
-            await interaction.response.send_message(get_string(self.lang, "application.error_generic"), ephemeral=True)
-        else:
-            await interaction.followup.send(get_string(self.lang, "application.error_generic"), ephemeral=True)
 
-
-class EditDenyModal(discord.ui.Modal):
+class EditDenyModal(_ApplicationModal):
     """Modal for changing an existing vote to Deny."""
 
     def __init__(
@@ -970,15 +954,8 @@ class EditDenyModal(discord.ui.Modal):
             message_text,
         )
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        self.bot.log.error("Error in EditDenyModal: %s", error, exc_info=error)
-        if not interaction.response.is_done():
-            await interaction.response.send_message(get_string(self.lang, "application.error_generic"), ephemeral=True)
-        else:
-            await interaction.followup.send(get_string(self.lang, "application.error_generic"), ephemeral=True)
 
-
-class OverrideModal(discord.ui.Modal):
+class OverrideModal(_ApplicationModal):
     """Admin/manager modal to flip a decided application APPROVED↔DENIED."""
 
     def __init__(
@@ -1041,13 +1018,6 @@ class OverrideModal(discord.ui.Modal):
         except discord.HTTPException:
             self.bot.log.error("application: failed to update review embed after override", exc_info=True)
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        self.bot.log.error("Error in OverrideModal: %s", error, exc_info=error)
-        if not interaction.response.is_done():
-            await interaction.response.send_message(get_string(self.lang, "application.error_generic"), ephemeral=True)
-        else:
-            await interaction.followup.send(get_string(self.lang, "application.error_generic"), ephemeral=True)
-
 
 # ---------------------------------------------------------------------------
 # Persistent review view
@@ -1085,11 +1055,7 @@ class ApplicationReviewView(discord.ui.View):
             lang = self.bot.get_guild_language(interaction.guild_id)
         else:
             lang = "en"
-        msg = get_string(lang, "application.error_generic")
-        if not interaction.response.is_done():
-            await interaction.response.send_message(msg, ephemeral=True)
-        else:
-            await interaction.followup.send(msg, ephemeral=True)
+        await send_hidden_message(interaction, get_string(lang, "application.error_generic"))
 
     # -- Vote --------------------------------------------------------------
 
@@ -1292,9 +1258,7 @@ def build_apply_embed(form_name: str, description: str | None, lang: str = "en")
 async def delete_apply_message(bot, channel_id: int, message_id: int) -> None:
     """Best-effort delete a single apply button message."""
     try:
-        channel = bot.get_channel(channel_id)
-        if channel is None:
-            channel = await bot.fetch_channel(channel_id)
+        channel = await bot_get_or_fetch_channel(bot, channel_id)
         msg = await channel.fetch_message(message_id)
         await msg.delete()
     except discord.HTTPException:
@@ -1324,13 +1288,10 @@ async def post_apply_button_message(bot, form_id: int) -> None:
         await delete_apply_message(bot, channel_id, old_message_id)
 
     # Post new message
-    channel = bot.get_channel(channel_id)
+    channel = await bot_get_or_fetch_channel(bot, channel_id)
     if channel is None:
-        try:
-            channel = await bot.fetch_channel(channel_id)
-        except discord.HTTPException:
-            bot.log.warning("application: could not fetch apply channel %d for form %d", channel_id, form_id)
-            return
+        bot.log.warning("application: could not fetch apply channel %d for form %d", channel_id, form_id)
+        return
 
     embed = build_apply_embed(form_name, description, lang)
     view = ApplicationApplyView(bot=bot)
@@ -1370,9 +1331,7 @@ async def edit_apply_button_message(
             lang = bot.get_guild_language(form.GuildId)
 
     try:
-        channel = bot.get_channel(channel_id)
-        if channel is None:
-            channel = await bot.fetch_channel(channel_id)
+        channel = await bot_get_or_fetch_channel(bot, channel_id)
         msg = await channel.fetch_message(message_id)
         embed = build_apply_embed(form_name, description, lang)
         view = ApplicationApplyView(bot=bot)
@@ -1405,11 +1364,7 @@ class ApplicationApplyView(discord.ui.View):
             lang = self.bot.get_guild_language(interaction.guild_id)
         else:
             lang = "en"
-        msg = get_string(lang, "application.error_generic")
-        if not interaction.response.is_done():
-            await interaction.response.send_message(msg, ephemeral=True)
-        else:
-            await interaction.followup.send(msg, ephemeral=True)
+        await send_hidden_message(interaction, get_string(lang, "application.error_generic"))
 
     @discord.ui.button(label="Apply", style=discord.ButtonStyle.green, custom_id=_BTN_APPLY)
     async def apply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -1445,15 +1400,10 @@ class ApplicationApplyView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
 
         # 5. Verify review channel accessible
-        channel = self.bot.get_channel(review_channel_id)
+        channel = await bot_get_or_fetch_channel(self.bot, review_channel_id)
         if channel is None:
-            try:
-                await self.bot.fetch_channel(review_channel_id)
-            except (discord.NotFound, discord.Forbidden):
-                await interaction.followup.send(
-                    get_string(lang, "application.apply.review_unavailable"), ephemeral=True
-                )
-                return
+            await interaction.followup.send(get_string(lang, "application.apply.review_unavailable"), ephemeral=True)
+            return
 
         # 6. Start ApplicationSubmitConversation
         from modules.application.conversations import ApplicationSubmitConversation

@@ -6,6 +6,7 @@ from datetime import UTC, datetime, time, timedelta
 import discord
 from discord import Color, Embed, HTTPException, Interaction, Member, TextChannel, app_commands
 from discord.app_commands import checks
+from sqlalchemy.exc import SQLAlchemyError
 from discord.ext import tasks
 from discord.ext.commands import GroupCog
 from humanize import naturaldate, naturaldelta
@@ -20,6 +21,7 @@ from utils.errors import NerpyValidationError
 from utils.helpers import (
     DISCORD_MESSAGE_LIMIT,
     fetch_message_content,
+    get_or_fetch_channel,
     notify_error,
     register_before_loop,
     send_hidden_message,
@@ -120,8 +122,11 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                                 self.bot.log.warning(
                                     f"[{guild.name} ({guild.id})]: failed to DM {member} ({member.id}): {ex}"
                                 )
-        except Exception as ex:
+        except (SQLAlchemyError, discord.HTTPException) as ex:
             self.bot.log.error(f"Autokicker: {ex}")
+            await notify_error(self.bot, "Autokicker background loop", ex)
+        except Exception as ex:
+            self.bot.log.error("Autokicker: unexpected error: %s", ex, exc_info=True)
             await notify_error(self.bot, "Autokicker background loop", ex)
         self.bot.log.debug("Finish Autokicker Loop!")
 
@@ -144,7 +149,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 guild = self.bot.get_guild(configuration.GuildId)
                 if guild is None:
                     continue
-                channel = guild.get_channel(configuration.ChannelId)
+                channel = await get_or_fetch_channel(guild, configuration.ChannelId)
                 if channel is None:
                     continue
                 try:
@@ -156,10 +161,15 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                         )
                         break
                     self.bot.log.error(f"Autodeleter: Discord error on #{channel.name}: {ex}")
-                except Exception as ex:
+                except SQLAlchemyError as ex:
                     self.bot.log.error(f"Autodeleter: error cleaning #{channel.name}: {ex}")
-        except Exception as ex:
+                except Exception:
+                    self.bot.log.error(f"Autodeleter: unexpected error cleaning #{channel.name}", exc_info=True)
+        except (SQLAlchemyError, discord.HTTPException) as ex:
             self.bot.log.error(f"Autodeleter: {ex}")
+            await notify_error(self.bot, "Autodeleter background loop", ex)
+        except Exception as ex:
+            self.bot.log.error("Autodeleter: unexpected error", exc_info=True)
             await notify_error(self.bot, "Autodeleter background loop", ex)
         self.bot.log.debug("Finish Autodeleter Loop!")
 
@@ -651,12 +661,7 @@ class Moderation(NerpyBotCog, GroupCog, group_name="moderation"):
                 return
 
             channel_id, message_text = leave_config
-            channel = member.guild.get_channel(channel_id)
-            if channel is None:
-                try:
-                    channel = await member.guild.fetch_channel(channel_id)
-                except (discord.NotFound, discord.Forbidden):
-                    channel = None
+            channel = await get_or_fetch_channel(member.guild, channel_id)
             if channel is None or not isinstance(channel, TextChannel):
                 self.bot.log.warning(
                     f"[{member.guild.name} ({member.guild.id})]: leave channel {channel_id} not found or not a text channel"

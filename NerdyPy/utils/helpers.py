@@ -76,12 +76,9 @@ async def fetch_message_content(
             return None, get_string(lang, f"{key_prefix}.invalid_ref")
         channel_id = channel_hint.id if channel_hint else interaction.channel_id
 
-    channel = bot.get_channel(channel_id)
+    channel = await bot_get_or_fetch_channel(bot, channel_id)
     if channel is None:
-        try:
-            channel = await bot.fetch_channel(channel_id)
-        except (discord.NotFound, discord.Forbidden):
-            return None, get_string(lang, f"{key_prefix}.channel_inaccessible")
+        return None, get_string(lang, f"{key_prefix}.channel_inaccessible")
 
     try:
         msg = await channel.fetch_message(message_id)
@@ -204,3 +201,25 @@ def register_before_loop(bot, loop, label: str):
     async def _before(*_args):
         bot.log.info(f"{label}: Waiting for Bot to be ready...")
         await bot.wait_until_ready()
+
+
+async def get_or_fetch_channel(guild: discord.Guild, channel_id: int) -> discord.abc.GuildChannel | None:
+    """Cache-first channel lookup with API fallback. Returns None on NotFound/Forbidden."""
+    channel = guild.get_channel(channel_id)
+    if channel is None:
+        try:
+            channel = await guild.fetch_channel(channel_id)
+        except (discord.NotFound, discord.Forbidden):
+            return None
+    return channel
+
+
+async def bot_get_or_fetch_channel(bot, channel_id: int) -> discord.abc.GuildChannel | None:
+    """Bot-scoped cache-first channel lookup with API fallback. Returns None on NotFound/Forbidden."""
+    channel = bot.get_channel(channel_id)
+    if channel is None:
+        try:
+            channel = await bot.fetch_channel(channel_id)
+        except (discord.NotFound, discord.Forbidden):
+            return None
+    return channel
