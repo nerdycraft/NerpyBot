@@ -1,10 +1,12 @@
 [config]
-model = "anthropic/claude-haiku-4-5-20251001"
+model = "anthropic/claude-sonnet-4-6"
 ai_provider = "anthropic"
-fallback_models = ["anthropic/claude-3-5-haiku-20241022", "anthropic/claude-3-5-sonnet-20241022"]
+fallback_models = ["anthropic/claude-haiku-4-5-20251001", "anthropic/claude-3-5-sonnet-20241022"]
 log_level = "INFO"
 
 [pr_reviewer]
+inline_code_comments = true
+focus_only_on_problems = true
 extra_instructions = """
 You are reviewing a Discord bot (discord.py, Python 3.13) with a FastAPI web component and SQLAlchemy ORM.
 Be direct and concise. Focus on bugs, correctness, and architectural issues.
@@ -25,8 +27,15 @@ Rules for NerdyPy/modules/**/*.py:
 - Persistent views/buttons must use discord.ui.View(timeout=None). Default ~3 min timeout silently breaks buttons.
 - User-facing errors: raise NerpyUserException (NerpyNotFoundError, NerpyValidationError, NerpyPermissionError).
   Infrastructure failures: raise NerpyInfraException (triggers operator DM).
-- Guild.get_channel() is cache-only; returns None on reconnect. Fall back to await guild.fetch_channel(id)
-  and catch (discord.NotFound, discord.Forbidden).
+- Guild.get_channel() is cache-only; returns None on reconnect. The inline shorthand
+  `guild.get_channel(id) or await guild.fetch_channel(id)` is correct — the `or` IS the null-guard.
+  Do not flag this as a missing null check.
+- When fetch_channel / fetch_message raises (discord.NotFound, discord.Forbidden) and the except block
+  logs the exception then calls a notify helper and returns, that IS complete error handling.
+  Do not flag it as incomplete just because there is no re-raise.
+- Helper functions that catch (discord.NotFound, discord.Forbidden) internally and return None (e.g. in
+  utils/helpers.py) leave no exception object at the call site. Callers checking `if result is None:`
+  are correct — do not flag as "missing error logging" or "incomplete error handling".
 - Cannot call send_modal() after interaction.response.defer().
 - cog_load runs before create_all(). If a cog accesses new tables in cog_load, call self.bot.create_all() first.
 
