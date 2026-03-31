@@ -366,7 +366,9 @@ async def _get_or_create_review_thread(bot, review_channel_id: int, review_messa
 
     Raises discord.HTTPException on failure — callers must catch.
     """
-    channel = await bot_get_or_fetch_channel(bot, review_channel_id)
+    channel = bot.get_channel(review_channel_id)
+    if channel is None:
+        channel = await bot.fetch_channel(review_channel_id)
     message = await channel.fetch_message(review_message_id)
     if message.thread is not None:
         return message.thread
