@@ -1,3 +1,6 @@
+> **Note:** This project has moved to [Codeberg](https://codeberg.org/nerdycraft/NerpyBot).
+> This GitHub repository is no longer actively maintained.
+
 # NerpyBot
 
 [![Release](https://img.shields.io/badge/Version-0.7.0-green?style=for-the-badge)](https://github.com/nerdycraft/NerpyBot/releases)
