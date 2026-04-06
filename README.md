@@ -1,5 +1,5 @@
-> **Note:** This project has moved to [Codeberg](https://codeberg.org/nerdycraft/NerpyBot).
-> This GitHub repository is no longer actively maintained.
+> **Note:** This project has moved to [GitLab](https://gitlab.com/nerdycraft/NerpyBot).
+> This GitHub repository is archived. Development continues on GitLab.
 
 # NerpyBot
 
